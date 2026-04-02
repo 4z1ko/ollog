@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 1 of 5 (Foundation)
-Plan: 1 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-04-03 — Completed 01-01 (Project Skeleton)
+Last activity: 2026-04-03 — Completed 01-03 (QSO MongoDB Schema)
 
-Progress: [##░░░░░░░░] 5%
+Progress: [####░░░░░░] 15%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 4 min
-- Total execution time: 0.1 hours
+- Total plans completed: 2 (01-01, 01-03)
+- Average duration: ~7 min
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 1/4 | 4 min | 4 min |
+| 01-foundation | 2/4 | ~14 min | ~7 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (4min)
+- Last 5 plans: 01-01 (4min), 01-03 (~10min)
 - Trend: —
 
 *Updated after each plan completion*
@@ -47,9 +47,12 @@ Recent decisions affecting current work:
 - Foundation: All datetimes UTC-aware codebase-wide; re-attach UTC tzinfo after every MongoDB read via utility function
 - Foundation: Compound unique index on {_operator, CALL, qso_date_utc, BAND, MODE} + upsert=True for concurrent duplicate safety
 - 01-01: pymongo AsyncMongoClient used instead of motor — pymongo 4.9+ has native async support, motor is a redundant wrapper
-- 01-01: init_beanie called with empty document_models=[] — 01-03 and 01-04 will register QSO and User models
 - 01-01: SECRET_KEY has no default in Settings class — forces explicit env var, prevents silent insecure defaults
 - 01-01: Dev SECRET_KEY set in docker-compose.yml environment block so local dev works without copying .env
+- 01-03: _operator MongoDB field via Field(serialization_alias="_operator") + populate_by_name=True — no fallback to "operator" (locked)
+- 01-03: _deleted MongoDB field via Field(serialization_alias="_deleted") on is_deleted Python attribute
+- 01-03: find_active() queries raw MongoDB field names {"_operator": operator, "_deleted": False} to hit indexes correctly
+- 01-03: from_mongo_dt() re-attaches UTC tzinfo only to naive datetimes; aware datetimes returned unchanged
 
 ### Pending Todos
 
@@ -65,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 01-01 — FastAPI skeleton with pymongo, pydantic-settings config, Docker Compose with MongoDB healthcheck
+Stopped at: Completed 01-03 — QSO Beanie Document model with compound unique index, _operator/_deleted aliases, find_active(), from_mongo_dt()
 Resume file: None
