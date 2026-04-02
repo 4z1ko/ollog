@@ -2,6 +2,7 @@ from pymongo import AsyncMongoClient
 from beanie import init_beanie
 
 from app.config import settings
+from app.qso.models import QSO
 
 _client: AsyncMongoClient | None = None
 
@@ -11,7 +12,10 @@ async def init_db() -> None:
     _client = AsyncMongoClient(settings.mongodb_uri)
     await init_beanie(
         database=_client[settings.mongodb_db],
-        document_models=[],
+        document_models=[
+            QSO,
+            # 01-04 will add User here
+        ],
     )
 
 
