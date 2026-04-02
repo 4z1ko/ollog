@@ -1,0 +1,29 @@
+services:
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - SECRET_KEY=dev-secret-change-in-production
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB=ollog
+
+volumes:
+  mongo-data:
