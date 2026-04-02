@@ -6,7 +6,7 @@ ollog is built in five phases that follow a strict dependency order: the ADIF pa
 
 ## Phases
 
-- [ ] **Phase 1: Foundation** - ADIF parser, MongoDB schema, auth service, and project scaffolding
+- [x] **Phase 1: Foundation** - ADIF parser, MongoDB schema, auth service, and project scaffolding *(completed 2026-04-03)*
 - [ ] **Phase 2: Admin & Accounts** - Admin UI for operator account creation, enable/disable, and password reset
 - [ ] **Phase 3: QSO Entry & Log View** - QSO logging via web form and REST API, editing, soft-delete, duplicate detection, and paginated log view
 - [ ] **Phase 4: ADIF Import & Export** - File upload import with duplicate report, lossless N+1 field passthrough, and streaming ADIF export
@@ -108,7 +108,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/4 | Not started | - |
+| 1. Foundation | 4/4 | ✓ Complete | 2026-04-03 |
 | 2. Admin & Accounts | 0/2 | Not started | - |
 | 3. QSO Entry & Log View | 0/4 | Not started | - |
 | 4. ADIF Import & Export | 0/4 | Not started | - |
