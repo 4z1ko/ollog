@@ -79,40 +79,38 @@
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| AUTH-06 | — | Pending |
-| QSO-01 | — | Pending |
-| QSO-02 | — | Pending |
-| QSO-03 | — | Pending |
-| QSO-04 | — | Pending |
-| QSO-05 | — | Pending |
-| QSO-06 | — | Pending |
-| LOG-01 | — | Pending |
-| LOG-02 | — | Pending |
-| LOG-03 | — | Pending |
-| ADIF-01 | — | Pending |
-| ADIF-02 | — | Pending |
-| ADIF-03 | — | Pending |
-| ADIF-04 | — | Pending |
-| ADIF-05 | — | Pending |
-| ADIF-06 | — | Pending |
-| MULTI-01 | — | Pending |
-| MULTI-02 | — | Pending |
-| MULTI-03 | — | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Pending |
+| AUTH-06 | Phase 1 | Pending |
+| QSO-01 | Phase 3 | Pending |
+| QSO-02 | Phase 3 | Pending |
+| QSO-03 | Phase 3 | Pending |
+| QSO-04 | Phase 3 | Pending |
+| QSO-05 | Phase 3 | Pending |
+| QSO-06 | Phase 3 | Pending |
+| LOG-01 | Phase 3 | Pending |
+| LOG-02 | Phase 3 | Pending |
+| LOG-03 | Phase 3 | Pending |
+| ADIF-01 | Phase 4 | Pending |
+| ADIF-02 | Phase 4 | Pending |
+| ADIF-03 | Phase 4 | Pending |
+| ADIF-04 | Phase 4 | Pending |
+| ADIF-05 | Phase 4 | Pending |
+| ADIF-06 | Phase 4 | Pending |
+| MULTI-01 | Phase 5 | Pending |
+| MULTI-02 | Phase 5 | Pending |
+| MULTI-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 24 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 24 ⚠️
+- Mapped to phases: 24
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-03*
-*Last updated: 2026-04-03 after initial definition*
+*Last updated: 2026-04-03 after roadmap creation*
