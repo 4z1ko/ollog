@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 1 of 5 (Foundation)
-Plan: 3 of 4 in current phase
-Status: In progress
-Last activity: 2026-04-03 — Completed 01-03 (QSO MongoDB Schema)
+Plan: 4 of 4 in current phase — PHASE COMPLETE
+Status: Phase 01-foundation complete
+Last activity: 2026-04-03 — Completed 01-04 (JWT Auth Service)
 
-Progress: [####░░░░░░] 15%
+Progress: [████████░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (01-01, 01-03)
-- Average duration: ~7 min
-- Total execution time: 0.25 hours
+- Total plans completed: 4 (01-01, 01-02, 01-03, 01-04)
+- Average duration: ~10 min
+- Total execution time: ~0.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 2/4 | ~14 min | ~7 min |
+| 01-foundation | 4/4 | ~40 min | ~10 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (4min), 01-03 (~10min)
-- Trend: —
+- Last 5 plans: 01-01 (4min), 01-02 (~10min), 01-03 (~10min), 01-04 (~15min)
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -53,6 +53,10 @@ Recent decisions affecting current work:
 - 01-03: _deleted MongoDB field via Field(serialization_alias="_deleted") on is_deleted Python attribute
 - 01-03: find_active() queries raw MongoDB field names {"_operator": operator, "_deleted": False} to hit indexes correctly
 - 01-03: from_mongo_dt() re-attaches UTC tzinfo only to naive datetimes; aware datetimes returned unchanged
+- 01-04: PyJWT (import jwt) used — python-jose explicitly excluded; pwdlib Argon2 used — passlib explicitly excluded
+- 01-04: JWT carries sub (username), callsign, role, exp — all four claims required
+- 01-04: get_current_operator_callsign is the single callsign injection point for all QSO operations
+- 01-04: Admin bootstrap runs in lifespan from ADMIN_USERNAME/PASSWORD/CALLSIGN env vars — no web endpoint
 
 ### Pending Todos
 
@@ -68,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 01-03 — QSO Beanie Document model with compound unique index, _operator/_deleted aliases, find_active(), from_mongo_dt()
+Stopped at: Completed 01-04 — JWT auth service complete; Phase 01-foundation all 4 plans done
 Resume file: None
