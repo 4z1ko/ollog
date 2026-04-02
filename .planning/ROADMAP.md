@@ -24,7 +24,7 @@ ollog is built in five phases that follow a strict dependency order: the ADIF pa
   3. Any API endpoint called without a valid JWT returns 401 — no unauthenticated data access is possible
   4. ADIF round-trip test passes: a known .adi file parses to Python dicts and serializes back to byte-identical ADIF output (including non-ASCII characters and APP_ fields)
   5. The application starts via Docker Compose with a single command and connects to MongoDB successfully
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
 - [ ] 01-01: Project scaffolding — FastAPI app, Docker Compose, config from environment, health endpoint
@@ -41,7 +41,7 @@ Plans:
   2. Admin can disable an operator account — the disabled operator cannot log in and receives a clear error
   3. Admin can reset an operator's password — the operator can immediately log in with the new password
   4. All admin account management actions require admin-role JWT — no operator-level account can invoke them
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
 - [ ] 02-01: Admin API endpoints — create, enable/disable, reset password with admin role enforcement
@@ -59,7 +59,7 @@ Plans:
   5. When logging a QSO that matches the same CALL, BAND, and MODE within a ±2 minute window, the system displays a duplicate warning before saving
   6. All QSO timestamps are stored and displayed in UTC — no local-time drift is visible in the UI
   7. Operator can page through their QSO log and filter by callsign, date range, band, and mode
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
 - [ ] 03-01: QSO API — POST, GET, PATCH, soft-DELETE with operator isolation from JWT callsign
@@ -78,7 +78,7 @@ Plans:
   4. Operator can download their entire logbook as a valid .adi file that opens correctly in external logging software
   5. An ADIF file exported from ollog and re-imported produces zero data changes — field names, values, and custom fields are identical
   6. The ADIF parser correctly handles files with missing EOH, case-insensitive field names, and varying whitespace around EOR tags
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
 - [ ] 04-01: ADIF import endpoint — multipart upload, batch insert with ordered=False, import report response
@@ -94,7 +94,7 @@ Plans:
   1. Two operators logging QSOs simultaneously produce no data conflicts, no lost writes, and no duplicate insertions — all QSOs from both operators are present and correctly attributed after concurrent load
   2. An operator querying their own log never sees QSOs belonging to another operator — cross-operator data leakage is not possible through any API endpoint
   3. When one operator logs a QSO, other logged-in operators see it appear in the shared station feed within a few seconds without refreshing the page
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
 - [ ] 05-01: Concurrent write safety — verify compound unique index behavior under concurrent inserts; upsert strategy
