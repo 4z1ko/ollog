@@ -1,0 +1,45 @@
+{% if error %}
+<tr>
+  <td colspan="5">
+    <div class="error-msg">{{ error }}</div>
+  </td>
+</tr>
+{% endif %}
+{% if success %}
+<tr>
+  <td colspan="5">
+    <div class="success-msg">{{ success }}</div>
+  </td>
+</tr>
+{% endif %}
+{% for user in users %}
+<tr>
+  <td>{{ user.username }}</td>
+  <td>{{ user.callsign }}</td>
+  <td>{{ user.role }}</td>
+  <td>
+    {% if user.enabled %}
+    <span class="status-enabled">Enabled</span>
+    {% else %}
+    <span class="status-disabled">Disabled</span>
+    {% endif %}
+  </td>
+  <td class="actions">
+    <button
+      hx-post="/admin/ui/users/{{ user.username }}/toggle"
+      hx-target="#users-table-body"
+      hx-swap="innerHTML"
+      class="{% if user.enabled %}danger{% else %}safe{% endif %}"
+    >{{ "Disable" if user.enabled else "Enable" }}</button>
+
+    <form
+      hx-post="/admin/ui/users/{{ user.username }}/reset-password"
+      hx-target="#users-table-body"
+      hx-swap="innerHTML"
+    >
+      <input type="password" name="password" placeholder="New password" required>
+      <button type="submit">Reset</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}

@@ -1,8 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db, close_db, get_client
@@ -60,6 +61,28 @@ app.include_router(auth_router)
 from app.admin.router import router as admin_router  # noqa: E402
 
 app.include_router(admin_router)
+
+# Admin UI router (browser-based, cookie auth, Jinja2 templates)
+from app.admin.ui_router import ui_router  # noqa: E402
+
+app.include_router(ui_router)
+
+# Static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.exception_handler(HTTPException)
+async def ui_auth_redirect(request: Request, exc: HTTPException):
+    """Redirect 401/403 errors from /admin/ui/* to the login page.
+
+    All other HTTP exceptions return JSON as normal.
+    """
+    if request.url.path.startswith("/admin/ui/") and exc.status_code in (401, 403):
+        return RedirectResponse(url="/admin/ui/login", status_code=302)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 
 @app.get("/health")

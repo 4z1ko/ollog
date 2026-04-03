@@ -7,6 +7,8 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
 COPY app/ app/
+COPY templates/ templates/
+COPY static/ static/
 
 EXPOSE 8000
 

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Users — ollog Admin{% endblock %}
+{% block content %}
+<nav>
+  <h1>Operator Accounts</h1>
+  <a href="/admin/ui/logout">Logout</a>
+</nav>
+
+<div class="card">
+  <h2>Create Operator</h2>
+  <form
+    hx-post="/admin/ui/users/create"
+    hx-target="#users-table-body"
+    hx-swap="innerHTML"
+  >
+    <label>
+      Username
+      <input type="text" name="username" required placeholder="e.g. jsmith">
+    </label>
+    <label>
+      Callsign
+      <input type="text" name="callsign" required placeholder="e.g. W1ABC">
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" required>
+    </label>
+    <button type="submit">Create</button>
+  </form>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Callsign</th>
+      <th>Role</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="users-table-body">
+    {% include "admin/users_table.html" %}
+  </tbody>
+</table>
+{% endblock %}
