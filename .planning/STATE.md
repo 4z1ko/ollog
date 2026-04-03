@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 3 of 5 (QSO CRUD)
-Plan: 1 of ? in current phase
-Status: Ready — Phase 02 complete
-Last activity: 2026-04-03 — Completed 02-02 (Admin Web UI)
+Plan: 2 of ? in current phase
+Status: In progress — 03-01 complete
+Last activity: 2026-04-03 — Completed 03-01 (QSO REST API)
 
-Progress: [█████████░] 26% (6 of ~23 plans)
+Progress: [██████████░] 30% (7 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (01-01, 01-02, 01-03, 01-04, 02-01)
-- Average duration: ~8 min
-- Total execution time: ~0.75 hours
+- Total plans completed: 6 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01)
+- Average duration: ~9 min
+- Total execution time: ~0.87 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [█████████░] 26% (6 of ~23 plans)
 |-------|-------|-------|----------|
 | 01-foundation | 4/4 | ~40 min | ~10 min |
 | 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
+| 03-qso-entry-log-view | 1/? | 12 min | 12 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (4min), 01-02 (~10min), 01-03 (~10min), 01-04 (~15min)
+- Last 5 plans: 01-02 (~10min), 01-03 (~10min), 01-04 (~15min), 02-01 (~9min), 03-01 (12min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -50,8 +51,8 @@ Recent decisions affecting current work:
 - 01-01: pymongo AsyncMongoClient used instead of motor — pymongo 4.9+ has native async support, motor is a redundant wrapper
 - 01-01: SECRET_KEY has no default in Settings class — forces explicit env var, prevents silent insecure defaults
 - 01-01: Dev SECRET_KEY set in docker-compose.yml environment block so local dev works without copying .env
-- 01-03: _operator MongoDB field via Field(serialization_alias="_operator") + populate_by_name=True — no fallback to "operator" (locked)
-- 01-03: _deleted MongoDB field via Field(serialization_alias="_deleted") on is_deleted Python attribute
+- 01-03: _operator MongoDB field via Field(alias="_operator", serialization_alias="_operator") + populate_by_name=True — alias required for Beanie storage (CORRECTED: serialization_alias alone does not set MongoDB field name)
+- 01-03: _deleted MongoDB field via Field(alias="_deleted", serialization_alias="_deleted") on is_deleted Python attribute (CORRECTED in 03-01)
 - 01-03: find_active() queries raw MongoDB field names {"_operator": operator, "_deleted": False} to hit indexes correctly
 - 01-03: from_mongo_dt() re-attaches UTC tzinfo only to naive datetimes; aware datetimes returned unchanged
 - 01-04: PyJWT (import jwt) used — python-jose explicitly excluded; pwdlib Argon2 used — passlib explicitly excluded
@@ -62,6 +63,8 @@ Recent decisions affecting current work:
 - 02-01: aclose() used instead of close() for pymongo AsyncMongoClient in test fixtures — pymongo 4.9+ async client requires awaitable close
 - 02-02: Exception handler on app checks request.url.path.startswith('/admin/ui/') — redirects 401/403 to login page; other routes still return JSON
 - 02-02: HTMX 2.0.4 via CDN, inline CSS only — no npm or build step; suitable for internal admin tool
+- [Phase 03-01]: Beanie requires alias= (not serialization_alias=) for correct MongoDB field name storage — _operator/_deleted use alias in QSO model
+- [Phase 03-01]: QSO response serialization via _qso_to_dict(): strip _id, add string id, isoformat datetimes to avoid FastAPI PydanticSerializationError
 
 ### Pending Todos
 
@@ -77,5 +80,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 02-02 — Admin web UI complete; Phase 02 done. Phase 03 (QSO CRUD) next.
+Stopped at: Completed 03-01 — QSO REST API with 5 endpoints, service layer, 23 tests passing. 03-02 (duplicate detection) next.
 Resume file: None
