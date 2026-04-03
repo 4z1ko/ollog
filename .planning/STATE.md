@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 3 of 5 (QSO CRUD)
-Plan: 3 of ? in current phase
-Status: In progress — 03-02 complete
-Last activity: 2026-04-03 — Completed 03-02 (Duplicate Detection)
+Plan: 4 of ? in current phase
+Status: In progress — 03-03 complete
+Last activity: 2026-04-03 — Completed 03-03 (QSO Entry Web Form)
 
-Progress: [███████████░] 35% (8 of ~23 plans)
+Progress: [████████████░] 39% (9 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02)
-- Average duration: ~8 min
-- Total execution time: ~0.94 hours
+- Total plans completed: 8 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03)
+- Average duration: ~7.6 min
+- Total execution time: ~1.0 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [███████████░] 35% (8 of ~23 plans)
 |-------|-------|-------|----------|
 | 01-foundation | 4/4 | ~40 min | ~10 min |
 | 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
-| 03-qso-entry-log-view | 2/? | 16 min | 8 min |
+| 03-qso-entry-log-view | 3/? | 19 min | 6.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-03 (~10min), 01-04 (~15min), 02-01 (~9min), 03-01 (12min), 03-02 (4min)
+- Last 5 plans: 01-04 (~15min), 02-01 (~9min), 03-01 (12min), 03-02 (4min), 03-03 (3min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -67,6 +67,8 @@ Recent decisions affecting current work:
 - [Phase 03-01]: QSO response serialization via _qso_to_dict(): strip _id, add string id, isoformat datetimes to avoid FastAPI PydanticSerializationError
 - [Phase 03-qso-entry-log-view]: 03-02: Compound unique index dropped (unique=True removed) — app-level find_duplicate() is the enforcement mechanism; unique index blocked soft-delete re-insertion and force=true use cases
 - [Phase 03-qso-entry-log-view]: 03-02: 409 detail is a dict not a string — UI can extract existing_id for confirmation dialog without parsing error text
+- [Phase 03-qso-entry-log-view]: 03-03: POST /log/qsos always returns HTTP 200 — HTMX 2.x does not swap on 4xx; template content distinguishes success vs duplicate warning
+- [Phase 03-qso-entry-log-view]: 03-03: Operator login at /log/login has no role restriction — any enabled user (operator or admin) can log in here (contrast with /admin/ui/login which requires role=admin)
 
 ### Pending Todos
 
@@ -82,5 +84,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 03-02 — Duplicate detection with find_duplicate(), 409 POST response, force=true override, 10 tests passing (33 total). 03-03 (web form) next.
+Stopped at: Completed 03-03 — QSO entry web form with HTMX, operator login, duplicate warning UI with Save Anyway button. 03-04 (log view) next.
 Resume file: None
