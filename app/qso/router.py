@@ -35,10 +35,18 @@ class QSOCreateRequest(BaseModel):
 
 
 def _qso_to_dict(qso: QSO) -> dict:
-    """Serialise a QSO document to a response dict with string id."""
+    """Serialise a QSO document to a fully JSON-serialisable response dict.
+
+    model_dump(by_alias=True) may return PydanticObjectId and datetime objects
+    that FastAPI cannot serialise directly. This function converts them to
+    standard Python types (str and ISO string respectively).
+    """
     d = qso.model_dump(by_alias=True)
+    # Convert _id (PydanticObjectId) to string "id" key for API consumers
     d["id"] = str(qso.id)
-    # Ensure qso_date_utc is serialised as ISO string if present
+    # Remove the raw _id key to avoid duplicate / non-serialisable values
+    d.pop("_id", None)
+    # Convert qso_date_utc datetime to ISO string
     if d.get("qso_date_utc") is not None:
         dt = d["qso_date_utc"]
         if hasattr(dt, "isoformat"):

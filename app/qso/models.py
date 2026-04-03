@@ -20,12 +20,14 @@ class QSO(Document):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     # Core declared fields — ADIF verbatim names (uppercase) plus prefixed internal fields
-    operator_callsign: str = Field(serialization_alias="_operator")
+    # alias (not serialization_alias) is required so Beanie stores the MongoDB field name
+    # correctly. populate_by_name=True allows construction using the Python attribute name.
+    operator_callsign: str = Field(alias="_operator", serialization_alias="_operator")
     CALL: str
     BAND: Optional[str] = None
     MODE: Optional[str] = None
     qso_date_utc: Optional[datetime] = None
-    is_deleted: bool = Field(default=False, serialization_alias="_deleted")
+    is_deleted: bool = Field(default=False, alias="_deleted", serialization_alias="_deleted")
 
     @classmethod
     async def find_active(cls, operator: str) -> list["QSO"]:
