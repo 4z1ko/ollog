@@ -1,15 +1,18 @@
 """QSO entry UI router — browser-based QSO logging for operators.
 
-Serves HTML pages and HTMX partial responses for the QSO entry form.
+Serves HTML pages and HTMX partial responses for the QSO entry form and log view.
 All protected routes require cookie-based JWT auth.
 Auth failures (401/403) are caught by the app-level exception handler
 in main.py and redirected to /log/login.
 
 Mounted at /log by app/main.py.
 """
-from typing import Annotated
+import math
+from datetime import datetime, timezone
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Form, Query, Request, Response
+from beanie import PydanticObjectId
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -17,7 +20,7 @@ from app.auth.dependencies import get_current_operator_callsign_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
 from app.qso.models import QSO
-from app.qso.service import build_qso_dict, find_duplicate, parse_adif_datetime
+from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
 
 templates = Jinja2Templates(directory="templates")
 
@@ -193,3 +196,259 @@ async def submit_qso(
             "form": None,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Log view — paginated list with filtering, sorting, inline edit, soft-delete
+# ---------------------------------------------------------------------------
+
+def _qso_to_view_dict(qso: QSO) -> dict:
+    """Convert a QSO Beanie document to a plain dict for Jinja2 templates.
+
+    Extra fields (FREQ, RST_SENT, RST_RCVD, QSO_DATE, TIME_ON) live in
+    model_extra on Beanie documents — extracting them here avoids Jinja2
+    attribute-access issues with Pydantic model_extra.
+    """
+    d: dict = {
+        "id": str(qso.id),
+        "CALL": qso.CALL,
+        "BAND": qso.BAND or "",
+        "MODE": qso.MODE or "",
+        "qso_date_utc": qso.qso_date_utc,
+    }
+    # Pull extra ADIF fields from model_extra (set via extra="allow")
+    extra = qso.model_extra or {}
+    d["FREQ"] = extra.get("FREQ", "")
+    d["RST_SENT"] = extra.get("RST_SENT", "")
+    d["RST_RCVD"] = extra.get("RST_RCVD", "")
+    d["QSO_DATE"] = extra.get("QSO_DATE", "")
+    d["TIME_ON"] = extra.get("TIME_ON", "")
+    return d
+
+
+@ui_router.get("/view", response_class=HTMLResponse)
+async def log_view(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    call: Optional[str] = Query(None),
+    band: Optional[str] = Query(None),
+    mode: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    sort: str = Query("-qso_date_utc"),
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Render the paginated QSO log view.
+
+    Supports filtering by callsign, band, mode, and date range.
+    Supports sorting by qso_date_utc, CALL, or BAND (prefix '-' for descending).
+    HTMX requests (HX-Request header) return only the table partial.
+    Full page requests return the complete log.html page.
+    """
+    # Parse optional date range strings (YYYYMMDD) to UTC-aware datetimes
+    date_from_dt: Optional[datetime] = None
+    date_to_dt: Optional[datetime] = None
+    if date_from:
+        try:
+            date_from_dt = datetime.strptime(date_from, "%Y%m%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            date_from_dt = None
+    if date_to:
+        try:
+            # End of day: use start of next day minus 1 second, or just midnight
+            date_to_dt = datetime.strptime(date_to, "%Y%m%d").replace(
+                hour=23, minute=59, second=59, tzinfo=timezone.utc
+            )
+        except ValueError:
+            date_to_dt = None
+
+    qsos_raw, total = await get_qso_page(
+        operator=callsign,
+        page=page,
+        page_size=page_size,
+        callsign_filter=call or None,
+        band_filter=band or None,
+        mode_filter=mode or None,
+        date_from=date_from_dt,
+        date_to=date_to_dt,
+        sort_by=sort,
+    )
+
+    qsos = [_qso_to_view_dict(q) for q in qsos_raw]
+    total_pages = max(1, math.ceil(total / page_size))
+
+    ctx = {
+        "qsos": qsos,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "filters": {
+            "call": call or "",
+            "band": band or "",
+            "mode": mode or "",
+            "date_from": date_from or "",
+            "date_to": date_to or "",
+        },
+        "sort": sort,
+        "callsign": callsign,
+    }
+
+    # HTMX partial swap: return only the table, not the full page
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(request, "log/log_table.html", ctx)
+
+    return templates.TemplateResponse(request, "log/log.html", ctx)
+
+
+@ui_router.get("/qsos/{qso_id}/edit", response_class=HTMLResponse)
+async def qso_edit_row(
+    request: Request,
+    qso_id: str,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Return the editable row partial for a QSO (HTMX outerHTML swap)."""
+    try:
+        oid = PydanticObjectId(qso_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    qso = await QSO.get(oid)
+    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    return templates.TemplateResponse(
+        request,
+        "log/qso_row_edit.html",
+        {"qso": _qso_to_view_dict(qso)},
+    )
+
+
+@ui_router.get("/qsos/{qso_id}", response_class=HTMLResponse)
+async def qso_view_row(
+    request: Request,
+    qso_id: str,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Return the view-mode row partial for a QSO (used by Cancel button)."""
+    try:
+        oid = PydanticObjectId(qso_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    qso = await QSO.get(oid)
+    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    return templates.TemplateResponse(
+        request,
+        "log/qso_row.html",
+        {"qso": _qso_to_view_dict(qso)},
+    )
+
+
+@ui_router.patch("/qsos/{qso_id}", response_class=HTMLResponse)
+async def qso_update(
+    request: Request,
+    qso_id: str,
+    CALL: Annotated[Optional[str], Form()] = None,
+    QSO_DATE: Annotated[Optional[str], Form()] = None,
+    TIME_ON: Annotated[Optional[str], Form()] = None,
+    BAND: Annotated[Optional[str], Form()] = None,
+    FREQ: Annotated[Optional[str], Form()] = None,
+    MODE: Annotated[Optional[str], Form()] = None,
+    RST_SENT: Annotated[Optional[str], Form()] = None,
+    RST_RCVD: Annotated[Optional[str], Form()] = None,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """PATCH a QSO with form-encoded data from the inline edit row.
+
+    Accepts all ADIF fields as optional form inputs (hx-include="closest tr" sends all).
+    Recalculates qso_date_utc if QSO_DATE or TIME_ON changed.
+    Returns the updated view-mode row partial.
+    """
+    try:
+        oid = PydanticObjectId(qso_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    qso = await QSO.get(oid)
+    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    update_dict: dict = {}
+
+    if CALL and CALL.strip():
+        update_dict["CALL"] = CALL.strip().upper()
+    if BAND and BAND.strip():
+        update_dict["BAND"] = BAND.strip().upper()
+    if MODE and MODE.strip():
+        update_dict["MODE"] = MODE.strip().upper()
+    if FREQ is not None and FREQ.strip():
+        update_dict["FREQ"] = FREQ.strip()
+    if RST_SENT is not None and RST_SENT.strip():
+        update_dict["RST_SENT"] = RST_SENT.strip()
+    if RST_RCVD is not None and RST_RCVD.strip():
+        update_dict["RST_RCVD"] = RST_RCVD.strip()
+
+    # Recalculate qso_date_utc if date or time changed
+    date_changed = QSO_DATE and QSO_DATE.strip()
+    time_changed = TIME_ON and TIME_ON.strip()
+    if date_changed or time_changed:
+        extra = qso.model_extra or {}
+        existing_date = extra.get("QSO_DATE", "")
+        existing_time = extra.get("TIME_ON", "")
+
+        new_date = QSO_DATE.strip() if date_changed else existing_date
+        new_time = TIME_ON.strip() if time_changed else existing_time
+
+        if new_date and new_time:
+            try:
+                new_dt = parse_adif_datetime(new_date, new_time)
+                update_dict["qso_date_utc"] = new_dt
+            except ValueError:
+                pass  # Keep existing datetime if parse fails
+
+        if date_changed and new_date:
+            update_dict["QSO_DATE"] = QSO_DATE.strip()
+        if time_changed and new_time:
+            update_dict["TIME_ON"] = TIME_ON.strip()
+
+    # Strip any protected fields that might have snuck in via hx-include
+    for protected in ("_operator", "_deleted", "operator_callsign", "is_deleted", "_id"):
+        update_dict.pop(protected, None)
+
+    if update_dict:
+        await qso.update({"$set": update_dict})
+
+    # Refetch to get the updated document
+    updated = await QSO.get(oid)
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    return templates.TemplateResponse(
+        request,
+        "log/qso_row.html",
+        {"qso": _qso_to_view_dict(updated)},
+    )
+
+
+@ui_router.delete("/qsos/{qso_id}", response_class=HTMLResponse)
+async def qso_delete(
+    request: Request,
+    qso_id: str,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Soft-delete a QSO. Returns empty 200 — HTMX outerHTML swap removes the row."""
+    try:
+        oid = PydanticObjectId(qso_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    qso = await QSO.get(oid)
+    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
+
+    await qso.update({"$set": {"_deleted": True}})
+    return Response(content="", status_code=200)
