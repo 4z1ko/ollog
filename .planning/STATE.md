@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 4 of 5 (ADIF Import/Export)
-Plan: 1 of 3 in current phase
-Status: In progress — 04-01 done
-Last activity: 2026-04-03 — Completed 04-01 (ADIF Import Endpoint: API + UI)
+Plan: 2 of 3 in current phase
+Status: In progress — 04-02 done
+Last activity: 2026-04-03 — Completed 04-02 (ADIF Import Duplicate Detection)
 
-Progress: [███████████████] 48% (11 of ~23 plans)
+Progress: [████████████████] 52% (12 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01)
+- Total plans completed: 11 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02)
 - Average duration: ~8 min
-- Total execution time: ~1.4 hours
+- Total execution time: ~1.5 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [███████████████] 48% (11 of ~23 plans)
 | 01-foundation | 4/4 | ~40 min | ~10 min |
 | 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
 | 03-qso-entry-log-view | 4/4 | ~27 min | ~6.8 min |
-| 04-adif-import-export | 1/3 | ~16 min | ~16 min |
+| 04-adif-import-export | 2/3 | ~24 min | ~12 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (12min), 03-02 (4min), 03-03 (3min), 03-04 (~8min), 04-01 (16min)
+- Last 5 plans: 03-02 (4min), 03-03 (3min), 03-04 (~8min), 04-01 (16min), 04-02 (~8min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -75,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 04-adif-import-export]: 04-01: process_import() extracted as shared async helper — API endpoint returns dict as JSON; UI endpoint passes dict to Jinja2 template; eliminates logic duplication
 - [Phase 04-adif-import-export]: 04-01: UI POST /log/import always returns HTTP 200 — catches HTTPException from process_import and renders error-msg div so HTMX swaps correctly on size-limit errors
 - [Phase 04-adif-import-export]: 04-01: 10 MB guard in process_import() so both API and UI callers enforce same limit
+- [Phase 04-adif-import-export]: 04-02: find_duplicate() called after build_qso_dict(), before QSO.insert() — duplicate records skip insertion via continue; appear in duplicates list with record_index, call, existing_id
+- [Phase 04-adif-import-export]: 04-02: Re-importing the same ADIF file produces zero accepted and all records as duplicates (idempotency guaranteed by +/-2 min fuzzy window)
 
 ### Pending Todos
 
@@ -90,5 +92,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 04-01 — ADIF import API (POST /api/adif/import) and UI page (GET/POST /log/import) with shared process_import() helper. Phase 4 plan 1 of 3 done.
+Stopped at: Completed 04-02 — find_duplicate() wired into process_import() loop; integration tests in tests/test_adif_import.py. Phase 4 plan 2 of 3 done.
 Resume file: None
