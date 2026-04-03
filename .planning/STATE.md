@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 3 of 5 (QSO CRUD)
-Plan: 2 of ? in current phase
-Status: In progress — 03-01 complete
-Last activity: 2026-04-03 — Completed 03-01 (QSO REST API)
+Plan: 3 of ? in current phase
+Status: In progress — 03-02 complete
+Last activity: 2026-04-03 — Completed 03-02 (Duplicate Detection)
 
-Progress: [██████████░] 30% (7 of ~23 plans)
+Progress: [███████████░] 35% (8 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01)
-- Average duration: ~9 min
-- Total execution time: ~0.87 hours
+- Total plans completed: 7 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02)
+- Average duration: ~8 min
+- Total execution time: ~0.94 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [██████████░] 30% (7 of ~23 plans)
 |-------|-------|-------|----------|
 | 01-foundation | 4/4 | ~40 min | ~10 min |
 | 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
-| 03-qso-entry-log-view | 1/? | 12 min | 12 min |
+| 03-qso-entry-log-view | 2/? | 16 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (~10min), 01-03 (~10min), 01-04 (~15min), 02-01 (~9min), 03-01 (12min)
+- Last 5 plans: 01-03 (~10min), 01-04 (~15min), 02-01 (~9min), 03-01 (12min), 03-02 (4min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -47,7 +47,7 @@ Recent decisions affecting current work:
 - Foundation: ADIF field names stored verbatim as MongoDB document keys — no translation layer, no snake_case mapping
 - Foundation: Shared `qsos` collection with `_operator` as leading field in all compound indexes (not per-operator collections)
 - Foundation: All datetimes UTC-aware codebase-wide; re-attach UTC tzinfo after every MongoDB read via utility function
-- Foundation: Compound unique index on {_operator, CALL, qso_date_utc, BAND, MODE} + upsert=True for concurrent duplicate safety
+- Foundation: Compound index on {_operator, CALL, qso_date_utc, BAND, MODE} — was unique, dropped unique=True in 03-02 (app-level find_duplicate() is now enforcement)
 - 01-01: pymongo AsyncMongoClient used instead of motor — pymongo 4.9+ has native async support, motor is a redundant wrapper
 - 01-01: SECRET_KEY has no default in Settings class — forces explicit env var, prevents silent insecure defaults
 - 01-01: Dev SECRET_KEY set in docker-compose.yml environment block so local dev works without copying .env
@@ -65,6 +65,8 @@ Recent decisions affecting current work:
 - 02-02: HTMX 2.0.4 via CDN, inline CSS only — no npm or build step; suitable for internal admin tool
 - [Phase 03-01]: Beanie requires alias= (not serialization_alias=) for correct MongoDB field name storage — _operator/_deleted use alias in QSO model
 - [Phase 03-01]: QSO response serialization via _qso_to_dict(): strip _id, add string id, isoformat datetimes to avoid FastAPI PydanticSerializationError
+- [Phase 03-qso-entry-log-view]: 03-02: Compound unique index dropped (unique=True removed) — app-level find_duplicate() is the enforcement mechanism; unique index blocked soft-delete re-insertion and force=true use cases
+- [Phase 03-qso-entry-log-view]: 03-02: 409 detail is a dict not a string — UI can extract existing_id for confirmation dialog without parsing error text
 
 ### Pending Todos
 
@@ -80,5 +82,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 03-01 — QSO REST API with 5 endpoints, service layer, 23 tests passing. 03-02 (duplicate detection) next.
+Stopped at: Completed 03-02 — Duplicate detection with find_duplicate(), 409 POST response, force=true override, 10 tests passing (33 total). 03-03 (web form) next.
 Resume file: None
