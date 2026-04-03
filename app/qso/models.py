@@ -49,8 +49,7 @@ class QSO(Document):
                     ("BAND", pymongo.ASCENDING),
                     ("MODE", pymongo.ASCENDING),
                 ],
-                unique=True,
-                name="operator_qso_unique",
+                name="operator_qso_compound",
             ),
             IndexModel(
                 [("_operator", pymongo.ASCENDING)],
