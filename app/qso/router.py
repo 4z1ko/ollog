@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.auth.dependencies import get_current_operator_callsign
 from app.qso.models import QSO
-from app.qso.service import build_qso_dict, get_qso_page, parse_adif_datetime
+from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
 
 router = APIRouter(prefix="/api/qsos", tags=["qsos"])
 
@@ -69,6 +69,29 @@ async def create_qso(
     # Merge declared fields and extra ADIF fields
     merged: dict = {**body.model_dump(exclude_unset=False), **(body.model_extra or {})}
     qso_dict = build_qso_dict(merged, operator)
+
+    # Duplicate detection — skip only when force=True
+    if not force:
+        dup = await find_duplicate(
+            operator=operator,
+            call=qso_dict["CALL"],
+            band=qso_dict["BAND"],
+            mode=qso_dict["MODE"],
+            qso_date_utc=qso_dict["qso_date_utc"],
+        )
+        if dup is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "duplicate": True,
+                    "existing_id": str(dup.id),
+                    "existing_call": dup.CALL,
+                    "existing_band": dup.BAND,
+                    "existing_mode": dup.MODE,
+                    "existing_date": dup.qso_date_utc.isoformat() if dup.qso_date_utc else None,
+                },
+            )
+
     qso = QSO(**qso_dict)
     await qso.insert()
     return _qso_to_dict(qso)

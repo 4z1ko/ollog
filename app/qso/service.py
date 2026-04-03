@@ -1,5 +1,5 @@
 """QSO service layer — ADIF datetime parsing, QSO document construction, paginated queries."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.qso.models import QSO
@@ -45,6 +45,31 @@ def build_qso_dict(body_dict: dict, operator: str) -> dict:
     result["is_deleted"] = False
 
     return result
+
+
+async def find_duplicate(
+    operator: str,
+    call: str,
+    band: str,
+    mode: str,
+    qso_date_utc: datetime,
+) -> QSO | None:
+    """Find an existing non-deleted QSO matching CALL, BAND, MODE within +/-2 min.
+
+    Returns the duplicate QSO if found, None otherwise.
+    Only checks within the same operator's QSOs (operator isolation).
+    """
+    window_start = qso_date_utc - timedelta(minutes=2)
+    window_end = qso_date_utc + timedelta(minutes=2)
+
+    return await QSO.find_one({
+        "_operator": operator,
+        "CALL": call,
+        "BAND": band,
+        "MODE": mode,
+        "_deleted": False,
+        "qso_date_utc": {"$gte": window_start, "$lte": window_end},
+    })
 
 
 async def get_qso_page(
