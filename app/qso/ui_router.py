@@ -12,10 +12,11 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.adif.router import process_import
 from app.auth.dependencies import get_current_operator_callsign_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
@@ -431,6 +432,50 @@ async def qso_update(
         request,
         "log/qso_row.html",
         {"qso": _qso_to_view_dict(updated)},
+    )
+
+
+# ---------------------------------------------------------------------------
+# ADIF import UI
+# ---------------------------------------------------------------------------
+
+@ui_router.get("/import", response_class=HTMLResponse)
+async def import_page(
+    request: Request,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Render the ADIF import upload form."""
+    return templates.TemplateResponse(
+        request,
+        "log/import.html",
+        {"callsign": callsign},
+    )
+
+
+@ui_router.post("/import", response_class=HTMLResponse)
+async def import_submit(
+    request: Request,
+    file: UploadFile,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Process an uploaded ADIF file and return the import report partial.
+
+    Always returns HTTP 200 — HTMX 2.x does not swap on 4xx.
+    The report partial shows accepted, duplicate, and error counts/tables.
+    """
+    raw = await file.read()
+    try:
+        report = await process_import(raw, callsign)
+    except HTTPException as exc:
+        # Size limit exceeded — render a simple error message in the target div
+        return HTMLResponse(
+            content=f'<div class="error-msg">{exc.detail}</div>',
+            status_code=200,
+        )
+    return templates.TemplateResponse(
+        request,
+        "log/import_report.html",
+        {"report": report},
     )
 
 

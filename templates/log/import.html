@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}ollog - Import ADIF Logbook{% endblock %}
+{% block content %}
+<nav>
+  <h1>ollog</h1>
+  <div style="display:flex;gap:1rem;align-items:center;">
+    <span>Logged in as <strong>{{ callsign }}</strong></span>
+    <a href="/log/">Log QSO</a>
+    <a href="/log/view">Log View</a>
+    <a href="/log/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="card">
+  <h2>Import ADIF Logbook</h2>
+  <form enctype="multipart/form-data"
+        hx-post="/log/import"
+        hx-target="#import-result"
+        hx-encoding="multipart/form-data">
+    <label>
+      ADIF File (.adi or .adif)
+      <input type="file" name="file" accept=".adi,.adif" required style="padding:0.2rem 0;">
+    </label>
+    <button type="submit">Import</button>
+  </form>
+</div>
+
+<div id="import-result"></div>
+{% endblock %}

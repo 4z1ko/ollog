@@ -1,0 +1,82 @@
+<div style="background:white;border-radius:6px;padding:1rem 1.2rem;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+  <p style="margin:0 0 0.8rem;font-weight:600;">
+    Total: {{ report.total_records }} |
+    Accepted: {{ report.accepted | length }} |
+    Duplicates: {{ report.duplicates | length }} |
+    Errors: {{ report.errors | length }}
+  </p>
+
+  {% if report.accepted %}
+  <h3 style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em;color:#1e8449;margin:0.8rem 0 0.4rem;">
+    Accepted ({{ report.accepted | length }})
+  </h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Record #</th>
+        <th>Callsign</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in report.accepted %}
+      <tr>
+        <td>{{ item.record_index + 1 }}</td>
+        <td>{{ item.call }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if report.duplicates %}
+  <h3 style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em;color:#856404;margin:0.8rem 0 0.4rem;">
+    Duplicates ({{ report.duplicates | length }})
+  </h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Record #</th>
+        <th>Callsign</th>
+        <th>Existing ID</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in report.duplicates %}
+      <tr>
+        <td>{{ item.record_index + 1 }}</td>
+        <td>{{ item.call }}</td>
+        <td>{{ item.existing_id }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if report.errors %}
+  <h3 style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em;color:#c0392b;margin:0.8rem 0 0.4rem;">
+    Errors ({{ report.errors | length }})
+  </h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Record #</th>
+        <th>Callsign</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in report.errors %}
+      <tr>
+        <td>{{ item.record_index + 1 if item.record_index is defined else "—" }}</td>
+        <td>{{ item.call if item.call is defined else "—" }}</td>
+        <td>{{ item.error }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if not report.accepted and not report.duplicates and not report.errors %}
+  <p style="color:#555;">No records found in file.</p>
+  {% endif %}
+</div>
