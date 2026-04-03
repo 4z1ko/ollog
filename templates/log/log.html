@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}ollog - QSO Log{% endblock %}
+{% block content %}
+<nav>
+  <h1>ollog</h1>
+  <div style="display:flex;gap:1rem;align-items:center;">
+    <span>Logged in as <strong>{{ callsign }}</strong></span>
+    <a href="/log/">Log QSO</a>
+    <a href="/log/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="card">
+  <h2>Filters</h2>
+  <form id="filter-form"
+        hx-get="/log/view"
+        hx-target="#log-table"
+        hx-swap="innerHTML"
+        hx-push-url="true">
+    <label>
+      Callsign
+      <input type="text" name="call" value="{{ filters.call or '' }}" placeholder="W1AW" autocomplete="off" style="width:110px">
+    </label>
+    <label>
+      Band
+      <select name="band" style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
+        <option value="">All</option>
+        <option value="160M" {% if filters.band == '160M' %}selected{% endif %}>160M</option>
+        <option value="80M"  {% if filters.band == '80M'  %}selected{% endif %}>80M</option>
+        <option value="60M"  {% if filters.band == '60M'  %}selected{% endif %}>60M</option>
+        <option value="40M"  {% if filters.band == '40M'  %}selected{% endif %}>40M</option>
+        <option value="30M"  {% if filters.band == '30M'  %}selected{% endif %}>30M</option>
+        <option value="20M"  {% if filters.band == '20M'  %}selected{% endif %}>20M</option>
+        <option value="17M"  {% if filters.band == '17M'  %}selected{% endif %}>17M</option>
+        <option value="15M"  {% if filters.band == '15M'  %}selected{% endif %}>15M</option>
+        <option value="12M"  {% if filters.band == '12M'  %}selected{% endif %}>12M</option>
+        <option value="10M"  {% if filters.band == '10M'  %}selected{% endif %}>10M</option>
+        <option value="6M"   {% if filters.band == '6M'   %}selected{% endif %}>6M</option>
+        <option value="2M"   {% if filters.band == '2M'   %}selected{% endif %}>2M</option>
+        <option value="70CM" {% if filters.band == '70CM' %}selected{% endif %}>70CM</option>
+      </select>
+    </label>
+    <label>
+      Mode
+      <select name="mode" style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
+        <option value="">All</option>
+        <option value="SSB"   {% if filters.mode == 'SSB'   %}selected{% endif %}>SSB</option>
+        <option value="CW"    {% if filters.mode == 'CW'    %}selected{% endif %}>CW</option>
+        <option value="FT8"   {% if filters.mode == 'FT8'   %}selected{% endif %}>FT8</option>
+        <option value="FT4"   {% if filters.mode == 'FT4'   %}selected{% endif %}>FT4</option>
+        <option value="FM"    {% if filters.mode == 'FM'    %}selected{% endif %}>FM</option>
+        <option value="AM"    {% if filters.mode == 'AM'    %}selected{% endif %}>AM</option>
+        <option value="RTTY"  {% if filters.mode == 'RTTY'  %}selected{% endif %}>RTTY</option>
+        <option value="PSK31" {% if filters.mode == 'PSK31' %}selected{% endif %}>PSK31</option>
+        <option value="JS8"   {% if filters.mode == 'JS8'   %}selected{% endif %}>JS8</option>
+        <option value="DSTAR" {% if filters.mode == 'DSTAR' %}selected{% endif %}>DSTAR</option>
+      </select>
+    </label>
+    <label>
+      Date From
+      <input type="text" name="date_from" value="{{ filters.date_from or '' }}" placeholder="YYYYMMDD" autocomplete="off" style="width:100px">
+    </label>
+    <label>
+      Date To
+      <input type="text" name="date_to" value="{{ filters.date_to or '' }}" placeholder="YYYYMMDD" autocomplete="off" style="width:100px">
+    </label>
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <button type="submit">Filter</button>
+    <button type="button"
+            hx-get="/log/view"
+            hx-target="#log-table"
+            hx-swap="innerHTML"
+            hx-push-url="true"
+            hx-params="none"
+            onclick="document.querySelectorAll('#filter-form input[type=text]').forEach(i=>i.value='');document.querySelectorAll('#filter-form select').forEach(s=>s.value='');">Clear</button>
+  </form>
+</div>
+
+<div id="log-table">
+  {% include "log/log_table.html" %}
+</div>
+{% endblock %}

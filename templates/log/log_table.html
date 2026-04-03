@@ -1,0 +1,67 @@
+{% if not qsos %}
+<p>No QSOs found.</p>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>
+        <a style="color:white;text-decoration:none;"
+           hx-get="/log/view?sort={% if sort == '-qso_date_utc' %}qso_date_utc{% else %}-qso_date_utc{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+           hx-target="#log-table"
+           hx-swap="innerHTML"
+           hx-push-url="true">
+          Date/Time UTC
+          {% if sort == '-qso_date_utc' %}&#9660;{% elif sort == 'qso_date_utc' %}&#9650;{% endif %}
+        </a>
+      </th>
+      <th>
+        <a style="color:white;text-decoration:none;"
+           hx-get="/log/view?sort={% if sort == '-CALL' %}CALL{% else %}-CALL{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+           hx-target="#log-table"
+           hx-swap="innerHTML"
+           hx-push-url="true">
+          Callsign
+          {% if sort == '-CALL' %}&#9660;{% elif sort == 'CALL' %}&#9650;{% endif %}
+        </a>
+      </th>
+      <th>
+        <a style="color:white;text-decoration:none;"
+           hx-get="/log/view?sort={% if sort == '-BAND' %}BAND{% else %}-BAND{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+           hx-target="#log-table"
+           hx-swap="innerHTML"
+           hx-push-url="true">
+          Band
+          {% if sort == '-BAND' %}&#9660;{% elif sort == 'BAND' %}&#9650;{% endif %}
+        </a>
+      </th>
+      <th>Mode</th>
+      <th>Freq</th>
+      <th>RST S/R</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for qso in qsos %}
+      {% include "log/qso_row.html" %}
+    {% endfor %}
+  </tbody>
+</table>
+
+<div style="display:flex;gap:1rem;align-items:center;justify-content:center;margin-top:1rem;font-size:0.9rem;">
+  <span>Showing {{ (page-1)*page_size + 1 }}&ndash;{{ [page*page_size, total]|min }} of {{ total }}</span>
+  {% if page > 1 %}
+  <a hx-get="/log/view?page={{ page-1 }}&sort={{ sort }}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+     hx-target="#log-table"
+     hx-swap="innerHTML"
+     hx-push-url="true"
+     style="cursor:pointer;">&laquo; Previous</a>
+  {% endif %}
+  {% if page < total_pages %}
+  <a hx-get="/log/view?page={{ page+1 }}&sort={{ sort }}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+     hx-target="#log-table"
+     hx-swap="innerHTML"
+     hx-push-url="true"
+     style="cursor:pointer;">Next &raquo;</a>
+  {% endif %}
+</div>
+{% endif %}

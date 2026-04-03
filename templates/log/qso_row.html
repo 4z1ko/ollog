@@ -1,0 +1,18 @@
+<tr id="qso-{{ qso.id }}">
+  <td>{{ qso.qso_date_utc.strftime('%Y-%m-%d %H:%M') if qso.qso_date_utc else '' }} UTC</td>
+  <td>{{ qso.CALL }}</td>
+  <td>{{ qso.BAND or '' }}</td>
+  <td>{{ qso.MODE or '' }}</td>
+  <td>{{ qso.FREQ or '' }}</td>
+  <td>{{ qso.RST_SENT or '' }} / {{ qso.RST_RCVD or '' }}</td>
+  <td class="actions">
+    <button hx-get="/log/qsos/{{ qso.id }}/edit"
+            hx-target="#qso-{{ qso.id }}"
+            hx-swap="outerHTML">Edit</button>
+    <button class="danger"
+            hx-delete="/log/qsos/{{ qso.id }}"
+            hx-target="#qso-{{ qso.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this QSO? It can be recovered by an admin.">Delete</button>
+  </td>
+</tr>
