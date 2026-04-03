@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 4 of 5 (ADIF Import/Export)
-Plan: 4 of 4 in current phase
-Status: Phase 4 complete — all 4 plans done
-Last activity: 2026-04-03 — Completed 04-04 (ADIF Round-Trip and Edge-Case Tests)
+Phase: 5 of 5 (Multi-Operator Live Feed)
+Plan: 1 of 4 in current phase
+Status: Phase 5 in progress — 1/4 plans done
+Last activity: 2026-04-04 — Completed 05-01 (MongoDB Replica Set and Concurrent Write Tests)
 
-Progress: [███████████████████████] 61% (14 of ~23 plans)
+Progress: [█████████████████████████] 65% (15 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04)
-- Average duration: ~7.7 min
-- Total execution time: ~1.55 hours
+- Total plans completed: 14 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01)
+- Average duration: ~7.6 min
+- Total execution time: ~1.63 hours
 
 **By Phase:**
 
@@ -33,8 +33,12 @@ Progress: [███████████████████████
 | 04-adif-import-export | 4/4 | ~34 min | ~8.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-04 (~8min), 04-01 (16min), 04-02 (~8min), 04-03 (~6min), 04-04 (~4min)
+- Last 5 plans: 04-01 (16min), 04-02 (~8min), 04-03 (~6min), 04-04 (~4min), 05-01 (~8min)
 - Trend: stable
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 05-multi-operator-live-feed | 1/4 | ~8 min | ~8 min |
 
 *Updated after each plan completion*
 
@@ -82,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 04-adif-import-export]: 04-03: qso_date_utc excluded from ADIF export; QSO_DATE and TIME_ON in model_extra serve the ADIF-standard date/time purpose
 - [Phase 04-adif-import-export]: 04-04: ADIF fixture byte lengths must be exact byte counts (UTF-8), not character counts — verified via parse_adi() returning correct records before committing
 - [Phase 04-adif-import-export]: 04-04: Integration tests skip gracefully via mongo_required + _mongo_available() TCP probe — consistent pattern across all integration test files
+- [Phase 05-multi-operator-live-feed]: MongoDB replica set upgrade done in docker-compose.yml only — app/config.py default left standalone for non-Docker local dev
+- [Phase 05-multi-operator-live-feed]: Self-initiating healthcheck pattern: rs.initiate() runs inside healthcheck probe, no separate init container or entrypoint script needed
 
 ### Pending Todos
 
@@ -96,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03
-Stopped at: Completed 04-04 — ADIF round-trip integration tests and fixtures (roundtrip_sample.adi, no_eoh_sample.adi); 7 integration tests + 3 unit tests. Phase 4 complete (4/4 plans done).
+Last session: 2026-04-04
+Stopped at: Completed 05-01 — MongoDB upgraded to single-node replica set rs0 (docker-compose.yml); 4 concurrent write integration tests characterize multi-operator safety and accepted same-operator race window.
 Resume file: None
