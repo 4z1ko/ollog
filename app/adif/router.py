@@ -1,4 +1,4 @@
-"""ADIF import router — POST /api/adif/import endpoint.
+"""ADIF import/export router — POST /api/adif/import and GET /api/adif/export.
 
 Provides synchronous per-record ADIF import with:
 - 10 MB file size guard
@@ -6,10 +6,18 @@ Provides synchronous per-record ADIF import with:
 - Parse error passthrough from parse_adi
 - Duplicate detection via find_duplicate() (+/-2 min fuzzy window)
 - Per-record error accumulation (no silent drops)
+
+Provides streaming ADIF export with:
+- StreamingResponse for memory efficiency
+- Operator isolation + soft-delete filter
+- ADIF field mapping via _qso_to_adif_dict helper
+- Internal fields (qso_date_utc) excluded from output
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from app.adif.parser import parse_adi
+from app.adif.serializer import serialize_adi
 from app.auth.dependencies import get_current_operator_callsign
 from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate
@@ -110,3 +118,73 @@ async def import_adif(
     """
     raw = await file.read()
     return await process_import(raw, operator)
+
+
+# ---------------------------------------------------------------------------
+# ADIF export
+# ---------------------------------------------------------------------------
+
+# Fields that are internal to the application and must NOT appear in exported ADIF.
+# operator_callsign and is_deleted are declared Beanie fields (not in model_extra)
+# so they won't surface during model_extra iteration — but listed here as a safety net.
+_SKIP_FIELDS = {"qso_date_utc", "_operator", "_deleted", "_id", "id", "revision_id"}
+
+
+def _qso_to_adif_dict(qso: QSO) -> dict:
+    """Convert a QSO document to a flat ADIF field dict for serialization.
+
+    Declared ADIF fields (CALL, BAND, MODE) are added explicitly.
+    Extra fields from model_extra are included verbatim — this preserves
+    APP_ prefixed fields, USERDEF fields, and other non-declared ADIF fields
+    (QSO_DATE, TIME_ON, FREQ, RST_SENT, RST_RCVD, etc.).
+
+    Internal fields (qso_date_utc, _operator, _deleted, id) are excluded.
+    All values are coerced to strings for serializer compatibility.
+    """
+    d: dict = {}
+
+    # Declared ADIF fields on the model
+    if qso.CALL is not None:
+        d["CALL"] = str(qso.CALL)
+    if qso.BAND is not None:
+        d["BAND"] = str(qso.BAND)
+    if qso.MODE is not None:
+        d["MODE"] = str(qso.MODE)
+
+    # Extra fields stored verbatim in MongoDB (QSO_DATE, TIME_ON, FREQ, APP_*, etc.)
+    for key, val in (qso.model_extra or {}).items():
+        if key in _SKIP_FIELDS:
+            continue
+        if val is None:
+            continue
+        d[key] = str(val)
+
+    return d
+
+
+_ADIF_HEADER = "<ADIF_VER:5>3.1.4\n<PROGRAMID:5>ollog\n<EOH>\n\n"
+
+
+@router.get("/export")
+async def export_adif(
+    operator: str = Depends(get_current_operator_callsign),
+):
+    """Stream the operator's logbook as a valid .adi file download.
+
+    Filters: only the authenticated operator's non-deleted QSOs.
+    Output: ADIF header + one serialized record per QSO.
+    Memory: uses StreamingResponse with an async generator.
+    """
+    qsos = await QSO.find({"_operator": operator, "_deleted": False}).to_list()
+
+    async def _generate():
+        yield _ADIF_HEADER
+        for qso in qsos:
+            yield serialize_adi([_qso_to_adif_dict(qso)])
+
+    filename = f"{operator}_logbook.adi"
+    return StreamingResponse(
+        _generate(),
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
