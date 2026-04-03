@@ -91,6 +91,13 @@ async def get_current_user_cookie(
     return user
 
 
+async def get_current_operator_callsign_cookie(
+    user: User = Depends(get_current_user_cookie),
+) -> str:
+    """Cookie-auth version of callsign injection for UI routes under /log/."""
+    return user.callsign
+
+
 async def require_admin_cookie(
     user: User = Depends(get_current_user_cookie),
 ) -> User:
