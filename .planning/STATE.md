@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 2 of 5 (Admin Accounts)
-Plan: 1 of 2 in current phase
-Status: In progress — 02-01 complete
-Last activity: 2026-04-03 — Completed 02-01 (Admin API endpoints)
+Phase: 3 of 5 (QSO CRUD)
+Plan: 1 of ? in current phase
+Status: Ready — Phase 02 complete
+Last activity: 2026-04-03 — Completed 02-02 (Admin Web UI)
 
-Progress: [████████░░] 22% (5 of ~23 plans)
+Progress: [█████████░] 26% (6 of ~23 plans)
 
 ## Performance Metrics
 
@@ -28,7 +28,7 @@ Progress: [████████░░] 22% (5 of ~23 plans)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 4/4 | ~40 min | ~10 min |
-| 02-admin-accounts | 1/2 | ~4 min | ~4 min |
+| 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
 
 **Recent Trend:**
 - Last 5 plans: 01-01 (4min), 01-02 (~10min), 01-03 (~10min), 01-04 (~15min)
@@ -60,6 +60,8 @@ Recent decisions affecting current work:
 - 01-04: Admin bootstrap runs in lifespan from ADMIN_USERNAME/PASSWORD/CALLSIGN env vars — no web endpoint
 - 02-01: require_admin injected via dependencies=[Depends(require_admin)] on decorator — admin endpoints don't need user object in function body
 - 02-01: aclose() used instead of close() for pymongo AsyncMongoClient in test fixtures — pymongo 4.9+ async client requires awaitable close
+- 02-02: Exception handler on app checks request.url.path.startswith('/admin/ui/') — redirects 401/403 to login page; other routes still return JSON
+- 02-02: HTMX 2.0.4 via CDN, inline CSS only — no npm or build step; suitable for internal admin tool
 
 ### Pending Todos
 
@@ -75,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 02-01 — Admin API endpoints complete; 02-02 (admin web UI) next
+Stopped at: Completed 02-02 — Admin web UI complete; Phase 02 done. Phase 03 (QSO CRUD) next.
 Resume file: None
