@@ -81,10 +81,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: ADIF import endpoint — multipart upload, batch insert with ordered=False, import report response
-- [ ] 04-02: Import duplicate detection — fuzzy window applied per-record, report includes duplicate candidates
-- [ ] 04-03: ADIF export endpoint — streaming response, operator-scoped, optional filters
-- [ ] 04-04: Round-trip validation — integration test covering APP_ fields, USERDEF fields, and edge-case file variants
+- [ ] 04-01: ADIF import endpoint — multipart upload, per-record insert, import report with accepted/duplicates/errors
+- [ ] 04-02: Import duplicate detection — wire find_duplicate() per-record with +/-2 min window, integration tests
+- [ ] 04-03: ADIF export endpoint — StreamingResponse, _qso_to_adif_dict helper, operator-scoped, cookie+bearer auth
+- [ ] 04-04: Round-trip validation — integration tests for APP_/USERDEF fields, missing EOH, case-insensitive names
 
 ### Phase 5: Multi-Operator & Live Feed
 **Goal**: Multiple operators can log simultaneously without any data loss or cross-operator leakage, and can see each other's QSOs appear live in a shared station feed without page refresh.
