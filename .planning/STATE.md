@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 3 of 5 (QSO CRUD)
-Plan: 4 of 4 in current phase (phase complete)
-Status: Phase 3 complete — 03-04 done
-Last activity: 2026-04-03 — Completed 03-04 (Log View with Pagination, Filtering, Inline Edit, Soft-Delete)
+Phase: 4 of 5 (ADIF Import/Export)
+Plan: 1 of 3 in current phase
+Status: In progress — 04-01 done
+Last activity: 2026-04-03 — Completed 04-01 (ADIF Import Endpoint: API + UI)
 
-Progress: [█████████████] 43% (10 of ~23 plans)
+Progress: [███████████████] 48% (11 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04)
-- Average duration: ~7.6 min
-- Total execution time: ~1.1 hours
+- Total plans completed: 10 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01)
+- Average duration: ~8 min
+- Total execution time: ~1.4 hours
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [█████████████] 43% (10 of ~23 plans)
 | 01-foundation | 4/4 | ~40 min | ~10 min |
 | 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
 | 03-qso-entry-log-view | 4/4 | ~27 min | ~6.8 min |
+| 04-adif-import-export | 1/3 | ~16 min | ~16 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (~9min), 03-01 (12min), 03-02 (4min), 03-03 (3min), 03-04 (~8min)
+- Last 5 plans: 03-01 (12min), 03-02 (4min), 03-03 (3min), 03-04 (~8min), 04-01 (16min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 03-qso-entry-log-view]: 03-03: Operator login at /log/login has no role restriction — any enabled user (operator or admin) can log in here (contrast with /admin/ui/login which requires role=admin)
 - [Phase 03-qso-entry-log-view]: 03-04: _qso_to_view_dict() extracts Beanie model_extra fields (FREQ, RST_SENT, etc.) to plain dict before template rendering — direct attribute access on model_extra fields is unreliable in Jinja2
 - [Phase 03-qso-entry-log-view]: 03-04: HX-Request header check on /log/view returns partial (log_table.html) or full page (log.html) — single endpoint serves both HTMX and direct browser requests
+- [Phase 04-adif-import-export]: 04-01: process_import() extracted as shared async helper — API endpoint returns dict as JSON; UI endpoint passes dict to Jinja2 template; eliminates logic duplication
+- [Phase 04-adif-import-export]: 04-01: UI POST /log/import always returns HTTP 200 — catches HTTPException from process_import and renders error-msg div so HTMX swaps correctly on size-limit errors
+- [Phase 04-adif-import-export]: 04-01: 10 MB guard in process_import() so both API and UI callers enforce same limit
 
 ### Pending Todos
 
@@ -86,5 +90,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 03-04 — paginated log view with HTMX filtering/sorting/inline-edit/soft-delete. Phase 3 complete. Phase 4 (ADIF import) next.
+Stopped at: Completed 04-01 — ADIF import API (POST /api/adif/import) and UI page (GET/POST /log/import) with shared process_import() helper. Phase 4 plan 1 of 3 done.
 Resume file: None
