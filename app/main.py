@@ -72,6 +72,11 @@ from app.qso.router import router as qso_router  # noqa: E402
 
 app.include_router(qso_router)
 
+# QSO UI router (browser-based, cookie auth, Jinja2 templates)
+from app.qso.ui_router import ui_router as qso_ui_router  # noqa: E402
+
+app.include_router(qso_ui_router)
+
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
