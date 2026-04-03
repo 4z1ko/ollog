@@ -39,14 +39,19 @@ def test_qso_has_three_indexes():
     assert len(QSO.Settings.indexes) == 3
 
 
-def test_qso_compound_unique_index_definition():
-    """The compound unique index definition matches the locked decision."""
+def test_qso_compound_index_definition():
+    """The compound index definition matches the locked decision (unique=True dropped in 03-02).
+
+    Per 03-02 decision: unique=True removed from compound index to support soft-delete
+    re-insertion and force=True use cases. App-level find_duplicate() is the enforcement.
+    """
     compound_idx = next(
-        (idx for idx in QSO.Settings.indexes if idx.document.get("name") == "operator_qso_unique"),
+        (idx for idx in QSO.Settings.indexes if idx.document.get("name") == "operator_qso_compound"),
         None,
     )
-    assert compound_idx is not None, "operator_qso_unique index not found"
-    assert compound_idx.document.get("unique") is True
+    assert compound_idx is not None, "operator_qso_compound index not found"
+    # unique=True was intentionally dropped in 03-02 — app-level enforcement instead
+    assert compound_idx.document.get("unique") is not True
     keys = compound_idx.document["key"]
     # pymongo IndexModel stores keys as a dict (SON) — verify all required fields
     assert "_operator" in keys

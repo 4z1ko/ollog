@@ -77,6 +77,11 @@ from app.qso.ui_router import ui_router as qso_ui_router  # noqa: E402
 
 app.include_router(qso_ui_router)
 
+# ADIF import/export router
+from app.adif.router import router as adif_router  # noqa: E402
+
+app.include_router(adif_router)
+
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
