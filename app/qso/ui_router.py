@@ -13,10 +13,11 @@ from typing import Annotated, Optional
 
 from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, UploadFile, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from app.adif.router import process_import
+from app.adif.router import _qso_to_adif_dict, process_import
+from app.adif.serializer import serialize_adi
 from app.auth.dependencies import get_current_operator_callsign_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
@@ -476,6 +477,32 @@ async def import_submit(
         request,
         "log/import_report.html",
         {"report": report},
+    )
+
+
+@ui_router.get("/export")
+async def export_logbook(
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Stream the operator's logbook as a .adi file download.
+
+    Cookie-auth mirror of GET /api/adif/export (which uses Bearer auth).
+    Identical filtering and serialization — only the auth dependency differs.
+    """
+    qsos = await QSO.find({"_operator": callsign, "_deleted": False}).to_list()
+
+    _adif_header = "<ADIF_VER:5>3.1.4\n<PROGRAMID:5>ollog\n<EOH>\n\n"
+
+    async def _generate():
+        yield _adif_header
+        for qso in qsos:
+            yield serialize_adi([_qso_to_adif_dict(qso)])
+
+    filename = f"{callsign}_logbook.adi"
+    return StreamingResponse(
+        _generate(),
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
