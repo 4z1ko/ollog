@@ -4,16 +4,15 @@ Provides synchronous per-record ADIF import with:
 - 10 MB file size guard
 - Required field validation (CALL, QSO_DATE, TIME_ON, BAND, MODE)
 - Parse error passthrough from parse_adi
+- Duplicate detection via find_duplicate() (+/-2 min fuzzy window)
 - Per-record error accumulation (no silent drops)
-
-Duplicate detection is NOT wired here — Plan 04-02 adds it.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
 from app.adif.parser import parse_adi
 from app.auth.dependencies import get_current_operator_callsign
 from app.qso.models import QSO
-from app.qso.service import build_qso_dict
+from app.qso.service import build_qso_dict, find_duplicate
 
 router = APIRouter(prefix="/api/adif", tags=["adif"])
 
@@ -66,7 +65,23 @@ async def process_import(raw: bytes, operator: str) -> dict:
             })
             continue
 
-        # Insert — no duplicate detection in this plan (04-02 adds it)
+        # Duplicate detection — same +/-2 min window as live QSO entry
+        dup = await find_duplicate(
+            operator=operator,
+            call=qso_dict["CALL"],
+            band=qso_dict["BAND"],
+            mode=qso_dict["MODE"],
+            qso_date_utc=qso_dict["qso_date_utc"],
+        )
+        if dup is not None:
+            duplicates.append({
+                "record_index": idx,
+                "call": qso_dict["CALL"],
+                "existing_id": str(dup.id),
+            })
+            continue
+
+        # Insert accepted record
         qso = QSO(**qso_dict)
         await qso.insert()
         accepted.append({

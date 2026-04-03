@@ -143,14 +143,15 @@ def sample_qso_data():
 
 
 @pytest.mark.asyncio
-async def test_qso_compound_unique_index_exists(test_db):
-    """After init_beanie, the compound unique index exists in MongoDB."""
+async def test_qso_compound_index_exists(test_db):
+    """After init_beanie, the compound index exists in MongoDB (non-unique, per 03-02 decision)."""
     indexes = await test_db["qsos"].index_information()
-    assert "operator_qso_unique" in indexes, (
-        f"operator_qso_unique index not found. Available indexes: {list(indexes.keys())}"
+    assert "operator_qso_compound" in indexes, (
+        f"operator_qso_compound index not found. Available indexes: {list(indexes.keys())}"
     )
-    idx = indexes["operator_qso_unique"]
-    assert idx.get("unique") is True
+    idx = indexes["operator_qso_compound"]
+    # unique=True was removed in 03-02 — app-level find_duplicate() is the enforcement
+    assert idx.get("unique") is not True
     index_keys = [k for k, _ in idx["key"]]
     for expected_key in ["_operator", "CALL", "qso_date_utc", "BAND", "MODE"]:
         assert expected_key in index_keys, f"Expected key '{expected_key}' not in index"
