@@ -56,6 +56,11 @@ from app.auth.dependencies import get_current_operator_callsign  # noqa: E402
 
 app.include_router(auth_router)
 
+# Admin router
+from app.admin.router import router as admin_router  # noqa: E402
+
+app.include_router(admin_router)
+
 
 @app.get("/health")
 async def health():
