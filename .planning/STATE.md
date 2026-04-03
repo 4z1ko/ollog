@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 4 of 5 (ADIF Import/Export)
-Plan: 3 of 3 in current phase
-Status: Phase 4 complete — all 3 plans done
-Last activity: 2026-04-03 — Completed 04-03 (ADIF Export Streaming Endpoint)
+Plan: 4 of 4 in current phase
+Status: Phase 4 complete — all 4 plans done
+Last activity: 2026-04-03 — Completed 04-04 (ADIF Round-Trip and Edge-Case Tests)
 
-Progress: [█████████████████████] 57% (13 of ~23 plans)
+Progress: [███████████████████████] 61% (14 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03)
+- Total plans completed: 13 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04)
 - Average duration: ~7.7 min
 - Total execution time: ~1.55 hours
 
@@ -30,10 +30,10 @@ Progress: [█████████████████████] 57% 
 | 01-foundation | 4/4 | ~40 min | ~10 min |
 | 02-admin-accounts | 2/2 | ~19 min | ~9.5 min |
 | 03-qso-entry-log-view | 4/4 | ~27 min | ~6.8 min |
-| 04-adif-import-export | 3/3 | ~30 min | ~10 min |
+| 04-adif-import-export | 4/4 | ~34 min | ~8.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 (3min), 03-04 (~8min), 04-01 (16min), 04-02 (~8min), 04-03 (~6min)
+- Last 5 plans: 03-04 (~8min), 04-01 (16min), 04-02 (~8min), 04-03 (~6min), 04-04 (~4min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -80,6 +80,8 @@ Recent decisions affecting current work:
 - [Phase 04-adif-import-export]: 04-03: _qso_to_adif_dict() adds declared fields (CALL, BAND, MODE) explicitly and iterates model_extra for rest — SKIP_FIELDS guard removes qso_date_utc and internal Beanie fields
 - [Phase 04-adif-import-export]: 04-03: /log/export is a standalone cookie-auth endpoint (not a redirect to /api/adif/export) — browsers don't forward Authorization headers on redirect
 - [Phase 04-adif-import-export]: 04-03: qso_date_utc excluded from ADIF export; QSO_DATE and TIME_ON in model_extra serve the ADIF-standard date/time purpose
+- [Phase 04-adif-import-export]: 04-04: ADIF fixture byte lengths must be exact byte counts (UTF-8), not character counts — verified via parse_adi() returning correct records before committing
+- [Phase 04-adif-import-export]: 04-04: Integration tests skip gracefully via mongo_required + _mongo_available() TCP probe — consistent pattern across all integration test files
 
 ### Pending Todos
 
@@ -95,5 +97,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 04-03 — streaming GET /api/adif/export and /log/export with _qso_to_adif_dict helper; 5 integration tests. Phase 4 complete (3/3 plans done).
+Stopped at: Completed 04-04 — ADIF round-trip integration tests and fixtures (roundtrip_sample.adi, no_eoh_sample.adi); 7 integration tests + 3 unit tests. Phase 4 complete (4/4 plans done).
 Resume file: None
