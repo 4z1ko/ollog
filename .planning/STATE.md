@@ -9,25 +9,26 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 1 of 5 (Foundation)
-Plan: 4 of 4 in current phase — PHASE COMPLETE
-Status: Phase 01-foundation complete
-Last activity: 2026-04-03 — Completed 01-04 (JWT Auth Service)
+Phase: 2 of 5 (Admin Accounts)
+Plan: 1 of 2 in current phase
+Status: In progress — 02-01 complete
+Last activity: 2026-04-03 — Completed 02-01 (Admin API endpoints)
 
-Progress: [████████░░] 20%
+Progress: [████████░░] 22% (5 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4 (01-01, 01-02, 01-03, 01-04)
-- Average duration: ~10 min
-- Total execution time: ~0.7 hours
+- Total plans completed: 5 (01-01, 01-02, 01-03, 01-04, 02-01)
+- Average duration: ~8 min
+- Total execution time: ~0.75 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 4/4 | ~40 min | ~10 min |
+| 02-admin-accounts | 1/2 | ~4 min | ~4 min |
 
 **Recent Trend:**
 - Last 5 plans: 01-01 (4min), 01-02 (~10min), 01-03 (~10min), 01-04 (~15min)
@@ -57,6 +58,8 @@ Recent decisions affecting current work:
 - 01-04: JWT carries sub (username), callsign, role, exp — all four claims required
 - 01-04: get_current_operator_callsign is the single callsign injection point for all QSO operations
 - 01-04: Admin bootstrap runs in lifespan from ADMIN_USERNAME/PASSWORD/CALLSIGN env vars — no web endpoint
+- 02-01: require_admin injected via dependencies=[Depends(require_admin)] on decorator — admin endpoints don't need user object in function body
+- 02-01: aclose() used instead of close() for pymongo AsyncMongoClient in test fixtures — pymongo 4.9+ async client requires awaitable close
 
 ### Pending Todos
 
@@ -72,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Completed 01-04 — JWT auth service complete; Phase 01-foundation all 4 plans done
+Stopped at: Completed 02-01 — Admin API endpoints complete; 02-02 (admin web UI) next
 Resume file: None
