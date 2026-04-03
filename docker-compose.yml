@@ -5,12 +5,16 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: >
+        echo "try { rs.status() } catch (err) {
+          rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]})
+        }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      retries: 30
 
   api:
     build: .
@@ -22,7 +26,7 @@ services:
     env_file: .env
     environment:
       - SECRET_KEY=dev-secret-change-in-production
-      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
       - MONGODB_DB=ollog
 
 volumes:
