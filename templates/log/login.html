@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}ollog - Operator Login{% endblock %}
+{% block content %}
+<div class="login-box">
+  <h1>Operator Login</h1>
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+  <form method="POST" action="/log/login">
+    <label>
+      Username
+      <input type="text" name="username" autocomplete="username" required autofocus>
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Log in</button>
+  </form>
+</div>
+{% endblock %}

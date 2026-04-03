@@ -1,0 +1,27 @@
+{% if duplicate %}
+<div class="warning-msg">
+  <strong>Possible duplicate:</strong>
+  {{ duplicate.CALL }} on {{ duplicate.BAND }}/{{ duplicate.MODE }} logged at {{ duplicate.qso_date_utc }}.
+</div>
+<form hx-post="/log/qsos?force=true"
+      hx-target="#qso-result"
+      hx-swap="innerHTML"
+      style="flex-direction:column;gap:0.5rem;">
+  <input type="hidden" name="CALL" value="{{ form.CALL }}">
+  <input type="hidden" name="QSO_DATE" value="{{ form.QSO_DATE }}">
+  <input type="hidden" name="TIME_ON" value="{{ form.TIME_ON }}">
+  <input type="hidden" name="BAND" value="{{ form.BAND }}">
+  <input type="hidden" name="FREQ" value="{{ form.FREQ or '' }}">
+  <input type="hidden" name="MODE" value="{{ form.MODE }}">
+  <input type="hidden" name="RST_SENT" value="{{ form.RST_SENT or '' }}">
+  <input type="hidden" name="RST_RCVD" value="{{ form.RST_RCVD or '' }}">
+  <div style="display:flex;gap:0.5rem;">
+    <button type="submit" class="danger">Save Anyway</button>
+    <button type="button" onclick="document.getElementById('qso-result').innerHTML=''">Cancel</button>
+  </div>
+</form>
+{% elif success %}
+<div class="success-msg">
+  QSO logged: {{ qso.CALL }} on {{ qso.BAND }}/{{ qso.MODE }} at {{ qso.qso_date_utc }}
+</div>
+{% endif %}

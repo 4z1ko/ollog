@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}ollog - Log QSO{% endblock %}
+{% block content %}
+<nav>
+  <h1>ollog</h1>
+  <div style="display:flex;gap:1rem;align-items:center;">
+    <span>Logged in as <strong>{{ callsign }}</strong></span>
+    <a href="/log/view">Log View</a>
+    <a href="/log/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="card">
+  <h2>Log QSO</h2>
+  <form id="qso-form"
+        hx-post="/log/qsos"
+        hx-target="#qso-result"
+        hx-swap="innerHTML">
+
+    <label>
+      CALL
+      <input type="text" name="CALL" placeholder="W1AW" required autocomplete="off" style="width:120px">
+    </label>
+
+    <label>
+      QSO_DATE
+      <input type="text" name="QSO_DATE" placeholder="YYYYMMDD" required autocomplete="off" style="width:110px">
+    </label>
+
+    <label>
+      TIME_ON
+      <input type="text" name="TIME_ON" placeholder="HHMM" required autocomplete="off" style="width:80px">
+    </label>
+
+    <label>
+      BAND
+      <select name="BAND" required style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
+        <option value="">--</option>
+        <option value="160M">160M</option>
+        <option value="80M">80M</option>
+        <option value="60M">60M</option>
+        <option value="40M">40M</option>
+        <option value="30M">30M</option>
+        <option value="20M" selected>20M</option>
+        <option value="17M">17M</option>
+        <option value="15M">15M</option>
+        <option value="12M">12M</option>
+        <option value="10M">10M</option>
+        <option value="6M">6M</option>
+        <option value="2M">2M</option>
+        <option value="70CM">70CM</option>
+      </select>
+    </label>
+
+    <label>
+      FREQ
+      <input type="text" name="FREQ" placeholder="14.250" autocomplete="off" style="width:90px">
+    </label>
+
+    <label>
+      MODE
+      <select name="MODE" required style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
+        <option value="">--</option>
+        <option value="SSB" selected>SSB</option>
+        <option value="CW">CW</option>
+        <option value="FT8">FT8</option>
+        <option value="FT4">FT4</option>
+        <option value="FM">FM</option>
+        <option value="AM">AM</option>
+        <option value="RTTY">RTTY</option>
+        <option value="PSK31">PSK31</option>
+        <option value="JS8">JS8</option>
+        <option value="DSTAR">DSTAR</option>
+      </select>
+    </label>
+
+    <label>
+      RST_SENT
+      <input type="text" name="RST_SENT" placeholder="59" autocomplete="off" style="width:70px">
+    </label>
+
+    <label>
+      RST_RCVD
+      <input type="text" name="RST_RCVD" placeholder="59" autocomplete="off" style="width:70px">
+    </label>
+
+    <button type="submit">Log QSO</button>
+  </form>
+</div>
+
+<div id="qso-result"></div>
+{% endblock %}
