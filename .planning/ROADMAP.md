@@ -94,17 +94,17 @@ Plans:
   1. Two operators logging QSOs simultaneously produce no data conflicts, no lost writes, and no duplicate insertions — all QSOs from both operators are present and correctly attributed after concurrent load
   2. An operator querying their own log never sees QSOs belonging to another operator — cross-operator data leakage is not possible through any API endpoint
   3. When one operator logs a QSO, other logged-in operators see it appear in the shared station feed within a few seconds without refreshing the page
-**Plans**: 4 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Concurrent write safety — verify compound unique index behavior under concurrent inserts; upsert strategy
-- [ ] 05-02: Operator isolation audit — verify all QSO queries inject operator from JWT, not request body
-- [ ] 05-03: Live feed — WebSocket or SSE broadcast of new QSOs to connected operator sessions
+- [ ] 05-01-PLAN.md — Concurrent write safety: MongoDB replica set upgrade + concurrent insert integration tests
+- [ ] 05-02-PLAN.md — Operator isolation audit: route introspection + cross-operator data isolation tests
+- [ ] 05-03-PLAN.md — Live station feed: SSE endpoint, change stream watcher, HTMX real-time feed UI
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
