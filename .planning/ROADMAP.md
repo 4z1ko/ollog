@@ -55,7 +55,7 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
 **Plans:** 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md — Prefix data, resolver module, and test suite
+- [x] 11-01-PLAN.md — Prefix data, resolver module, and test suite
 
 #### Phase 12: Flag Display Integration
 
@@ -67,10 +67,10 @@ Plans:
   2. QSO rows where the callsign is unresolvable (unknown prefix, `/MM`, non-country entity) show no flag and no broken image icon
   3. Flag icons persist correctly after HTMX pagination (clicking Next/Previous page) — no flags disappear or become broken images on partial swap
   4. Hovering a flag shows a country name tooltip (`title` attribute) — zero JavaScript required
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 12-01: Static file path fix and flag display wiring
+- [ ] 12-01-PLAN.md — Move flag SVGs to served static dir, wire flag enrichment into view-dict, render conditional img in qso_row.html
 
 ## Progress
 
@@ -90,4 +90,4 @@ Phases execute in numeric order: 11 → 12
 | 9. QSO Auto-Stamping | v1.1 | 1/1 | ✓ Complete | 2026-04-04 |
 | 10. Profile UI | v1.1 | 2/2 | ✓ Complete | 2026-04-04 |
 | 11. Prefix Resolver Module | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
-| 12. Flag Display Integration | v1.2 | 0/TBD | Not started | - |
+| 12. Flag Display Integration | v1.2 | 0/1 | Not started | - |
