@@ -106,6 +106,11 @@ from app.feed.router import router as feed_router  # noqa: E402
 
 app.include_router(feed_router)
 
+# Profile API router
+from app.profile.router import router as profile_router  # noqa: E402
+
+app.include_router(profile_router)
+
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
