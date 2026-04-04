@@ -31,7 +31,7 @@ class User(Document):
     latitude: Optional[float] = None     # derived from my_gridsquare center
     longitude: Optional[float] = None    # derived from my_gridsquare center
     my_rig: Optional[str] = None
-    my_ant: Optional[str] = None         # ADIF field name TBD at Phase 8
+    my_antenna: Optional[str] = None     # ADIF 3.1.6: MY_ANTENNA
     tx_pwr: Optional[float] = None       # watts
 
     class Settings:
