@@ -16,11 +16,15 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Res
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
+from pydantic import ValidationError
+
 from app.adif.router import _qso_to_adif_dict, process_import
 from app.adif.serializer import serialize_adi
 from app.auth.dependencies import get_current_operator_callsign_cookie, get_current_user_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
+from app.profile.schemas import ProfileUpdateRequest
+from app.profile.service import update_profile
 from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
 
@@ -527,3 +531,86 @@ async def qso_delete(
 
     await qso.update({"$set": {"_deleted": True}})
     return Response(content="", status_code=200)
+
+
+# ---------------------------------------------------------------------------
+# Profile settings
+# ---------------------------------------------------------------------------
+
+@ui_router.get("/profile", response_class=HTMLResponse)
+async def profile_page(
+    request: Request,
+    user: User = Depends(get_current_user_cookie),
+):
+    """Render the operator profile settings form, pre-populated with current values."""
+    return templates.TemplateResponse(
+        request,
+        "log/profile.html",
+        {"callsign": user.callsign, "profile": user},
+    )
+
+
+@ui_router.post("/profile", response_class=HTMLResponse)
+async def profile_update(
+    request: Request,
+    user: User = Depends(get_current_user_cookie),
+    station_callsign: Annotated[Optional[str], Form()] = None,
+    name: Annotated[Optional[str], Form()] = None,
+    email: Annotated[Optional[str], Form()] = None,
+    qth: Annotated[Optional[str], Form()] = None,
+    state: Annotated[Optional[str], Form()] = None,
+    country: Annotated[Optional[str], Form()] = None,
+    my_gridsquare: Annotated[Optional[str], Form()] = None,
+    my_rig: Annotated[Optional[str], Form()] = None,
+    my_antenna: Annotated[Optional[str], Form()] = None,
+    tx_pwr: Annotated[Optional[str], Form()] = None,
+):
+    """Process profile settings form submission via HTMX.
+
+    Always returns HTTP 200 — HTMX 2.x won't swap on 4xx.
+    Validates via ProfileUpdateRequest, calls update_profile() directly.
+    Returns a success or error partial into #profile-result.
+    """
+    # Collect form fields into dict, converting empty strings to None
+    raw: dict = {}
+    for field_name, value in [
+        ("station_callsign", station_callsign),
+        ("name", name),
+        ("email", email),
+        ("qth", qth),
+        ("state", state),
+        ("country", country),
+        ("my_gridsquare", my_gridsquare),
+        ("my_rig", my_rig),
+        ("my_antenna", my_antenna),
+        ("tx_pwr", tx_pwr),
+    ]:
+        if value is not None:
+            stripped = value.strip()
+            if field_name == "tx_pwr":
+                raw[field_name] = float(stripped) if stripped else None
+            else:
+                raw[field_name] = stripped if stripped else None
+
+    try:
+        validated = ProfileUpdateRequest(**raw)
+    except ValidationError as exc:
+        # Extract first human-readable error message
+        first_error = exc.errors()[0]
+        msg = first_error.get("msg", "Validation error")
+        field = first_error.get("loc", [""])[0]
+        error_text = f"{field}: {msg}" if field else msg
+        return templates.TemplateResponse(
+            request,
+            "log/profile_result.html",
+            {"error": error_text, "success": False},
+        )
+
+    updates = validated.model_dump(exclude_unset=True)
+    await update_profile(user, updates)
+
+    return templates.TemplateResponse(
+        request,
+        "log/profile_result.html",
+        {"error": None, "success": True},
+    )
