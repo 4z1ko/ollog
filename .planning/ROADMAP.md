@@ -65,10 +65,10 @@ Plans:
   2. A QSO submitted by an operator with STATION_CALLSIGN set in their profile is stored with STATION_CALLSIGN present in the QSO document — and the field is entirely absent (not an empty string) when the profile has no station callsign set
   3. An operator with no profile set can still log QSOs — the missing profile produces no error and no null fields in the QSO document
   4. Importing a .adi/.adif file does not apply any profile auto-stamping — imported QSO documents are stored exactly as parsed from the file
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 09-01: Extend build_qso_dict() in app/qso/service.py to accept an optional profile parameter — additive stamp of OPERATOR, STATION_CALLSIGN (conditional), MY_GRIDSQUARE, MY_RIG, MY_ANT, TX_PWR with null guard; update both QSO creation call sites (UI and REST); verify import path is untouched
+- [ ] 09-01-PLAN.md — Extend build_qso_dict with optional profile stamping, update REST and UI endpoints, integration tests
 
 #### Phase 10: Profile UI
 **Goal**: Operators can view and update their profile through a settings page in the log UI, with clear labeling distinguishing their personal callsign from any station callsign.
