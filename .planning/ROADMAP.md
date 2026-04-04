@@ -10,7 +10,7 @@ ollog is built in five phases that follow a strict dependency order: the ADIF pa
 - [ ] **Phase 2: Admin & Accounts** - Admin UI for operator account creation, enable/disable, and password reset
 - [ ] **Phase 3: QSO Entry & Log View** - QSO logging via web form and REST API, editing, soft-delete, duplicate detection, and paginated log view
 - [ ] **Phase 4: ADIF Import & Export** - File upload import with duplicate report, lossless N+1 field passthrough, and streaming ADIF export
-- [ ] **Phase 5: Multi-Operator & Live Feed** - Concurrent write safety validation, strict operator data isolation, and real-time live QSO feed
+- [x] **Phase 5: Multi-Operator & Live Feed** - Concurrent write safety validation, strict operator data isolation, and real-time live QSO feed
 
 ## Phase Details
 
@@ -113,4 +113,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Admin & Accounts | 0/2 | Not started | - |
 | 3. QSO Entry & Log View | 0/4 | Not started | - |
 | 4. ADIF Import & Export | 0/4 | Not started | - |
-| 5. Multi-Operator & Live Feed | 3/4 | In progress | - |
+| 5. Multi-Operator & Live Feed | 4/4 | ✓ Complete | 2026-04-04 |
