@@ -39,9 +39,22 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Profile form distinguishes OPERATOR (read-only) from STATION_CALLSIGN with explanatory note — v1.1
 - ✓ Profile page accessible via navigation link in the log UI — v1.1
 
+## Current Milestone: v1.2 Callsign Entity Lookup & Country Flags
+
+**Goal:** Resolve any logged callsign to its ITU-allocated country/entity and display the corresponding flag in the QSO log view.
+
+**Target features:**
+- ITU callsign prefix range table (from official ITU Series Ranges data)
+- Prefix resolver: given a callsign, return country name + ISO alpha-2 code (range-aware matching)
+- Country flag icon displayed next to each callsign in the QSO log table (display-only, no QSO data stored)
+
 ### Active
 
-(Run `/gsd:new-milestone` to define v1.2 requirements)
+- [ ] ITU callsign prefix range data seeded and queryable at runtime
+- [ ] Callsign → country/entity resolver (range-aware, handles sub-ranges like 3DA–3DM vs 3DN–3DZ)
+- [ ] Country name → ISO 3166-1 alpha-2 mapping (to match flag SVG filenames)
+- [ ] Flag icon rendered next to callsign in QSO log table rows (display-only)
+- [ ] Graceful fallback when no prefix match found (no flag shown, no error)
 
 ### Out of Scope
 
@@ -123,4 +136,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | User.model_construct() in stamping unit tests | Beanie Document() requires DB init; model_construct() bypasses it | ✓ Good — enables fast synchronous unit tests without MongoDB |
 
 ---
-*Last updated: 2026-04-04 after v1.1 milestone completion*
+*Last updated: 2026-04-04 after v1.2 milestone start*

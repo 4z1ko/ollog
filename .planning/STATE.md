@@ -2,17 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 milestone)
+See: .planning/PROJECT.md (updated 2026-04-04 after v1.2 milestone start)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone (v1.2)
+**Current focus:** v1.2 — Callsign Entity Lookup & Country Flags
 
 ## Current Position
 
-Phase: 10 of 10 (Profile UI)
-Plan: 2 of 2 in current phase — complete
-Status: Phase 10 complete — v1.1 complete
-Last activity: 2026-04-04 — 10-02 complete (Profile nav link added to form.html, log.html, import.html; import.html also gained Export link for nav bar parity)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-04 — Milestone v1.2 started
 
 Progress: [██████████] ~100% (v1.0 complete; v1.1 phases 07-10 done)
 
