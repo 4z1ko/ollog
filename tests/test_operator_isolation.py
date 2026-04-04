@@ -104,7 +104,7 @@ async def isolation_test_db():
     from app.auth.models import User
 
     client = AsyncMongoClient(
-        "mongodb://localhost:27017",
+        "mongodb://localhost:27017/?directConnection=true",
         serverSelectionTimeoutMS=2000,
     )
     db = client["ollog_test"]
