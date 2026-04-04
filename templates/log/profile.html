@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}ollog - Profile Settings{% endblock %}
+{% block content %}
+<nav>
+  <h1>ollog</h1>
+  <div style="display:flex;gap:1rem;align-items:center;">
+    <span>Logged in as <strong>{{ callsign }}</strong></span>
+    <a href="/log/">Log QSO</a>
+    <a href="/log/view">Log View</a>
+    <a href="/log/import">Import</a>
+    <a href="/log/export">Export</a>
+    <a href="/log/profile">Profile</a>
+    <a href="/log/logout">Logout</a>
+  </div>
+</nav>
+
+<div class="card">
+  <h2>Profile Settings</h2>
+  <form hx-post="/log/profile" hx-target="#profile-result" hx-swap="innerHTML">
+
+    <label>
+      OPERATOR (your personal callsign)
+      <input type="text" value="{{ callsign }}" disabled style="width:120px; background:#eee;">
+      <small style="color:#666;">Derived from your login — cannot be changed here</small>
+    </label>
+
+    <label>
+      STATION_CALLSIGN
+      <input type="text" name="station_callsign" value="{{ profile.station_callsign or '' }}" placeholder="Optional club/event call" style="width:150px">
+      <small style="color:#666;">Optional — use when operating under a different callsign (e.g., club or Field Day call)</small>
+    </label>
+
+    <label>
+      name
+      <input type="text" name="name" value="{{ profile.name or '' }}" placeholder="Your name" style="width:180px">
+    </label>
+
+    <label>
+      email
+      <input type="text" name="email" value="{{ profile.email or '' }}" placeholder="email@example.com" style="width:220px">
+    </label>
+
+    <label>
+      qth
+      <input type="text" name="qth" value="{{ profile.qth or '' }}" placeholder="City" style="width:150px">
+    </label>
+
+    <label>
+      state
+      <input type="text" name="state" value="{{ profile.state or '' }}" placeholder="State" style="width:80px">
+    </label>
+
+    <label>
+      country
+      <input type="text" name="country" value="{{ profile.country or '' }}" placeholder="Country" style="width:120px">
+    </label>
+
+    <label>
+      my_gridsquare
+      <input type="text" name="my_gridsquare" value="{{ profile.my_gridsquare or '' }}" placeholder="FN31pr" style="width:90px">
+      <small style="color:#666;">4 or 6 character Maidenhead locator</small>
+    </label>
+
+    <label>
+      my_rig
+      <input type="text" name="my_rig" value="{{ profile.my_rig or '' }}" placeholder="Rig description" style="width:180px">
+    </label>
+
+    <label>
+      my_antenna
+      <input type="text" name="my_antenna" value="{{ profile.my_antenna or '' }}" placeholder="Antenna description" style="width:180px">
+    </label>
+
+    <label>
+      tx_pwr
+      <input type="text" name="tx_pwr" value="{{ profile.tx_pwr if profile.tx_pwr is not none else '' }}" placeholder="Watts" style="width:80px">
+    </label>
+
+    <button type="submit">Save Profile</button>
+  </form>
+</div>
+
+<div id="profile-result"></div>
+{% endblock %}
