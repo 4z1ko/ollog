@@ -5,15 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-04 after v1.0)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone
+**Current focus:** v1.1 Operator & Station Profiles
 
 ## Current Position
 
-Phase: v1.0 complete (6 phases, 19 plans)
-Status: Milestone v1.0 MVP shipped — 2026-04-04
-Last activity: 2026-04-04 — Completed v1.0 milestone archive and git tag
-
-Progress: [██████████████████████████████] 100% (v1.0 complete)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-04 — Milestone v1.1 Operator & Station Profiles started
 
 ## Performance Metrics
 

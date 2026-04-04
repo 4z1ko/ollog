@@ -23,9 +23,20 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Operators can search and filter their QSO history (by callsign, band, mode, date) — v1.0
 - ✓ Basic duplicate detection (warn if callsign already worked on same band/mode within ±2 min) — v1.0
 
+## Current Milestone: v1.1 Operator & Station Profiles
+
+**Goal:** Each operator can save their personal info, station details, and location (grid/lat/lon), with callsigns auto-stamped onto every new QSO logged.
+
+**Target features:**
+- Operator profile: personal info (name, QTH, email) + all ADIF MY_* fields
+- Station callsign support: OPERATOR vs STATION_CALLSIGN (club call scenario)
+- Grid locator (Maidenhead) + decimal lat/lon storage per operator
+- Auto-stamp OPERATOR and STATION_CALLSIGN onto new QSOs from profile
+- Profile UI: settings page per operator
+
 ### Active
 
-(None — all v1.0 requirements shipped. Define v1.1 requirements with `/gsd:new-milestone`.)
+(Defining v1.1 requirements — see REQUIREMENTS.md)
 
 ### Out of Scope
 
@@ -89,4 +100,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | directConnection=true in test fixtures | Enables test fixtures to connect to replica set node directly | ✓ Good — works for both standalone and replica set environments |
 
 ---
-*Last updated: 2026-04-04 after v1.0 milestone*
+*Last updated: 2026-04-04 after v1.1 milestone start*
