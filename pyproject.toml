@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     "maidenhead>=1.8.0",
     "pydantic[email]>=2.0",
+    "pycountry>=26.2.16",
 ]
 
 [project.optional-dependencies]
