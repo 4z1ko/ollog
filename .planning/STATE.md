@@ -2,10 +2,10 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
+See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 10 — Profile UI (v1.1)
+**Current focus:** Planning next milestone (v1.2)
 
 ## Current Position
 
@@ -34,7 +34,7 @@ Progress: [██████████] ~100% (v1.0 complete; v1.1 phases 07-
 | 05-multi-operator-live-feed | 4/4 | ~37 min | ~9.3 min |
 | 06-navigation-fix | 1/1 | ~2 min | ~2 min |
 
-*v1.1 metrics will accumulate as phases complete*
+**v1.1 Velocity:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|

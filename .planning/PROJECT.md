@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. Each operator maintains their own individual logbook identified by their callsign. Operators log QSOs in real-time via REST API or browser web UI, import/export full ADIF logbooks, and see each other's QSOs appear live in a shared station feed. All QSO data is stored using native ADIF field names, enabling seamless round-trip import/export with external logging tools.
+A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. Each operator maintains their own individual logbook identified by their callsign. Operators log QSOs in real-time via REST API or browser web UI, import/export full ADIF logbooks, and see each other's QSOs appear live in a shared station feed. All QSO data is stored using native ADIF field names, enabling seamless round-trip import/export with external logging tools. Each operator has a profile with personal info, station details, and grid location — auto-stamped onto every new QSO they log.
 
 ## Core Value
 
@@ -23,20 +23,25 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Operators can search and filter their QSO history (by callsign, band, mode, date) — v1.0
 - ✓ Basic duplicate detection (warn if callsign already worked on same band/mode within ±2 min) — v1.0
 
-## Current Milestone: v1.1 Operator & Station Profiles
+### Validated (v1.1)
 
-**Goal:** Each operator can save their personal info, station details, and location (grid/lat/lon), with callsigns auto-stamped onto every new QSO logged.
-
-**Target features:**
-- Operator profile: personal info (name, QTH, email) + all ADIF MY_* fields
-- Station callsign support: OPERATOR vs STATION_CALLSIGN (club call scenario)
-- Grid locator (Maidenhead) + decimal lat/lon storage per operator
-- Auto-stamp OPERATOR and STATION_CALLSIGN onto new QSOs from profile
-- Profile UI: settings page per operator
+- ✓ Operator profile stores OPERATOR callsign (from login) and optional STATION_CALLSIGN — v1.1
+- ✓ Operator profile stores personal info: name, email, QTH city, state/province, country — v1.1
+- ✓ Operator profile stores Maidenhead grid locator (MY_GRIDSQUARE, 4- or 6-char) — v1.1
+- ✓ Operator profile stores decimal lat/lon auto-derived from grid square (center, not SW corner) — v1.1
+- ✓ Operator profile stores station equipment: MY_RIG, MY_ANTENNA, TX_PWR — v1.1
+- ✓ New QSOs logged via UI or REST API are auto-stamped with OPERATOR from profile — v1.1
+- ✓ STATION_CALLSIGN only stamped when set in profile (omitted entirely when blank) — v1.1
+- ✓ ADIF import path is NOT auto-stamped — historical records preserved as-is — v1.1
+- ✓ Operators can retrieve and update their own profile via GET/PATCH /api/profile (JWT auth) — v1.1
+- ✓ Profile API enforces operator isolation — cannot read/write another operator's profile — v1.1
+- ✓ Operator has a profile settings page at /log/profile with an HTMX form — v1.1
+- ✓ Profile form distinguishes OPERATOR (read-only) from STATION_CALLSIGN with explanatory note — v1.1
+- ✓ Profile page accessible via navigation link in the log UI — v1.1
 
 ### Active
 
-(Defining v1.1 requirements — see REQUIREMENTS.md)
+(Run `/gsd:new-milestone` to define v1.2 requirements)
 
 ### Out of Scope
 
@@ -46,10 +51,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Mobile native app — web UI is responsive, no native app in v1
 - LoTW/eQSL direct upload — TQSL certificate management adds significant operational complexity (v2)
 - Callsign lookup (QRZ/HamQTH) — external API dependency with subscription/rate-limit friction (v2)
+- MY_LAT / MY_LON in ADIF export — ADIF Location format is non-trivial (XDDD MM.MMM); lat/lon stored as float internally for future use
+- DXCC entity / CQ zone / ITU zone derivation from callsign — requires cty.dat lookup (v2)
+- Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
+- Multiple station profiles per operator — deferred (v2)
 
 ## Context
 
-- **ADIF Spec:** https://adif.org/317/ADIF_317.htm — all QSO fields conform to ADIF 3.1.7
+- **ADIF Spec:** https://adif.org/317/ADIF_317.htm — all QSO fields conform to ADIF 3.1.7 (MY_ANTENNA confirmed as correct field name per 3.1.6)
 - **Domain:** Ham radio operators log "QSOs" (contacts) — each QSO captures callsign, frequency/band, mode (CW, SSB, FT8, etc.), signal reports (RST), date, time, and optional fields
 - **ADIF file format:** Tag-based encoding `<CALL:4>W1AW <BAND:3>20M <EOR>` — lossless import/export is non-negotiable
 - **Simultaneous logging:** Club station or contest team with multiple operators active at the same time
@@ -63,13 +72,13 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v1.0 MVP (shipped 2026-04-04)
-**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose
+**Version:** v1.1 Operator & Station Profiles (shipped 2026-04-04)
+**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI, Bearer token for REST API
-**Codebase:** ~6,611 LOC (Python + HTML templates)
+**Codebase:** ~7,465 LOC (Python + HTML templates)
 
-**Shipped features:**
+**Shipped features (cumulative):**
 - Custom ADIF parser + serializer (no third-party ADIF lib)
 - QSO REST API (POST/GET/PATCH/soft-DELETE) with operator isolation
 - HTMX operator UI: login, QSO form with duplicate warning, paginated log view with filters
@@ -77,6 +86,12 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ADIF import (file upload, duplicate detection, import report) and export (streaming .adi download)
 - Real-time SSE station feed — MongoDB change streams → ConnectionManager → htmx-ext-sse DOM injection
 - Programmatic operator isolation audit — route introspection test + cross-operator data layer tests
+- Operator profile: 12 optional fields (personal info, station equipment, grid/location) embedded in User document
+- `grid_to_latlon()` utility — Maidenhead → decimal lat/lon using center=True (17 unit tests)
+- Profile API: GET/PATCH `/api/profile` with JWT auth, lat/lon auto-sync on grid change, operator isolation
+- QSO auto-stamping: OPERATOR always, STATION_CALLSIGN/equipment conditionally; ADIF import path excluded
+- Profile UI at `/log/profile` — HTMX inline save, OPERATOR vs STATION_CALLSIGN clearly labeled
+- Profile nav link in all log UI templates (form, log view, import)
 
 **Known tech debt:**
 - `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
@@ -87,7 +102,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Individual logs per operator | Each ham has their own callsign and logbook identity | ✓ Good — _operator as leading index key enables efficient per-operator queries |
+| Individual logs per operator | Each ham has their own callsign and logbook identity | ✓ Good — operator as leading index key enables efficient per-operator queries |
 | ADIF field names as internal data model | Eliminates translation layer; stays spec-compliant | ✓ Good — model_extra stores arbitrary ADIF fields losslessly |
 | Admin-managed accounts | Prevents unauthorized access; club/team deployments | ✓ Good — admin bootstrap from env vars; no web signup endpoint |
 | MongoDB for QSO storage | Flexible schema fits ADIF's large optional field set | ✓ Good — Beanie ODM + pymongo async works well |
@@ -98,6 +113,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | MongoDB single-node replica set | Change streams require oplog; single node sufficient for self-hosted | ✓ Good — self-initiating healthcheck pattern works reliably |
 | Cookie auth for SSE endpoint | Browser EventSource API cannot send Authorization headers | ✓ Good — get_current_operator_callsign_cookie used on /feed/station |
 | directConnection=true in test fixtures | Enables test fixtures to connect to replica set node directly | ✓ Good — works for both standalone and replica set environments |
+| Profile fields embedded in User document | No separate collection, no migration required | ✓ Good — Optional fields default to None; existing users unaffected |
+| grid-to-latlon conversion in service layer (not model) | Keeps User model as plain data; separation of concerns | ✓ Good — update_profile() in service.py handles lat/lon sync |
+| center=True for maidenhead grid conversion | SW corner default causes up to 80 km error | ✓ Good — grid_to_latlon() uses center of grid square |
+| MY_ANTENNA (not MY_ANT) field name | ADIF 3.1.6 spec lists MY_ANTENNA — my_ant was a placeholder | ✓ Good — renamed in 08-01; no migration needed (Optional, no production data) |
+| STATION_CALLSIGN omitted (not empty string) when blank | Empty string causes LoTW/POTA upload failures | ✓ Good — schema validator normalizes "" → None |
+| ADIF import path excluded from auto-stamping | Historical records must be preserved as-is | ✓ Good — profile param defaults to None; import callers pass no profile |
+| UI profile POST calls service directly (not /api/profile) | Avoids internal HTTP round-trip; follows existing UI route pattern | ✓ Good — consistent with how submit_qso calls build_qso_dict |
+| User.model_construct() in stamping unit tests | Beanie Document() requires DB init; model_construct() bypasses it | ✓ Good — enables fast synchronous unit tests without MongoDB |
 
 ---
-*Last updated: 2026-04-04 after v1.1 milestone start*
+*Last updated: 2026-04-04 after v1.1 milestone completion*
