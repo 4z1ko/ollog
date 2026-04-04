@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 ## Current Position
 
 Phase: 7 of 10 (Profile Data Model and Grid Utility)
-Plan: 1 of 2 in current phase
+Plan: 2 of 2 in current phase — PHASE COMPLETE
 Status: In progress
-Last activity: 2026-04-04 — 07-01 complete (User model profile fields + dependencies)
+Last activity: 2026-04-04 — 07-02 complete (grid_to_latlon TDD utility)
 
-Progress: [██████░░░░] ~58% (v1.0 complete; v1.1 plan 07-01 done)
+Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 done)
 
 ## Performance Metrics
 
@@ -36,6 +36,11 @@ Progress: [██████░░░░] ~58% (v1.0 complete; v1.1 plan 07-01 
 
 *v1.1 metrics will accumulate as phases complete*
 
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 07-01 | 1/1 | ~4 min | ~4 min |
+| 07-02 | 1/1 | ~3 min | ~3 min |
+
 ## Accumulated Context
 
 ### Key Decisions (summary — full log in PROJECT.md)
@@ -43,7 +48,8 @@ Progress: [██████░░░░] ~58% (v1.0 complete; v1.1 plan 07-01 
 - Profile fields embedded in existing User Beanie document — no separate collection, no migration (confirmed implemented 07-01)
 - maidenhead>=1.8.0 + pydantic[email]>=2.0 are the only new dependencies (installed 07-01)
 - No validators or computed fields in User model — grid-to-latlon conversion deferred to service layer in Phase 8
-- center=True required for maidenhead.to_location() — SW corner default causes up to 80 km error
+- center=True required for maidenhead.to_location() — SW corner default causes up to 80 km error (confirmed implemented 07-02)
+- grid_to_latlon pre-validates character classes (pos 0-1 letters, 2-3 digits, 4-5 letters) to catch "99AA" explicitly
 - Profile GET/PATCH derives operator from JWT only — no callsign in query params or body
 - STATION_CALLSIGN omitted entirely (not empty string) when blank — prevents LoTW/POTA upload failures
 - ADIF import path explicitly excluded from auto-stamping — historical records preserved as-is
@@ -67,5 +73,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 07-01-PLAN.md (User model profile fields + maidenhead/pydantic[email] deps)
+Stopped at: Completed 07-02-PLAN.md (grid_to_latlon TDD utility — phase 07 complete)
 Resume file: None
