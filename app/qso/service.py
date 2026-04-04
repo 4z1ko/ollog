@@ -1,8 +1,13 @@
 """QSO service layer — ADIF datetime parsing, QSO document construction, paginated queries."""
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from app.qso.models import QSO
+
+if TYPE_CHECKING:
+    from app.auth.models import User
 
 
 def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
@@ -19,13 +24,16 @@ def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
     return datetime.combine(date_part, time_part, tzinfo=timezone.utc)
 
 
-def build_qso_dict(body_dict: dict, operator: str) -> dict:
+def build_qso_dict(body_dict: dict, operator: str, profile: Optional[User] = None) -> dict:
     """Build a QSO document dict from a merged ADIF field dict and operator callsign.
 
     Normalises BAND and MODE to uppercase (compound index consistency).
     Parses QSO_DATE + TIME_ON into qso_date_utc.
     Injects operator_callsign and is_deleted (Beanie serialises these to _operator/_deleted).
     Keeps QSO_DATE and TIME_ON in the dict for ADIF round-trip fidelity (Phase 4 export).
+
+    When profile is provided, auto-stamps OPERATOR and optional profile fields (STAMP-01/02).
+    When profile is None (ADIF import path), no profile-derived fields are injected (STAMP-03).
     """
     result = dict(body_dict)
 
@@ -43,6 +51,20 @@ def build_qso_dict(body_dict: dict, operator: str) -> dict:
 
     # Set soft-delete flag (Beanie serialises to _deleted via serialization_alias)
     result["is_deleted"] = False
+
+    # Auto-stamp profile-derived ADIF fields when a profile is provided (STAMP-01/02/03)
+    if profile is not None:
+        result["OPERATOR"] = profile.callsign
+        if profile.station_callsign:
+            result["STATION_CALLSIGN"] = profile.station_callsign
+        if profile.my_gridsquare:
+            result["MY_GRIDSQUARE"] = profile.my_gridsquare
+        if profile.my_rig:
+            result["MY_RIG"] = profile.my_rig
+        if profile.my_antenna:
+            result["MY_ANTENNA"] = profile.my_antenna
+        if profile.tx_pwr is not None:
+            result["TX_PWR"] = str(profile.tx_pwr)
 
     return result
 

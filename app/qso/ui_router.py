@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.adif.router import _qso_to_adif_dict, process_import
 from app.adif.serializer import serialize_adi
-from app.auth.dependencies import get_current_operator_callsign_cookie
+from app.auth.dependencies import get_current_operator_callsign_cookie, get_current_user_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
 from app.qso.models import QSO
@@ -125,14 +125,16 @@ async def submit_qso(
     RST_SENT: Annotated[str | None, Form()] = None,
     RST_RCVD: Annotated[str | None, Form()] = None,
     force: bool = Query(False),
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Handle HTMX QSO form submission.
 
     Always returns HTTP 200 with an HTML partial — HTMX 2.x won't swap on 4xx.
     Duplicate found and not forced → return warning partial with "Save Anyway" button.
     No duplicate or force=True → insert QSO and return success partial.
+    Profile fields (OPERATOR, STATION_CALLSIGN, etc.) are auto-stamped from the User document.
     """
+    callsign = user.callsign
     form_data = {
         "CALL": CALL,
         "QSO_DATE": QSO_DATE,
@@ -147,6 +149,7 @@ async def submit_qso(
     qso_dict = build_qso_dict(
         {k: v for k, v in form_data.items() if v is not None},
         operator=callsign,
+        profile=user,
     )
 
     if not force:

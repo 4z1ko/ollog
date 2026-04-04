@@ -12,7 +12,8 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 
-from app.auth.dependencies import get_current_operator_callsign
+from app.auth.dependencies import get_current_operator_callsign, get_current_user
+from app.auth.models import User
 from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
 
@@ -58,17 +59,19 @@ def _qso_to_dict(qso: QSO) -> dict:
 async def create_qso(
     body: QSOCreateRequest,
     force: bool = Query(False),  # duplicate override — wired in 03-02, ignored here
-    operator: str = Depends(get_current_operator_callsign),
+    user: User = Depends(get_current_user),
 ) -> dict:
     """Create a new QSO for the authenticated operator.
 
     Callsign is injected from JWT — not accepted from request body.
     BAND and MODE are uppercased on ingest for compound index consistency.
     Extra ADIF fields beyond the declared set are accepted and stored.
+    Profile fields (OPERATOR, STATION_CALLSIGN, etc.) are auto-stamped from the User document.
     """
+    operator = user.callsign
     # Merge declared fields and extra ADIF fields
     merged: dict = {**body.model_dump(exclude_unset=False), **(body.model_extra or {})}
-    qso_dict = build_qso_dict(merged, operator)
+    qso_dict = build_qso_dict(merged, operator, profile=user)
 
     # Duplicate detection — skip only when force=True
     if not force:
