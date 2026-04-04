@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-04 after v1.2 milestone start)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.2 Phase 11 — Prefix Resolver Module
+**Current focus:** v1.2 Phase 12 — Flag Display Integration (complete)
 
 ## Current Position
 
-Phase: 11 of 12 (Prefix Resolver Module)
+Phase: 12 of 12 (Flag Display Integration)
 Plan: 1 of 1 in current phase
-Status: Phase 11 complete — ready for Phase 12
-Last activity: 2026-04-04 — 11-01 prefix resolver module completed
+Status: Phase 12 complete — v1.2 milestone complete
+Last activity: 2026-04-04 — 12-01 flag display integration completed
 
 Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 starting
 
@@ -36,6 +36,7 @@ Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 startin
 | 10-02 | 1/1 | ~1 min | ~1 min |
 
 | 11-01 | 1/1 | ~13 min | ~13 min |
+| 12-01 | 1/1 | ~3 min | ~3 min |
 
 ## Accumulated Context
 
@@ -51,6 +52,8 @@ Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 startin
 - Bisect truncated comparison required: use `start[:n] <= prefix <= end[:n]` because ITU range keys (WAA-WZZ) use letter-padding while callsigns contain digits (W1AW), and digits sort before letters in ASCII
 - `_NOTFOUND` sentinel in `_range_lookup` distinguishes "no range matched" from "found, iso=None" (non-country entity) — prevents 4U1ITU from falling through to shorter prefix match
 - Structural callsign parsing in `lookup_prefix`: require digit in callsign (UNKNOWN has none → None); try letter+digit candidate (C7) before letters-only candidate (C) for C7-type allocations
+- Flag SVGs moved to project-root static/flags/ via git mv — StaticFiles mount serves static/ not app/static/; iso lowercased for filename match
+- Flag enrichment in _qso_to_view_dict() only (render-time, not stored); pycountry None guard for Kosovo (XK) — raw iso as fallback tooltip
 
 ### Known Tech Debt
 
@@ -65,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 11-01-PLAN.md — prefix resolver module with lookup_prefix(), 28 tests all passing
+Stopped at: Completed 12-01-PLAN.md — flag display integration with SVG img tags and pycountry tooltips; v1.2 milestone complete
 Resume file: None
