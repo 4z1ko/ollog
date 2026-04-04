@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-04-04 after v1.2 milestone start)
 ## Current Position
 
 Phase: 11 of 12 (Prefix Resolver Module)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-04-04 — v1.2 roadmap created (phases 11–12)
+Plan: 1 of 1 in current phase
+Status: Phase 11 complete — ready for Phase 12
+Last activity: 2026-04-04 — 11-01 prefix resolver module completed
 
 Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 starting
 
@@ -35,7 +35,7 @@ Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 startin
 | 10-01 | 1/1 | ~2 min | ~2 min |
 | 10-02 | 1/1 | ~1 min | ~1 min |
 
-*v1.2 metrics will populate after first plan completion*
+| 11-01 | 1/1 | ~13 min | ~13 min |
 
 ## Accumulated Context
 
@@ -48,6 +48,9 @@ Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 startin
 - ISO code NOT stored in QSO records — render-time lookup is correct; stored codes would go stale as ITU allocations change
 - Longest-prefix-match required (not flat scan) — ITU has overlapping sub-ranges (3DA–3DM vs 3DN–3DZ)
 - `/MM` and `/AM` treated as unresolvable operating suffixes — not resolved as MM=Scotland or AM=Spain
+- Bisect truncated comparison required: use `start[:n] <= prefix <= end[:n]` because ITU range keys (WAA-WZZ) use letter-padding while callsigns contain digits (W1AW), and digits sort before letters in ASCII
+- `_NOTFOUND` sentinel in `_range_lookup` distinguishes "no range matched" from "found, iso=None" (non-country entity) — prevents 4U1ITU from falling through to shorter prefix match
+- Structural callsign parsing in `lookup_prefix`: require digit in callsign (UNKNOWN has none → None); try letter+digit candidate (C7) before letters-only candidate (C) for C7-type allocations
 
 ### Known Tech Debt
 
@@ -62,5 +65,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: v1.2 roadmap created — phases 11 and 12 defined, REQUIREMENTS.md traceability confirmed, ready to plan Phase 11
+Stopped at: Completed 11-01-PLAN.md — prefix resolver module with lookup_prefix(), 28 tests all passing
 Resume file: None
