@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 ## Current Position
 
 Phase: 7 of 10 (Profile Data Model and Grid Utility)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-04-04 — v1.1 roadmap created (phases 7–10)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-04-04 — 07-01 complete (User model profile fields + dependencies)
 
-Progress: [██████░░░░] ~55% (v1.0 complete; v1.1 not started)
+Progress: [██████░░░░] ~58% (v1.0 complete; v1.1 plan 07-01 done)
 
 ## Performance Metrics
 
@@ -40,8 +40,9 @@ Progress: [██████░░░░] ~55% (v1.0 complete; v1.1 not started
 
 ### Key Decisions (summary — full log in PROJECT.md)
 
-- Profile fields embedded in existing User Beanie document — no separate collection, no migration
-- maidenhead>=1.8.0 + pydantic[email]>=2.0 are the only new dependencies
+- Profile fields embedded in existing User Beanie document — no separate collection, no migration (confirmed implemented 07-01)
+- maidenhead>=1.8.0 + pydantic[email]>=2.0 are the only new dependencies (installed 07-01)
+- No validators or computed fields in User model — grid-to-latlon conversion deferred to service layer in Phase 8
 - center=True required for maidenhead.to_location() — SW corner default causes up to 80 km error
 - Profile GET/PATCH derives operator from JWT only — no callsign in query params or body
 - STATION_CALLSIGN omitted entirely (not empty string) when blank — prevents LoTW/POTA upload failures
@@ -66,5 +67,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: v1.1 roadmap written — phases 7–10 defined, ready to plan Phase 7
+Stopped at: Completed 07-01-PLAN.md (User model profile fields + maidenhead/pydantic[email] deps)
 Resume file: None
