@@ -20,7 +20,7 @@ async def test_db():
 
     from app.qso.models import QSO
     client = AsyncMongoClient(
-        "mongodb://localhost:27017",
+        "mongodb://localhost:27017/?directConnection=true",
         serverSelectionTimeoutMS=2000,
     )
     db = client["ollog_test"]
