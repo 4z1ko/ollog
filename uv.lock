@@ -454,6 +454,15 @@ wheels = [
 ]
 
 [[package]]
+name = "maidenhead"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/8e/57498adbd28d3e1a877f7f0498d84a02ff9f607ea5c36c365c84a97bd77b/maidenhead-1.8.0.tar.gz", hash = "sha256:38f318fbdf29ec995bd45e81f33bfa1f905129a154f0aa0334452f90e6c705bf", size = 8788, upload-time = "2025-05-25T06:27:58.786Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/82/167553db9cff18f759048f6d90bf8348bae7b24c652dc2fbae6f87fa8a66/maidenhead-1.8.0-py3-none-any.whl", hash = "sha256:ddc33fb370e0c3ce917be6040474ecb4c27ccc33b3dc9348536b73b5884bb68a", size = 9337, upload-time = "2025-05-25T06:27:57.124Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -544,7 +553,9 @@ source = { editable = "." }
 dependencies = [
     { name = "beanie" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "maidenhead" },
     { name = "pwdlib", extra = ["argon2"] },
+    { name = "pydantic", extra = ["email"] },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
     { name = "pymongo" },
@@ -569,7 +580,9 @@ requires-dist = [
     { name = "beanie", specifier = ">=2.1.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.135.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
+    { name = "maidenhead", specifier = ">=1.8.0" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.0" },
     { name = "pydantic-settings", specifier = ">=2.0" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pymongo", specifier = ">=4.16.0" },
