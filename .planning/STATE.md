@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 5 of 5 (Multi-Operator Live Feed)
-Plan: 4 of 4 in current phase
-Status: Phase 5 complete — 4/4 plans done
-Last activity: 2026-04-04 — Completed 05-04 (Fix MongoDB fixture URIs: directConnection=true in conftest.py and test_operator_isolation.py)
+Phase: 6 of 6 (Navigation Fix)
+Plan: 1 of 1 in current phase
+Status: Phase 6 complete — 1/1 plans done
+Last activity: 2026-04-04 — Completed 06-01 (Add Import/Export nav links to form.html and log.html)
 
-Progress: [██████████████████████████████] 78% (18 of ~23 plans)
+Progress: [████████████████████████████████] 83% (19 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02, 05-03, 05-04)
-- Average duration: ~7.5 min
-- Total execution time: ~1.71 hours
+- Total plans completed: 18 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02, 05-03, 05-04, 06-01)
+- Average duration: ~7.1 min
+- Total execution time: ~1.73 hours
 
 **By Phase:**
 
@@ -39,6 +39,7 @@ Progress: [███████████████████████
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 05-multi-operator-live-feed | 4/4 | ~37 min | ~9.3 min |
+| 06-navigation-fix | 1/1 | ~2 min | ~2 min |
 
 *Updated after each plan completion*
 
@@ -111,5 +112,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 05-04 — Fixed MongoDB URI fixtures: directConnection=true in conftest.py and test_operator_isolation.py; all 8 integration tests PASS. Phase 5 complete.
+Stopped at: Completed 06-01 — Added Import/Export nav links to form.html and log.html; ADIF import/export pages now reachable from any log UI page. Phase 6 complete.
 Resume file: None
