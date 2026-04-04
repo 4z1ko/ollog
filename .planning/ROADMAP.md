@@ -35,11 +35,11 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
   3. User document stores MY_GRIDSQUARE (up to 6 characters) and the decimal lat/lon auto-derived from that grid using the center of the square (not the SW corner)
   4. User document stores station equipment fields: MY_RIG, MY_ANT, and TX_PWR (watts as a number)
   5. Grid conversion utility converts a valid 4- or 6-character Maidenhead locator to a (lat, lon) tuple using center=True — the returned coordinates match the center of the grid square, not the SW corner
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 07-01: Extend User Beanie document with Optional profile fields (PROF-01 through PROF-05) and add maidenhead + pydantic[email] to pyproject.toml
-- [ ] 07-02: Implement app/profile/grid.py — grid_to_latlon() using maidenhead center=True, unit tests covering 4-char and 6-char grids and invalid input
+- [ ] 07-01-PLAN.md -- Extend User document with Optional profile fields and add maidenhead + pydantic[email] dependencies
+- [ ] 07-02-PLAN.md -- TDD: grid_to_latlon() utility with maidenhead center=True and comprehensive unit tests
 
 #### Phase 8: Profile Service, Schemas, and API Router
 **Goal**: Operators can read and update their own profile via REST API and the profile is persisted correctly with grid-to-lat/lon auto-compute on save.
