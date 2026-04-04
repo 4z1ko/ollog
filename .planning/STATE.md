@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 ## Current Position
 
 Phase: 8 of 10 (Profile Service Schemas and API Router)
-Plan: 1 of 2 in current phase — plan 01 complete
-Status: In progress
-Last activity: 2026-04-04 — 08-01 complete (profile schemas and my_antenna field rename)
+Plan: 2 of 2 in current phase — both plans complete
+Status: Phase 8 complete — ready for Phase 9
+Last activity: 2026-04-04 — 08-02 complete (profile service, GET/PATCH endpoints, 8 integration tests)
 
-Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 done)
+Progress: [███████░░░] ~68% (v1.0 complete; v1.1 phases 07-08 done)
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 do
 | 07-01 | 1/1 | ~4 min | ~4 min |
 | 07-02 | 1/1 | ~3 min | ~3 min |
 | 08-01 | 1/1 | ~3 min | ~3 min |
+| 08-02 | 1/1 | ~8 min | ~8 min |
 
 ## Accumulated Context
 
@@ -52,6 +53,8 @@ Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 do
 - center=True required for maidenhead.to_location() — SW corner default causes up to 80 km error (confirmed implemented 07-02)
 - grid_to_latlon pre-validates character classes (pos 0-1 letters, 2-3 digits, 4-5 letters) to catch "99AA" explicitly
 - Profile GET/PATCH derives operator from JWT only — no callsign in query params or body
+- update_profile() re-fetches User after Beanie update() — update() does not mutate in-memory document
+- Profile test fixture uses directConnection=True to reach localhost:27017, avoiding Docker hostname issues
 - STATION_CALLSIGN omitted entirely (not empty string) when blank — prevents LoTW/POTA upload failures
 - ADIF import path explicitly excluded from auto-stamping — historical records preserved as-is
 - MY_ANTENNA confirmed as ADIF 3.1.6 field name — my_ant renamed to my_antenna in User model at 08-01 (no migration needed, field was Optional with no production data)
@@ -76,5 +79,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 08-01-PLAN.md (profile schemas and my_antenna field rename)
+Stopped at: Completed 08-02-PLAN.md (profile service, GET/PATCH endpoints, 8 integration tests)
 Resume file: None
