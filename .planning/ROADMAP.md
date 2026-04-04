@@ -52,10 +52,10 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. `lookup_prefix("G3YWX/MM")` returns `None` and `lookup_prefix("EA3/G3YWX")` returns `"ES"` — `/MM` and `/AM` treated as unresolvable operating suffixes, not country prefixes
   4. `lookup_prefix("W1AW/P")`, `lookup_prefix("W1AW/7")`, `lookup_prefix("W1AW/QRP")` all return `"US"` — portable and area suffixes stripped before lookup
   5. `lookup_prefix("4U1ITU")` returns `None` and `lookup_prefix("UNKNOWN")` returns `None` — non-country entities and unknown prefixes return None without raising exceptions
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 11-01: Prefix data and resolver module
+- [ ] 11-01-PLAN.md — Prefix data, resolver module, and test suite
 
 #### Phase 12: Flag Display Integration
 
@@ -89,5 +89,5 @@ Phases execute in numeric order: 11 → 12
 | 8. Profile Service, Schemas, and API Router | v1.1 | 2/2 | ✓ Complete | 2026-04-04 |
 | 9. QSO Auto-Stamping | v1.1 | 1/1 | ✓ Complete | 2026-04-04 |
 | 10. Profile UI | v1.1 | 2/2 | ✓ Complete | 2026-04-04 |
-| 11. Prefix Resolver Module | v1.2 | 0/TBD | Not started | - |
+| 11. Prefix Resolver Module | v1.2 | 0/1 | Planning complete | - |
 | 12. Flag Display Integration | v1.2 | 0/TBD | Not started | - |
