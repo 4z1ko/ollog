@@ -1,405 +1,498 @@
-# Domain Pitfalls
+# Pitfalls Research
 
-**Domain:** Multi-operator ham radio QSO logbook (Python/MongoDB/ADIF)
+**Domain:** Ham radio QSO logbook — callsign entity lookup and country flag display (v1.2)
 **Researched:** 2026-04-04
-**Scope:** Pitfalls specific to adding operator/station profiles to an existing system with live QSO data.
-**Confidence note:** Findings draw from direct codebase inspection (actual models, routers, dependencies), ADIF spec research (WebSearch, verified against adif.org), Beanie ODM documentation (WebSearch + beanie-odm.dev), and training data (knowledge cutoff August 2025). Confidence levels are assigned per-finding.
+**Scope:** Pitfalls specific to adding ITU prefix lookup, ISO country mapping, and flag icon rendering to the existing ollog stack (FastAPI + Beanie/MongoDB + HTMX 2.x + Jinja2).
+**Confidence note:** Findings draw from direct codebase inspection (`app/qso/ui_router.py`, `templates/log/qso_row.html`, `templates/log/log_table.html`), ITU prefix data research (WebSearch + ITU.int), pycountry behavior (WebSearch + GitHub issues), HTMX SVG rendering behavior (WebSearch + htmx GitHub issues), and training data. Confidence levels are assigned per-finding.
 
 ---
 
 ## How This File Is Organized
 
-Pitfalls 1–8 are **new** — specific to adding profile storage to the existing v1.0 system.
-Pitfalls 9–27 are **carried forward** from v1.0 research (domain-wide ADIF, MongoDB, and multi-operator hazards that remain relevant to v1.1 work).
+Pitfalls 1–11 are **new** — specific to adding callsign entity lookup and flag display in v1.2.
+Pitfalls 12–32 are **carried forward** from v1.0 / v1.1 research and remain relevant to any continued work.
 
 ---
 
-## Critical Pitfalls (v1.1 specific)
+## Critical Pitfalls (v1.2 specific)
 
-Mistakes that cause data loss, operator isolation breaks, or require rewrites.
-
----
-
-### Pitfall 1: Profile Endpoint Returns Another Operator's Data (Isolation Leak)
-
-**What goes wrong:** A `GET /api/profile` endpoint resolves operator identity from a query param, path param, or request body instead of the JWT-injected callsign. One operator can read or overwrite another's profile by supplying a different callsign in the request.
-
-**Why it happens:** The existing pattern in this codebase correctly uses `get_current_operator_callsign` from the JWT dependency everywhere in QSO routes. A new profile route written without that discipline — for example, reading `callsign` from a request body to "allow updating any profile" — silently breaks isolation. The danger is highest if the route is modeled after an admin route that accepts arbitrary operator identifiers.
-
-**Consequences:** Complete profile isolation failure. Operator A reads Operator B's personal info (name, QTH, grid, email). Operator A overwrites Operator B's profile. The app passes authentication checks (JWT is valid) but fails authorization checks (wrong data scope).
-
-**Prevention:**
-- Profile GET and PUT/PATCH routes MUST use `operator: str = Depends(get_current_operator_callsign)` (or its cookie variant) as the sole source of the operator key — never a body or path param.
-- Profile document must be keyed by callsign (or user ID) and the service layer must filter by the JWT-derived value, not by any client-supplied value.
-- Add a cross-operator profile test in the same style as the existing programmatic operator isolation audit: authenticate as Operator A, attempt GET/PUT on Operator B's profile URL or body, assert 404 or 403.
-
-**Detection:** The existing isolation audit in the test suite is the pattern to follow. A profile-specific isolation test that authenticates as W1AAA and attempts to read/write W2BBB's profile must return a non-2xx status.
-
-**Phase:** Profile data model and routing (first task before any profile logic is built).
-
-**Confidence:** HIGH — this is the same isolation pattern enforced throughout v1.0; adding new routes without it is the canonical multi-tenant leak vector.
+Mistakes that produce wrong entity resolutions, broken rendering, or silent data corruption.
 
 ---
 
-### Pitfall 2: Profile Embedded in the `User` Document Breaks Future Operability and Atomicity Assumptions
+### Pitfall 1: Range Comparison on Raw Strings Instead of Character-Position Logic
 
-**What goes wrong:** Adding profile fields directly to the existing `User` Beanie document (`app/auth/models.py`) seems simple — just add `Optional[str]` fields. However, the `User` document has `model_config = ConfigDict(populate_by_name=True)` without `extra="allow"`, meaning any field not declared in the model is dropped on read and causes a Pydantic validation error on write. Adding 20+ ADIF MY_* fields as declared Optional fields inflates the auth model, couples the authentication concern to the logging concern, and makes the auth service carry profile data it has no business knowing about.
+**What goes wrong:**
+The ITU data format `WAA - WAZ,United States of America` implies that a range like `3DA–3DM` means "all callsigns whose prefix starts with 3D and whose third character falls between A and M inclusive." A naive implementation does lexicographic string comparison (`"3DA" <= prefix <= "3DZ"`) which breaks down as soon as the range boundary and the callsign have different lengths. For example, comparing a 4-character prefix extract like `"3DA0"` against the 3-character bound `"3DM"` will produce wrong results depending on collation.
 
-**Why it happens:** "Just add a field" is the path of least resistance in Beanie. Developers add `my_gridsquare: Optional[str] = None` and move on. This works initially, but every profile read now loads the full user document including all MY_* fields; every auth token check loads profile data.
+**Why it happens:**
+Python's `<=` operator on strings does lexicographic comparison by Unicode code point. `"3DA0" <= "3DM"` is `True` (correct), but `"3DN0" <= "3DM"` is `False` (correct), and edge cases like `"3DM9"` against the upper bound `"3DM"` are `True` (which may be wrong depending on interpretation). The real complexity comes when the range format uses 2-character tails (`AA–AZ`), 3-character tails (`3DA–3DM`), or mixed-length sub-ranges. A developer who tests only the happy path (matching clearly inside a range) never discovers the edge-case failures.
 
-**Consequences:**
-- Auth model becomes a catch-all document — violates single responsibility.
-- Changing profile schema requires migrating the `users` collection, which stores auth-critical data. A bad migration risks locking operators out of their accounts.
-- The `users` collection has a unique index on `username` that is managed by Beanie. Adding index changes for profile fields to this model risks `allow_index_dropping` side effects on startup.
+**How to avoid:**
+Normalize the comparison: extract exactly N characters from the callsign's prefix (where N is the length of the range boundary), then compare. For `3DA–3DM`, extract the first 3 characters of the callsign before the structural digit (the number separating prefix from suffix in a typical amateur callsign). Apply the range test only on that extracted segment. Separately, use longest-prefix-match: if `3DA` and `3D` both have entries, `3DA` wins for callsign `3DA9XY`.
 
-**Prevention:**
-- Create a separate `OperatorProfile` Beanie Document in a dedicated `profiles` collection.
-- Key the profile document by `operator_callsign` (matching the `callsign` field in `User`).
-- Add `OperatorProfile` to the `document_models` list in `init_beanie()` in `app/database.py` — the collection is created lazily on first write; no migration of existing `users` data is needed.
-- The profile document should use `extra="allow"` to absorb arbitrary ADIF MY_* fields without requiring a schema change for each new field.
+**Warning signs:**
+- A callsign known to be in Eswatini (`3DA9RS`) resolves to Fiji, or vice versa.
+- Any callsign whose prefix ends in a digit immediately before the range boundary letter is misclassified.
+- Unit tests that only test clean 2-character prefix cases pass while 3-character sub-range cases are untested.
 
-**Detection:** If profile fields appear in `User` model, that is the anti-pattern. A clean separation is: `User` has only `username`, `hashed_password`, `callsign`, `role`, `enabled`. `OperatorProfile` has all ADIF MY_* fields and is fetched separately when needed.
+**Phase to address:** ITU prefix data seeding and resolver implementation (the first v1.2 phase).
 
-**Phase:** Profile data model design (before any profile routes are written).
-
-**Confidence:** HIGH — based on direct inspection of `app/auth/models.py` and Beanie documentation behavior.
+**Confidence:** HIGH — based on direct analysis of the range format and Python string comparison semantics.
 
 ---
 
-### Pitfall 3: `init_beanie()` Not Updated With New Document Class — Profile Collection Never Initialized
+### Pitfall 2: Using Lexicographic String Sort to Resolve Overlapping Sub-Ranges (3DA–3DM vs 3DN–3DZ)
 
-**What goes wrong:** A new `OperatorProfile` Document class is defined but not added to `document_models` in `init_beanie()` in `app/database.py`. Beanie never connects the model to the database. Writes silently succeed (MongoDB creates the collection lazily) but indexes defined in `OperatorProfile.Settings.indexes` are never created. Queries against the model may fail with cryptic errors or scan the full collection.
+**What goes wrong:**
+Both `3DA–3DM` (Eswatini) and `3DN–3DZ` (Fiji) share the common 2-character stem `3D`. A lookup that scans all ranges in insertion order and returns on first match will return whichever entry was inserted first, regardless of which range actually applies. The longer/more-specific range must always win — this is the longest-prefix-match principle.
 
-**Why it happens:** The `init_beanie()` call in `database.py` is easy to miss when adding a new model in a different module. There is no compile-time check.
+**Why it happens:**
+A developer builds a flat list of `(lower, upper, country)` tuples and iterates from the top. If `3D,Fiji` is stored as a catch-all and `3DA–3DM,Eswatini` is stored as a sub-range below it, calls to Eswatini are silently misidentified. The ITU data includes many of these sub-range overlaps and they are not a corner case — they are the rule for the 3D, 4U, and similar blocks.
 
-**Consequences:**
-- Missing index on `operator_callsign` means profile lookups do a full collection scan — no functional impact at small scale, major performance issue as operator count grows.
-- A unique constraint on `operator_callsign` (ensuring one profile per operator) is not enforced, allowing duplicate profiles to be created.
-- Beanie's lazy collection creation masks the initialization gap during development.
+**How to avoid:**
+Structure the lookup as a trie or, more practically, sort candidate ranges by specificity (length of common prefix prefix, then range width) before matching. The correct rule: always match the most specific (longest matching prefix) range that contains the callsign prefix. Store ranges keyed by their common prefix characters so only plausible candidates are checked.
 
-**Prevention:**
-- After defining `OperatorProfile`, immediately update `database.py` to add it to `document_models`.
-- Add a unique index on `operator_callsign` in `OperatorProfile.Settings.indexes` — this is the enforcement mechanism for one-profile-per-operator.
-- Integration test: after app startup, verify `db.list_collection_names()` includes `"profiles"` and `db.profiles.index_information()` contains the expected index.
+**Warning signs:**
+- Eswatini callsigns (`3DA9RS`) resolve as Fiji.
+- The data is stored as an ordered list without explicit priority or sorted by insertion order.
 
-**Detection:** After startup, run `db.profiles.getIndexes()` in the MongoDB shell. If only `_id_` is present, the Beanie initialization is missing the model.
+**Phase to address:** ITU prefix resolver design — must be settled before data seeding, not after.
 
-**Phase:** Profile data model initialization (same commit that adds the document class).
-
-**Confidence:** HIGH — based on direct inspection of `app/database.py` and Beanie initialization docs.
+**Confidence:** HIGH — 3DA/3DM vs 3DN/3DZ sub-range is a documented real-world example; the longest-prefix-match principle is standard for prefix-range lookups.
 
 ---
 
-### Pitfall 4: QSO Auto-Stamp When Profile Does Not Exist Yet
+### Pitfall 3: Treating the Structural Digit as Part of the Prefix
 
-**What goes wrong:** The plan is to stamp `OPERATOR` and `STATION_CALLSIGN` from the operator's profile onto every new QSO. On a fresh install, or for an operator who has never filled in their profile, the profile document does not exist. The QSO creation endpoint fetches the profile, gets `None`, and either crashes with an `AttributeError` or (worse) silently stamps `OPERATOR: None` into the QSO document.
+**What goes wrong:**
+An amateur callsign has the structure `[prefix][digit][suffix]` where the prefix is 1–3 letters (sometimes leading with a digit), the structural digit separates prefix from suffix, and the suffix is 1–4 letters. When extracting the "prefix" to look up in the ITU table, the structural digit must be excluded — the ITU table contains letter-only prefix blocks (`WAA–WAZ`, `3DA–3DM`). A lookup that includes the structural digit extracts `W1` from `W1AW` and finds no match in a table that stores `WAA–WAZ`.
 
-**Why it happens:** Profile lookup is added as a new step in `build_qso_dict()` or `create_qso()`, and the `None` case is not handled explicitly. The developer tested with a fully populated profile and never hit the empty case.
+**Why it happens:**
+The "prefix" in the ITU table is defined as the characters up to but not including the structural digit, while in common ham radio parlance "prefix" sometimes refers to the `[letters][digit]` portion (e.g., "W1" is the prefix of `W1AW`). These two usages collide. Code that naively strips the last characters or looks for the first digit without understanding the two-meaning problem will build a wrong extraction.
 
-**Consequences:**
-- `OPERATOR: null` written into MongoDB QSO documents. When exported as ADIF, the serializer emits `<OPERATOR:0>` or skips the field depending on the null-handling code path. Either way, the exported ADIF is incorrect.
-- QSO creation silently drops the operator stamp for new accounts — a data quality regression that is invisible at log time and only discovered on export.
-- Existing export logic in `_qso_to_adif_dict()` coerces all values to `str(val)` — `str(None)` becomes the string `"None"`, which would be emitted as `<OPERATOR:4>None` in the ADIF output. That is a spec-invalid value.
+**How to avoid:**
+For ITU range lookup, extract only the leading alpha characters before the structural digit: `W` from `W1AW`, `3D` from `3DA9RS`, `4X` from `4X4DQ`. The structural digit and the suffix are irrelevant to the ITU range comparison. Use a regex like `^([A-Z0-9]{1,3}[A-Z])` (ITU prefix = up to 3 characters ending in a letter, preceding the structural digit) and strip the structural digit before the lookup. Note that `4X` starts with a digit followed by a letter — this is valid and the leading digit is part of the ITU prefix, not the structural digit.
 
-**Prevention:**
-- Profile fetch in QSO creation must be explicit: `profile = await OperatorProfile.find_one({"operator_callsign": operator})`.
-- If `profile is None`, stamp nothing — do not write `OPERATOR` or `STATION_CALLSIGN` to the QSO document at all. Omitting the field is valid ADIF; writing null is not.
-- If `profile` exists but `my_call` (STATION_CALLSIGN) is empty or None, same rule: omit the field.
-- Never let a null profile value reach the QSO dict. Guard at the service layer, not the route layer.
-- Write a test: create an operator with no profile, create a QSO, assert the QSO document has no `OPERATOR` key and no `STATION_CALLSIGN` key.
+**Warning signs:**
+- `4X4DQ` (Israel) returns no match or matches the wrong country.
+- `VK2ABC` (Australia) extracts `VK2` instead of `VK` and fails to match `VKA–VKZ`.
 
-**Detection:** After QSO creation for a profile-less operator, inspect the raw MongoDB document: `db.qsos.findOne({_operator: "W1NEW"})` — if `OPERATOR` key is present with value `null` or `"None"`, the guard is missing.
+**Phase to address:** Prefix extraction utility — implement and test before data seeding.
 
-**Phase:** QSO auto-stamp logic (the service layer change that introduces profile-lookup-on-QSO-create).
-
-**Confidence:** HIGH — based on direct inspection of `build_qso_dict()`, `_qso_to_adif_dict()`, and QSO insert path.
+**Confidence:** HIGH — ITU prefix structure and structural digit convention verified via WebSearch (Wikipedia: Amateur radio call signs, ARRL international call sign series).
 
 ---
 
-### Pitfall 5: ADIF Field Name Collision — `OPERATOR` in Profile vs. `OPERATOR` in Existing QSO Documents
+### Pitfall 4: Portable and Operating Suffixes Passed to the Resolver Without Stripping
 
-**What goes wrong:** Existing QSOs in the database may already contain an `OPERATOR` field in `model_extra` if they were imported from ADIF files that included `<OPERATOR:4>W1AW`. When the QSO auto-stamp logic writes `OPERATOR` from the profile onto new QSOs, it uses the same ADIF field name. On export, the `_qso_to_adif_dict()` function emits `model_extra` keys verbatim — so both imported and newly-logged QSOs will have `OPERATOR` in the export. This is correct behavior and is by design. The pitfall is in the auto-stamp logic trying to overwrite an existing `OPERATOR` value that was explicitly set by the user.
+**What goes wrong:**
+Callsigns logged as `W1AW/P`, `G3XYZ/MM`, `VK2ABC/QRP`, or `W1AW/KH6` are valid ADIF values. If the CALL field value is passed directly to the prefix resolver without stripping the portable suffix, the resolver either finds no match (because `W1AW/P` doesn't match any ITU block) or — worse — tries to resolve `/P` as a callsign and throws an error or returns a garbage entity.
 
-**Why it happens:** The auto-stamp logic runs before checking whether `OPERATOR` is already present in the incoming QSO dict. A user who explicitly provides `OPERATOR` in a PATCH or POST body (valid ADIF) gets it silently overwritten by the profile stamp.
+Additionally, `W1AW/KH6` is a special case: the `/KH6` suffix indicates the station is operating from Hawaii, so the correct entity is the suffix, not the base callsign prefix. The ITU resolver must decide: is this a portable suffix (`/P`, `/MM`, `/QRP`) to strip, or a geographic modifier (`/KH6`, `/VK3`) that overrides the base entity?
 
-**Consequences:**
-- Multi-op club station where different operators send `OPERATOR: W1AAA` in their API calls gets all QSOs stamped with the profile's `OPERATOR` value, losing the per-QSO operator attribution.
-- Imported ADIF files with pre-existing `OPERATOR` values get those values overwritten during import (if the import path also applies the profile stamp).
+**Why it happens:**
+The QSO entry UI strips nothing — it stores the CALL exactly as logged. This is correct for ADIF fidelity. The prefix resolver that consumes the CALL must do its own normalization. Developers who test only clean callsigns without suffixes build a resolver that silently misbehaves on the majority of DX contest or portable operation logs.
 
-**Prevention:**
-- Auto-stamp is additive, not overwriting: only stamp `OPERATOR` from profile if the QSO dict does not already contain an `OPERATOR` key.
-- Apply the same rule to `STATION_CALLSIGN`.
-- The import path (`process_import()` in `adif/router.py`) should NOT apply the profile auto-stamp — imported ADIF data already contains the operator's intent; stamping would corrupt historical records from multi-op operations.
-- Rule: auto-stamp applies to new QSOs logged via the real-time UI and REST API, not to batch imports.
+**How to avoid:**
+Before the prefix lookup, apply a two-step normalization:
+1. If the CALL contains `/`, split on `/` and inspect each segment.
+2. If any segment after the slash is a known operating suffix (`P`, `M`, `MM`, `AM`, `QRP`, `QRPP`, `A`, `B`), discard it and use the base callsign.
+3. If the segment after the slash looks like a country prefix (2+ alpha characters or a geographic callsign block), use that segment as the callsign to resolve instead of the base.
+4. After normalization, apply the structural-digit extraction from Pitfall 3.
 
-**Detection:** POST a QSO with `OPERATOR: "W9XYZ"` in the body while the profile has `my_call: "W1AW"`. Assert the stored QSO has `OPERATOR: "W9XYZ"`, not `"W1AW"`.
+This is the known-correct behavior for cty.dat-based resolvers (e.g., N1MM+, CQRLOG) and is the industry standard.
 
-**Phase:** QSO auto-stamp logic implementation.
+**Warning signs:**
+- A `/P` or `/MM` suffix causes a resolver exception or returns `None`.
+- `W1AW/KH6` resolves as the United States instead of Hawaii (if Hawaii is treated as a separate entity in your data).
+- Log views with imported ADIF data (which frequently contains portable suffixes) show no flag for many rows.
 
-**Confidence:** HIGH — based on direct code inspection of `build_qso_dict()`, `process_import()`, and `_qso_to_adif_dict()`.
+**Phase to address:** Prefix extraction utility — must handle suffixes before any entity lookup.
 
----
-
-### Pitfall 6: Maidenhead Grid and Lat/Lon Stored as Separate Truths — They Drift Apart
-
-**What goes wrong:** The profile stores both `MY_GRIDSQUARE` (Maidenhead locator) and `MY_LAT`/`MY_LON` (decimal degrees) as independent fields. The user sets the grid locator; lat/lon is left blank. Or the user sets lat/lon via a map picker; the grid is left blank. After a profile edit, the user updates lat/lon but forgets to update the grid. The two representations are now inconsistent, and downstream consumers (distance calculations, map display) use whichever field they happen to check first.
-
-**Why it happens:** It seems convenient to store both. Letting users supply either one and derive the other requires implementing conversion logic. Developers skip the conversion to save time, leaving both fields as independent inputs.
-
-**Consequences:**
-- ADIF export emits both `MY_GRIDSQUARE` and `MY_LAT`/`MY_LON` with inconsistent values. External logbook software that uses both fields for award tracking (POTA, SOTA, VHF contests) will compute different distances depending on which field it uses.
-- If the grid says FN31pr but lat/lon is from a different address, QSO distance calculations will disagree between two operators comparing logs.
-
-**Prevention:**
-- Designate one as the source of truth. Recommended: accept both, but derive the other on save.
-  - If `MY_GRIDSQUARE` is provided, derive lat/lon from it (use center of grid square, not SW corner — see Pitfall 7).
-  - If only lat/lon is provided, derive `MY_GRIDSQUARE` from it.
-  - If both are provided and they are inconsistent (more than half a grid square apart), warn the user and ask which to trust.
-- Alternatively, store only one canonical field in the profile document and compute the other on read. Given ADIF export needs both fields, derive on export rather than storing both independently.
-
-**Detection:** After saving a profile with only `MY_GRIDSQUARE: FN31`, assert that `MY_LAT` and `MY_LON` are populated with values consistent with the center of FN31.
-
-**Phase:** Profile save logic and profile data model.
-
-**Confidence:** MEDIUM-HIGH — grid/lat/lon dual storage is a well-known inconsistency in ham radio software; the ADIF spec documents both fields as independent (not derived from each other).
+**Confidence:** HIGH — operating suffix conventions are documented in ADIF spec and ham radio call sign standards (Wikipedia: Amateur radio call signs). The geographic-override rule for `/KH6`-style suffixes is well-established in DX logging software behavior (MEDIUM confidence — multiple community sources, not formally specified in ADIF).
 
 ---
 
-### Pitfall 7: Maidenhead-to-Lat/Lon Returns SW Corner, Not Center — Distance Is Wrong
+### Pitfall 5: ITU Non-Country Entities Have No ISO 3166-1 Code — Lookup Must Gracefully Return None
 
-**What goes wrong:** The standard algorithm (and the popular Python `maidenhead` library's default) returns the southwest corner of the grid square when converting a Maidenhead locator to latitude/longitude. A 4-character grid square (e.g., FN31) covers 1° latitude × 2° longitude — roughly 100 km × 150 km at mid-latitudes. Storing the SW corner as the station's location introduces a systematic bias of up to ~60–80 km from the actual center, which corrupts distance calculations used for VHF/UHF contest scoring, POTA activation distance verification, and beacon path analysis.
+**What goes wrong:**
+Several ITU callsign allocations are assigned to international organizations, not sovereign states:
+- `C7A–C7Z` → World Meteorological Organization (WMO)
+- `4U1ITU` → International Telecommunication Union
+- `4U1UN` → United Nations (New York)
+- `HV` → Vatican City (has ISO code `VA`, but is a DXCC entity in its own right)
 
-**Why it happens:** The SW corner is the mathematically simpler result (no addition needed). The `center=True` parameter in the `maidenhead` Python library is not the default and is easy to miss.
+A lookup that resolves the ITU country name to ISO alpha-2 via pycountry will fail or return a wrong result for these entities. If the code raises an exception or returns a fallback value without null-guarding, the flag rendering code will attempt to display a flag for an organization (e.g., WMO), which either renders broken or shows the wrong country's flag.
 
-**Consequences:**
-- Distance between two stations in adjacent grid squares computed using SW corners will be wrong by up to a full grid square's dimension.
-- VHF contest distance scoring that relies on grid-center-to-grid-center distance per IARU Region 1 rules will be incorrect.
-- If the stored lat/lon feeds a map display, the pin appears at the corner of the grid square, not the operator's area.
+**Why it happens:**
+Developers test with the 200+ sovereign nation codes and never encounter `C7A`-range callsigns in testing. The first time a WMO callsign appears in a log (rare, but real — WMO operates weather observation stations), the resolver blows up at the ISO lookup step.
 
-**Prevention:**
-- When converting a Maidenhead locator to lat/lon for storage, always use the center of the grid square.
-- If using the `maidenhead` Python library: `maidenhead.to_location(grid, center=True)`.
-- If implementing conversion manually: add `lat_span/2` and `lon_span/2` to the SW corner coordinates before storing.
-- Document the convention in the codebase comment: "lat/lon stored as center of grid square per IARU convention."
+**How to avoid:**
+The resolver must return a structured result: `{"country_name": str | None, "iso_alpha2": str | None}`. The `iso_alpha2` field is explicitly `None` for non-country entities — this is not an error condition. The flag rendering template must check `if qso.iso_alpha2` before attempting to render an `<img>` tag. No ISO code → no flag → no error.
 
-**Detection:** Convert `FN31` to lat/lon. The center of FN31 is approximately 41.5°N, 74.0°W. If the result is 41°N, 76°W (SW corner), the `center=True` parameter was not used.
+Maintain a hardcoded override table for known non-country ITU allocations: `{"C7": None, "4U": None}`. These are never going to have ISO codes; treating them as lookup failures to be retried is wasteful and incorrect.
 
-**Phase:** Grid/lat/lon conversion utility (implement and test before any distance or map feature uses these values).
+**Warning signs:**
+- Any exception in the ISO lookup step for a callsign beginning with `C7` or `4U1`.
+- A flag renders for an organization callsign (means a wrong ISO code was substituted).
+- The fallback path for `iso_alpha2 = None` was never tested.
 
-**Confidence:** HIGH — `maidenhead` library behavior verified via WebSearch (pypi.org/project/maidenhead, space-physics/maidenhead GitHub). IARU center convention verified via WebSearch.
+**Phase to address:** ISO country mapping layer — design the None path first, test it explicitly.
 
----
-
-### Pitfall 8: `STATION_CALLSIGN` Absent in ADIF Export Breaks LoTW Submission for Club Calls
-
-**What goes wrong:** When an operator uses a club callsign over the air (e.g., station is W1AW/club, operator is W1AAA), `STATION_CALLSIGN` in the profile differs from `OPERATOR`. The ADIF spec (since 2.1.5) says: if `STATION_CALLSIGN` is absent, `OPERATOR` shall be treated as both. If the auto-stamp only writes `OPERATOR` and omits `STATION_CALLSIGN`, external tools (LoTW submission, POTA upload) will treat the operator's personal call as the station callsign — which is incorrect for club/contest operations and will cause LoTW certificate mismatch errors.
-
-**Why it happens:** Developers implement the simple case (stamp `OPERATOR`) and defer `STATION_CALLSIGN` because "it's the same callsign in most cases." It only fails in the club-call scenario, which is precisely the target use case of this application.
-
-**Consequences:**
-- LoTW TQSL rejects QSOs where `STATION_CALLSIGN` doesn't match the uploaded certificate's callsign.
-- POTA upload requires `MY_CALLSIGN` (mapped from `STATION_CALLSIGN`) for activation credit — missing field = rejected log.
-- Multi-op QSOs appear as if the personal callsign was used, misattributing the contact.
-
-**Prevention:**
-- The profile must store both `my_operator_callsign` (maps to ADIF `OPERATOR`) and `my_station_callsign` (maps to ADIF `STATION_CALLSIGN`) as distinct fields.
-- Auto-stamp logic: write both `OPERATOR` and `STATION_CALLSIGN` to the QSO dict if both are set in the profile.
-- UI: clearly label the two fields and explain the difference — "Your personal callsign (OPERATOR)" vs. "Callsign used on air (STATION_CALLSIGN — use club/contest call here)."
-- ADIF fallback rule: if user leaves `STATION_CALLSIGN` blank in profile, do not stamp it (the ADIF spec's fallback to `OPERATOR` applies). Do not stamp an empty string.
-
-**Detection:** Create a profile with `STATION_CALLSIGN: W1XYZ` and `OPERATOR: W1AAA`. Log a QSO. Export ADIF. Assert the ADIF record contains both `<STATION_CALLSIGN:5>W1XYZ` and `<OPERATOR:5>W1AAA`.
-
-**Phase:** Profile schema and auto-stamp logic.
-
-**Confidence:** HIGH — ADIF spec fallback rule verified via WebSearch (adif.org, HAMRS community forum, LoTW developer docs).
+**Confidence:** HIGH — C7/WMO allocation confirmed via ITU and WebSearch. 4U1/UN/ITU allocations confirmed via WebSearch (eham.net, ITU.int). ISO 3166-1 explicitly covers sovereign states only.
 
 ---
 
-## Critical Pitfalls (carried forward from v1.0)
+### Pitfall 6: Country Name Normalization Fails on ITU Parenthetical Forms
+
+**What goes wrong:**
+The ITU data uses official UN-style country names, many of which include parenthetical descriptors: `Germany (Federal Republic of)`, `Korea (Republic of)`, `United Kingdom of Great Britain and Northern Ireland`. These names will not match pycountry's `.lookup()` directly. `pycountry.countries.lookup("Germany (Federal Republic of)")` raises `LookupError` — it expects `"Germany"` or `"Federal Republic of Germany"`.
+
+The `search_fuzzy()` method is not a reliable substitute: it has documented failures where `search_fuzzy("Niger")` returns Nigeria, `search_fuzzy("Russia")` fails (must use "Russian Federation"), and the function returns all countries on empty input. Using it without verifying the top result is the correct country is unsafe.
+
+**Why it happens:**
+Developers see that `pycountry.countries.search_fuzzy("United States")` returns `US` and assume the library handles all their input formats. The ITU parenthetical forms are not tested because they don't appear in developer-written unit tests — they appear in production data from the ITU table.
+
+**How to avoid:**
+Build a static normalization lookup table keyed by exact ITU name strings, mapping to ISO alpha-2 codes. This table covers all ITU names that do not directly match pycountry's lookup. For names that do match pycountry after simple stripping of parentheticals (e.g., strip ` (Federal Republic of)`, ` (Republic of)`, ` (Democratic People's Republic of)`), apply the stripping before the pycountry call and verify the result. The override table should be the primary lookup; pycountry should be a fallback only for names not in the override table.
+
+Do not rely on fuzzy matching in production path — it is non-deterministic in its error cases and produces plausible-but-wrong results silently.
+
+**Warning signs:**
+- `LookupError` from pycountry at runtime when processing ITU names from the table.
+- Germany, Korea, Russia, or UK callsigns show no flag when the resolver reaches the ISO step.
+- Unit tests only test `"United States"` and `"Canada"` without testing the actual ITU name strings.
+
+**Phase to address:** ISO country name normalization — implement the override table before wiring up pycountry.
+
+**Confidence:** HIGH — pycountry lookup behavior verified via WebSearch (PyPI, GitHub issues #126, #129, #242). ITU parenthetical name format confirmed via ITU table inspection.
 
 ---
 
-### Pitfall 9: ADIF Field Length Is Byte Count, Not Character Count
+### Pitfall 7: Inline SVG in HTMX-Swapped Partials Breaks Due to Namespace Handling
 
-**What goes wrong:** The ADIF tag format `<FIELDNAME:N>value` uses N as the UTF-8 byte-length of the value, not the Unicode code-point count. `len(str)` in Python counts code points. Non-ASCII characters in profile fields (MY_NAME, MY_CITY, MY_QTH) will produce wrong byte counts.
+**What goes wrong:**
+HTMX parses all content it receives as `text/html` with the HTML namespace (`http://www.w3.org/1999/xhtml`). SVG elements require the SVG namespace (`http://www.w3.org/2000/svg`). When HTMX swaps in a partial response that contains inline `<svg>` elements (e.g., an inline flag SVG), the SVG nodes are created in the HTML namespace and do not render correctly. The SVG appears in the DOM but is invisible or renders as a broken element.
 
-**Prevention:** Always use `len(value.encode('utf-8'))` when writing ADIF tags. Affects the serializer for both QSO fields and MY_* profile fields.
+This is a confirmed, open limitation in HTMX. The specific failure mode is that `<svg>` returned in a partial is transformed — `<image>` tags inside SVG become HTML `<img>` tags, and `<path>` elements do not render.
 
-**Phase:** ADIF serializer (hits profile data in v1.1 when MY_* fields are exported).
+**Why it happens:**
+The developer tests flag rendering on the full page load (where the browser parses the HTML document directly, preserving SVG namespace correctly) and it works. The partial swap path (HTMX request to `/log/view` returning `log_table.html`) is tested less thoroughly, and the namespace bug only manifests during the HTMX swap, not on initial load.
 
----
+**How to avoid:**
+Do not use inline SVG for flag icons in HTMX-swapped partials. Use `<img>` tags with a flag icon URL instead. The flag icon source can be:
+- A self-hosted set of PNG/SVG files served from FastAPI's static files mount.
+- A CDN URL (e.g., `https://flagcdn.com/w20/{iso_alpha2}.png` for 20px-wide flags).
 
-### Pitfall 10: ADIF MY_* Field Names Must Match the Spec Exactly
+The `<img>` tag approach is fully compatible with HTMX partial swaps because HTMX handles `<img>` correctly — it does not need to parse SVG namespace. The browser fetches the flag image independently after the swap.
 
-**What goes wrong:** Profile fields are stored internally with Python-friendly names (e.g., `my_gridsquare`, `my_lat`) and then mapped to ADIF on export. A mapping error or inconsistency produces non-standard field names in the exported ADIF. For example, emitting `<MY_GRID:6>FN31pr` instead of `<MY_GRIDSQUARE:6>FN31pr` will not be recognized by other logging software.
+**Warning signs:**
+- Flags render on first page load but disappear after clicking pagination (Next/Previous page).
+- Flags render on a sort click but show as broken images.
+- Any inline `<svg>` element in `qso_row.html` or `log_table.html`.
 
-**Why it matters for v1.1:** This system uses `model_extra` for arbitrary ADIF fields. If profile fields are stored with Python-friendly names that differ from ADIF names, the export path that emits `model_extra` keys verbatim will produce wrong field names.
+**Phase to address:** Flag rendering template — establish the `<img>` approach before writing any template code.
 
-**Prevention:**
-- Store MY_* fields in the `OperatorProfile` document using the exact ADIF 3.1.x field names as the MongoDB document keys (uppercase, e.g., `MY_GRIDSQUARE`, `MY_LAT`, `MY_LON`, `MY_NAME`, `MY_CITY`, `MY_OPERATOR`).
-- Use the same naming convention as QSOs: ADIF field name = MongoDB key = model_extra key.
-- Verify against ADIF 3.1.7 spec (https://adif.org/317/ADIF_317.htm) before implementation.
-
-**Phase:** Profile data model and export path.
-
-**Confidence:** HIGH — based on direct code inspection of `_qso_to_adif_dict()` and ADIF spec.
-
----
-
-### Pitfall 11: QSO_DATE and TIME_ON Timezone — Applies to Profile Default Time Settings Too
-
-See v1.0 Pitfall 2. If the profile stores a default QSO time offset or timezone preference for display, UTC must remain the storage canonical form. Any display-layer timezone conversion must be applied only at render time, never at storage time.
+**Confidence:** HIGH — HTMX SVG namespace limitation is a confirmed, documented issue in htmx GitHub (issue #2761) and htmx discussions (#1888). Direct inspection of the codebase confirms the paginated view uses HTMX partial swap (`HX-Request` header → return `log_table.html` only).
 
 ---
 
-### Pitfall 12: Beanie `allow_index_dropping=False` Default — Profile Indexes Are Added, Not Dropped
+### Pitfall 8: Flag Images Requested Per Row Cause a Cascade of Image Requests on Pagination
 
-**What goes wrong:** When `init_beanie()` is called with `OperatorProfile` included, Beanie will create any indexes defined in `Settings.indexes` that do not already exist. It will NOT drop indexes that exist in MongoDB but are no longer defined in the model (because `allow_index_dropping` defaults to `False`). This is safe behavior for adding new indexes to an existing system. However, if a developer defines an index, runs the app (index is created), then removes the index definition from the model, the index persists silently in MongoDB — consuming write overhead indefinitely.
+**What goes wrong:**
+The log table renders 50 rows per page (default `page_size=50`). If each row independently fetches a flag image from an external CDN (e.g., `https://flagcdn.com/w20/us.png`), a single page load triggers up to 50 simultaneous image requests to the CDN. On a self-hosted deployment with poor outbound connectivity, or if the CDN is rate-limiting, these requests stall and flags appear slowly or not at all. Each pagination click (HTMX swap) repeats this cascade.
 
-**Prevention:** When removing or renaming index definitions during profile model iteration, manually drop the obsolete index from MongoDB. Never set `allow_index_dropping=True` in a production environment — it will drop all indexes not in the current model definition, including manually created operational indexes.
+**Why it happens:**
+The developer tests with a few rows and a fast internet connection. The CDN requests are fast. The problem only manifests with a full page of 50 rows, slow connections, or rate limits. The issue is invisible in development and only surfaces in deployed environments.
 
-**Phase:** Profile data model initialization.
+**How to avoid:**
+Option 1 (recommended for self-hosted): Serve flag icons from the local FastAPI static files directory. Copy the flag icon set once at deployment; no external request at page render time. This eliminates the CDN dependency entirely.
 
-**Confidence:** HIGH — based on WebSearch confirming Beanie's `allow_index_dropping=False` default (beanie-odm.dev/tutorial/initialization/).
+Option 2 (acceptable if CDN is reliable): Use `loading="lazy"` on flag `<img>` tags. The browser defers off-screen image loads, reducing initial cascade. For a 50-row table with uniform row heights, most rows may be off-screen. However, this does not help for print views or non-visual agents.
 
----
+Option 3: Limit the unique flag set to the flags actually present in the current page, batch them into CSS background-image sprites, or use CSS `flag-icons` library via CDN (single CSS request covers all flags). This is more complex to integrate but optimal for scale.
 
-### Pitfall 13: Gridsquare / Maidenhead Validation Is Non-Trivial
+The self-hosted static file approach (Option 1) is best for this project's self-hosted deployment model.
 
-**What goes wrong:** The Maidenhead locator character rules are: positions 1–2: letters A–R, positions 3–4: digits 0–9, positions 5–6: letters A–X, positions 7–8: digits 0–9. Validation that only checks length passes garbage values. Some software emits lowercase subsquare letters (legacy QRA locator confusion). Values like `AA00` (valid), `AA00AA` (valid 6-char), `AA00aa` (valid lowercase variant), `ZZ99` (invalid — Z not in A–R), and `FN31????` (invalid) must be handled correctly.
+**Warning signs:**
+- DevTools network panel shows 40–50 image requests on a single log view page load.
+- Flag images appear with noticeable delay after table renders.
+- Browser console shows CDN rate limit errors (HTTP 429).
 
-**Prevention:**
-- Validate with: `^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?$`
-- Normalize to uppercase on save.
-- On invalid input: reject with a clear validation error message (this is a user-supplied value in the profile form, not an imported file; strict rejection is appropriate here, unlike import where tolerance is needed).
+**Phase to address:** Flag rendering infrastructure — decide the serving strategy before building the template.
 
-**Phase:** Profile form validation and profile save endpoint.
-
-**Confidence:** MEDIUM-HIGH — regex is from training data, consistent with ADIF spec character rules. Lowercase handling confirmed via WebSearch (Maidenhead Locator System Wikipedia).
-
----
-
-## Moderate Pitfalls (carried forward from v1.0)
+**Confidence:** MEDIUM — cascade behavior is a known web performance pattern. The 50-row default is confirmed from codebase inspection (`page_size: int = Query(50, ...)`). CDN rate limiting specifics are environment-dependent (LOW confidence on specifics).
 
 ---
 
-### Pitfall 14: ADIF Enumeration Values Case-Insensitive — Mode/Band Normalization
+### Pitfall 9: `_qso_to_view_dict()` Does Not Include Resolver Output — Flag Data Never Reaches the Template
 
-See v1.0 Pitfall 4. If the profile stores a default BAND or MODE preference, normalize to uppercase on save (consistent with the existing `BAND.upper()` / `MODE.upper()` normalization in `build_qso_dict()`).
+**What goes wrong:**
+The existing `_qso_to_view_dict()` function in `ui_router.py` extracts only a fixed set of ADIF fields from the QSO document and returns a plain dict. When the flag feature is added, the country entity and ISO code must be added to this dict so Jinja2 templates can render them. If the developer adds flag rendering to `qso_row.html` without updating `_qso_to_view_dict()`, the template receives `qso.iso_alpha2 = undefined`, Jinja2 silently renders it as empty string, and no flag appears with no error.
 
----
+**Why it happens:**
+The template-to-dict pipeline is not obvious to a developer unfamiliar with the codebase. The template accesses `qso.CALL`, `qso.BAND`, etc. — these appear to come directly from the Beanie document. In fact, they come from the `_qso_to_view_dict()` dict. Adding a field to the template without adding it to the dict is an easy oversight.
 
-### Pitfall 15: MongoDB `datetime` Naive vs. Aware Objects
+**How to avoid:**
+The resolver call must happen inside `_qso_to_view_dict()` (or in the comprehension that calls it), and the result must be written into the dict before the template renders. The call site is:
+```python
+qsos = [_qso_to_view_dict(q) for q in qsos_raw]
+```
+The `iso_alpha2` and `country_name` keys must be present in every dict returned by this function — `None` if unresolved, a string if resolved. Do not add them to `qso_row.html` as template lookups of `qso.model_extra` because model_extra is not passed through to the view dict.
 
-See v1.0 Pitfall 11. If `OperatorProfile` stores any timestamp (profile created/updated datetime), apply the same UTC-aware convention: store UTC-aware `datetime`, re-attach `tzinfo=timezone.utc` on read. The existing `from_mongo_dt()` utility in `utils.py` handles this.
+**Warning signs:**
+- Template renders `qso.iso_alpha2` but no flags appear and no error is raised.
+- Adding `{{ qso.iso_alpha2 }}` to the template renders an empty string for all rows.
+- The resolver was implemented but never wired into `_qso_to_view_dict()`.
 
----
+**Phase to address:** Flag rendering integration — the first task when adding flag rendering to the view.
 
-### Pitfall 16: Multi-Operator Station Callsign vs. Operator Callsign Confusion
-
-See v1.0 Pitfall 10. This is now a first-class design concern for v1.1. The profile must clearly separate `STATION_CALLSIGN` (call used on air) from `OPERATOR` (personal callsign). See Pitfall 8 above for the v1.1-specific treatment.
-
----
-
-### Pitfall 17: REST API Returns Full Profile — Expose Only the Authenticated Operator's Own Profile
-
-**What goes wrong:** A `GET /api/profile` endpoint that accepts a callsign query parameter allows enumeration of all operators' profiles. Even if the profile contains only ham radio grid and name data, it exposes PII (email, address, real name via MY_NAME).
-
-**Prevention:**
-- Profile endpoint signature: `GET /api/profile` — no callsign parameter. Return the authenticated operator's own profile only.
-- Admin endpoints that need to view any profile must be explicitly gated by `require_admin` dependency and prefixed under `/api/admin/`.
-
-**Phase:** Profile routing.
-
-**Confidence:** HIGH — same pattern as existing QSO endpoints; profile adds PII sensitivity.
+**Confidence:** HIGH — based on direct code inspection of `_qso_to_view_dict()` and the `qsos = [_qso_to_view_dict(q) for q in qsos_raw]` pattern in `log_view()`.
 
 ---
 
-## Minor Pitfalls (carried forward from v1.0 or v1.1-adjacent)
+### Pitfall 10: Resolver Called Per-Row on Every Page Request — N+1 Lookup Pattern
+
+**What goes wrong:**
+The prefix resolver is called once per QSO row in `_qso_to_view_dict()` during every page request and every pagination HTMX swap. If the resolver hits MongoDB on each call (e.g., `await PrefixRange.find_one({"prefix_start": {"$lte": prefix}, ...})`), a page of 50 QSOs generates 50 MongoDB queries per page load. At 50 rows × average 10ms per query, a single page load takes 500ms just for entity lookups — before any other work.
+
+**Why it happens:**
+MongoDB queries are async and fast in isolation. The developer adds `await PrefixRange.find_one(...)` in the view dict builder and it works fine in development with a few rows. Under load or with a full log, the cumulative latency is unacceptable.
+
+**How to avoid:**
+Cache the full prefix range table in memory at application startup. The ITU prefix range table has fewer than 800 entries and changes only when the ITU updates its allocations (infrequently). Load the entire table into a Python dict or trie at startup (`@asynccontextmanager` lifespan event in FastAPI) and use in-memory lookup — no database round-trip per row. The lookup becomes microseconds, not milliseconds.
+
+If caching is deferred (MVP tradeoff), at minimum batch the unique callsign prefixes from the current page and perform a single `$in` query rather than N individual queries.
+
+**Warning signs:**
+- Log view is noticeably slow for pages with many rows.
+- MongoDB slow query log shows many small queries fired in rapid succession.
+- Application profiling shows the log view endpoint spending most of its time in MongoDB.
+
+**Phase to address:** Prefix resolver implementation — design for in-memory lookup from the start.
+
+**Confidence:** HIGH — N+1 database query is a universally recognized anti-pattern. The 50-row default is confirmed. ITU table size is well-known (< 1,000 entries).
 
 ---
 
-### Pitfall 18: ADIF Field Name Matching Must Be Case-Insensitive
+### Pitfall 11: Callsign With No Matching Prefix Causes Template Rendering Error if Fallback Is Absent
 
-See v1.0 Pitfall 15. Profile import (if supported) or profile display that reads MY_* fields must normalize to uppercase before any lookup.
+**What goes wrong:**
+A callsign in the log cannot be resolved to any ITU prefix (special event calls like `W1AW/ARRL`, contest exchanges, or genuinely unmatched prefixes). The resolver returns `None` for `iso_alpha2`. If the Jinja2 template renders `<img src="/flags/{{ qso.iso_alpha2 }}.svg">` without checking for `None`, the resulting `<img src="/flags/None.svg">` generates an HTTP 404 request for every unresolved row and renders a broken image icon in every such row.
 
----
+**Why it happens:**
+The developer writes the template for the happy path and adds the null check later — or forgets it. Jinja2 does not raise an error for `None`; it renders `"None"` as a string.
 
-### Pitfall 19: Lat/Lon Precision and Decimal Format
+**How to avoid:**
+The template must guard: `{% if qso.iso_alpha2 %}<img src="...">{% endif %}`. No fallback image, no placeholder — simply no element. A broken image icon is more visually disruptive than a blank cell. This is stated as a v1.2 explicit requirement in the project spec: "Graceful fallback when no prefix match found (no flag shown, no error)."
 
-**What goes wrong:** ADIF defines `MY_LAT` and `MY_LON` as strings in the format `XDDD MM.MMM` (e.g., `N041 51.000`) — not decimal degrees. Many developers store decimal degrees (`41.85`) instead. If the ADIF export emits the decimal-degree form, it is technically non-spec-compliant. If the profile stores the ADIF-formatted string, arithmetic (distance calculation) requires parsing before use.
+Also guard the resolver side: the resolver must return `None` (not raise an exception) for any callsign that has no matching prefix. Any exception in the resolver path must be caught at the `_qso_to_view_dict()` level and result in `iso_alpha2 = None`, not a 500 error.
 
-**Prevention:**
-- Store lat/lon as decimal degrees (float) internally — this is the correct form for computation.
-- On ADIF export of MY_LAT/MY_LON, convert to the ADIF XDDD MM.MMM format.
-- Define a utility function `decimal_to_adif_lat(lat: float) -> str` and `decimal_to_adif_lon(lon: float) -> str` and test it with known values.
-- Verify the format with ADIF 3.1.7 spec section on Location data type.
+**Warning signs:**
+- Network panel shows requests to `/flags/None.svg` with 404 responses.
+- Rows with unrecognized callsigns show a broken image icon instead of being blank.
+- Any unhandled exception in the prefix resolver causes the entire log view to fail.
 
-**Phase:** Profile ADIF export conversion.
+**Phase to address:** Flag rendering template and prefix resolver — implement and test the None path explicitly before the happy path.
 
-**Confidence:** MEDIUM — ADIF location data type format confirmed via training data and cross-referenced with adif.org/306 search result. Verify against ADIF 3.1.7 spec before implementation.
-
----
-
-### Pitfall 20: Profile Update Does Not Retroactively Update Stamped QSOs
-
-**What goes wrong:** When an operator changes their `STATION_CALLSIGN` in their profile, all previously logged QSOs still carry the old callsign value in their `STATION_CALLSIGN` and `OPERATOR` fields. This is correct behavior — QSOs are historical records of what was logged at the time. However, if the UI does not make this clear, operators may expect profile changes to apply retroactively and interpret the historical values as bugs.
-
-**Prevention:**
-- Document the behavior explicitly: "Profile changes apply to new QSOs only. Existing QSOs retain the callsign that was stamped at log time."
-- Do not provide a "re-stamp all QSOs with new profile" feature unless it is an explicit, opt-in admin action — and even then, treat it as a data migration with audit log, not a silent batch update.
-
-**Phase:** Profile UI.
-
-**Confidence:** HIGH — this is the documented behavior of N1MM+ and Ham Radio Deluxe (confirmed via WebSearch groups.io/N1MMLoggerPlus).
+**Confidence:** HIGH — Jinja2 renders `None` as the string `"None"` is a well-known behavior. The guard pattern is standard and the project spec explicitly requires graceful fallback.
 
 ---
 
-### Pitfall 21: `APP_` Fields in Exported ADIF Are Silently Lost
+## Technical Debt Patterns
 
-See v1.0 Pitfall 12. Profile data stored in `model_extra` will be included in ADIF export by the existing `_qso_to_adif_dict()` logic which iterates `model_extra`. This is not a new pitfall for v1.1 but verify that `OperatorProfile.model_extra` fields also round-trip correctly if a profile import feature is ever added.
-
----
-
-## Phase-Specific Warnings
-
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|----------------|------------|
-| Profile data model | Embedding in User (Pitfall 2); init_beanie gap (Pitfall 3); ADIF MY_* field naming (Pitfall 10) | Separate `profiles` collection; add to `init_beanie()` immediately; use exact ADIF uppercase names |
-| Profile routing | Isolation leak via wrong callsign source (Pitfall 1); PII enumeration (Pitfall 17) | Always use JWT-injected callsign; no callsign param on GET endpoint |
-| QSO auto-stamp | Missing profile null crash (Pitfall 4); overwriting explicit OPERATOR (Pitfall 5); missing STATION_CALLSIGN (Pitfall 8) | Guard all profile lookups for None; auto-stamp is additive not overwriting; stamp both fields |
-| Grid/lat/lon conversion | SW corner vs. center (Pitfall 7); dual-truth drift (Pitfall 6); format mismatch (Pitfall 19) | Use `center=True` in maidenhead lib; derive one from the other on save; store decimal internally |
-| ADIF export of MY_* | Byte-count vs. char-count (Pitfall 9); ADIF lat/lon format (Pitfall 19); STATION_CALLSIGN absent (Pitfall 8) | `len(value.encode('utf-8'))`; convert decimal to ADIF format on export; test round-trip |
-| Import path | Do not apply profile auto-stamp to imported records (Pitfall 5) | Auto-stamp only in live-logging path, not in `process_import()` |
-| Beanie initialization | Index not created (Pitfall 3); allow_index_dropping (Pitfall 12) | Add OperatorProfile to init_beanie; never set allow_index_dropping=True in prod |
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Use pycountry `search_fuzzy()` without override table | No need to build/maintain mapping table | Silently wrong results for ITU parenthetical names, non-deterministic failures | Never in production path |
+| External CDN for flag images | No file management, always up-to-date | CDN rate limits, outbound network dependency, CDN unavailability breaks flags for offline deployments | Only if CDN uptime guarantee matches deployment requirements |
+| Per-row synchronous DB lookup for prefix resolver | Simple implementation | N+1 query cascade, slow log view at scale | MVP only if page size is very small (< 5 rows); not acceptable at 50/page default |
+| Flat list scan of prefix ranges without longest-match | Easy to implement and reason about | Misclassifies sub-range callsigns (Eswatini/Fiji, etc.) | Never — correctness bug, not a performance bug |
+| Store resolved entity in the QSO document | Avoids runtime resolver call | Data becomes stale when ITU updates allocations; inflates QSO documents with display-layer data | Never — entity resolution is display-only per v1.2 spec |
 
 ---
 
-## Confidence Assessment
+## Integration Gotchas
 
-| Area | Confidence | Basis |
-|------|------------|-------|
-| Operator isolation (Pitfalls 1, 17) | HIGH | Direct code inspection of existing dependency pattern; confirmed isolation audit exists |
-| Profile collection design (Pitfall 2) | HIGH | Direct code inspection of User model; Beanie behavior is well-documented |
-| Beanie init_beanie gap (Pitfall 3) | HIGH | Direct code inspection of database.py; Beanie docs confirm index creation on init |
-| QSO auto-stamp null case (Pitfall 4) | HIGH | Direct code inspection of build_qso_dict() and _qso_to_adif_dict() |
-| OPERATOR/STATION_CALLSIGN field collision (Pitfall 5) | HIGH | Direct code inspection of build_qso_dict() and process_import() |
-| Grid/lat/lon dual-truth (Pitfall 6) | MEDIUM-HIGH | Known pattern in ham radio software; verified ADIF spec has both as independent fields |
-| Maidenhead SW corner vs. center (Pitfall 7) | HIGH | Verified via WebSearch: maidenhead Python library default and IARU convention |
-| STATION_CALLSIGN absent / LoTW (Pitfall 8) | HIGH | ADIF spec fallback rule verified WebSearch; LoTW error pattern confirmed via community sources |
-| ADIF lat/lon format spec (Pitfall 19) | MEDIUM | Training data; verify against ADIF 3.1.7 spec before implementation |
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| pycountry ISO lookup | Call `lookup()` directly with raw ITU name string | Strip parentheticals and build an override table; use pycountry as fallback only |
+| flagcdn.com CDN | Embed CDN URL directly in template, assume always available | Self-host flag PNGs in FastAPI static directory; no runtime CDN dependency |
+| HTMX partial swap + flag rendering | Use inline `<svg>` in `qso_row.html` | Use `<img>` tag only; SVG namespace breaks on HTMX swap (confirmed htmx issue #2761) |
+| FastAPI `StaticFiles` mount | Forget to mount `/static` for flag images | Add `app.mount("/static", StaticFiles(directory="static"), name="static")` in `main.py` — verify it exists |
+| ITU prefix range table in MongoDB | Load and query at runtime per row | Load into memory at startup lifespan event; lookup is pure in-memory |
+
+---
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| N+1 prefix resolver queries | Log view response time proportional to page size | In-memory prefix table loaded at startup | 10+ rows in development; noticeable at default 50/page |
+| 50 flag image requests per page | Slow initial render; stall on slow connections | Self-host flag files; use `loading="lazy"` | Any deployment with external CDN and > 20 rows |
+| Full prefix table scan per callsign | Resolver latency > 1ms per row | Pre-sort ranges by specificity; use dict keyed by prefix | Acceptable for < 100 rows; unacceptable at 500+ rows per page |
+
+---
+
+## Security Mistakes
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Serving flag images from external CDN with user-supplied ISO code in URL | XSS if `iso_alpha2` is not validated and inserted into a CDN URL template | Validate that `iso_alpha2` matches `^[a-z]{2}$` before using in any URL construction |
+| Storing resolved entity in QSO document via PATCH | Operator could inject arbitrary `country_name` values into their QSO records | Entity resolution is display-only; never write resolver output back to QSO documents |
+
+---
+
+## UX Pitfalls
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Flag renders for ITU organization callsigns (wrong flag) | Confusing — WMO callsign shows flag of an unrelated country | Return `None` for non-country entities; show no flag |
+| Broken image icon for unresolved callsigns | Visual noise; looks like a bug | Guard with `{% if qso.iso_alpha2 %}` — show nothing for unresolved |
+| Flag too large relative to callsign text | Disrupts table layout; row height increases | Use 16×11px or 20px-wide flags; test with actual table layout |
+| Flag tooltip missing country name | Operator must guess which country the flag represents | Add `title="{{ qso.country_name }}"` and `alt="{{ qso.country_name }}"` to all flag `<img>` tags |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+- [ ] **Prefix resolver:** Works on clean callsigns — verify it also handles `/P`, `/MM`, `/QRP` suffixes and geographic `/KH6`-style overrides.
+- [ ] **ISO mapping:** Works on `"United States"` — verify it also handles `"Germany (Federal Republic of)"`, `"Korea (Republic of)"`, `"United Kingdom of Great Britain and Northern Ireland"`.
+- [ ] **Non-country entities:** Resolver returns `None` for `C7A` (WMO) and `4U1ITU` — verify no exception is raised and no wrong flag is shown.
+- [ ] **HTMX pagination:** Flags render on page 1 — verify they also render after clicking Next (HTMX partial swap path, not full page load).
+- [ ] **Null guard in template:** `{% if qso.iso_alpha2 %}` is present — verify that rows with unmatched callsigns render a blank flag cell, not a broken image or "None" text.
+- [ ] **`_qso_to_view_dict()` updated:** Resolver is called and `iso_alpha2`/`country_name` keys are present in the returned dict — verify by inspecting the dict, not just the rendered HTML.
+- [ ] **In-memory lookup:** Prefix table is loaded at startup — verify it is not re-queried per row by checking MongoDB query counts in a test with 50 rows.
+- [ ] **Sub-range correctness:** `3DA9RS` resolves to Eswatini (not Fiji), `3DN1XYZ` resolves to Fiji (not Eswatini) — both must be tested explicitly.
+
+---
+
+## Recovery Strategies
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Wrong sub-range resolution (Pitfall 2) | LOW | Fix sort order / longest-match logic in resolver; no data migration needed (flags are display-only) |
+| Inline SVG breaks on HTMX swap (Pitfall 7) | LOW | Replace `<svg>` with `<img>` in template; no backend changes |
+| N+1 query cascade (Pitfall 10) | MEDIUM | Refactor resolver to in-memory; requires lifespan event and startup load |
+| ISO name normalization wrong (Pitfall 6) | LOW | Add entries to override table; redeploy; no data migration |
+| Flag images missing from static dir | LOW | Copy flag asset set to static directory; restart server |
+| `_qso_to_view_dict()` missing keys (Pitfall 9) | LOW | Add resolver call and dict keys; template immediately starts working |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| Range comparison logic (Pitfall 1) | Phase 11: Prefix range data model and resolver | Unit test: `3DA9RS` → Eswatini, `3DN1XYZ` → Fiji, boundary callsigns at both ends of each range |
+| Sub-range longest-match (Pitfall 2) | Phase 11: Prefix range data model and resolver | Unit test: both sides of 3D split; verify specificity ordering |
+| Structural digit extraction (Pitfall 3) | Phase 11: Prefix extraction utility | Unit test: `4X4DQ` → `4X`, `W1AW` → `W`, `VK2ABC` → `VK` |
+| Portable suffix handling (Pitfall 4) | Phase 11: Prefix extraction utility | Unit test: `W1AW/P` → same as `W1AW`; `W1AW/KH6` → KH6 entity |
+| Non-country entities (Pitfall 5) | Phase 11: ISO mapping layer | Unit test: `C7A1XY` → `iso_alpha2 = None`; `4U1ITU` → `iso_alpha2 = None` |
+| ITU name normalization (Pitfall 6) | Phase 11: ISO mapping layer | Unit test: all ITU parenthetical name forms present in the actual data file |
+| Inline SVG / HTMX namespace (Pitfall 7) | Phase 12: Flag rendering template | Manual test: paginate the log view; verify flags render on every page transition |
+| CDN cascade (Pitfall 8) | Phase 12: Flag rendering infrastructure | Network panel: count image requests on page load with 50-row page |
+| `_qso_to_view_dict()` not updated (Pitfall 9) | Phase 12: Flag rendering integration | Unit test: `_qso_to_view_dict()` returns dict with `iso_alpha2` key for any QSO |
+| N+1 resolver queries (Pitfall 10) | Phase 11: Resolver design | Test: log view with 50 rows generates 0 prefix-range MongoDB queries (in-memory path) |
+| Null guard absent (Pitfall 11) | Phase 12: Flag rendering template | Unit test: row with `iso_alpha2 = None` renders no `<img>` tag |
 
 ---
 
 ## Sources
 
-- Direct codebase inspection: `app/auth/models.py`, `app/qso/models.py`, `app/database.py`, `app/qso/service.py`, `app/adif/router.py`, `app/auth/dependencies.py`, `app/main.py`
-- ADIF specification (training data + WebSearch): https://adif.org/317/ADIF_317.htm
-- ADIF STATION_CALLSIGN vs OPERATOR: https://community.hamrs.app/t/field-day-help-ive-confused-myself-with-adif-station-callsign-and-operator/584 (MEDIUM confidence)
-- LoTW developer docs: https://lotw.arrl.org/lotw-help/developer-submit-qsos/?lang=en (HIGH confidence)
-- Beanie ODM initialization: https://beanie-odm.dev/tutorial/initialization/ (HIGH confidence)
-- Beanie `allow_index_dropping`: WebSearch result referencing beanie-odm.dev/tutorial/initialization/ (HIGH confidence)
-- Python `maidenhead` library: https://pypi.org/project/maidenhead/ and https://github.com/space-physics/maidenhead (HIGH confidence — `center=True` parameter confirmed)
-- IARU grid center convention: https://en.wikipedia.org/wiki/Maidenhead_Locator_System (HIGH confidence)
-- N1MM+ OPERATOR field stamp behavior: https://groups.io/g/N1MMLoggerPlus/topic/operator_field_in_adif_files/73971459 (MEDIUM confidence)
-- FastAPI multi-tenant isolation patterns: https://medium.com/@ThinkingLoop/fastapi-multi-tenancy-5-isolation-patterns-that-scale-f381c50e262e (MEDIUM confidence — corroborates known patterns)
+- Direct codebase inspection: `app/qso/ui_router.py`, `templates/log/log_table.html`, `templates/log/qso_row.html`
+- ITU Table of International Call Sign Series: https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx
+- ITU prefix — Wikipedia: https://en.wikipedia.org/wiki/ITU_prefix
+- Amateur radio call signs — Wikipedia: https://en.wikipedia.org/wiki/Amateur_radio_call_signs
+- 3DA/3DM (Eswatini) vs 3DN/3DZ (Fiji) sub-range: confirmed via WebSearch results and ITU table PDF
+- 4U1 callsigns — United Nations and ITU: https://www.eham.net/article/23104 (MEDIUM confidence); https://www.itu.int/hub/2022/06/4u1itu-ham-radio-amateur-station-60-years/ (HIGH confidence)
+- C7A–C7Z / World Meteorological Organization: https://en.wikipedia.org/wiki/World_Meteorological_Organization and ITU table
+- pycountry PyPI: https://pypi.org/project/pycountry/ (HIGH confidence)
+- pycountry `search_fuzzy` failure cases: https://github.com/pycountry/pycountry/issues/126 (England), https://github.com/pycountry/pycountry/issues/129 (Russia), https://github.com/pycountry/pycountry/issues/242 (Czechoslovakia) (HIGH confidence — confirmed GitHub issues)
+- ISO 3166-1 — Wikipedia: https://en.wikipedia.org/wiki/ISO_3166-1
+- HTMX SVG namespace limitation (issue #2761): https://github.com/bigskysoftware/htmx/issues/2761 (HIGH confidence — confirmed GitHub issue)
+- HTMX SVG discussion (#1888): https://github.com/bigskysoftware/htmx/discussions/1888
+- flag-icons (lipis): https://github.com/lipis/flag-icons and https://flagicons.lipis.dev/
+- flagcdn.com API: https://flagpedia.net/download/api
+- SVG icon stress test (external img vs inline): https://cloudfour.com/thinks/svg-icon-stress-test/
+
+---
+
+## Carried Forward: Critical Pitfalls (v1.0/v1.1 — still relevant)
+
+---
+
+### Pitfall 12: Profile Endpoint Returns Another Operator's Data (Isolation Leak)
+
+**What goes wrong:** A `GET /api/profile` endpoint resolves operator identity from a query param, path param, or request body instead of the JWT-injected callsign.
+
+**Prevention:** Profile GET and PUT/PATCH routes MUST use `operator: str = Depends(get_current_operator_callsign)` as the sole source of the operator key. Add a cross-operator profile test.
+
+**Phase to address:** Any new API route touching operator-scoped data.
+
+**Confidence:** HIGH
+
+---
+
+### Pitfall 13: ADIF Field Length Is Byte Count, Not Character Count
+
+**What goes wrong:** `len(str)` in Python counts Unicode code points, not UTF-8 bytes. ADIF tag length N is byte length.
+
+**Prevention:** Always use `len(value.encode('utf-8'))` when writing ADIF tags.
+
+**Phase to address:** Any ADIF serializer change.
+
+**Confidence:** HIGH
+
+---
+
+### Pitfall 14: ADIF MY_* Field Names Must Match the Spec Exactly
+
+**What goes wrong:** Storing profile fields with Python-friendly names and mapping incorrectly on export produces non-standard ADIF field names.
+
+**Prevention:** Store using exact ADIF 3.1.7 uppercase field names. Verify against https://adif.org/317/ADIF_317.htm.
+
+**Phase to address:** Any profile or QSO export change.
+
+**Confidence:** HIGH
+
+---
+
+### Pitfall 15: QSO Auto-Stamp When Profile Does Not Exist
+
+**What goes wrong:** Profile lookup returns `None`; auto-stamp logic crashes or writes `OPERATOR: null` or `OPERATOR: "None"` to the QSO.
+
+**Prevention:** Guard all profile lookups for `None`; if profile is absent, omit the stamp entirely.
+
+**Phase to address:** Any change to QSO creation path.
+
+**Confidence:** HIGH
+
+---
+
+### Pitfall 16: Maidenhead-to-Lat/Lon Returns SW Corner, Not Center
+
+**What goes wrong:** `maidenhead.to_location(grid)` default returns SW corner, not center. Introduces up to 80 km systematic error.
+
+**Prevention:** Always call `maidenhead.to_location(grid, center=True)`.
+
+**Phase to address:** Any grid/location conversion work.
+
+**Confidence:** HIGH
+
+---
+
+### Pitfall 17: Lat/Lon Precision and ADIF Location Format
+
+**What goes wrong:** ADIF defines `MY_LAT`/`MY_LON` as `XDDD MM.MMM` strings, not decimal degrees. Storing decimal degrees as-is is spec non-compliant for export.
+
+**Prevention:** Store as decimal float internally; convert to ADIF location format on export.
+
+**Phase to address:** Profile ADIF export.
+
+**Confidence:** MEDIUM
+
+---
+
+*Pitfalls research for: ollog v1.2 — callsign entity lookup and country flag display*
+*Researched: 2026-04-04*

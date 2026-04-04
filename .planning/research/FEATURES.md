@@ -1,260 +1,297 @@
-# Feature Landscape: Operator & Station Profile
+# Feature Research: Callsign Entity Lookup & Country Flag Display
 
-**Domain:** Ham radio QSO logbook — per-operator profile with ADIF MY_* field storage and QSO auto-stamping
+**Domain:** Ham radio QSO logbook — v1.2 milestone: ITU callsign prefix→country resolution + flag icons in log view
 **Researched:** 2026-04-04
-**Overall confidence:** MEDIUM-HIGH (ADIF spec verified via multiple search cross-checks; app-specific behavior MEDIUM; ADIF 3.1.7 field list assembled from 3.1.4 spec + 3.1.6/3.1.7 change notes since direct page fetch was unavailable)
+**Confidence:** HIGH for core lookup behavior; MEDIUM for suffix/edge-case handling (community-consensus patterns, not a single authoritative spec)
 
 ---
 
 ## Scope Note
 
-This document covers only what is NEW in this milestone. The existing feature set
-(QSO logging, ADIF import/export, auth, admin, SSE feed) is already built and tested.
-The codebase has been inspected. Key prior decisions that constrain this milestone:
+This document covers ONLY what is new in v1.2. The existing feature set is already built
+and tested. Key constraints from the existing codebase:
 
-- `User` document: `username`, `hashed_password`, `callsign`, `role`, `enabled` — no profile fields yet
-- `QSO` document: uses `extra="allow"` — any ADIF field stored verbatim in MongoDB
-- `build_qso_dict()`: injects `_operator` (login callsign) but does NOT inject MY_* fields
-- `_qso_to_adif_dict()`: already passes all `model_extra` fields through to export verbatim — no export changes needed once fields are stored on QSOs
-- Serializer: uses UTF-8 byte counting for ADIF field lengths — correct for MY_NAME, MY_CITY with non-ASCII characters
+- `qso_row.html`: callsign rendered as `{{ qso.CALL }}` in a plain `<td>` — flag goes here
+- `feed_row.html`: callsign rendered as `<strong>{{ call }}</strong>` — separate template, flag opportunity
+- `_qso_to_view_dict()` in `ui_router.py`: builds the dict passed to templates; flag data injected here
+- `QSO.CALL`: stored verbatim as typed by the operator — may include suffixes like `/P`, `/MM`
+- Flag SVGs: 271 ISO 3166-1 alpha-2 files already present at `app/static/flags/{code}.svg`
+- ITU prefix data: ranges provided directly (e.g., `WAA–WAZ → United States`, `3DA–3DM → Eswatini`)
+- No QSO data is stored; flag display is purely a render-time decoration
 
 ---
 
-## OPERATOR vs STATION_CALLSIGN: The Core Distinction
+## How Callsign Prefix→Country Lookup Works in Ham Radio
 
-This is the most important conceptual design decision in the milestone. Confusion between
-these two fields is a documented, recurring operator problem (confirmed by HAMRS community
-thread on Field Day logging and N1MM+ documentation).
+### The ITU Allocation Model (HIGH confidence)
 
-**OPERATOR** (ADIF field) — The callsign of the person physically at the controls. In ollog,
-this is always the login callsign — `User.callsign` pulled from the authenticated session.
-This is already injected by `build_qso_dict()` as `_operator`; it needs to be surfaced as
-the ADIF field `OPERATOR` in QSO records going forward.
+The ITU allocates blocks of prefix ranges to administrations (countries). Prefixes are
+1–3 character alphanumeric strings. Ranges can be:
 
-**STATION_CALLSIGN** (ADIF field) — The callsign transmitted over the air; what the other
-station logged you as. Equals OPERATOR for a typical solo home station. Differs when:
+- **Single-letter blocks**: "K" → United States (full block)
+- **Two-letter ranges**: "AAA–ALZ" → United States; "EA" → Spain (each needs ≥2 chars because the letter block is split among countries)
+- **Three-character sub-ranges**: "3DA–3DM" → Eswatini; "3DN–3DZ" → Fiji (sub-ranges required because a 2-char prefix is shared)
 
-- Club activations: STATION_CALLSIGN = club call (e.g., W1AW), OPERATOR = member's personal call
-- Special event stations: STATION_CALLSIGN = event call (e.g., G100RSGB), OPERATOR = member's call
-- POTA/SOTA club activations: POTA documentation explicitly mandates STATION_CALLSIGN = club call, OPERATOR = individual operator for each QSO
-- Operating portable under a host license (less common in US, more common internationally)
+The range boundary comparison is **lexicographic on the prefix characters**. A callsign like
+`3DA0JK` has prefix `3DA`; it falls in `3DA–3DM`, so it resolves to Eswatini. A callsign
+`3DM0AB` also falls in that range. A callsign `3DN5XY` falls in `3DN–3DZ`, so it resolves
+to Fiji.
 
-**ADIF spec rule (HIGH confidence):** If STATION_CALLSIGN is absent from a QSO record,
-OPERATOR shall be treated as both the logging station's callsign and the logging
-operator's callsign. The default case — solo operator, STATION_CALLSIGN left blank in
-profile — is spec-compliant by omission. Only stamp STATION_CALLSIGN on QSOs when it
-is explicitly set in the profile and differs from OPERATOR.
+### Standard Matching Algorithm: Longest ITU Prefix Match (HIGH confidence)
 
-**N1MM+ implementation (HIGH confidence):** N1MM+ stores OPERATOR per-QSO (changes with
-the `OPON` command for multi-op) and STATION_CALLSIGN from "Change Your Station Data."
-This is the canonical model ollog should follow.
+This is the universally-adopted approach across ham radio logging software (N1MM+, Log4OM,
+pyhamtools, DXCC command-line tools, cty.dat-based utilities):
+
+1. **Strip operating suffixes** from the CALL field (see Suffix Handling below)
+2. **Extract the base callsign** (the portion before any slash, or the whole call if no slash)
+3. **Try progressively shorter prefixes** starting from the full base callsign down to 1 character
+4. **Return the first (longest) match** found in the prefix range table
+
+For the ITU prefix range table used in this project (not cty.dat, but the ITU Series Ranges
+data with `start–end` format), the matching logic is:
+
+```
+For prefix_length in [len(base_call), len(base_call)-1, ..., 1]:
+    candidate = base_call[:prefix_length]
+    if any range where range.start <= candidate <= range.end:
+        return that range's country
+return None
+```
+
+This works because ITU ranges use lexicographic ordering and the data already encodes the
+sub-range structure (e.g., `3DA–3DM` covers all strings ≥ `3DA` and ≤ `3DM`).
+
+### Why Not Exact-Prefix Lookup (MEDIUM confidence)
+
+A simple dict lookup (prefix → country) is insufficient because:
+- ITU data is given as ranges, not enumerated individual prefixes
+- Sub-ranges like `3DA–3DM` vs `3DN–3DZ` require range comparison
+- A callsign `3DA0JK` would need to match `3DA` as the relevant prefix, not `3D` (which is unallocated as a standalone)
+- The longest-match approach naturally resolves this without pre-expanding ranges
+
+---
+
+## Suffix Handling: Operating Indicators on Callsigns (MEDIUM confidence)
+
+Operators log callsigns with suffixes appended via `/`. The suffix changes the operational
+context but NOT the country of origin for the base callsign (unless the suffix is itself a
+valid country prefix for a different operation).
+
+### Standard Suffixes to Strip (no country change)
+
+| Suffix | Meaning | Action |
+|--------|---------|--------|
+| `/P` | Portable operation | Strip; use base call |
+| `/M` | Mobile operation | Strip; use base call |
+| `/A` | Alternative licensed address | Strip; use base call |
+| `/QRP` | Low-power self-identification | Strip; use base call |
+| `/LH` | Lighthouse activation (non-standard) | Strip; use base call |
+| `/R` | Relay/repeater (rare in QSO logging) | Strip; use base call |
+| `/B` | Beacon station | Strip; use base call |
+
+### Suffixes That ARE Country Prefixes (Complex — MEDIUM confidence)
+
+Some suffixes are themselves valid ITU country prefixes. These indicate a **guest operation**
+from another country — the prefix used over the air is the foreign prefix, not the home call.
+
+| Suffix | Example | Meaning |
+|--------|---------|---------|
+| `/MM` | `G3YWX/MM` | Maritime Mobile — NOT Scotland (**M** is England, **MM** is Scotland conflict) |
+| `/AM` | `EA5XY/AM` | Aeronautical Mobile — NOT Spain (**AM** is Spain conflict) |
+| Numeric only, e.g., `/7` | `W6ABC/7` | US call area indicator — different US district, same country |
+| Valid foreign prefix, e.g., `/VP9` | `G3YWX/VP9` | Operating from Bermuda — country changes to Bermuda |
+
+**Practical rule for v1.2 (LOW complexity, covers 99% of cases):**
+
+Strip any suffix that is:
+- A known non-location indicator: `/P`, `/M`, `/A`, `/QRP`, `/MM`, `/AM`, `/LH`, `/R`, `/B`
+- A single digit (call area indicator within same country)
+
+Use the base callsign (part before the last `/`) for prefix lookup. If the suffix is
+longer than 2 characters and not in the known-strip list, it may be a foreign prefix —
+but this edge case (guest operations logged with `/VP9` style suffixes) is uncommon enough
+that a "no match found → no flag" graceful fallback is the correct v1.2 behavior.
+
+### The /MM and /AM Ambiguity (HIGH confidence — known domain gotcha)
+
+`/MM` conflicts with the ITU prefix `MM` (Scotland). `G3YWX/MM` is a British station
+operating maritime mobile, NOT a Scottish callsign. Similarly `/AM` conflicts with `AM`
+(Spain). The standard industry resolution: when the suffix is exactly `MM` or `AM`, treat it
+as an operational indicator (maritime mobile / aeronautical mobile) and look up the BASE
+call, not the suffix.
 
 ---
 
 ## Table Stakes
 
-Features operators expect. Missing = product feels incomplete.
+Features operators expect from callsign entity display. Missing these = product feels broken.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Profile storage per operator | Every logger (HRD, Log4OM, N1MM+, CloudLog) has a "My Station" settings page | Low | New `Profile` MongoDB document linked to `User.callsign` |
-| Operator callsign display | Login call is the ADIF OPERATOR field; operators expect to see it on their profile | Low | Read from `User.callsign`; not editable here (login identity) |
-| STATION_CALLSIGN (over-the-air call) | Required for club, portable, and special-event ops; POTA club logs mandate it | Low | Optional field; blank defaults to OPERATOR callsign per ADIF spec |
-| Operator name (MY_NAME) | Used on QSL cards, displayed in HRD / CloudLog profile pages | Low | Free-text string; single field |
-| QTH city (MY_CITY) | Standard location field in every logger | Low | Free-text; no enum enforcement needed |
-| State/province (MY_STATE) | Required for ARRL WAS and many other award submissions | Low | Free-text; no enum needed for MVP |
-| Country (MY_COUNTRY) | Standard DXCC-origin field | Low | Free-text DXCC entity name, not ISO code |
-| Maidenhead grid locator (MY_GRIDSQUARE) | Mandatory for FT8/WSJT-X operation, VHF contests, POTA spot maps | Low | Accept 4, 6, or 8 chars; store verbatim; 6-char is the practical minimum |
-| Decimal latitude and longitude (MY_LAT, MY_LON) | Used for distance/azimuth calculations; expected by DX-focused operators | Medium | Optional; can be auto-computed from grid (6-char → center of grid square) |
-| Rig description (MY_RIG) | Operators log rig for QSL accuracy and award purposes; every logger surfaces this | Low | Free-text; "Icom IC-7300" or "Elecraft K3/100" style |
-| Antenna description (MY_ANT) | Logged alongside rig in virtually all loggers | Low | Free-text; "80m doublet at 30ft" style |
-| Default transmit power (stamped as TX_PWR) | Logged for QRP certificates, POTA, LOTW; virtually every logger has a power field | Low | Numeric watts, stored as string per ADIF convention; see power field note below |
-| Auto-stamp OPERATOR on new QSOs | Core feature motivation; OPERATOR ADIF field must appear in each QSO | Low-Med | Inject in `build_qso_dict()` from authenticated callsign |
-| Auto-stamp STATION_CALLSIGN on new QSOs | Required for club/event stations to produce valid ADIF | Low-Med | Only stamp when profile value is non-blank and differs from OPERATOR |
-| Auto-stamp MY_GRIDSQUARE on new QSOs | Expected by WSJT-X users and POTA activators | Low | Only stamp when profile gridsquare is non-blank |
-| Auto-stamp MY_RIG, MY_ANT, TX_PWR on new QSOs | Standard "station defaults" behavior in HRD, Log4OM, N1MM+ | Low | Only stamp when profile values are non-blank |
-| Profile settings UI page | Operators must be able to view and edit their profile between sessions | Medium | HTMX form at `/profile`; consistent with existing QSO UI style |
-| Profile persists across sessions | State must survive login/logout | Low | Stored in MongoDB; loaded on each request via callsign lookup |
-
----
-
-## Complete ADIF MY_* Field Set (ADIF 3.1.7, 2026-03-22)
-
-Confidence: MEDIUM. Assembled from ADIF 3.1.4 annotated specification (highest-quality source
-found via search), plus ADIF 3.1.6 and 3.1.7 change summaries from search results. Direct
-page fetch of adif.org.uk/317/ADIF_317.htm was unavailable. Cross-checked across multiple
-search result snippets for consistency.
-
-### Location Fields
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_CITY | String | Logging station city | Table stakes |
-| MY_CITY_INTL | IntlString | MY_CITY in international (UTF-8) encoding | Skip (INTL variants deferred) |
-| MY_CNTY | String | Secondary administrative subdivision (US county, German Kreis, Russian Oblast, etc.) | Optional |
-| MY_CNTY_ALT | String | Alternate county designation (added ADIF 3.1.6) | Skip |
-| MY_COUNTRY | String | Logging station country — DXCC entity name | Table stakes |
-| MY_COUNTRY_INTL | IntlString | MY_COUNTRY in UTF-8 | Skip |
-| MY_STATE | String | Primary administrative subdivision (state, province, Bundesland, etc.) | Table stakes |
-| MY_STREET | String | Logging station street address | Optional |
-| MY_STREET_INTL | IntlString | MY_STREET in UTF-8 | Skip |
-| MY_POSTAL_CODE | String | Logging station postal/ZIP code | Optional |
-| MY_POSTAL_CODE_INTL | IntlString | MY_POSTAL_CODE in UTF-8 | Skip |
-
-### Grid and Coordinates
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_GRIDSQUARE | GridSquare | Maidenhead locator — 4, 6, or 8 characters | Table stakes |
-| MY_GRIDSQUARE_EXT | String | Extended Maidenhead locator (added ADIF 3.1.4) | Accept if operator enters 8-char grid |
-| MY_LAT | Latitude | Decimal latitude of logging station (WGS84) | Table stakes |
-| MY_LON | Longitude | Decimal longitude of logging station (WGS84) | Table stakes |
-| MY_VUCC_GRIDS | String | Grid squares for VUCC award (comma-separated, used for rover operations) | Skip for MVP |
-
-### Operator Identity
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_NAME | String | Logging operator's name | Table stakes |
-| MY_NAME_INTL | IntlString | MY_NAME in UTF-8 | Skip |
-
-### Station Equipment
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_RIG | String | Logging station's equipment/transceiver description | Table stakes |
-| MY_RIG_INTL | IntlString | MY_RIG in UTF-8 | Skip |
-| MY_ANT | String | Logging station's antenna description | Table stakes |
-
-**Note — MY_POWER does not exist in ADIF.** The power field in ADIF is `TX_PWR` (logging
-station's transmit power in watts, at the QSO level). No `MY_POWER` field appears in the
-ADIF 3.1.x specification. Logging software (HRD, Log4OM, N1MM+) stores a default power in
-the station profile and stamps it as `TX_PWR` on each new QSO. The profile should store a
-plain `power_watts` value; `build_qso_dict()` should stamp it as `TX_PWR`.
-
-### Zone and DXCC (Derived — rarely entered manually)
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_CQ_ZONE | PositiveInteger | Logging station's CQ zone (1–40) | Low — deriving from callsign/country is a separate feature |
-| MY_ITU_ZONE | PositiveInteger | Logging station's ITU zone (1–90) | Low — same |
-| MY_DXCC | Integer | Logging station's DXCC entity code | Low — same |
-
-### Award / Activation Program Fields
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_SOTA_REF | SOTARef | SOTA summit reference for the activation (e.g., W0C/SP-001) | NOT a profile field — per-activation |
-| MY_POTA_REF | String | POTA park reference (added ADIF 3.1.4) | NOT a profile field — per-activation |
-| MY_IOTA | IOTARef | IOTA island reference | Optional; skip for MVP |
-| MY_IOTA_ISLAND_ID | PositiveInteger | IOTA island numeric identifier | Optional; skip for MVP |
-| MY_SIG | String | Special interest group name (e.g., POTA, SOTA) | Optional; skip for MVP |
-| MY_SIG_INFO | String | SIG additional info — used by POTA for park IDs (MY_SIG_INFO = park ref for POTA) | NOT a profile field — per-activation |
-| MY_SIG_INTL | IntlString | MY_SIG in UTF-8 | Skip |
-| MY_SIG_INFO_INTL | IntlString | MY_SIG_INFO in UTF-8 | Skip |
-| MY_ARRL_SECT | ArrLSect | ARRL section (added ADIF 3.1.4) | Optional; skip for MVP |
-| MY_FISTS | String | FISTS CW club member number | Niche; skip |
-| MY_USACA_COUNTIES | String | US counties for USACA award | Niche; skip |
-
-### German / European Program Fields
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_DARC_DOK | String | DARC DOK (District Operating Kontrol) — added ADIF 3.1.6 | Niche; skip |
-
-### Morse Key Fields (Added ADIF 3.1.6)
-| ADIF Field | Data Type | Description | Profile Priority |
-|------------|-----------|-------------|-----------------|
-| MY_MORSE_KEY_INFO | String | Description of the Morse key used | Niche; skip |
-| MY_MORSE_KEY_TYPE | Enum | Type of Morse key (straight key, bug, paddle, etc.) | Niche; skip |
+| Country flag icon next to callsign in log view | Every major logger (Ham Radio Deluxe, Log4OM, GridTracker, CloudLog) shows a flag beside the callsign in the log table | LOW | SVGs already present; inject `iso_code` via `_qso_to_view_dict()`; render with `<img>` in `qso_row.html` |
+| Graceful fallback when prefix unknown | No flag shown, no error, no broken layout | LOW | `iso_code = None` → template skips `<img>` entirely; no placeholder needed |
+| Flag lookup at render time (server-side) | Stateless rendering; no AJAX round-trips for individual rows | LOW | Prefix resolver called in `_qso_to_view_dict()`; result passed as template context variable |
+| Correct flag for common DX callsigns | W, K, N, VE, G, DL, F, JA, VK, ZL resolve correctly | LOW | Covered by ITU prefix table and longest-match algorithm |
+| Handle callsign entered in uppercase | ADIF CALL field is convention uppercase; `build_qso_dict()` already uppercases CALL | LOW | Resolver operates on uppercase input; no lowercasing needed |
+| Paginated log view unchanged in structure | Existing sort/filter/pagination must continue to work | LOW | Flag is additive to `qso_row.html`; no table structure changes required |
 
 ---
 
 ## Differentiators
 
-Features that set the product apart. Not universally expected, but valued.
+Features that improve the product beyond baseline expectations.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Grid-to-lat/lon auto-compute | Operators who enter grid get lat/lon for free — no manual coordinate lookup needed | Medium | Standard Maidenhead → WGS84 formula; implementable in pure Python; no external service |
-| Profile completeness nudge | Prompt operators to fill grid, rig, antenna before first QSO — reduces missing data in exports | Low | Simple field-count indicator or checklist banner in UI |
-| MY_GRIDSQUARE_EXT support (8-char) | Portable, VHF, and microwave operators care about sub-km precision | Low | Just store the full string; ADIF MY_GRIDSQUARE_EXT is the correct field |
-| STATION_CALLSIGN / OPERATOR distinction clearly labeled in UI | This confuses operators constantly (documented on HAMRS, N1MM+ forums); clear labeling reduces support burden | Low | Add an explanatory tooltip or inline help text on the profile form |
+| Country name tooltip on flag | Hovering the flag shows full country name (e.g., "United States") | LOW | `title` attribute on `<img>`; no JS needed; country name already in prefix table data |
+| Consistent flag size / styling | Small, uniform flag icons that don't break table row height | LOW | CSS `width: 20px; height: auto; vertical-align: middle;` or similar; SVG scales cleanly |
+| Flag also in SSE live feed rows | New QSOs appearing in the shared station feed show the flag too | MEDIUM | `feed_row.html` uses plain variables not a QSO dict; resolver would need to be called in feed manager or SSE push path |
 
 ---
 
 ## Anti-Features
 
-Features to explicitly NOT build in this milestone.
+Features to explicitly NOT build in v1.2.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Multiple station profiles per operator | Log4OM and HRD support this but it adds significant DB schema and UI complexity | One profile per operator; all fields are freely editable at any time |
-| MY_SOTA_REF and MY_POTA_REF in the profile form | These change on every activation outing — they are per-session, not permanent station attributes | Handle as per-QSO overrides in a future milestone; do not put in profile settings |
-| DXCC / CQ zone auto-derivation from callsign | Requires callsign prefix parsing + cty.dat lookup; separate feature with its own complexity | Let operators enter MY_CQ_ZONE manually if they need it in exports; skip for this milestone |
-| Per-QSO rig/antenna override in the profile UI | Profile supplies defaults; per-contact overrides belong in the QSO edit form | QSO edit already allows editing any ADIF field via extra= allow model |
-| QRZ / HamQTH callbook prefill of profile fields | External API dependency, auth complexity, rate limits | Operator fills profile manually; callbook integration is a future milestone |
-| INTL field variants (MY_NAME_INTL, MY_CITY_INTL, etc.) | Doubles storage and form fields for non-Latin script support; adds parsing complexity | The existing ADIF serializer already handles UTF-8 byte counting correctly for the base fields; INTL variants are for apps that store both a Latin and a native-script version simultaneously |
-| MY_DARC_DOK, MY_FISTS, MY_USACA_COUNTIES, MY_MORSE_KEY_* | Highly niche award and equipment fields with minimal operator population | Operators who need these can import ADIF with those fields set; the existing `extra="allow"` model stores them verbatim |
-| Email address on profile form | Email in profile is cosmetic for a private logbook; no notification or verification feature uses it | Skip unless a specific downstream feature (e.g., QSL notifications) requires it |
+| Store `DXCC_COUNTRY` or `ISO_CODE` in the QSO document | Country attribution can change (prefix reassignments, entity splits); storing it bakes in a point-in-time answer that may become wrong and adds migration complexity | Resolve at render time from the live prefix table; never persist to QSO data |
+| Per-callsign manual country override | Operator-managed exceptions for rare edge cases (special allocations, vanity prefix ops) add UI surface and data model complexity for an extremely rare case | Graceful "no flag" fallback handles unresolvable calls cleanly |
+| External callsign API integration (QRZ, HamQTH, hamcall.net) | These have rate limits, subscriptions, and external network dependencies; inappropriate for a self-hosted single-instance logger | Use the ITU prefix table only; external callbook lookup is explicitly deferred to v2 per PROJECT.md |
+| DXCC entity numbering / CQ zone / ITU zone derivation | These require cty.dat or equivalent and add significant data complexity; out of scope per PROJECT.md | Deferred to v2 |
+| Flag in ADIF export | Flags are display decoration only; no ADIF field exists for flag or ISO code; exporting them would break ADIF compliance | ADIF export unchanged; flag is a render-time artifact |
+| "New country" / DXCC worked indicator | Award tracking requires a persistent "worked" database per operator; adds model complexity | Deferred to v2 per PROJECT.md |
+| Animated flag or interactive flag click (opens QRZ profile) | Adds JS complexity; external link may not load in self-hosted deployments; QRZ is a subscription service | Static SVG with `title` tooltip is sufficient for v1.2 |
 
 ---
 
 ## Feature Dependencies
 
 ```
-User.callsign (existing) → OPERATOR stamp on QSO (new)
-Profile.station_callsign (new) → STATION_CALLSIGN stamp on QSO (new, conditional on non-blank)
-Profile.gridsquare (new) → MY_GRIDSQUARE stamp on QSO (new, conditional on non-blank)
-Profile.rig (new) → MY_RIG stamp on QSO (new, conditional on non-blank)
-Profile.antenna (new) → MY_ANT stamp on QSO (new, conditional on non-blank)
-Profile.power_watts (new) → TX_PWR stamp on QSO (new, conditional on non-blank)
-build_qso_dict() (existing) → must accept profile snapshot arg to inject fields
-_qso_to_adif_dict() (existing) → NO CHANGES NEEDED; model_extra passthrough already handles new fields
-ADIF export (existing) → will include OPERATOR, STATION_CALLSIGN, MY_* fields automatically once stored
-Profile settings UI → requires new router + Jinja2 template + HTMX wiring
+ITU prefix table (seed data or static Python dict)
+    └──required by──> Prefix resolver function
+                          └──called by──> _qso_to_view_dict() in ui_router.py
+                                              └──produces──> iso_code, country_name in template context
+                                                                 └──consumed by──> qso_row.html (log view)
+                                                                                  qso_row_edit.html (inline edit, optional)
+
+Prefix resolver
+    └──needs──> Suffix stripper (strip /P, /M, /MM, /AM, digits)
+    └──needs──> Range comparator (lexicographic: start <= candidate <= end)
+
+Flag SVGs (already present at app/static/flags/{iso_code}.svg)
+    └──consumed by──> qso_row.html via <img src="/static/flags/{{ iso_code }}.svg">
 ```
 
----
+### Dependency Notes
 
-## MVP Recommendation for This Milestone
-
-**Phase 1 — Profile storage and settings UI:**
-1. New `Profile` MongoDB document — separate from `User`, linked by `callsign` (clean migration path; no schema change to `User`)
-2. Profile fields: `station_callsign`, `name`, `city`, `state`, `country`, `gridsquare`, `lat`, `lon`, `rig`, `antenna`, `power_watts`
-3. Profile service: `get_or_create_profile(callsign)`, `update_profile(callsign, data)`
-4. Profile settings UI at `/profile` — single HTMX form consistent with existing QSO UI patterns
-
-**Phase 2 — QSO auto-stamping:**
-5. Modify `build_qso_dict()` to accept a profile snapshot and inject:
-   - `OPERATOR` = login callsign (always)
-   - `STATION_CALLSIGN` = profile value (only if non-blank)
-   - `MY_GRIDSQUARE` = profile gridsquare (only if non-blank)
-   - `MY_RIG` = profile rig (only if non-blank)
-   - `MY_ANT` = profile antenna (only if non-blank)
-   - `TX_PWR` = profile power_watts (only if non-blank)
-6. Update QSO creation endpoint to load the operator's profile before calling `build_qso_dict()`
-
-**Phase 3 — Grid/coordinate helper (optional but high value):**
-7. Auto-compute lat/lon from 6-char grid when operator saves profile grid (server-side Python, no external API)
-
-**Defer:**
-- Multiple station profiles
-- POTA/SOTA per-activation fields
-- Callbook lookup integration
-- Award-specific fields (ARRL_SECT, CQ zone, etc.)
-- Email on profile
+- **Prefix resolver requires suffix stripper:** CALL field may contain `/P`, `/M` etc.; resolver must strip before attempting prefix match.
+- **Resolver requires range comparator:** ITU data is expressed as ranges, not enumerated prefixes; lexicographic comparison against `(start, end)` tuples is required.
+- **`_qso_to_view_dict()` is the correct injection point:** It already prepares the dict for all log-view templates; adding `iso_code` and `country_name` here requires no changes to the service layer, models, or database.
+- **`qso_row.html` for log view; `feed_row.html` for SSE feed:** These are separate templates. Flag in the feed is a differentiator (not table stakes); defer if complexity warrants.
+- **`qso_row_edit.html` (inline edit row):** May also need to show the flag or at minimum preserve it across the edit/cancel cycle; check template structure.
 
 ---
 
-## Surprising Fields Operators Expect
+## MVP Definition
 
-Findings from community research (HAMRS forum, POTA documentation, N1MM+ documentation):
+### Launch With (v1.2)
 
-1. **TX_PWR is the power field — MY_POWER does not exist in ADIF.** Apps store a default wattage in the station profile and stamp individual QSOs with `TX_PWR`. Operators searching for "MY_POWER" in ADIF output are looking for a non-standard field that some logging apps emit incorrectly. The correct field is `TX_PWR`.
+Minimum viable set — validates the feature delivers value.
 
-2. **STATION_CALLSIGN confusion is widespread.** The HAMRS community thread on Field Day logging shows this is a recurring operator support issue. Operators running a club station often produce ADIF with only CALL and OPERATOR and miss STATION_CALLSIGN entirely, causing POTA log upload rejections. The profile UI should surface the OPERATOR vs STATION_CALLSIGN distinction with clear explanatory text.
+- [ ] Prefix resolver module: suffix stripping + range-aware lookup → `(country_name, iso_code) | None`
+- [ ] ITU prefix range data loaded into the resolver (static Python dict or MongoDB collection seeded at startup)
+- [ ] `_qso_to_view_dict()` extended to call resolver and include `iso_code` and `country_name` in output dict
+- [ ] `qso_row.html` updated to render flag `<img>` when `iso_code` is present, silent when absent
+- [ ] `country_name` surfaced as `title` tooltip attribute on the flag `<img>`
+- [ ] Graceful no-flag path verified (unknown prefix, empty CALL, malformed callsign → no error)
 
-3. **Grid locator is the primary location concept for most operators — not lat/lon.** Operators think in grid squares (EN52, FN20pi), not decimal degrees. Accept grid as the primary location input. WSJT-X, GridTracker, and every VHF contest tool use 6-char grid as the canonical station location identifier. Derive lat/lon from grid automatically.
+### Add After Validation (v1.x)
 
-4. **6-char grid minimum for practical use.** 4-char grid (e.g., EN52) is acceptable for ADIF storage but gives 120 km precision — too coarse for VHF DX and POTA spot maps. Operators expect 6-char (e.g., EN52ab) as the default. The ADIF spec accepts 4 or 6 chars; some apps accept 8. Store whatever is entered but nudge toward 6-char.
+- [ ] Flag in SSE live feed rows (`feed_row.html`) — requires resolver call in SSE push path
+- [ ] Flag in inline-edit row (`qso_row_edit.html`) if it disappears during edit/cancel cycle
 
-5. **MY_SOTA_REF and MY_POTA_REF are NOT profile fields — they are per-activation.** SOTA summits and POTA parks change with every trip. Operators who activate SOTA regularly expect to change MY_SOTA_REF for each activation session, not edit their station profile. Do not put these in the profile settings form.
+### Future Consideration (v2+)
 
-6. **Log4OM's three-callsign model (owner / station / operator) is more nuanced than needed here.** Log4OM distinguishes the equipment owner from the station licensee from the operating control point. For this project's scope (admin-managed accounts, single-station context), the ADIF two-field model (OPERATOR + STATION_CALLSIGN) is sufficient and appropriate.
+- [ ] DXCC "worked before" indicator (requires per-operator worked-entity tracking)
+- [ ] CQ zone / ITU zone derivation
+- [ ] cty.dat-based full DXCC entity lookup
+- [ ] Award tracking (DXCC, WAS, WAZ, IOTA)
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Flag icon in log view | HIGH | LOW | P1 |
+| Country name tooltip | HIGH | LOW | P1 |
+| Graceful no-flag fallback | HIGH | LOW | P1 |
+| Suffix stripping (/P, /M, /MM, /AM, digits) | HIGH | LOW | P1 |
+| Resolver seeded from ITU range table | HIGH | MEDIUM | P1 |
+| Flag in SSE live feed | MEDIUM | MEDIUM | P2 |
+| Flag in inline edit row | LOW | LOW | P2 |
+| Per-callsign override | LOW | HIGH | P3 |
+
+---
+
+## Ham Radio Domain Gotchas
+
+These are specific to the amateur radio domain and not obvious from general web app patterns.
+
+### 1. The /MM and /AM Suffix Conflict
+
+`G3YWX/MM` is a British station operating maritime mobile — NOT a Scottish station (MM = Scotland).
+`EA5XY/AM` is a Spanish station operating aeronautical mobile — NOT a Spanish call resolving via the AM prefix (AM = Spain).
+Strip these suffixes before lookup; do not attempt to use them as a country prefix.
+
+### 2. Single-Digit Suffixes Are Call Area Indicators, Not Country Changes
+
+`W6ABC/7` is a US station operating in call area 7 (Pacific Northwest), NOT a different country.
+`VE7BC/3` is a Canadian station in Ontario call area, NOT a different country.
+Strip single-digit suffixes before lookup; they do not change country.
+
+### 3. Callsigns With No Number (Rare But Valid)
+
+Some UK special event and club callsigns omit the numeric separator: `GB2HQ`, `GX4BJC`.
+The standard ITU structure (letters, then digit, then letters) does not hold for these.
+Longest-prefix match on progressively shorter substrings still works correctly: `GB` matches
+the UK range in the ITU table.
+
+### 4. The 3DA–3DM / 3DN–3DZ Sub-Range Example
+
+Both Eswatini and Fiji share the `3D` two-character prefix. The ITU resolves this by allocating
+sub-ranges at the third character. A callsign `3DA0JK` must be matched at 3-character prefix
+granularity (`3DA`) to land in the correct range `3DA–3DM`. A 2-character lookup for `3D`
+alone is ambiguous and must not be used as the final answer.
+Longest-match with range comparison handles this correctly by preferring the 3-character match.
+
+### 5. US Callsigns: Multiple Valid Prefixes
+
+The US holds: `AA–AL`, `K`, `N`, `W` (full single-letter blocks), plus `KA–KZ`, `NA–NZ`,
+`WA–WZ`. All of these resolve to United States. The longest-match algorithm will correctly
+match `W6ABC` to `W` (or `WA`–`WZ` if the data includes those sub-ranges).
+
+### 6. Special Prefixes With No ISO Country Code
+
+| Prefix | Entity | ISO Code | Note |
+|--------|--------|----------|------|
+| `1A` | Sovereign Military Order of Malta | None (not a UN member state) | No flag SVG; graceful fallback |
+| `4U1ITU` | ITU Geneva | None | No ISO alpha-2; graceful fallback |
+| `4U1UN` | United Nations NY | None | No ISO alpha-2; graceful fallback |
+
+These will return a country name but no valid ISO alpha-2 → no flag shown, no error.
+The country name is still useful for tooltip display even without a flag.
+
+### 7. Callsigns From Entities Not in ISO 3166-1 alpha-2
+
+Some DXCC entities recognized for amateur radio purposes are not UN-recognized states and
+have no ISO 3166-1 alpha-2 code (and thus no flag SVG in the existing set):
+- Kosovo (DXCC entity Z6; ISO code XK exists in practice but is not officially assigned)
+- Various dependent territories may use their parent country's ISO code in flag collections
+
+The resolver should return `iso_code = None` when the country name has no ISO mapping;
+the template renders no flag without error.
 
 ---
 
@@ -262,15 +299,17 @@ Findings from community research (HAMRS forum, POTA documentation, N1MM+ documen
 
 | Source | Confidence | Use |
 |--------|------------|-----|
-| [ADIF 3.1.7 specification, 2026-03-22](https://adif.org.uk/317/ADIF_317.htm) | MEDIUM (page not directly fetched; assembled from search snippets) | MY_* field list, field data types |
-| [ADIF 3.1.4 specification](https://www.adif.org/314/ADIF_314.htm) | MEDIUM (authoritative source, 3.1.4 field set confirmed by multiple snippets) | Baseline MY_* fields |
-| [ADIF 3.1.6 release notes](https://adif.org/316/ADIF_316.htm) | MEDIUM | MY_CNTY_ALT, MY_DARC_DOK, MY_MORSE_KEY_* additions |
-| [ADIF for POTA Technical Reference](https://docs.pota.app/docs/activator_reference/ADIF_for_POTA_reference.html) | HIGH (official POTA documentation) | STATION_CALLSIGN vs OPERATOR for club activations; MY_SIG_INFO for park IDs |
-| [HAMRS Community — Field Day STATION_CALLSIGN confusion](https://community.hamrs.app/t/field-day-help-ive-confused-myself-with-adif-station-callsign-and-operator/584) | MEDIUM (community forum) | Confirms OPERATOR/STATION_CALLSIGN confusion is a real, recurring operator problem |
-| [N1MM+ The Configurer](https://n1mmwp.hamdocs.com/setup/the-configurer/) | HIGH (official N1MM+ documentation) | OPERATOR per-QSO, STATION_CALLSIGN from station data; OPON command pattern |
-| [Log4OM forum — Owner, Station & Operator Callsign](https://forum.log4om.com/viewtopic.php?t=227) | MEDIUM (community forum) | Three-callsign model; confirms Log4OM separates owner/station/operator |
-| [Ham Radio Deluxe — My Station setup](https://support.hamradiodeluxe.com/support/solutions/articles/51000052682-setup-configuration-my-station) | MEDIUM (official HRD support docs) | Field inventory: street, city, county, state, postal code, email, locator, lat/lon |
-| [MacLoggerDX Station Info](https://dogparksoftware.com/MacLoggerDX/Manual/Pages/stationinfo.html) | MEDIUM (official MacLoggerDX docs) | Callsign, lat/lon, grid, name/address fields |
-| [WSJT-X User Guide 2.6.1](https://wsjt.sourceforge.io/wsjtx-doc/wsjtx-main-2.6.1.html) | HIGH (official WSJT-X documentation) | My Call + My Grid as primary station fields; 6-char preferred |
-| [Maidenhead Locator System — Wikipedia](https://en.wikipedia.org/wiki/Maidenhead_Locator_System) | HIGH | 4/6/8-char precision levels: ±120 km / ±5 km / ±460 m |
-| [POTA Club Activation Guide](https://docs.pota.app/docs/activator_reference/activator_guide_clubs.html) | HIGH (official POTA documentation) | STATION_CALLSIGN = club call mandate for club logs |
+| [ITU Table of International Call Sign Series (Appendix 42)](https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx) | HIGH | Authoritative ITU prefix range allocations |
+| [ITU prefix — Wikipedia](https://en.wikipedia.org/wiki/ITU_prefix) | HIGH | Prefix structure, range examples, sub-range explanation |
+| [Amateur radio call signs — Wikipedia](https://en.wikipedia.org/wiki/Amateur_radio_call_signs) | HIGH | Callsign structure, suffix conventions, international operating |
+| [Portable operation (amateur radio) — Wikipedia](https://en.wikipedia.org/wiki/Portable_operation_(amateur_radio)) | HIGH | /P, /M, /A suffix semantics |
+| [pyhamtools on GitHub](https://github.com/dh1tw/pyhamtools) | MEDIUM | Industry reference: Python callsign-to-country library using longest-prefix-match approach |
+| [hamradio on PyPI](https://pypi.org/project/hamradio/) | MEDIUM | cty.dat-based Python lookup; confirms longest-match is standard |
+| [Ham-Locator on GitHub](https://github.com/SheldonT/Ham-Locator) | MEDIUM | Example of flag + city + country display in log table (visual UX confirmation) |
+| [Ham Radio Deluxe Country List docs](https://support.hamradiodeluxe.com/support/solutions/articles/51000052697-the-hrd-country-list) | MEDIUM | Confirms country list display is standard in logging software |
+| [/MM and /AM conflict note — river.cat](https://river.cat/radio/mobile-or-portable.html) | MEDIUM | /MM vs MM Scotland, /AM vs AM Spain ambiguity — documented community pattern |
+| Existing ollog codebase inspection | HIGH | Template structure, `_qso_to_view_dict()`, flag SVG inventory, QSO model |
+
+---
+*Feature research for: ollog v1.2 — callsign entity lookup & country flag display*
+*Researched: 2026-04-04*

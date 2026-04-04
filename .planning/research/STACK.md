@@ -1,186 +1,197 @@
-# Technology Stack
+# Stack Research
 
-**Project:** Ham Radio Online Logbook (ollog) — Operator & Station Profiles Milestone
+**Domain:** Ham radio callsign prefix lookup & country flag display (milestone addition to ollog)
 **Researched:** 2026-04-04
-**Scope:** NEW capabilities only. Existing validated stack (FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+, HTMX 2.0.4, PyJWT, pwdlib, MongoDB 7 replica set) is not re-researched here.
+**Confidence:** HIGH for storage approach and bisect; HIGH for pycountry; MEDIUM for pycountry edge cases on ITU name variants
 
 ---
 
-## Stack Additions for Operator Profile Feature
+## Context: What Already Exists (Do Not Re-Research)
 
-This milestone adds one new Beanie Document, grid square conversion, and email
-validation. No framework changes are needed. All additions are additive.
+Existing validated stack: FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+, Jinja2, HTMX 2.0.4, Python 3.12, Docker Compose, MongoDB 7 replica set.
+
+Flag SVGs are already present at `app/static/flags/{iso_lower}.svg` (271 files, e.g., `us.svg`, `gb.svg`, `jp.svg`).
+
+**Flag path discrepancy (must resolve before rendering works):** The `StaticFiles` mount in `app/main.py` uses `directory="static"`, which points to the project root `static/` directory. That directory is currently empty (only `.gitkeep`). The SVGs live at `app/static/flags/`, which is NOT served. Two resolution options:
+
+- **Option A (recommended):** `git mv app/static/flags static/flags` — zero code changes, aligns with Dockerfile `COPY static/ static/` line.
+- **Option B:** Change `StaticFiles(directory="app/static")` and update Dockerfile. More disruptive.
+
+Option A is the right call.
 
 ---
 
-### New Library: Maidenhead Grid Conversion
+## Recommended Stack (New Additions Only)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| maidenhead | 1.8.0 | Grid square ↔ lat/lon conversion | Pure Python, no C extensions, zero system dependencies. Two-function API: `to_maiden(lat, lon, level)` returns a grid locator string; `to_location(locator)` returns (lat, lon) tuple (southwest corner by default, `center=True` for centroid). Production/Stable classifier. Works on Python ≥ 3.9. Maintained by space-physics group. |
+### New Library
 
-**Confidence:** MEDIUM — PyPI page confirms 1.8.0 released May 25, 2025. API shape (to_maiden / to_location) confirmed by multiple sources. WebFetch was unavailable to verify README directly, but the API is stable and consistent across search results.
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| `pycountry` | `>=26.2.16` | Map ITU country name strings to ISO 3166-1 alpha-2 codes at startup | Handles ITU long-form names via `search_fuzzy()` — e.g., "United States of America" → `US`, "Lao People's Democratic Republic" → `LA`. Pure Python, no C extensions, no external service. Released Feb 2026. |
 
-**API in use:**
-```python
-import maidenhead as mh
+### No New Libraries Required For
 
-# lat/lon -> grid (level=2 gives 4-char, level=3 gives 6-char)
-grid = mh.to_maiden(lat=51.4778, lon=-0.0015, level=3)   # "IO91wm"
+| Capability | Tool | Reason |
+|------------|------|--------|
+| Prefix range lookup | Python `bisect` (stdlib) | 340-row static table; binary search over sorted list of range tuples gives O(log n) in microseconds. No dependency to add. |
+| Flag URL construction | Jinja2 custom filter (built-in pattern) | Single string transform. Register via `templates.env.filters["flag_url"] = fn`. No library needed. |
+| CSV parsing of prefix table | Python `csv` (stdlib) | Standard library. Parses the ITU range CSV at module import time. |
 
-# grid -> lat/lon (southwest corner of square)
-lat, lon = mh.to_location("IO91wm")
+---
 
-# grid -> center point of square
-lat, lon = mh.to_location("IO91wm", center=True)
+## Installation
+
+```bash
+# Add to pyproject.toml dependencies
+uv add pycountry
 ```
 
-**Why not a custom implementation:** Maidenhead encoding has edge cases at field
-boundaries and the precision arithmetic is fiddly. The library is 15 lines of
-math tested by the wider ham radio community. Do not reimplement.
+One new package. Everything else uses Python stdlib or the existing Jinja2/FastAPI setup.
 
 ---
 
-### New Library: Email Validation
+## Storage Decision: Static Python Module (Not MongoDB)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| email-validator | 2.3.0 | Pydantic EmailStr backend | Required for Pydantic's `EmailStr` type to function. Without it, `from pydantic import EmailStr` raises an ImportError at runtime. Install via `pydantic[email]` to get the correct version pin. |
+**Recommendation: In-memory Python module, loaded once at application startup.**
 
-**Confidence:** HIGH — email-validator 2.3.0 is the current release (August 2025). Pydantic v2 requires email-validator ≥ 2.0. This is standard Pydantic ecosystem practice.
+The ITU prefix table (~340 CSV rows of `start-end, country` ranges) is static reference data. It does not change per-user, per-request, or at runtime. Loading it from MongoDB would require:
+- A new Beanie Document class and collection
+- A startup seeding step (with idempotency logic)
+- An async database query on every callsign render
 
-**Install path:** Add `pydantic[email]` to pyproject.toml dependencies (pydantic itself
-is already a transitive dependency of FastAPI; adding the `[email]` extra is
-sufficient — no separate version pin needed for email-validator).
+None of these are justified when a module-level data structure gives the same result in microseconds with no infrastructure.
 
----
+**Recommended data structure:**
 
-### No New Libraries for MY_* Field Storage
+```python
+# app/callsign/prefix_data.py  — built once at import time from bundled CSV
+_RANGES: list[tuple[str, str, str]] = []   # (start_prefix, end_prefix, country_name)
+_STARTS: list[str] = []                    # parallel list for bisect
 
-The ADIF MY_* fields (MY_RIG, MY_ANTENNA, MY_POWER, MY_GRIDSQUARE, MY_CITY,
-MY_CITY_INTL, MY_COUNTRY, MY_COUNTRY_INTL, MY_STATE, MY_LAT, MY_LON,
-MY_GRIDSQUARE_EXT, MY_POTA_REF, MY_SOTA_REF, MY_IOTA, etc.) are all simple
-string or numeric values. Pydantic handles validation of these as `Optional[str]`
-or `Optional[float]` fields. No additional library is needed.
+def lookup_callsign(callsign: str) -> str | None:
+    """Return ITU country name for callsign prefix, or None if not found.
 
----
+    Tries 3-char, then 2-char, then 1-char prefix against the range table.
+    """
+    ...
+```
 
-## Beanie Model Design Decision: Explicit Fields vs model_extra="allow"
-
-**Decision: Use explicit Pydantic fields for all MY_* fields on OperatorProfile.**
-
-Rationale:
-
-1. **Profile is user-entered, not arbitrary:** Unlike QSO documents where operators
-   can import arbitrary ADIF fields from third-party software, the profile has a
-   defined, finite set of fields (the ADIF MY_* namespace). Explicit fields give
-   validation, type safety, and IDE autocomplete at no cost.
-
-2. **model_extra="allow" carries a known Beanie projection risk:** Beanie's
-   default projection is derived from declared model fields. With extra="allow",
-   Beanie returns `None` for the projection, fetching the full document — this is
-   correct behavior but confirmed-by-source to be the mechanism. For a fixed-schema
-   document like a profile, explicit fields give deterministic projection behavior.
-
-3. **QSO uses extra="allow" correctly** because QSOs import arbitrary third-party
-   ADIF fields. OperatorProfile does not need that property.
-
-4. **All current ADIF MY_* fields are known:** ADIF 3.1.6 (current as of
-   September 2025) defines a complete, enumerable MY_* field set. Explicit fields
-   document the schema at the model layer.
-
-**Exception:** If the project wants to future-proof for arbitrary MY_* fields not
-yet in the spec, use `model_extra="allow"` and declare only the commonly-used ones
-explicitly. This is acceptable but not the recommended default for a profile document.
+The CSV is bundled as a project asset (e.g., `app/callsign/itu_prefixes.csv`). No network call, no DB query, no startup migration.
 
 ---
 
-## OperatorProfile Beanie Document: Integration Notes
+## ISO Mapping Decision: pycountry With Exceptions Dict
 
-**Collection:** `operator_profiles` (separate from `users` — keeps auth concern separate
-from station data; allows profile upsert without touching password hash).
+**Recommendation: `pycountry.countries.search_fuzzy()` + a small hardcoded exceptions dict for known failures.**
 
-**User linkage:** Store `username: str` (matching `User.username`) as the lookup key.
-Add a unique index on `username`. Do not use Beanie's Link type — a string foreign
-key is simpler, avoids fetch-on-load overhead, and profile is always fetched alone.
+`pycountry` (v26.2.16) is the correct primary tool:
+- `search_fuzzy("United States of America")[0].alpha_2` → `"US"` (confirmed)
+- `search_fuzzy("United Kingdom of Great Britain and Northern Ireland")[0].alpha_2` → `"GB"` (confirmed)
+- Handles unicode normalization and name variants automatically
 
-**Upsert pattern:** Beanie 2.x supports `find_one(...).upsert(Set({...}), on_insert=...)`.
-Use this for profile save: one round-trip, no race condition on first-time create.
+**Usage pattern — build at startup, not per-request:**
 
-**Stamping QSOs:** On new QSO creation, the router fetches the operator's profile
-and stamps `OPERATOR`, `STATION_CALLSIGN`, and other MY_* fields. This is a
-service-layer concern, not a model concern. Keep the profile model pure.
+```python
+import pycountry
 
----
+# Known ITU names that pycountry misresolves (LOW confidence — verify at build time)
+_EXCEPTIONS: dict[str, str] = {
+    "Korea (Republic of)": "KR",
+    "Korea (Democratic People's Republic of)": "KP",
+    # add others discovered during integration testing
+}
 
-## Maidenhead Grid Validation
+def country_name_to_iso(name: str) -> str | None:
+    if name in _EXCEPTIONS:
+        return _EXCEPTIONS[name]
+    try:
+        return pycountry.countries.search_fuzzy(name)[0].alpha_2.lower()
+    except LookupError:
+        return None
+```
 
-Use a Pydantic `field_validator` with a regex pattern rather than calling
-`maidenhead.to_location()` for validation — the library raises on invalid input
-but does not give clean Pydantic error messages.
+Call this once per unique country name from the prefix table (~50 distinct countries). Cache results in a `dict[str, str | None]`. Log warnings for `None` returns — these need exception entries.
 
-Maidenhead grid format (ADIF MY_GRIDSQUARE / GRIDSQUARE field):
-- 4 characters: `[A-R]{2}[0-9]{2}` (field + square, e.g., "FN31")
-- 6 characters: `[A-R]{2}[0-9]{2}[a-x]{2}` (+ subsquare, e.g., "FN31pr")
-- 8 characters: `[A-R]{2}[0-9]{2}[a-x]{2}[0-9]{2}` (extended, e.g., "FN31pr26")
+**Why not `iso3166` package:** `iso3166` uses exact name matching against its own canonical names. ITU names like "United States of America" will not match `iso3166`'s "United States" entry without preprocessing. `pycountry.search_fuzzy()` eliminates that problem.
 
-The ADIF spec (MY_GRIDSQUARE field) accepts 4 or 6 character forms in common use.
-MY_GRIDSQUARE_EXT (added in ADIF 3.1.4+) is for 8-character extended precision.
-
-Recommended pattern for MY_GRIDSQUARE: `^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$`
-(case-insensitive per ADIF spec; normalize to uppercase on save).
-
----
-
-## ADIF MY_* Field Reference (ADIF 3.1.6)
-
-Fields confirmed present in ADIF 3.1.6 specification. Group into profile
-sections for the UI:
-
-**Identity:**
-- `MY_NAME` / `MY_NAME_INTL` — operator name
-
-**Location:**
-- `MY_CITY` / `MY_CITY_INTL` — city (QTH)
-- `MY_STATE` — US state / subdivision
-- `MY_CNTY` — US county
-- `MY_COUNTRY` / `MY_COUNTRY_INTL` — DXCC entity name
-- `MY_POSTAL_CODE` / `MY_POSTAL_CODE_INTL`
-- `MY_STREET` / `MY_STREET_INTL`
-- `MY_GRIDSQUARE` — 4 or 6 char Maidenhead
-- `MY_GRIDSQUARE_EXT` — 8 char extended (ADIF 3.1.4+)
-- `MY_LAT` — latitude (decimal degrees, ADIF Location type)
-- `MY_LON` — longitude (decimal degrees, ADIF Location type)
-
-**Awards / Programs:**
-- `MY_CQ_ZONE` — CQ zone number
-- `MY_ITU_ZONE` — ITU zone number
-- `MY_DXCC` — DXCC entity code
-- `MY_IOTA` — Islands on the Air reference
-- `MY_SOTA_REF` — SOTA summit reference
-- `MY_POTA_REF` — Parks on the Air reference (ADIF 3.1.4+)
-- `MY_SIG` / `MY_SIG_INTL` / `MY_SIG_INFO` / `MY_SIG_INFO_INTL` — special interest group
-- `MY_USACA_COUNTIES` — US county award
-- `MY_VUCC_GRIDS` — VUCC grid squares
-- `MY_FISTS` — FISTS CW club number
-
-**Station / Equipment:**
-- `MY_RIG` / `MY_RIG_INTL` — transceiver description
-- `MY_ANTENNA` / `MY_ANTENNA_INTL` — antenna description (correct ADIF name; NOT MY_ANT)
-- `MY_POWER` — transmit power in watts
-
-**Note on MY_ANT vs MY_ANTENNA:** The correct ADIF field name is `MY_ANTENNA`.
-Some logging software uses non-standard `MY_ANT`. Store as `MY_ANTENNA` in the
-profile; the QSO stamping layer can output whichever name is needed.
-
-**Confidence on field list:** MEDIUM — field names sourced from web search results
-citing ADIF 3.1.6 and adif-mcp.com spec mirror. WebFetch to adif.org was
-unavailable. Verify MY_ANTENNA vs MY_ANT against official spec before locking
-the model.
+**Why not a hand-rolled dict:** Maintainable for ~50 entries, but `pycountry` handles the majority automatically. Reserve the exceptions dict for the handful of ITU edge cases that `search_fuzzy()` gets wrong.
 
 ---
 
-## Recommended pyproject.toml Changes
+## Jinja2 Flag Rendering Decision: Custom Filter
+
+**Recommendation: Register a `flag_url` filter on the existing Jinja2 environment.**
+
+```python
+# In shared template setup (e.g., app/callsign/filters.py)
+def flag_url(iso_code: str | None) -> str:
+    """Convert ISO 3166-1 alpha-2 code to flag SVG URL."""
+    if not iso_code:
+        return ""
+    return f"/static/flags/{iso_code.lower()}.svg"
+```
+
+Register once after `Jinja2Templates` is instantiated:
+
+```python
+templates.env.filters["flag_url"] = flag_url
+```
+
+Template usage:
+
+```html
+{% if qso.country_iso %}
+  <img src="{{ qso.country_iso | flag_url }}"
+       alt="{{ qso.country_iso }}"
+       width="20"
+       loading="lazy"
+       onerror="this.style.display='none'">
+{% endif %}
+```
+
+The `onerror` handler silently hides the `<img>` if an ISO code has no corresponding SVG (e.g., Antarctica, disputed territories). This avoids broken image icons for edge-case callsigns.
+
+**Why a filter over a Jinja2 macro:** A filter is callable from any template without an `{% import %}` statement. For a pure string transform (code → URL), a filter is the correct abstraction. Use a macro only if the rendering logic grows to include conditional classes, multiple elements, or tooltip text.
+
+---
+
+## Alternatives Considered
+
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| Prefix storage | Static Python module + `bisect` | MongoDB collection | Static data, no per-user variation. MongoDB adds collection, seed migration, async query overhead for zero benefit. |
+| Prefix storage | Static Python module + `bisect` | In-memory dict (exact prefix keys) | ITU data uses ranges (WAA–WAZ), not individual prefix strings. A dict of exact keys would require expanding ranges to thousands of entries. `bisect` over the compact range list is the correct approach. |
+| Prefix lookup library | Custom `bisect` over bundled CSV | `pyhamtools` | pyhamtools returns DXCC-format country names (e.g., "Fed. Rep. of Germany"), not ISO alpha-2. Requires downloading or bundling `cty.plist`. Adds `lxml` dependency (needs `libxml2-dev`, `libxslt-dev` system packages). Version status on PyPI is unclear (0.10.0 on PyPI vs 0.12.0 in docs). Solves a harder problem than needed. |
+| Prefix lookup library | Custom `bisect` over bundled CSV | `callsignlookuptools` | Wraps QRZ/callook.info APIs — requires paid API key and internet connection at render time. |
+| ISO name mapping | `pycountry` + exceptions dict | `iso3166` package | Exact-match only. ITU names diverge from ISO canonical names. Would require preprocessing every ITU name to match `iso3166`'s internal names. |
+| Flag rendering | Jinja2 custom filter | Pass `flag_url` in template context per route | Couples URL scheme to Python router code; requires changes in every router that renders QSOs. Filter centralizes the logic in one place. |
+| Flag rendering | Jinja2 custom filter | Jinja2 macro | Macros require `{% import %}` in each template. Filter is simpler for a one-argument string transform. |
+
+---
+
+## What NOT to Add
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| `pyhamtools` | lxml/libxml2 system dependency, DXCC names not ISO alpha-2, unclear PyPI version status | `bisect` + bundled CSV + `pycountry` |
+| MongoDB prefix collection | Static reference data belongs in the codebase, not the database | Bundled Python module loaded at startup |
+| Real-time QRZ/HamQTH API | Requires API subscription, adds 100–500ms latency to every log row render, fails offline | Static ITU prefix table |
+| Redis or other cache | 340-row in-memory dict lookup is already microseconds. Caching adds infrastructure with no measurable gain. | Module-level dict |
+| Country name stored on QSO document | Prefix lookup resolves at render time — no data stored. Avoids data staleness if prefix table is corrected later. | Render-time resolution from `CALL` field |
+
+---
+
+## Version Compatibility
+
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| `pycountry>=26.2.16` | Python 3.12, FastAPI 0.135+, Beanie 2.1+ | Pure Python wheel (8.0 MB, includes ISO data). No C extensions. No known conflicts with existing stack. |
+| `bisect` (stdlib) | Python 3.12 | Built-in, no install required. |
+| `csv` (stdlib) | Python 3.12 | Built-in, no install required. |
+
+---
+
+## Recommended pyproject.toml Change
 
 ```toml
 [project]
@@ -192,45 +203,25 @@ dependencies = [
     "pyjwt>=2.12.0",
     "pwdlib[argon2]>=0.3.0",
     "pydantic-settings>=2.0",
-    # NEW for operator profile milestone:
     "maidenhead>=1.8.0",
-    "pydantic[email]>=2.0",   # enables EmailStr; pins email-validator>=2.0
+    "pydantic[email]>=2.0",
+    # NEW for callsign prefix lookup milestone:
+    "pycountry>=26.2.16",
 ]
 ```
-
-**No other dependency changes needed.**
-
----
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Grid conversion | maidenhead 1.8.0 | gridtools (miaowware) | gridtools is a smaller project with less adoption; maidenhead is the de facto standard in Python ham radio tooling |
-| Grid conversion | maidenhead 1.8.0 | Custom math | Edge cases at field boundaries (e.g., longitude wrap); use the tested library |
-| Email validation | pydantic[email] (EmailStr) | Manual regex | EmailStr validates deliverability-aware syntax per RFC; a regex misses subtleties |
-| MY_* storage | Explicit Pydantic fields | model_extra="allow" | Profile schema is finite and known; explicit fields are better documented and avoid Beanie projection ambiguity |
-| Profile collection | Separate `operator_profiles` | Embed in `users` doc | Keeps auth model clean; profile can be fetched/updated independently without touching password hash |
-| Profile-to-user link | `username: str` (FK string) | Beanie `Link[User]` | Link requires eager/lazy fetch ceremony; string FK is simpler for a document that is always fetched alone |
-
----
-
-## What NOT to Add
-
-- **No geospatial index** on lat/lon — profiles are not queried by proximity; a 2dsphere index adds overhead with zero benefit for this use case.
-- **No separate MY_* collection** — MY_* fields live directly on the profile document; no normalization needed.
-- **No geocoding library** — lat/lon is entered by the operator or derived from Maidenhead grid; do not call external geocoding APIs.
-- **No ADIF profile import** — profile fields are entered via web form, not imported from ADIF files.
 
 ---
 
 ## Sources
 
-- maidenhead on PyPI: https://pypi.org/project/maidenhead/ (1.8.0, May 2025)
-- space-physics/maidenhead GitHub: https://github.com/space-physics/maidenhead
-- email-validator on PyPI: https://pypi.org/project/email-validator/ (2.3.0, August 2025)
-- ADIF 3.1.6 specification: https://adif.org/316/ADIF_316.htm
-- Beanie extra fields discussion: https://github.com/BeanieODM/beanie/issues/244
-- Beanie upsert pattern: https://beanie-odm.dev/tutorial/updating-&-deleting/
-- MY_ANTENNA field name: https://forum.log4om.com/viewtopic.php?t=5219 (confirmed MY_ANTENNA, not MY_ANT) — LOW confidence, verify against adif.org
-- Maidenhead grid format: https://en.wikipedia.org/wiki/Maidenhead_Locator_System
+- [pycountry on PyPI](https://pypi.org/project/pycountry/) — v26.2.16, released Feb 2026. HIGH confidence.
+- [pycountry GitHub](https://github.com/pycountry/pycountry) — `search_fuzzy()` API, fuzzy matching behavior. HIGH confidence.
+- [Python bisect docs](https://docs.python.org/3/library/bisect.html) — stdlib O(log n) range lookup. HIGH confidence.
+- [pyhamtools GitHub](https://github.com/dh1tw/pyhamtools) — DXCC name format, lxml dependency confirmed. MEDIUM confidence (PyPI version 0.10.0 vs docs 0.12.0 discrepancy noted).
+- [FastAPI + Jinja2 custom filters](https://www.slingacademy.com/article/fastapi-jinja-how-to-create-custom-filters/) — `templates.env.filters[name] = fn` pattern. HIGH confidence.
+- [libraries.io pycountry](https://libraries.io/pypi/pycountry) — version 26.2.16 on PyPI confirmed. HIGH confidence.
+
+---
+
+*Stack research for: callsign prefix lookup & country flag display (ollog milestone)*
+*Researched: 2026-04-04*

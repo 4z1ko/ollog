@@ -1,6 +1,6 @@
 # Architecture Patterns
 
-**Domain:** Operator profile integration — ham radio logbook (v1.1 milestone)
+**Domain:** Callsign prefix lookup & country flag display — ham radio logbook (v1.2 milestone)
 **Researched:** 2026-04-04
 **Confidence:** HIGH — based on direct inspection of the live codebase
 
@@ -8,409 +8,328 @@
 
 ## Context: What Already Exists
 
-The existing codebase has these components relevant to this milestone:
-
 | Existing Component | Location | Notes |
 |-------------------|----------|-------|
-| `User` Beanie Document | `app/auth/models.py` | `username`, `callsign`, `hashed_password`, `role`, `enabled` — `model_config` has `extra` not set (defaults to `ignore`) |
-| `QSO` Beanie Document | `app/qso/models.py` | `extra="allow"` — stores arbitrary ADIF fields |
-| `build_qso_dict()` | `app/qso/service.py` | Constructs QSO dict from form input + injects `operator_callsign` |
-| `get_current_user` / `get_current_operator_callsign` | `app/auth/dependencies.py` | Returns `User` doc or `user.callsign` string |
-| QSO creation flow | `app/qso/router.py` `create_qso()`, `app/qso/ui_router.py` `submit_qso()` | Two call sites — both delegate to `build_qso_dict()` |
-| `init_beanie()` | `app/database.py` | Document models list must be updated for any new Beanie document |
+| `QSO` Beanie Document | `app/qso/models.py` | `extra="allow"`, has `CALL` field |
+| `_qso_to_view_dict()` | `app/qso/ui_router.py` | Converts Beanie doc → plain dict passed to every template; keys: `id`, `CALL`, `BAND`, `MODE`, `qso_date_utc`, `FREQ`, `RST_SENT`, `RST_RCVD`, `QSO_DATE`, `TIME_ON` |
+| `log_view()` + `qso_view_row()` + `qso_update()` | `app/qso/ui_router.py` | All three render `qso_row.html` — touch points for flag display |
+| `qso_row.html` | `templates/log/qso_row.html` | Renders one `<tr>` — CALL is in a bare `<td>` |
+| `log_table.html` | `templates/log/log_table.html` | Iterates `qsos` list; includes `qso_row.html` via `{% include %}` |
+| `Jinja2Templates` instance | `app/qso/ui_router.py` line 31 | `templates = Jinja2Templates(directory="templates")` — this is where custom filters are registered |
+| `static/` mount | `app/main.py` line 115 | `app.mount("/static", StaticFiles(directory="static"), name="static")` — empty `.gitkeep` only; no flags yet |
 
 ---
 
 ## Recommended Architecture
 
-### Decision: Embed Profile Fields Directly in `User` — Do Not Create a Separate Collection
+### Decision: In-Memory Python Module for Prefix Data
 
-**Rationale:**
+Do NOT use MongoDB for this. The prefix table is:
+- Static — it changes only when ITU publishes new allocations (rare)
+- Small — ~600 rows; fits in a Python `list` of `dict` or `list` of `tuple` without measurable memory impact
+- Read-only — no operator writes, no per-operator scoping, no concurrency concern
+- Pure lookup — no pagination, no aggregation, no cross-collection joins needed
 
-1. **Beanie supports it cleanly.** The `User` document currently uses `ConfigDict(populate_by_name=True)` with no `extra` setting. Adding `Optional` fields to the class body requires zero schema migration — MongoDB documents without the new fields simply return `None` for those attributes.
+A MongoDB collection adds a round-trip I/O call on every `qso_row.html` render. With 50 rows per page that would be 50 blocking async lookups per page load (or one bulk fetch + Python-side join). Both options are strictly worse than an in-memory dict lookup that costs zero I/O.
 
-2. **No join problem.** Profile data is always accessed in the context of the authenticated user. A separate `OperatorProfile` collection would require a second DB round-trip on every profile read, or a `fetch_links()` call in Beanie. Embedding eliminates that entirely.
-
-3. **Profile data is small and user-scoped.** Grid locators, rig descriptions, station callsigns — these are a handful of string fields, not a growing subdocument list. Embedding does not create document bloat.
-
-4. **Separate collection does not solve any real problem here.** It would be appropriate if profile data were independently queried, shared across users, or had a different access control boundary. None of those apply.
-
-**What to change in `User`:** Add `Optional` fields for all profile data. The existing `model_config = ConfigDict(populate_by_name=True)` is sufficient — do not add `extra="allow"` (profile fields are declared, not arbitrary).
+**Verdict:** Python module `app/callsign/prefixes.py` — loaded once at import time, stays in process memory. No DB collection, no startup async init required.
 
 ---
 
-## Component Boundaries (New vs Modified)
+## System Overview
+
+```
+Request path for /log/view (50 QSOs per page):
+
+Browser ──HTMX──> GET /log/view
+                       │
+                  log_view() in ui_router.py
+                       │
+              get_qso_page() ──> MongoDB (one query, 50 docs)
+                       │
+              [_qso_to_view_dict(q) for q in qsos_raw]
+                       │  adds "flag_iso" key via call to
+                       │  lookup_prefix(qso.CALL)
+                       │
+              Jinja2Templates.TemplateResponse
+                       │  qso list with flag_iso included
+                       │
+              log_table.html
+                       │
+              qso_row.html (50x)
+                       │  {{ qso.flag_iso }} → <span class="fi fi-xx">
+                       │
+              <-- HTML partial
+
+No per-row DB calls. Zero I/O beyond the single MongoDB page query.
+```
+
+---
+
+## Component Boundaries
 
 ### New Components
 
 | Component | Location | Responsibility |
 |-----------|----------|---------------|
-| Profile fields on `User` | `app/auth/models.py` | Store all MY_* ADIF fields, name, QTH, email, grid, lat/lon |
-| Profile Pydantic schemas | `app/auth/models.py` or new `app/profile/schemas.py` | `ProfileUpdateRequest` (validates form input), `ProfileResponse` (read shape) |
-| Grid conversion utility | `app/utils.py` or `app/profile/grid.py` | `grid_to_latlon()` and `latlon_to_grid()` wrappers around `maidenhead` library |
-| Profile API router | `app/profile/router.py` | `GET /api/profile` and `PATCH /api/profile` — Bearer auth |
-| Profile UI router | `app/profile/ui_router.py` | `GET /log/profile` and `POST /log/profile` — cookie auth, HTMX form |
-| Profile template | `templates/log/profile.html` | Settings page form |
+| Prefix data module | `app/callsign/prefixes.py` | Bundled ITU prefix range table as a Python list literal; `lookup_prefix(call: str) -> str \| None` function that returns ISO alpha-2 code or `None` |
+| `app/callsign/__init__.py` | `app/callsign/__init__.py` | Empty package marker |
+| Flag SVG assets | `static/flags/<iso>.svg` | One SVG per country, ISO alpha-2 lowercase filename (e.g., `us.svg`, `gb.svg`) |
 
 ### Modified Components
 
 | Component | What Changes | Why |
 |-----------|-------------|-----|
-| `app/auth/models.py` | Add profile fields to `User` | Core storage decision |
-| `app/qso/service.py` `build_qso_dict()` | Accept optional `profile` param; stamp MY_* fields | Auto-stamp logic lives here |
-| `app/qso/router.py` `create_qso()` | Fetch `User` doc, pass profile to `build_qso_dict()` | REST API QSO creation path |
-| `app/qso/ui_router.py` `submit_qso()` | Fetch `User` doc, pass profile to `build_qso_dict()` | UI QSO creation path |
-| `app/database.py` | No change if profile stays in `User` | Profile fields are on existing document |
-| `app/main.py` | Register new profile routers | Wire profile routers into app |
-| `templates/log/form.html` and nav partials | Add "Profile / Settings" nav link | UI navigation |
+| `_qso_to_view_dict()` in `app/qso/ui_router.py` | Add `"flag_iso": lookup_prefix(qso.CALL)` to the returned dict | Single place where QSO Beanie docs are converted to template dicts; keeps flag logic out of templates |
+| `qso_row.html` | Add flag `<img>` or CSS span next to `{{ qso.CALL }}` inside the callsign `<td>` | The only display change |
+| `app/qso/ui_router.py` imports | Add `from app.callsign.prefixes import lookup_prefix` | Wire in the lookup |
+
+No changes to: QSO model, MongoDB queries, service layer, ADIF import/export, auth, admin, feed router, or any other route.
 
 ---
 
-## `User` Model After Profile Fields
+## How the ISO Code Reaches the Template
+
+### Approach: Pre-computed in `_qso_to_view_dict()`
+
+**Rationale over alternatives:**
+
+| Option | Verdict | Reason |
+|--------|---------|--------|
+| Jinja2 filter `{{ qso.CALL \| prefix_flag }}` | Viable but secondary | Filter registration on `Jinja2Templates` is per-instance (`templates.env.filters["x"] = fn`); requires registering in `ui_router.py` on module load; hides the lookup inside template logic rather than Python logic; harder to unit-test |
+| Pre-computed in `_qso_to_view_dict()` | **Recommended** | Keeps templates dumb; `flag_iso` is just another string in the dict; testable with a simple dict assertion; no filter registration boilerplate; consistent with how `FREQ`, `RST_SENT` etc. already work |
+| Computed at template context (pass lookup fn to ctx) | Not viable | Jinja2 templates cannot call arbitrary Python functions directly; would require passing the function as a context variable which is unusual and obscure |
+| Stored in QSO MongoDB document | Wrong layer | Flag display is a presentation concern; it changes when ITU updates allocations, not when the QSO is logged; denormalizing it into QSO documents would require backfill on every ITU update |
+
+**Implementation:**
 
 ```python
-class User(Document):
-    model_config = ConfigDict(populate_by_name=True)
+# In _qso_to_view_dict() — app/qso/ui_router.py
+from app.callsign.prefixes import lookup_prefix
 
-    # Auth fields (unchanged)
-    username: str
-    hashed_password: str
-    callsign: str
-    role: str = "operator"
-    enabled: bool = True
-
-    # Profile — personal info
-    name: Optional[str] = None          # ADIF MY_NAME equivalent
-    email: Optional[str] = None
-    qth: Optional[str] = None           # City/location free text
-
-    # Station identification
-    station_callsign: Optional[str] = None  # ADIF STATION_CALLSIGN (club call etc.)
-
-    # Location
-    gridsquare: Optional[str] = None    # Maidenhead, stored uppercase, e.g. "FN31pr"
-    lat: Optional[float] = None         # WGS84, derived from gridsquare or entered directly
-    lon: Optional[float] = None         # WGS84
-
-    # Station equipment — ADIF MY_* fields
-    my_rig: Optional[str] = None
-    my_ant: Optional[str] = None
-    my_pwr: Optional[str] = None        # Stored as string per ADIF TX_PWR convention
-    my_city: Optional[str] = None
-    my_country: Optional[str] = None
-    my_state: Optional[str] = None
-    my_dxcc: Optional[str] = None
-    my_cont: Optional[str] = None
-    my_iota: Optional[str] = None
-    my_cnty: Optional[str] = None
-
-    class Settings:
-        name = "users"
-        indexes = [...]  # unchanged
+def _qso_to_view_dict(qso: QSO) -> dict:
+    d = {
+        "id": str(qso.id),
+        "CALL": qso.CALL,
+        "BAND": qso.BAND or "",
+        "MODE": qso.MODE or "",
+        "qso_date_utc": qso.qso_date_utc,
+        "flag_iso": lookup_prefix(qso.CALL),   # str | None
+    }
+    extra = qso.model_extra or {}
+    d["FREQ"] = extra.get("FREQ", "")
+    d["RST_SENT"] = extra.get("RST_SENT", "")
+    d["RST_RCVD"] = extra.get("RST_RCVD", "")
+    d["QSO_DATE"] = extra.get("QSO_DATE", "")
+    d["TIME_ON"] = extra.get("TIME_ON", "")
+    return d
 ```
 
-All new fields are `Optional[str | float] = None`. Existing `User` documents with none of these fields continue to load correctly — Beanie/Pydantic fills `None` for absent keys.
+**In `qso_row.html`:**
+
+```html
+<td>
+  {% if qso.flag_iso %}
+    <img src="/static/flags/{{ qso.flag_iso }}.svg"
+         alt="{{ qso.flag_iso }}"
+         width="20" height="15"
+         style="vertical-align:middle;margin-right:4px;">
+  {% endif %}
+  {{ qso.CALL }}
+</td>
+```
+
+Graceful fallback is implicit: `flag_iso` is `None` when no prefix matches → the `{% if %}` block is skipped, callsign renders alone, no error.
 
 ---
 
-## Data Flow: QSO Auto-Stamping
+## Prefix Lookup Function Design
 
-The auto-stamp behavior must work identically for both the REST API path and the UI path. Both already call `build_qso_dict()`. The modification is minimal.
+### Data Structure
 
-### Current Flow (both paths)
+The ITU prefix table has ~600 entries representing range allocations. Each entry is:
+- `prefix_start` — first prefix in the allocated range (e.g., `"3DA"`)
+- `prefix_end` — last prefix in the allocated range (e.g., `"3DM"`)
+- `country_name` — ITU country/entity name
+- `iso2` — ISO 3166-1 alpha-2 code (e.g., `"SZ"` for Swaziland/Eswatini)
+
+Range-aware matching is required because ITU allocates blocks, not single prefixes. Example: `3DA–3DM` → Eswatini, `3DN–3DZ` → Fiji. A simple exact-prefix dict would miss these — you must check if the callsign prefix falls between `start` and `end` lexicographically.
+
+### Lookup Algorithm
 
 ```
-JWT -> callsign string -> build_qso_dict(body_dict, operator=callsign) -> QSO dict
+Given callsign "W1AW":
+
+1. Strip any portable designator suffix: "W1AW/M" -> "W1AW"
+2. Try progressively shorter prefixes: "W1AW", "W1A", "W1", "W"
+3. For each candidate prefix P, check all table rows where prefix_start <= P <= prefix_end
+4. Return iso2 of first match (longest match wins — try longest P first)
+5. If no match: return None
 ```
 
-### New Flow
-
-```
-JWT -> User document -> build_qso_dict(body_dict, operator=user.callsign, profile=user) -> QSO dict
-```
-
-The dependency injection already returns the full `User` document via `get_current_user`. Both `create_qso()` (REST) and `submit_qso()` (UI) currently call `get_current_operator_callsign` which strips the `User` to just a string. Change the dependency to `get_current_user` (or `get_current_user_cookie` for UI routes), then derive both the callsign and profile from the same document. No extra DB round-trip.
-
-### `build_qso_dict()` Changes
+**Data structure choice:** Sort the table once at module load time. For 600 rows, a linear scan with `prefix_start <= candidate <= prefix_end` is O(600) per lookup and completes in microseconds. No trie, no bisect needed at this scale.
 
 ```python
-def build_qso_dict(body_dict: dict, operator: str, profile=None) -> dict:
-    result = dict(body_dict)
-    # ... existing normalization unchanged ...
+# app/callsign/prefixes.py
 
-    result["operator_callsign"] = operator
-    result["is_deleted"] = False
+from __future__ import annotations
 
-    # Always stamp OPERATOR (the logging callsign) as an explicit ADIF field
-    if "OPERATOR" not in result:
-        result["OPERATOR"] = operator
+_PREFIX_TABLE: list[tuple[str, str, str, str]] = [
+    # (prefix_start, prefix_end, country_name, iso2)
+    ("3DA", "3DM", "Eswatini", "SZ"),
+    ("3DN", "3DZ", "Fiji", "FJ"),
+    # ... ~600 rows total ...
+]
 
-    # Stamp profile fields only if not already provided in body_dict
-    if profile is not None:
-        if profile.station_callsign and "STATION_CALLSIGN" not in result:
-            result["STATION_CALLSIGN"] = profile.station_callsign
-        if profile.name and "MY_NAME" not in result:
-            result["MY_NAME"] = profile.name
-        if profile.gridsquare and "MY_GRIDSQUARE" not in result:
-            result["MY_GRIDSQUARE"] = profile.gridsquare
-        if profile.my_rig and "MY_RIG" not in result:
-            result["MY_RIG"] = profile.my_rig
-        if profile.my_ant and "MY_ANTENNA" not in result:
-            result["MY_ANTENNA"] = profile.my_ant
-        if profile.my_pwr and "TX_PWR" not in result:
-            result["TX_PWR"] = profile.my_pwr
-        # ... additional MY_* fields ...
+def lookup_prefix(callsign: str) -> str | None:
+    """Return ISO 3166-1 alpha-2 code for the country that issued `callsign`.
 
-    return result
-```
-
-**Key behavior:** Body fields always win over profile defaults. This allows an operator to override their default station when logging from a different location — they can send `MY_GRIDSQUARE` in the QSO body and it takes precedence.
-
-**OPERATOR field:** ADIF `OPERATOR` field is the callsign of the person logging — the same value as `_operator`. Stamping it as an explicit QSO field ensures it appears in ADIF export without touching the serializer.
-
----
-
-## Data Flow: Profile Read and Update
-
-```
-GET /log/profile
-  -> get_current_user_cookie() -> User document
-    -> Render profile.html with user fields pre-filled
-
-POST /log/profile  (HTMX form)
-  -> get_current_user_cookie() -> User document
-    -> Validate ProfileUpdateRequest (Pydantic schema)
-      -> If gridsquare changed: derive lat/lon via grid_to_latlon()
-      -> If lat/lon changed directly: derive gridsquare via latlon_to_grid()
-      -> user.set({updated_fields})
-        -> Return success partial (HTMX swap)
-```
-
----
-
-## Maidenhead Grid Conversion
-
-### Where It Lives
-
-`app/profile/grid.py` — keeps the module focused. `app/utils.py` is already small but is auth-adjacent; grid conversion is profile-specific.
-
-### Library Choice
-
-Use the **`maidenhead`** package (PyPI: `maidenhead`, maintained by space-physics).
-
-- Pure Python, no compiled dependencies
-- Well-established in the ham radio Python ecosystem
-- API: `mh.to_maiden(lat, lon, level)` for lat/lon to grid; `mh.to_location(grid, center=True)` for grid to lat/lon center point
-- `center=True` returns the center of the grid square — correct for display and distance calculation
-
-Confidence: MEDIUM — confirmed as dominant PyPI library for this purpose via search. Specific function signatures (`to_maiden`, `to_location`, `center` kwarg) confirmed via search results. Validate exact API against installed version before coding.
-
-```python
-# app/profile/grid.py
-import maidenhead as mh
-
-def grid_to_latlon(grid: str) -> tuple[float, float] | None:
-    """Convert Maidenhead grid locator to (lat, lon) center point.
-    Returns None if the grid string is invalid.
+    Uses ITU prefix range table. Returns None if no match found.
+    Handles portable suffixes (W1AW/M -> strip /M before lookup).
     """
-    try:
-        lat, lon = mh.to_location(grid.upper(), center=True)
-        return lat, lon
-    except Exception:
+    if not callsign:
         return None
-
-def latlon_to_grid(lat: float, lon: float, precision: int = 3) -> str:
-    """Convert WGS84 lat/lon to Maidenhead grid locator.
-    precision=3 gives 6-character locator (field+square+subsquare).
-    Returns uppercase grid string e.g. "FN31pr".
-    """
-    return mh.to_maiden(lat, lon, level=precision)
+    # Strip portable designator suffix
+    call = callsign.upper().split("/")[0]
+    # Try progressively shorter prefixes (longest match wins)
+    for length in range(len(call), 0, -1):
+        candidate = call[:length]
+        for start, end, _, iso2 in _PREFIX_TABLE:
+            if start <= candidate <= end:
+                return iso2
+    return None
 ```
-
-**Install:** `pip install maidenhead`
-
-### Validation Rule
-
-Grid locators are validated on profile save: 4, 6, or 8 characters matching the Maidenhead pattern `[A-R]{2}[0-9]{2}([a-x]{2}([0-9]{2})?)?` (case-insensitive). Reject anything else with a clear error message. When a valid grid is saved, derive and overwrite lat/lon immediately.
-
-### Bidirectional Sync Rule
-
-- If operator enters **grid locator**: derive and overwrite lat/lon.
-- If operator enters **lat/lon directly**: derive and overwrite gridsquare (to 6-character precision).
-- Never leave grid and lat/lon out of sync after a save.
 
 ---
 
-## Profile API Shape
+## Flag Asset Strategy
 
-### `GET /api/profile`
+**Use lipis/flag-icons SVG files served from `static/flags/`.**
 
-Returns the authenticated operator's profile fields (not auth fields).
+- MIT licensed, 4:3 ratio SVGs for all ISO 3166-1 alpha-2 countries
+- Filename convention: `<lowercase-iso2>.svg` (e.g., `us.svg`, `gb.svg`)
+- Self-hosted under `static/flags/` — no CDN dependency, works in offline/air-gapped setups
+- The existing `app.mount("/static", ...)` already serves this path
 
-```json
-{
-  "callsign": "W1AW",
-  "name": "Hiram Percy Maxim",
-  "email": "op@example.com",
-  "qth": "Hartford, CT",
-  "station_callsign": null,
-  "gridsquare": "FN31pr",
-  "lat": 41.708,
-  "lon": -72.708,
-  "my_rig": "Icom IC-7300",
-  "my_ant": "G5RV",
-  "my_pwr": "100",
-  "my_city": "Hartford",
-  "my_state": "CT",
-  "my_country": "United States",
-  "my_dxcc": "291",
-  "my_cont": "NA",
-  "my_iota": null,
-  "my_cnty": null
-}
-```
-
-### `PATCH /api/profile`
-
-Accepts partial updates. Any field not included in the body is left unchanged. Validates grid locator format if present. Returns updated profile.
+**At build time:** Download the SVG collection and place files in `static/flags/`. The ITU covers ~200+ entities; the ISO collection has 250 flags. Not every ITU entity has an ISO code (contested territories, ITU entities without ISO status) — those will have `None` from `lookup_prefix()` and show no flag.
 
 ---
 
-## MongoDB Document Impact
+## Data Flow
 
-No migration required. The `users` collection documents gain new optional fields on first profile save. The existing unique index on `username` is unchanged. No new indexes needed — profile is always read by authenticated user identity, which hits the `username` unique index directly.
+### Full Page Load
 
-**New `users` document shape (after first profile save):**
-
-```json
-{
-  "_id": "ObjectId(...)",
-  "username": "w1aw",
-  "hashed_password": "argon2...",
-  "callsign": "W1AW",
-  "role": "operator",
-  "enabled": true,
-  "name": "Hiram Percy Maxim",
-  "email": "op@example.com",
-  "qth": "Hartford, CT",
-  "station_callsign": null,
-  "gridsquare": "FN31pr",
-  "lat": 41.708,
-  "lon": -72.708,
-  "my_rig": "Icom IC-7300",
-  "my_ant": "G5RV",
-  "my_pwr": "100"
-}
+```
+GET /log/view
+  -> log_view() fetches 50 QSOs from MongoDB (one query)
+  -> [_qso_to_view_dict(q) for q in qsos_raw]
+       each call: lookup_prefix(q.CALL) — in-memory, ~microseconds
+  -> Jinja2 renders log.html -> log_table.html -> 50x qso_row.html
+  -> Each row: {% if qso.flag_iso %}<img ...>{% endif %}{{ qso.CALL }}
 ```
 
-**QSO documents after auto-stamp:**
+### HTMX Partial (pagination/filter)
 
-```json
-{
-  "_operator": "W1AW",
-  "CALL": "K9XYZ",
-  "OPERATOR": "W1AW",
-  "STATION_CALLSIGN": "W1AW",
-  "MY_NAME": "Hiram Percy Maxim",
-  "MY_GRIDSQUARE": "FN31pr",
-  "MY_RIG": "Icom IC-7300",
-  "MY_ANTENNA": "G5RV",
-  "TX_PWR": "100",
-  "...": "..."
-}
+```
+HTMX GET /log/view?page=2
+  -> Same log_view() path; HX-Request header detected
+  -> Returns log_table.html partial only (same qsos with flag_iso)
 ```
 
-Auto-stamped fields are regular ADIF fields in the QSO document. Because `QSO` uses `extra="allow"`, they store and export losslessly without any change to the serializer.
+### Inline Edit Save (HTMX)
+
+```
+PATCH /log/qsos/{id}
+  -> qso_update() patches MongoDB doc
+  -> Refetches updated QSO via QSO.get(oid)
+  -> _qso_to_view_dict(updated)  — flag_iso resolved again
+  -> Returns qso_row.html partial
+```
+
+All three render paths go through `_qso_to_view_dict()`, so adding `flag_iso` there covers them all.
 
 ---
 
-## Patterns to Follow
+## Recommended Project Structure Changes
 
-### Pattern 1: Profile Embedded in User — Single Document Fetch
-
-The authenticated `User` document is already fetched on every protected request via `get_current_user`. Profile data comes for free. No second collection, no `fetch_links()`, no extra query.
-
-### Pattern 2: Auto-Stamp in Service Layer, Not Route Layer
-
-`build_qso_dict()` in `app/qso/service.py` is the single function that constructs QSO documents. Profile stamping belongs here — it is business logic (what goes into a QSO), not routing logic (what HTTP request does what). Both the REST and UI routers call this function, so the stamp happens in exactly one place.
-
-### Pattern 3: Body Wins Over Profile Defaults
-
-When the QSO request body explicitly includes a MY_* field (e.g., during ADIF import of a legacy file that already has `MY_RIG`), the body value is preserved. Profile values are defaults, not overrides.
-
-### Pattern 4: ADIF Import Bypass
-
-Profile auto-stamping applies only to new QSOs logged interactively (REST POST, UI form). `process_import()` in `app/adif/router.py` must NOT auto-stamp profile fields — imported records already have their own MY_* values from when they were originally logged. Stamping over them would corrupt historical data.
+```
+app/
+├── callsign/
+│   ├── __init__.py         (empty)
+│   └── prefixes.py         (PREFIX_TABLE data + lookup_prefix function)
+├── qso/
+│   └── ui_router.py        (modified: import lookup_prefix, add flag_iso to _qso_to_view_dict)
+static/
+└── flags/
+    ├── us.svg
+    ├── gb.svg
+    ├── de.svg
+    └── ...  (~250 SVG files from lipis/flag-icons)
+templates/
+└── log/
+    └── qso_row.html        (modified: add flag img next to CALL)
+```
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Separate `OperatorProfile` Collection
+### Anti-Pattern 1: MongoDB Collection for Prefix Data
 
-**What goes wrong:** Every QSO creation requires a second DB round-trip to fetch profile, or Beanie `fetch_links()` with `LazyRef`. The `init_beanie()` document list grows. A foreign key relationship exists that Beanie handles loosely (no enforced referential integrity in MongoDB).
+**What goes wrong:** Every row render requires an async DB call. With 50 QSOs per page that is 50 coroutine dispatches per page load even with connection pooling. The data is static and tiny; a DB adds I/O overhead with zero benefit.
 
-**Instead:** Embed profile fields in `User`. Beanie adds new optional fields to existing documents transparently. No migration, no extra query.
+**Instead:** In-memory Python module. Loaded once at import, zero I/O per lookup.
 
-### Anti-Pattern 2: Nested Sub-Document for Profile
+### Anti-Pattern 2: Jinja2 Filter as the Integration Point
 
-**What goes wrong:** `User.profile.gridsquare` vs `User.gridsquare` — the extra nesting adds dot-notation path complexity in Beanie `$set` operations (`{"profile.gridsquare": ...}`) and in Jinja2 templates. Sub-documents are appropriate for repeated/list structures. A flat set of optional string fields does not warrant nesting.
+**What goes wrong:** The filter must be registered on the `Jinja2Templates` instance. The `ui_router.py` file has its own `templates = Jinja2Templates(directory="templates")` instance separate from `main.py`'s `_templates`. Forgetting to register the filter on the right instance causes a silent template error. The filter approach also hides logic inside the template layer rather than the Python layer.
 
-**Instead:** Flat optional fields directly on `User`.
+**Instead:** Pre-compute `flag_iso` in `_qso_to_view_dict()` before the template sees the data.
 
-### Anti-Pattern 3: Auto-Stamping During ADIF Import
+### Anti-Pattern 3: Storing `flag_iso` or Country Name in the QSO Document
 
-**What goes wrong:** ADIF files being imported already contain `MY_RIG`, `MY_ANTENNA`, `OPERATOR` etc. from when they were originally logged. Overwriting with current profile values corrupts historical records — the wrong rig, wrong grid square from a different year.
+**What goes wrong:** ITU allocations change (rarely, but they do). If country name is baked into historical QSO records, old QSOs show the wrong country after a re-allocation. The DXCC entity at time-of-contact is a distinct concept (DX chasing) from the current ITU allocation — do not conflate them.
 
-**Instead:** `process_import()` stays as-is. Profile stamping only in the interactive QSO creation paths (`create_qso()` and `submit_qso()`).
+**Instead:** Derive `flag_iso` at display time from the current prefix table. It is presentation data, not logged contact data.
 
-### Anti-Pattern 4: Computing Grid/Lat/Lon at Query Time
+### Anti-Pattern 4: Longest-Match Without Stripping Portable Suffix
 
-**What goes wrong:** Computing `to_location(grid)` on every QSO creation or every API read is waste. More importantly, operators may want to fine-tune lat/lon independently of the grid (precise location vs. grid center).
+**What goes wrong:** `W1AW/M` (mobile portable) would try candidates `W1AW/`, `W1AW`, etc. The `/` breaks the range comparison because ASCII `/` (0x2F) sorts before digits and letters — a candidate containing `/` will match incorrectly or not at all.
 
-**Instead:** Derive lat/lon on profile save and persist both values. They are independent stored fields that happen to start from a derived value.
+**Instead:** Strip the portable suffix (`call.split("/")[0]`) before the prefix scan.
 
 ---
 
 ## Build Order for This Milestone
 
-Dependencies flow from data model outward to UI:
+Dependencies flow from data inward to display:
 
 ```
-1. User model profile fields  (app/auth/models.py)
-      Additive — Optional fields, no migration, no test infrastructure changes.
+1. Prefix data + lookup function  (app/callsign/prefixes.py)
+      Pure Python. No DB dependency. No FastAPI dependency.
+      Fully testable with synchronous unit tests.
+      Data entry: compile ~600 ITU range rows into the _PREFIX_TABLE list.
 
-2. Grid conversion utility  (app/profile/grid.py)
-      Pure function, no DB dependency. Install maidenhead package.
-      Testable in complete isolation.
+2. Flag SVG assets  (static/flags/*.svg)
+      Download from lipis/flag-icons release (MIT, v7+).
+      Place lowercase ISO alpha-2 named SVGs in static/flags/.
+      No code change; just file addition.
+      Can be done in parallel with step 1.
 
-3. Profile Pydantic schemas  (ProfileUpdateRequest, ProfileResponse)
-      Depends on: User model field names being defined.
+3. Wire lookup_prefix into _qso_to_view_dict()  (app/qso/ui_router.py)
+      Add import + one dict key.
+      Depends on: step 1 (function must exist).
+      Test: _qso_to_view_dict() unit test asserts flag_iso key present.
 
-4. Profile service logic
-      Grid sync on update (grid -> lat/lon and lat/lon -> grid).
-      Depends on: grid utility, User model.
-
-5. Profile API router  (GET /api/profile, PATCH /api/profile)
-      Depends on: schemas, service logic, existing get_current_user dependency.
-      Wire into app/main.py.
-
-6. build_qso_dict() auto-stamp addition  (app/qso/service.py)
-      Depends on: User model profile fields being defined.
-      Signature change is backward-compatible (profile=None default).
-
-7. QSO creation route updates  (app/qso/router.py, app/qso/ui_router.py)
-      Switch from get_current_operator_callsign to get_current_user.
-      Pass user doc to build_qso_dict as profile.
-      Depends on: step 6.
-
-8. Profile UI router + template  (app/profile/ui_router.py, templates/log/profile.html)
-      Depends on: steps 3–4.
-      Add nav link in templates/log/form.html and log.html.
-      Wire into app/main.py.
+4. Template update  (templates/log/qso_row.html)
+      Add {% if qso.flag_iso %}<img ...>{% endif %} in CALL cell.
+      Depends on: step 2 (SVG files must exist to render) + step 3 (flag_iso key).
+      Test: integration test or manual browser check.
 ```
 
-**Critical path:** Step 1 (User model) unlocks steps 3, 6, and 7. Steps 2 and 4 are the only grid-specific work. Steps 5 and 8 are the user-facing surfaces and can be built incrementally after the data layer is verified.
+**Critical path:** Step 1 (prefix data + function) unlocks step 3. Step 2 (SVGs) and step 1 are fully parallel. Step 4 depends on both 2 and 3.
+
+Steps 3 and 4 together touch only two files (`ui_router.py` and `qso_row.html`) and add zero new routes, zero new DB calls, and zero new middleware.
 
 ---
 
@@ -418,19 +337,24 @@ Dependencies flow from data model outward to UI:
 
 | Integration Point | Change Type | Risk |
 |-------------------|-------------|------|
-| `User` model — add profile fields | Additive (backward-compatible) | Low — Optional fields, no migration required |
-| `build_qso_dict()` — add `profile` param | Additive (`profile=None` default) | Low — all existing callers unaffected |
-| `create_qso()` — change dependency | Modified — swap to `get_current_user` | Medium — derive callsign from `user.callsign`; test both REST and duplicate-override paths |
-| `submit_qso()` — change dependency | Modified — swap to `get_current_user_cookie` | Medium — same risk; also affects duplicate warning flow |
-| `process_import()` | No change | None |
-| ADIF export serializer | No change | None — MY_* fields already export as model_extra |
-| `init_beanie()` document list | No change if profile stays in User | None |
+| `_qso_to_view_dict()` — add `flag_iso` key | Additive (new dict key) | Low — templates that don't reference `flag_iso` ignore it silently |
+| `qso_row.html` — add flag `<img>` | Modified template | Low — `{% if qso.flag_iso %}` guards against None; existing layout unchanged if flag_iso is None |
+| `app/callsign/prefixes.py` — new module | New file | Low — pure function, no side effects, no DB |
+| `static/flags/` — new directory with SVGs | New static files | Low — served by existing StaticFiles mount; missing flag files cause broken img (not a 500 error) |
+| ADIF import/export | No change | None |
+| MongoDB schema | No change | None |
+| Auth / operator isolation | No change | None — lookup is display-only, not stored |
+| Admin UI | No change | None |
+| Feed SSE (`feed_row.html`) | No change unless desired | `feed_row.html` has its own template and context; flag display in the live feed is a separate decision for a future sub-task |
 
 ---
 
 ## Sources
 
-- Live codebase inspection: `/Users/royco/ollog/app/` (all Python modules read directly, 2026-04-04)
-- PyPI `maidenhead` library: https://pypi.org/project/maidenhead/
-- `maidenhead` GitHub: https://github.com/space-physics/maidenhead
-- ADIF 3.1.7 specification field names (MY_* fields, OPERATOR, STATION_CALLSIGN): https://adif.org/317/ADIF_317.htm
+- Live codebase inspection: `/Users/royco/ollog/app/` and `/Users/royco/ollog/templates/` (all relevant files read directly, 2026-04-04)
+- lipis/flag-icons SVG collection: https://github.com/lipis/flag-icons (MIT license, ISO alpha-2 naming)
+- flag-icons CDN/usage: https://flagicons.lipis.dev/
+- ITU Table of International Call Sign Series (Appendix 42 to Radio Regulations): https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx
+- ITU prefix Wikipedia reference: https://en.wikipedia.org/wiki/ITU_prefix
+- FastAPI Jinja2 custom filters: https://www.slingacademy.com/article/fastapi-jinja-how-to-create-custom-filters/ (HIGH confidence — confirmed `templates.env.filters["x"] = fn` pattern)
+- Callsign prefix gist (M0LTE): https://gist.github.com/M0LTE/2fe745393d23eefaab9f17bd9b36c37e (format reference)
