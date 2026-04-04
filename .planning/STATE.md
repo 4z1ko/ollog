@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 5 of 5 (Multi-Operator Live Feed)
-Plan: 2 of 4 in current phase
-Status: Phase 5 in progress — 2/4 plans done
-Last activity: 2026-04-04 — Completed 05-02 (Operator Isolation Audit and Cross-Operator Data Tests)
+Plan: 3 of 4 in current phase
+Status: Phase 5 in progress — 3/4 plans done
+Last activity: 2026-04-04 — Completed 05-03 (Live Station Feed: SSE endpoint, change stream watcher, HTMX integration)
 
-Progress: [██████████████████████████] 70% (16 of ~23 plans)
+Progress: [████████████████████████████] 74% (17 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02)
+- Total plans completed: 16 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02, 05-03)
 - Average duration: ~7.6 min
 - Total execution time: ~1.63 hours
 
@@ -38,7 +38,7 @@ Progress: [███████████████████████
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 05-multi-operator-live-feed | 2/4 | ~17 min | ~8.5 min |
+| 05-multi-operator-live-feed | 3/4 | ~32 min | ~10.7 min |
 
 *Updated after each plan completion*
 
@@ -91,6 +91,10 @@ Recent decisions affecting current work:
 - [Phase 05-multi-operator-live-feed]: 05-02: Route introspection uses inspect.signature + recursive Depends() walk to collect callsign dep names — catches transitive injection without relying on parameter name strings
 - [Phase 05-multi-operator-live-feed]: 05-02: isolation_test_db fixture (local, not conftest) inits both QSO and User models — needed because User is imported transitively when app.main is loaded
 - [Phase 05-multi-operator-live-feed]: 05-02: find_duplicate() negative scoping test: BB2BB cannot find AA1AA's QSO, AA1AA finds own — proves isolation at duplicate-detection layer
+- [Phase 05-multi-operator-live-feed]: 05-03: ConnectionManager broadcasts rendered HTML strings (not JSON) — no client-side templating needed, simpler HTMX sse-swap wiring
+- [Phase 05-multi-operator-live-feed]: 05-03: SSE endpoint uses cookie auth (get_current_operator_callsign_cookie) — EventSource API cannot send Authorization headers
+- [Phase 05-multi-operator-live-feed]: 05-03: Change stream watcher started after init_db() in lifespan, cancelled before close_db() — prevents use of closed connection
+- [Phase 05-multi-operator-live-feed]: 05-03: feed_row.html uses flat context dict keys rendered via get_template().render(ctx) — no Request object available in watcher scope
 
 ### Pending Todos
 
@@ -106,5 +110,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 05-02 — Operator isolation audit: route introspection confirms all QSO endpoints inject callsign from JWT; 4 data-layer tests prove cross-operator leakage impossible through find_active, get_qso_page, find_duplicate.
+Stopped at: Completed 05-03 — Live station feed: SSE endpoint at /feed/station with cookie auth, ConnectionManager asyncio.Queue broadcast, MongoDB change stream watcher in lifespan, HTMX SSE extension and Station Feed section in QSO form page. Human verification approved.
 Resume file: None
