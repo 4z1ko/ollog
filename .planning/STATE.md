@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 9 — QSO Auto-Stamping (v1.1)
+**Current focus:** Phase 10 — Profile UI (v1.1)
 
 ## Current Position
 
-Phase: 9 of 10 (QSO Auto-Stamping)
+Phase: 10 of 10 (Profile UI)
 Plan: 1 of 1 in current phase — complete
-Status: Phase 9 complete — ready for Phase 10
-Last activity: 2026-04-04 — 09-01 complete (build_qso_dict profile stamping, dependency swap in create_qso and submit_qso, 7 unit tests)
+Status: Phase 10 complete — v1.1 complete
+Last activity: 2026-04-04 — 10-01 complete (profile settings page /log/profile, GET + POST HTMX handlers, profile.html and profile_result.html templates)
 
-Progress: [████████░░] ~78% (v1.0 complete; v1.1 phases 07-09 done)
+Progress: [██████████] ~100% (v1.0 complete; v1.1 phases 07-10 done)
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Progress: [████████░░] ~78% (v1.0 complete; v1.1 phases 07-0
 | 08-01 | 1/1 | ~3 min | ~3 min |
 | 08-02 | 1/1 | ~8 min | ~8 min |
 | 09-01 | 1/1 | ~16 min | ~16 min |
+| 10-01 | 1/1 | ~2 min | ~2 min |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Progress: [████████░░] ~78% (v1.0 complete; v1.1 phases 07-0
 - MY_GRIDSQUARE_RE accepts 4-char and 6-char Maidenhead only — regex r"^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$"
 - latitude/longitude excluded from ProfileUpdateRequest — derived by service layer from my_gridsquare, not user-supplied
 - station_callsign empty-string-to-None normalization at schema layer — service and DB never see blank strings
+- Profile UI POST handler converts tx_pwr empty string to float/None before ProfileUpdateRequest — HTML forms always submit strings
+- model_dump(exclude_unset=True) in profile POST handler prevents clearing unsubmitted fields
+- Profile UI always returns HTTP 200 (even on validation error) for HTMX 2.x swap compatibility
 
 ### Research Flags for Planning
 
@@ -84,5 +88,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 09-01-PLAN.md (build_qso_dict profile stamping, QSO creation endpoint dependency swap, 7 stamping unit tests)
+Stopped at: Completed 10-01-PLAN.md (profile settings page /log/profile, GET + POST HTMX handlers, profile.html and profile_result.html templates)
 Resume file: None
