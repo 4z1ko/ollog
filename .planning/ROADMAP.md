@@ -102,10 +102,24 @@ Plans:
 - [ ] 05-03-PLAN.md — Live station feed: SSE endpoint, change stream watcher, HTMX real-time feed UI
 - [ ] 05-04-PLAN.md — Gap closure: fix test fixture MongoDB URIs for replica set compatibility
 
+### Phase 6: Navigation Fix
+**Goal**: The import and export pages are reachable from the operator log UI via navigation links — operators do not need to type URLs directly.
+**Depends on**: Phase 4
+**Requirements**: ADIF-01, ADIF-04 (discoverability)
+**Gap Closure**: Closes navigation gap identified in v1.0 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. Nav bar in `templates/log/form.html` contains links to both `/log/import` and `/log/export`
+  2. Nav bar in `templates/log/log.html` contains links to both `/log/import` and `/log/export`
+  3. Clicking the nav links navigates to the import/export pages without additional auth steps
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01: Add import and export nav links to log UI templates
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -114,3 +128,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. QSO Entry & Log View | 0/4 | Not started | - |
 | 4. ADIF Import & Export | 0/4 | Not started | - |
 | 5. Multi-Operator & Live Feed | 4/4 | ✓ Complete | 2026-04-04 |
+| 6. Navigation Fix | 0/1 | Not started | - |
