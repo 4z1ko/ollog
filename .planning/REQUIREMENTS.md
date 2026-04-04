@@ -1,90 +1,61 @@
-# Requirements: ollog — Operator & Station Profiles
+# Requirements: ollog — Callsign Entity Lookup & Country Flags
 
 **Defined:** 2026-04-04
 **Core Value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
 
-## v1.1 Requirements
+## v1.2 Requirements
 
-Requirements for v1.1 Operator & Station Profiles milestone.
+Requirements for v1.2 Callsign Entity Lookup & Country Flags milestone.
 
-### Profile Data Model
+### Prefix Resolver
 
-- [ ] **PROF-01**: Operator profile stores OPERATOR callsign (derived from login) and optional STATION_CALLSIGN (club/event call)
-- [ ] **PROF-02**: Operator profile stores personal info: name, email, QTH city, state/province, country
-- [ ] **PROF-03**: Operator profile stores Maidenhead grid locator (MY_GRIDSQUARE, up to 6 chars)
-- [ ] **PROF-04**: Operator profile stores decimal lat/lon auto-derived from grid square (center of grid, not SW corner)
-- [ ] **PROF-05**: Operator profile stores station equipment: MY_RIG, MY_ANT, TX_PWR (watts)
+- [ ] **PRFX-01**: System resolves a callsign to its ITU-allocated country name and ISO 3166-1 alpha-2 code using range-aware longest-prefix-match against the bundled ITU Series Ranges data
+- [ ] **PRFX-02**: Resolver strips portable/operational suffixes (`/P`, `/M`, `/QRP`, digit-only area suffixes like `/7`) before prefix matching, using the base callsign
+- [ ] **PRFX-03**: Resolver treats `/MM` (maritime mobile) and `/AM` (aeronautical mobile) as unresolvable — returns `None` without attempting country lookup
+- [ ] **PRFX-04**: Non-country ITU entities (e.g. C7 → World Meteorological Organization, 4U → UN/ITU) return `None` for ISO code — no flag, no error
 
-### QSO Auto-Stamping
+### Flag Display
 
-- [ ] **STAMP-01**: New QSOs logged via UI or REST API are auto-stamped with OPERATOR from the operator's profile
-- [ ] **STAMP-02**: New QSOs are auto-stamped with STATION_CALLSIGN only when it is set in the profile (omitted entirely when blank — not empty string)
-- [ ] **STAMP-03**: ADIF import path is NOT auto-stamped — historical records preserved as-is
+- [ ] **FLAG-01**: Each QSO row in the log table displays a flag `<img>` icon next to the callsign when the prefix resolves to a valid ISO alpha-2 code
+- [ ] **FLAG-02**: QSO rows where the prefix does not resolve (unknown prefix, `/MM`, non-country entity) display no flag — no error, no broken image
 
-### Profile API
+## Future Requirements
 
-- [ ] **API-01**: Operator can retrieve their own profile via GET /api/profile (JWT auth, no callsign param)
-- [ ] **API-02**: Operator can update their profile via PATCH /api/profile (JWT auth, operator-scoped)
-- [ ] **API-03**: Profile API enforces operator isolation — operators cannot read or write another operator's profile
+### Feed & Form
 
-### Profile UI
+- **FEED-01**: Flag icon displayed in the real-time SSE station feed next to callsign
+- **FEED-02**: Live flag preview in the QSO entry form as operator types callsign
 
-- [ ] **UI-01**: Operator has a profile settings page at /log/profile with an HTMX form
-- [ ] **UI-02**: Profile form includes clear labeling distinguishing OPERATOR call from STATION_CALLSIGN with explanatory tooltip
-- [ ] **UI-03**: Profile page is accessible via navigation link in the log UI
+### Advanced Lookup
 
-## v2 Requirements
-
-Deferred to future milestone.
-
-### Location & Propagation
-- **LOC-01**: DXCC entity auto-derived from callsign prefix (requires cty.dat lookup)
-- **LOC-02**: CQ zone and ITU zone derivation from callsign prefix
-
-### Per-Activation Fields
-- **ACT-01**: MY_SOTA_REF and MY_POTA_REF as session-level QSO overrides (per-activation, not profile)
-- **ACT-02**: Multiple station profiles per operator (e.g., home station vs. portable)
-
-### Integrations
-- **INT-01**: QRZ / HamQTH callbook prefill of profile fields
-- **INT-02**: LoTW / eQSL direct upload
+- **ADV-01**: Geographic suffix override (e.g. `W1AW/KH6` resolves to Hawaii/USA rather than continental USA)
+- **ADV-02**: DXCC entity derivation from callsign (requires cty.dat integration)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| MY_POWER field | Does not exist in ADIF spec — TX_PWR is the correct field |
-| INTL field variants (MY_NAME_INTL, MY_CITY_INTL) | Niche, adds form complexity for minimal value |
-| Niche award fields (MY_DARC_DOK, MY_FISTS, MY_MORSE_KEY_*) | Very low operator demand; defer to v2+ |
-| Retroactive QSO stamping | Historical QSOs are immutable — auto-stamp applies to new QSOs only |
-| MY_LAT / MY_LON in ADIF export | ADIF Location format is non-trivial (XDDD MM.MMM); stored as float internally for future use |
+| Storing ISO code or country in QSO record | Prefix allocations can change; render-time lookup is correct |
+| cty.dat-based DXCC entity lookup | Requires cty.dat integration — v2 |
+| Geographic suffix override (/KH6 etc.) | Out of scope for v1.2; resolver designed to accept override logic later |
+| Callsign lookup (QRZ/HamQTH) | External API dependency — already Out of Scope in PROJECT.md |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROF-01 | Phase 7 | Pending |
-| PROF-02 | Phase 7 | Pending |
-| PROF-03 | Phase 7 | Pending |
-| PROF-04 | Phase 7 | Pending |
-| PROF-05 | Phase 7 | Pending |
-| STAMP-01 | Phase 9 | Pending |
-| STAMP-02 | Phase 9 | Pending |
-| STAMP-03 | Phase 9 | Pending |
-| API-01 | Phase 8 | Pending |
-| API-02 | Phase 8 | Pending |
-| API-03 | Phase 8 | Pending |
-| UI-01 | Phase 10 | Pending |
-| UI-02 | Phase 10 | Pending |
-| UI-03 | Phase 10 | Pending |
+| PRFX-01 | Phase 11 | Pending |
+| PRFX-02 | Phase 11 | Pending |
+| PRFX-03 | Phase 11 | Pending |
+| PRFX-04 | Phase 11 | Pending |
+| FLAG-01 | Phase 12 | Pending |
+| FLAG-02 | Phase 12 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 14 total
-- Mapped to phases: 14
+- v1.2 requirements: 6 total
+- Mapped to phases: 6
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-04*
-*Last updated: 2026-04-04 after v1.1 roadmap creation*
+*Last updated: 2026-04-04 after initial v1.2 definition*
