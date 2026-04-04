@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 7 — Profile Data Model and Grid Utility (v1.1)
+**Current focus:** Phase 8 — Profile Service Schemas and API Router (v1.1)
 
 ## Current Position
 
-Phase: 7 of 10 (Profile Data Model and Grid Utility)
-Plan: 2 of 2 in current phase — PHASE COMPLETE
+Phase: 8 of 10 (Profile Service Schemas and API Router)
+Plan: 1 of 2 in current phase — plan 01 complete
 Status: In progress
-Last activity: 2026-04-04 — 07-02 complete (grid_to_latlon TDD utility)
+Last activity: 2026-04-04 — 08-01 complete (profile schemas and my_antenna field rename)
 
 Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 done)
 
@@ -40,6 +40,7 @@ Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 do
 |-------|-------|-------|----------|
 | 07-01 | 1/1 | ~4 min | ~4 min |
 | 07-02 | 1/1 | ~3 min | ~3 min |
+| 08-01 | 1/1 | ~3 min | ~3 min |
 
 ## Accumulated Context
 
@@ -53,11 +54,13 @@ Progress: [██████░░░░] ~62% (v1.0 complete; v1.1 phase 07 do
 - Profile GET/PATCH derives operator from JWT only — no callsign in query params or body
 - STATION_CALLSIGN omitted entirely (not empty string) when blank — prevents LoTW/POTA upload failures
 - ADIF import path explicitly excluded from auto-stamping — historical records preserved as-is
-- MY_ANT vs MY_ANTENNA field name: verify against adif.org/317 at Phase 8 planning (LOW confidence source)
+- MY_ANTENNA confirmed as ADIF 3.1.6 field name — my_ant renamed to my_antenna in User model at 08-01 (no migration needed, field was Optional with no production data)
+- MY_GRIDSQUARE_RE accepts 4-char and 6-char Maidenhead only — regex r"^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$"
+- latitude/longitude excluded from ProfileUpdateRequest — derived by service layer from my_gridsquare, not user-supplied
+- station_callsign empty-string-to-None normalization at schema layer — service and DB never see blank strings
 
 ### Research Flags for Planning
 
-- Phase 8: Verify MY_ANT vs MY_ANTENNA field name in ADIF 3.1.7 spec before locking schema
 - Phase 10: Verify ADIF MY_LAT/MY_LON XDDD MM.MMM export format before writing conversion utility
 
 ### Known Tech Debt (from v1.0)
@@ -73,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 07-02-PLAN.md (grid_to_latlon TDD utility — phase 07 complete)
+Stopped at: Completed 08-01-PLAN.md (profile schemas and my_antenna field rename)
 Resume file: None
