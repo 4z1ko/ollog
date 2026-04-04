@@ -6,6 +6,7 @@
 - ✅ **v1.1 Operator & Station Profiles** — Phases 7–10 (shipped 2026-04-04)
 - ✅ **v1.2 Callsign Entity Lookup & Country Flags** — Phases 11–12 (shipped 2026-04-04)
 
+
 ## Phases
 
 <details>
@@ -34,43 +35,15 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
 
 </details>
 
-### 🚧 v1.2 Callsign Entity Lookup & Country Flags (In Progress)
+<details>
+<summary>✅ v1.2 Callsign Entity Lookup & Country Flags (Phases 11–12) — SHIPPED 2026-04-04</summary>
 
-**Milestone Goal:** Resolve any logged callsign to its ITU-allocated country/entity and display the corresponding flag in the QSO log view. Purely presentational — no new database schema, no stored data.
+- [x] Phase 11: Prefix Resolver Module — completed 2026-04-04
+- [x] Phase 12: Flag Display Integration — completed 2026-04-04
 
-- [x] **Phase 11: Prefix Resolver Module** — Pure Python module with bundled ITU prefix range table, range-aware longest-match lookup, suffix stripping, and ISO mapping (completed 2026-04-04)
-- [x] **Phase 12: Flag Display Integration** — Wire resolver into _qso_to_view_dict(), fix static file path, render flag img tag in qso_row.html (completed 2026-04-04)
+Full archive: `.planning/milestones/v1.2-ROADMAP.md`
 
-#### Phase 11: Prefix Resolver Module
-
-**Goal:** A self-contained, fully-tested callsign-to-ISO-code resolver exists and is verifiable in isolation before any UI work begins
-**Depends on:** Phase 10 (project foundation stable)
-**Requirements:** PRFX-01, PRFX-02, PRFX-03, PRFX-04
-**Success Criteria** (what must be TRUE):
-  1. `lookup_prefix("W1AW")` returns `"US"`, `lookup_prefix("DL1ABC")` returns `"DE"`, `lookup_prefix("JA1YWX")` returns `"JP"` — common DX prefixes resolve correctly
-  2. `lookup_prefix("3DA0ABC")` returns `"SZ"` (Eswatini) and `lookup_prefix("3DN1ABC")` returns `"FJ"` (Fiji) — overlapping sub-ranges resolve to the correct country
-  3. `lookup_prefix("G3YWX/MM")` returns `None` and `lookup_prefix("EA3/G3YWX")` returns `"ES"` — `/MM` and `/AM` treated as unresolvable operating suffixes, not country prefixes
-  4. `lookup_prefix("W1AW/P")`, `lookup_prefix("W1AW/7")`, `lookup_prefix("W1AW/QRP")` all return `"US"` — portable and area suffixes stripped before lookup
-  5. `lookup_prefix("4U1ITU")` returns `None` and `lookup_prefix("UNKNOWN")` returns `None` — non-country entities and unknown prefixes return None without raising exceptions
-**Plans:** 1 plan
-
-Plans:
-- [x] 11-01-PLAN.md — Prefix data, resolver module, and test suite
-
-#### Phase 12: Flag Display Integration
-
-**Goal:** Country flag icons appear next to callsigns in the QSO log table, with graceful no-flag fallback for unresolvable callsigns
-**Depends on:** Phase 11
-**Requirements:** FLAG-01, FLAG-02
-**Success Criteria** (what must be TRUE):
-  1. Opening the log view shows a flag icon to the left of each callsign where the prefix resolved — e.g., a US flag beside W1AW, a German flag beside DL1ABC
-  2. QSO rows where the callsign is unresolvable (unknown prefix, `/MM`, non-country entity) show no flag and no broken image icon
-  3. Flag icons persist correctly after HTMX pagination (clicking Next/Previous page) — no flags disappear or become broken images on partial swap
-  4. Hovering a flag shows a country name tooltip (`title` attribute) — zero JavaScript required
-**Plans:** 1 plan
-
-Plans:
-- [ ] 12-01-PLAN.md — Move flag SVGs to served static dir, wire flag enrichment into view-dict, render conditional img in qso_row.html
+</details>
 
 ## Progress
 

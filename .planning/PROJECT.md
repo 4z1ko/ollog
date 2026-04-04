@@ -39,22 +39,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Profile form distinguishes OPERATOR (read-only) from STATION_CALLSIGN with explanatory note — v1.1
 - ✓ Profile page accessible via navigation link in the log UI — v1.1
 
-## Current Milestone: v1.2 Callsign Entity Lookup & Country Flags
+### Validated (v1.2)
 
-**Goal:** Resolve any logged callsign to its ITU-allocated country/entity and display the corresponding flag in the QSO log view.
-
-**Target features:**
-- ITU callsign prefix range table (from official ITU Series Ranges data)
-- Prefix resolver: given a callsign, return country name + ISO alpha-2 code (range-aware matching)
-- Country flag icon displayed next to each callsign in the QSO log table (display-only, no QSO data stored)
-
-### Active
-
-- [ ] ITU callsign prefix range data seeded and queryable at runtime
-- [ ] Callsign → country/entity resolver (range-aware, handles sub-ranges like 3DA–3DM vs 3DN–3DZ)
-- [ ] Country name → ISO 3166-1 alpha-2 mapping (to match flag SVG filenames)
-- [ ] Flag icon rendered next to callsign in QSO log table rows (display-only)
-- [ ] Graceful fallback when no prefix match found (no flag shown, no error)
+- ✓ ITU callsign prefix range data bundled at runtime (313 Series Range entries, pure-Python) — v1.2
+- ✓ Callsign → country/entity resolver (range-aware, handles sub-ranges like 3DA–3DM vs 3DN–3DZ) — v1.2
+- ✓ Country name → ISO 3166-1 alpha-2 mapping (to match flag SVG filenames) — v1.2
+- ✓ Flag icon rendered next to callsign in QSO log table rows (display-only, no QSO data stored) — v1.2
+- ✓ Graceful fallback when no prefix match found (no flag shown, no error) — v1.2
+- ✓ Maritime/aeronautical mobile suffixes (/MM, /AM) treated as unresolvable — v1.2
 
 ### Out of Scope
 
@@ -85,11 +77,11 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v1.1 Operator & Station Profiles (shipped 2026-04-04)
-**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+
+**Version:** v1.2 Callsign Entity Lookup & Country Flags (shipped 2026-04-04)
+**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI, Bearer token for REST API
-**Codebase:** ~7,465 LOC (Python + HTML templates)
+**Codebase:** ~8,264 LOC (Python + HTML templates)
 
 **Shipped features (cumulative):**
 - Custom ADIF parser + serializer (no third-party ADIF lib)
@@ -105,6 +97,8 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - QSO auto-stamping: OPERATOR always, STATION_CALLSIGN/equipment conditionally; ADIF import path excluded
 - Profile UI at `/log/profile` — HTMX inline save, OPERATOR vs STATION_CALLSIGN clearly labeled
 - Profile nav link in all log UI templates (form, log view, import)
+- `app/callsign/prefixes.py` — pure-Python ITU prefix resolver: 313 Series Range entries, bisect-based longest-prefix-match, suffix stripping, ISO mapping (28 unit tests)
+- Country flag icons displayed in QSO log table rows — render-time `lookup_prefix()` enrichment in `_qso_to_view_dict()`, conditional `<img>` tag with tooltip, graceful no-flag fallback
 
 **Known tech debt:**
 - `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
@@ -134,6 +128,12 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | ADIF import path excluded from auto-stamping | Historical records must be preserved as-is | ✓ Good — profile param defaults to None; import callers pass no profile |
 | UI profile POST calls service directly (not /api/profile) | Avoids internal HTTP round-trip; follows existing UI route pattern | ✓ Good — consistent with how submit_qso calls build_qso_dict |
 | User.model_construct() in stamping unit tests | Beanie Document() requires DB init; model_construct() bypasses it | ✓ Good — enables fast synchronous unit tests without MongoDB |
+| Truncated bisect comparison for ITU range lookup | ITU ranges use letter keys (WAA-WZZ); callsigns have digits (W1AW); ASCII digits sort before letters — exact comparison fails | ✓ Good — compare start[:n] <= prefix <= end[:n]; all 28 tests pass |
+| `_NOTFOUND` sentinel in range lookup | iso=None is valid (non-country entity); need to distinguish "range found, iso=None" from "no range found" | ✓ Good — object() sentinel prevents 4U1ITU from falling through to shorter prefix match |
+| Digit presence required in callsign | `UNKNOWN` resolves to Kazakhstan via UNA-UQZ range; all valid callsigns contain a digit | ✓ Good — validation rejects digit-free strings before lookup |
+| `iso.lower()` before flag path construction | `lookup_prefix` returns "US" but SVG files are named "us.svg" | ✓ Good — .lower() in _qso_to_view_dict(); flag_iso always lowercase |
+| `git mv app/static/flags static/flags` for flag serving | StaticFiles mounts root `static/` at `/static`; `app/static/flags/` was unreachable | ✓ Good — 271 SVG files now at `static/flags/`, served at `/static/flags/*.svg` |
+| Render-time flag enrichment in `_qso_to_view_dict()` | Single injection point for all 4 render paths; prefix allocations can change — not stored in QSO | ✓ Good — no schema change; enrichment transparent to all existing render paths |
 
 ---
-*Last updated: 2026-04-04 after v1.2 milestone start*
+*Last updated: 2026-04-04 after v1.2 milestone completion*

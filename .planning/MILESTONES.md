@@ -35,3 +35,21 @@
 
 ---
 
+
+## v1.2 Callsign Entity Lookup & Country Flags (Shipped: 2026-04-04)
+
+**Phases:** 11–12 (2 phases) | **Plans:** 2 | **Timeline:** 1 day (2026-04-04)
+**LOC:** ~8,264 (Python + HTML) | **Git commits:** 3 feat
+
+**Key accomplishments:**
+- `app/callsign/prefixes.py` — pure-Python ITU prefix resolver: 313 Series Range entries, bisect-based longest-prefix-match, suffix stripping (`/MM`/`/AM` unresolvable, `/P`/`/7`/`/QRP` stripped, `EA3/G3YWX` prefix/callsign format)
+- Solved ASCII digit/letter ordering problem with truncated bisect comparison + `_NOTFOUND` sentinel (ITU ranges use letter-padded keys like `WAA-WZZ` while callsigns contain digits like `W1AW`)
+- 28-test suite covering PRFX-01–04 — common DX prefixes, overlapping sub-ranges (Eswatini vs Fiji), maritime/aeronautical mobile, non-country entities
+- 271 SVG flag files relocated to `static/flags/` (now reachable by `StaticFiles` mount at `/static/flags/*.svg`)
+- Render-time flag enrichment in `_qso_to_view_dict()` — single injection point for all 4 template render paths via `lookup_prefix()` + `pycountry`
+- Conditional `<img>` tag in `qso_row.html` with country name tooltip (`title` attribute), graceful no-flag fallback for unresolvable callsigns
+
+**Archive:** `.planning/milestones/v1.2-ROADMAP.md` | `.planning/milestones/v1.2-REQUIREMENTS.md`
+
+---
+
