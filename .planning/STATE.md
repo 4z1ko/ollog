@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 5 of 5 (Multi-Operator Live Feed)
-Plan: 1 of 4 in current phase
-Status: Phase 5 in progress — 1/4 plans done
-Last activity: 2026-04-04 — Completed 05-01 (MongoDB Replica Set and Concurrent Write Tests)
+Plan: 2 of 4 in current phase
+Status: Phase 5 in progress — 2/4 plans done
+Last activity: 2026-04-04 — Completed 05-02 (Operator Isolation Audit and Cross-Operator Data Tests)
 
-Progress: [█████████████████████████] 65% (15 of ~23 plans)
+Progress: [██████████████████████████] 70% (16 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01)
+- Total plans completed: 15 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02)
 - Average duration: ~7.6 min
 - Total execution time: ~1.63 hours
 
@@ -38,7 +38,7 @@ Progress: [███████████████████████
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 05-multi-operator-live-feed | 1/4 | ~8 min | ~8 min |
+| 05-multi-operator-live-feed | 2/4 | ~17 min | ~8.5 min |
 
 *Updated after each plan completion*
 
@@ -88,6 +88,9 @@ Recent decisions affecting current work:
 - [Phase 04-adif-import-export]: 04-04: Integration tests skip gracefully via mongo_required + _mongo_available() TCP probe — consistent pattern across all integration test files
 - [Phase 05-multi-operator-live-feed]: MongoDB replica set upgrade done in docker-compose.yml only — app/config.py default left standalone for non-Docker local dev
 - [Phase 05-multi-operator-live-feed]: Self-initiating healthcheck pattern: rs.initiate() runs inside healthcheck probe, no separate init container or entrypoint script needed
+- [Phase 05-multi-operator-live-feed]: 05-02: Route introspection uses inspect.signature + recursive Depends() walk to collect callsign dep names — catches transitive injection without relying on parameter name strings
+- [Phase 05-multi-operator-live-feed]: 05-02: isolation_test_db fixture (local, not conftest) inits both QSO and User models — needed because User is imported transitively when app.main is loaded
+- [Phase 05-multi-operator-live-feed]: 05-02: find_duplicate() negative scoping test: BB2BB cannot find AA1AA's QSO, AA1AA finds own — proves isolation at duplicate-detection layer
 
 ### Pending Todos
 
@@ -103,5 +106,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 05-01 — MongoDB upgraded to single-node replica set rs0 (docker-compose.yml); 4 concurrent write integration tests characterize multi-operator safety and accepted same-operator race window.
+Stopped at: Completed 05-02 — Operator isolation audit: route introspection confirms all QSO endpoints inject callsign from JWT; 4 data-layer tests prove cross-operator leakage impossible through find_active, get_qso_page, find_duplicate.
 Resume file: None
