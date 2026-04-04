@@ -1,12 +1,16 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.database import init_db, close_db, get_client
+
+_templates = Jinja2Templates(directory="templates")
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +49,22 @@ async def _bootstrap_admin() -> None:
 async def lifespan(app: FastAPI):
     await init_db()
     await _bootstrap_admin()
+    # Start change stream watcher for live feed
+    client = get_client()
+    watcher_task = None
+    if client is not None:
+        from app.feed.manager import manager as feed_manager, watch_qsos  # noqa: E402
+        collection = client[settings.mongodb_db]["qsos"]
+        watcher_task = asyncio.create_task(
+            watch_qsos(collection, feed_manager, _templates)
+        )
     yield
+    if watcher_task is not None:
+        watcher_task.cancel()
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
     await close_db()
 
 
@@ -81,6 +100,11 @@ app.include_router(qso_ui_router)
 from app.adif.router import router as adif_router  # noqa: E402
 
 app.include_router(adif_router)
+
+# Feed SSE router
+from app.feed.router import router as feed_router  # noqa: E402
+
+app.include_router(feed_router)
 
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
