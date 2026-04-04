@@ -1,209 +1,276 @@
-# Feature Landscape
+# Feature Landscape: Operator & Station Profile
 
-**Domain:** Ham Radio Online QSO Logbook (multi-operator, ADIF-native)
-**Researched:** 2026-04-03
-**Confidence note:** WebSearch and WebFetch tools were unavailable for this session.
-All findings are drawn from training knowledge of the ham radio software ecosystem
-(ADIF specification, LoTW documentation, QRZ logbook, CloudLog, HRDLogbook, Log4OM,
-N1MM+, DXKeeper). The ADIF standard and LoTW API are stable and well-documented.
-Confidence levels reflect this constraint honestly.
+**Domain:** Ham radio QSO logbook — per-operator profile with ADIF MY_* field storage and QSO auto-stamping
+**Researched:** 2026-04-04
+**Overall confidence:** MEDIUM-HIGH (ADIF spec verified via multiple search cross-checks; app-specific behavior MEDIUM; ADIF 3.1.7 field list assembled from 3.1.4 spec + 3.1.6/3.1.7 change notes since direct page fetch was unavailable)
+
+---
+
+## Scope Note
+
+This document covers only what is NEW in this milestone. The existing feature set
+(QSO logging, ADIF import/export, auth, admin, SSE feed) is already built and tested.
+The codebase has been inspected. Key prior decisions that constrain this milestone:
+
+- `User` document: `username`, `hashed_password`, `callsign`, `role`, `enabled` — no profile fields yet
+- `QSO` document: uses `extra="allow"` — any ADIF field stored verbatim in MongoDB
+- `build_qso_dict()`: injects `_operator` (login callsign) but does NOT inject MY_* fields
+- `_qso_to_adif_dict()`: already passes all `model_extra` fields through to export verbatim — no export changes needed once fields are stored on QSOs
+- Serializer: uses UTF-8 byte counting for ADIF field lengths — correct for MY_NAME, MY_CITY with non-ASCII characters
+
+---
+
+## OPERATOR vs STATION_CALLSIGN: The Core Distinction
+
+This is the most important conceptual design decision in the milestone. Confusion between
+these two fields is a documented, recurring operator problem (confirmed by HAMRS community
+thread on Field Day logging and N1MM+ documentation).
+
+**OPERATOR** (ADIF field) — The callsign of the person physically at the controls. In ollog,
+this is always the login callsign — `User.callsign` pulled from the authenticated session.
+This is already injected by `build_qso_dict()` as `_operator`; it needs to be surfaced as
+the ADIF field `OPERATOR` in QSO records going forward.
+
+**STATION_CALLSIGN** (ADIF field) — The callsign transmitted over the air; what the other
+station logged you as. Equals OPERATOR for a typical solo home station. Differs when:
+
+- Club activations: STATION_CALLSIGN = club call (e.g., W1AW), OPERATOR = member's personal call
+- Special event stations: STATION_CALLSIGN = event call (e.g., G100RSGB), OPERATOR = member's call
+- POTA/SOTA club activations: POTA documentation explicitly mandates STATION_CALLSIGN = club call, OPERATOR = individual operator for each QSO
+- Operating portable under a host license (less common in US, more common internationally)
+
+**ADIF spec rule (HIGH confidence):** If STATION_CALLSIGN is absent from a QSO record,
+OPERATOR shall be treated as both the logging station's callsign and the logging
+operator's callsign. The default case — solo operator, STATION_CALLSIGN left blank in
+profile — is spec-compliant by omission. Only stamp STATION_CALLSIGN on QSOs when it
+is explicitly set in the profile and differs from OPERATOR.
+
+**N1MM+ implementation (HIGH confidence):** N1MM+ stores OPERATOR per-QSO (changes with
+the `OPON` command for multi-op) and STATION_CALLSIGN from "Change Your Station Data."
+This is the canonical model ollog should follow.
 
 ---
 
 ## Table Stakes
 
-Features users expect in any online logbook. Missing = product feels incomplete or
-untrustworthy. These are baseline requirements drawn from what every established
-logbook (QRZ Logbook, CloudLog, HRDLogbook, Log4OM) provides.
+Features operators expect. Missing = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| QSO entry (manual web form) | Primary daily use — operators must be able to log a contact directly | Low | Fields: callsign, date/time UTC, band/frequency, mode, RST sent/received, operator (own callsign). All are ADIF fields. |
-| Per-operator logbook (by callsign) | Ham radio identity is the callsign; every operator expects their log to be separate | Low | Already in project scope. Callsign = logbook owner. |
-| QSO list / log view with pagination | Operators need to review past contacts | Low | Sortable by date, callsign, band, mode. Paginate — logs can reach 100k+ QSOs. |
-| Search / filter log entries | Operators look up specific QSOs constantly (confirming a contact, checking dupe) | Low-Med | Filter by callsign, date range, band, mode at minimum. Full-text is nice but not required. |
-| ADIF import (.adi / .adif) | All operators have existing logs from desktop software (WSJT-X, N1MM+, DXKeeper, etc.) | Med | Must handle large files gracefully. Duplicate detection on import is expected. |
-| ADIF export (.adi / .adif) | Operators routinely export to submit to LoTW, eQSL, contest sites | Low | Full ADIF field passthrough required — no field loss on round-trip. |
-| Duplicate QSO detection | Logging the same contact twice is a known workflow problem | Med | On manual entry and import. Same callsign + band + mode + time window = probable dupe. |
-| UTC date/time handling | Ham radio operates on UTC by convention; local time display is a source of errors | Low | Store in UTC always. Display in UTC by default. |
-| Band and mode fields | Core QSO metadata. Every log UI shows these. | Low | Use ADIF enumerated values for BAND and MODE. |
-| Frequency field | More precise than band; required for certain awards and contest logs | Low | Store in MHz as per ADIF spec (FREQ field). |
-| RST sent / received | Standard signal report; expected on every QSO form | Low | ADIF: RST_SENT, RST_RCVD. |
-| DXCC entity lookup / display | Operators constantly think in terms of DXCC entity, not just callsign | Med | Callsign → DXCC entity derivation is expected. Can use cty.dat (Country Files by AD1C) or clublog API. |
-| QSO count / basic statistics | Users want to see "N QSOs in log" at a glance | Low | Count per operator logbook, total. |
-| Data integrity on delete | Accidental deletion is catastrophic; confirmation required | Low | Soft-delete or confirmation dialog at minimum. |
-| Responsive web UI | Operators log from shack PCs, laptops, tablets | Low-Med | Mobile-optimized is differentiating; basic responsive is table stakes. |
+| Profile storage per operator | Every logger (HRD, Log4OM, N1MM+, CloudLog) has a "My Station" settings page | Low | New `Profile` MongoDB document linked to `User.callsign` |
+| Operator callsign display | Login call is the ADIF OPERATOR field; operators expect to see it on their profile | Low | Read from `User.callsign`; not editable here (login identity) |
+| STATION_CALLSIGN (over-the-air call) | Required for club, portable, and special-event ops; POTA club logs mandate it | Low | Optional field; blank defaults to OPERATOR callsign per ADIF spec |
+| Operator name (MY_NAME) | Used on QSL cards, displayed in HRD / CloudLog profile pages | Low | Free-text string; single field |
+| QTH city (MY_CITY) | Standard location field in every logger | Low | Free-text; no enum enforcement needed |
+| State/province (MY_STATE) | Required for ARRL WAS and many other award submissions | Low | Free-text; no enum needed for MVP |
+| Country (MY_COUNTRY) | Standard DXCC-origin field | Low | Free-text DXCC entity name, not ISO code |
+| Maidenhead grid locator (MY_GRIDSQUARE) | Mandatory for FT8/WSJT-X operation, VHF contests, POTA spot maps | Low | Accept 4, 6, or 8 chars; store verbatim; 6-char is the practical minimum |
+| Decimal latitude and longitude (MY_LAT, MY_LON) | Used for distance/azimuth calculations; expected by DX-focused operators | Medium | Optional; can be auto-computed from grid (6-char → center of grid square) |
+| Rig description (MY_RIG) | Operators log rig for QSL accuracy and award purposes; every logger surfaces this | Low | Free-text; "Icom IC-7300" or "Elecraft K3/100" style |
+| Antenna description (MY_ANT) | Logged alongside rig in virtually all loggers | Low | Free-text; "80m doublet at 30ft" style |
+| Default transmit power (stamped as TX_PWR) | Logged for QRP certificates, POTA, LOTW; virtually every logger has a power field | Low | Numeric watts, stored as string per ADIF convention; see power field note below |
+| Auto-stamp OPERATOR on new QSOs | Core feature motivation; OPERATOR ADIF field must appear in each QSO | Low-Med | Inject in `build_qso_dict()` from authenticated callsign |
+| Auto-stamp STATION_CALLSIGN on new QSOs | Required for club/event stations to produce valid ADIF | Low-Med | Only stamp when profile value is non-blank and differs from OPERATOR |
+| Auto-stamp MY_GRIDSQUARE on new QSOs | Expected by WSJT-X users and POTA activators | Low | Only stamp when profile gridsquare is non-blank |
+| Auto-stamp MY_RIG, MY_ANT, TX_PWR on new QSOs | Standard "station defaults" behavior in HRD, Log4OM, N1MM+ | Low | Only stamp when profile values are non-blank |
+| Profile settings UI page | Operators must be able to view and edit their profile between sessions | Medium | HTMX form at `/profile`; consistent with existing QSO UI style |
+| Profile persists across sessions | State must survive login/logout | Low | Stored in MongoDB; loaded on each request via callsign lookup |
+
+---
+
+## Complete ADIF MY_* Field Set (ADIF 3.1.7, 2026-03-22)
+
+Confidence: MEDIUM. Assembled from ADIF 3.1.4 annotated specification (highest-quality source
+found via search), plus ADIF 3.1.6 and 3.1.7 change summaries from search results. Direct
+page fetch of adif.org.uk/317/ADIF_317.htm was unavailable. Cross-checked across multiple
+search result snippets for consistency.
+
+### Location Fields
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_CITY | String | Logging station city | Table stakes |
+| MY_CITY_INTL | IntlString | MY_CITY in international (UTF-8) encoding | Skip (INTL variants deferred) |
+| MY_CNTY | String | Secondary administrative subdivision (US county, German Kreis, Russian Oblast, etc.) | Optional |
+| MY_CNTY_ALT | String | Alternate county designation (added ADIF 3.1.6) | Skip |
+| MY_COUNTRY | String | Logging station country — DXCC entity name | Table stakes |
+| MY_COUNTRY_INTL | IntlString | MY_COUNTRY in UTF-8 | Skip |
+| MY_STATE | String | Primary administrative subdivision (state, province, Bundesland, etc.) | Table stakes |
+| MY_STREET | String | Logging station street address | Optional |
+| MY_STREET_INTL | IntlString | MY_STREET in UTF-8 | Skip |
+| MY_POSTAL_CODE | String | Logging station postal/ZIP code | Optional |
+| MY_POSTAL_CODE_INTL | IntlString | MY_POSTAL_CODE in UTF-8 | Skip |
+
+### Grid and Coordinates
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_GRIDSQUARE | GridSquare | Maidenhead locator — 4, 6, or 8 characters | Table stakes |
+| MY_GRIDSQUARE_EXT | String | Extended Maidenhead locator (added ADIF 3.1.4) | Accept if operator enters 8-char grid |
+| MY_LAT | Latitude | Decimal latitude of logging station (WGS84) | Table stakes |
+| MY_LON | Longitude | Decimal longitude of logging station (WGS84) | Table stakes |
+| MY_VUCC_GRIDS | String | Grid squares for VUCC award (comma-separated, used for rover operations) | Skip for MVP |
+
+### Operator Identity
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_NAME | String | Logging operator's name | Table stakes |
+| MY_NAME_INTL | IntlString | MY_NAME in UTF-8 | Skip |
+
+### Station Equipment
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_RIG | String | Logging station's equipment/transceiver description | Table stakes |
+| MY_RIG_INTL | IntlString | MY_RIG in UTF-8 | Skip |
+| MY_ANT | String | Logging station's antenna description | Table stakes |
+
+**Note — MY_POWER does not exist in ADIF.** The power field in ADIF is `TX_PWR` (logging
+station's transmit power in watts, at the QSO level). No `MY_POWER` field appears in the
+ADIF 3.1.x specification. Logging software (HRD, Log4OM, N1MM+) stores a default power in
+the station profile and stamps it as `TX_PWR` on each new QSO. The profile should store a
+plain `power_watts` value; `build_qso_dict()` should stamp it as `TX_PWR`.
+
+### Zone and DXCC (Derived — rarely entered manually)
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_CQ_ZONE | PositiveInteger | Logging station's CQ zone (1–40) | Low — deriving from callsign/country is a separate feature |
+| MY_ITU_ZONE | PositiveInteger | Logging station's ITU zone (1–90) | Low — same |
+| MY_DXCC | Integer | Logging station's DXCC entity code | Low — same |
+
+### Award / Activation Program Fields
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_SOTA_REF | SOTARef | SOTA summit reference for the activation (e.g., W0C/SP-001) | NOT a profile field — per-activation |
+| MY_POTA_REF | String | POTA park reference (added ADIF 3.1.4) | NOT a profile field — per-activation |
+| MY_IOTA | IOTARef | IOTA island reference | Optional; skip for MVP |
+| MY_IOTA_ISLAND_ID | PositiveInteger | IOTA island numeric identifier | Optional; skip for MVP |
+| MY_SIG | String | Special interest group name (e.g., POTA, SOTA) | Optional; skip for MVP |
+| MY_SIG_INFO | String | SIG additional info — used by POTA for park IDs (MY_SIG_INFO = park ref for POTA) | NOT a profile field — per-activation |
+| MY_SIG_INTL | IntlString | MY_SIG in UTF-8 | Skip |
+| MY_SIG_INFO_INTL | IntlString | MY_SIG_INFO in UTF-8 | Skip |
+| MY_ARRL_SECT | ArrLSect | ARRL section (added ADIF 3.1.4) | Optional; skip for MVP |
+| MY_FISTS | String | FISTS CW club member number | Niche; skip |
+| MY_USACA_COUNTIES | String | US counties for USACA award | Niche; skip |
+
+### German / European Program Fields
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_DARC_DOK | String | DARC DOK (District Operating Kontrol) — added ADIF 3.1.6 | Niche; skip |
+
+### Morse Key Fields (Added ADIF 3.1.6)
+| ADIF Field | Data Type | Description | Profile Priority |
+|------------|-----------|-------------|-----------------|
+| MY_MORSE_KEY_INFO | String | Description of the Morse key used | Niche; skip |
+| MY_MORSE_KEY_TYPE | Enum | Type of Morse key (straight key, bug, paddle, etc.) | Niche; skip |
 
 ---
 
 ## Differentiators
 
-Features that set a logbook apart. Not universally expected, but valued by serious
-operators. These are the features where CloudLog, QRZ Logbook, and modern tools
-distinguish themselves.
+Features that set the product apart. Not universally expected, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Real-time multi-operator visibility | See other operators logging simultaneously — eliminates duplicate contacts on a club station | Med-High | In scope for this project. WebSocket or SSE for live updates across operators. This is the primary differentiator over single-user logbooks. |
-| LoTW upload integration | Direct upload to ARRL Logbook of the World — saves a multi-step export/upload workflow | High | Requires TQSL signing. Each operator needs their own TQSL cert. Complex but high value. Defer to v2. |
-| QSO confirmation status display | Showing LoTW / eQSL / direct QSL status on each QSO is very useful | Med | Requires syncing back confirmation data from LoTW/eQSL. Can start with a manual QSL_SENT / QSL_RCVD field display (ADIF-native) before adding live sync. |
-| Callsign lookup on entry | Auto-populate operator name, QTH, DXCC from callsign databases (QRZ.com XML API or HamQTH) | Med | Reduces data entry error. QRZ XML requires subscription; HamQTH is free. |
-| Band / mode statistics dashboard | Charts of QSOs by band, mode, time — operators love seeing their activity patterns | Med | QSOs per band, per mode, per time-of-day. Easy win with charting library. |
-| Worked/confirmed grid squares | Grid square (Maidenhead) tracking per operator — used for VHF/UHF awards and casual tracking | Med | MY_GRIDSQUARE and GRIDSQUARE are ADIF fields. Map visualization is a further differentiator. |
-| Per-operator activity log / audit trail | Who logged what and when — important for club stations with multiple operators | Med | Timestamps with operator ID on all mutations. Valuable for dispute resolution. |
-| Admin user management UI | Ability to create/disable operator accounts without touching a CLI or database | Low | In scope per project context (admin-managed accounts). Makes the system operable without developer access. |
-| Flexible QSO editing | Fix errors after the fact — wrong callsign, wrong band, wrong time | Low | Basic CRUD. Many logbooks make this awkward; clean editing is valued. |
-| CSV export (in addition to ADIF) | Some users want to analyze their log in a spreadsheet | Low | Straightforward given the ADIF field-per-column structure. |
-| N+1 ADIF field passthrough | Preserve all ADIF fields on import even if the UI doesn't show them | Low | Critical for lossless round-trips. Store unknown fields in a catch-all sub-document. |
-| QSO notes / comment field | Operators annotate contacts with propagation notes, antenna used, contest exchange | Low | ADIF COMMENT and NOTES fields. Low complexity, high daily value. |
-| Contest exchange fields | CONTEST_ID, SRX/STX fields for contest logging | Low | ADIF-native. Not full contest logging, but preserving the fields is important for import/export fidelity. |
+| Grid-to-lat/lon auto-compute | Operators who enter grid get lat/lon for free — no manual coordinate lookup needed | Medium | Standard Maidenhead → WGS84 formula; implementable in pure Python; no external service |
+| Profile completeness nudge | Prompt operators to fill grid, rig, antenna before first QSO — reduces missing data in exports | Low | Simple field-count indicator or checklist banner in UI |
+| MY_GRIDSQUARE_EXT support (8-char) | Portable, VHF, and microwave operators care about sub-km precision | Low | Just store the full string; ADIF MY_GRIDSQUARE_EXT is the correct field |
+| STATION_CALLSIGN / OPERATOR distinction clearly labeled in UI | This confuses operators constantly (documented on HAMRS, N1MM+ forums); clear labeling reduces support burden | Low | Add an explanatory tooltip or inline help text on the profile form |
 
 ---
 
 ## Anti-Features
 
-Features to explicitly NOT build in v1. Scope control is critical; each of these
-carries significant complexity that would delay shipping a trustworthy core.
+Features to explicitly NOT build in this milestone.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Award tracking (DXCC, WAS, VUCC, etc.) | Complex rule sets, entity lists, exception handling, credit sync with ARRL. A full product in itself. | Project scope explicitly excludes this. Store ADIF fields that would support it later (DXCC, STATE, etc.) so the data is there when ready. |
-| LoTW automatic sync / TQSL integration | TQSL certificate management per-operator is operationally complex; LoTW API is underdocumented and brittle | Support ADIF export so users can do manual LoTW upload via TQSL. Revisit in v2. |
-| Self-registration / public sign-up | Admin-managed accounts is a deliberate project requirement | Keep admin-only account creation. Do not add a registration flow. |
-| Real-time DX cluster integration | Spot feeds (DX cluster, RBN, PSK Reporter) are a separate product concern; adds WebSocket complexity to the wrong layer | Out of scope. Operators use dedicated cluster clients. |
-| Contest mode / rate meter | Full contest logging (rate, multiplier tracking, dupe checking per exchange) is a specialized product. N1MM+ and Win-Test own this. | Store contest exchange fields passively; do not build contest-specific UI. |
-| QSL card design / printing | Physical and digital QSL card management is unrelated to the logbook's core job | Operators use dedicated QSL services (OQRS, QRZ QSL). |
-| Propagation prediction / DX prediction tools | Valuable but orthogonal; would require integrating solar index APIs, VOACAP, etc. | Out of scope. Operators use dedicated propagation tools. |
-| Integrated SDR / radio control (CAT) | Radio control (Hamlib, OmniRig) belongs in desktop clients, not a web logbook | Log submission via REST API is the right integration point. |
-| Social / feed features | Activity feeds, "likes", following other operators — not what serious operators want from a logbook | Focus on the log. Trust and accuracy are the brand. |
-| Mobile native app | Adds a separate release and review cycle | Responsive web UI covers mobile use. Revisit only if there is strong demand. |
+| Multiple station profiles per operator | Log4OM and HRD support this but it adds significant DB schema and UI complexity | One profile per operator; all fields are freely editable at any time |
+| MY_SOTA_REF and MY_POTA_REF in the profile form | These change on every activation outing — they are per-session, not permanent station attributes | Handle as per-QSO overrides in a future milestone; do not put in profile settings |
+| DXCC / CQ zone auto-derivation from callsign | Requires callsign prefix parsing + cty.dat lookup; separate feature with its own complexity | Let operators enter MY_CQ_ZONE manually if they need it in exports; skip for this milestone |
+| Per-QSO rig/antenna override in the profile UI | Profile supplies defaults; per-contact overrides belong in the QSO edit form | QSO edit already allows editing any ADIF field via extra= allow model |
+| QRZ / HamQTH callbook prefill of profile fields | External API dependency, auth complexity, rate limits | Operator fills profile manually; callbook integration is a future milestone |
+| INTL field variants (MY_NAME_INTL, MY_CITY_INTL, etc.) | Doubles storage and form fields for non-Latin script support; adds parsing complexity | The existing ADIF serializer already handles UTF-8 byte counting correctly for the base fields; INTL variants are for apps that store both a Latin and a native-script version simultaneously |
+| MY_DARC_DOK, MY_FISTS, MY_USACA_COUNTIES, MY_MORSE_KEY_* | Highly niche award and equipment fields with minimal operator population | Operators who need these can import ADIF with those fields set; the existing `extra="allow"` model stores them verbatim |
+| Email address on profile form | Email in profile is cosmetic for a private logbook; no notification or verification feature uses it | Skip unless a specific downstream feature (e.g., QSL notifications) requires it |
 
 ---
 
 ## Feature Dependencies
 
 ```
-ADIF import → Duplicate detection (import triggers dupe check)
-ADIF import → N+1 field passthrough (import must not drop unknown fields)
-ADIF export → QSO data model completeness (can only export what is stored)
-Manual QSO entry → Duplicate detection (entry triggers dupe check)
-Manual QSO entry → DXCC entity lookup (optional enhancement on callsign field)
-Callsign lookup → QRZ XML API or HamQTH API account (external dependency)
-Multi-operator logging → Per-operator logbook (prerequisite)
-Multi-operator logging → Real-time visibility (builds on top of per-operator model)
-LoTW upload (future) → ADIF export (LoTW upload = signed ADIF)
-Award tracking (future) → DXCC entity on every QSO (data must be stored now)
-Admin user management UI → Account model (prerequisite)
-QSO confirmation status display → QSL_SENT / QSL_RCVD ADIF fields (already in model)
-Statistics dashboard → QSO storage (reads from existing data, no new model needed)
+User.callsign (existing) → OPERATOR stamp on QSO (new)
+Profile.station_callsign (new) → STATION_CALLSIGN stamp on QSO (new, conditional on non-blank)
+Profile.gridsquare (new) → MY_GRIDSQUARE stamp on QSO (new, conditional on non-blank)
+Profile.rig (new) → MY_RIG stamp on QSO (new, conditional on non-blank)
+Profile.antenna (new) → MY_ANT stamp on QSO (new, conditional on non-blank)
+Profile.power_watts (new) → TX_PWR stamp on QSO (new, conditional on non-blank)
+build_qso_dict() (existing) → must accept profile snapshot arg to inject fields
+_qso_to_adif_dict() (existing) → NO CHANGES NEEDED; model_extra passthrough already handles new fields
+ADIF export (existing) → will include OPERATOR, STATION_CALLSIGN, MY_* fields automatically once stored
+Profile settings UI → requires new router + Jinja2 template + HTMX wiring
 ```
 
 ---
 
-## MVP Recommendation
+## MVP Recommendation for This Milestone
 
-The MVP must be trustworthy above all else. Operators will not migrate their log to a
-system they cannot trust. Trust = data fidelity, no silent field loss, reliable duplicate
-detection, and a clean import/export round-trip.
+**Phase 1 — Profile storage and settings UI:**
+1. New `Profile` MongoDB document — separate from `User`, linked by `callsign` (clean migration path; no schema change to `User`)
+2. Profile fields: `station_callsign`, `name`, `city`, `state`, `country`, `gridsquare`, `lat`, `lon`, `rig`, `antenna`, `power_watts`
+3. Profile service: `get_or_create_profile(callsign)`, `update_profile(callsign, data)`
+4. Profile settings UI at `/profile` — single HTMX form consistent with existing QSO UI patterns
 
-**Prioritize for v1:**
+**Phase 2 — QSO auto-stamping:**
+5. Modify `build_qso_dict()` to accept a profile snapshot and inject:
+   - `OPERATOR` = login callsign (always)
+   - `STATION_CALLSIGN` = profile value (only if non-blank)
+   - `MY_GRIDSQUARE` = profile gridsquare (only if non-blank)
+   - `MY_RIG` = profile rig (only if non-blank)
+   - `MY_ANT` = profile antenna (only if non-blank)
+   - `TX_PWR` = profile power_watts (only if non-blank)
+6. Update QSO creation endpoint to load the operator's profile before calling `build_qso_dict()`
 
-1. Per-operator logbook identified by callsign (core model)
-2. Manual QSO entry form (callsign, date/time UTC, band, frequency, mode, RST sent/received, operator callsign)
-3. ADIF import with duplicate detection and N+1 field passthrough
-4. ADIF export (lossless round-trip)
-5. QSO list view with search and filter (callsign, date range, band, mode)
-6. DXCC entity derivation on stored callsigns (using cty.dat — no external API dependency)
-7. QSO count and basic per-operator statistics
-8. Admin account management UI
-9. Multi-operator simultaneous logging (core project requirement)
-10. QSO editing and soft-delete with confirmation
+**Phase 3 — Grid/coordinate helper (optional but high value):**
+7. Auto-compute lat/lon from 6-char grid when operator saves profile grid (server-side Python, no external API)
 
-**Defer to v2 or later:**
-
-- Callsign lookup via QRZ XML / HamQTH (external API dependency; adds signup friction)
-- Real-time multi-operator visibility (WebSocket layer — high value, but v1 can use page refresh)
-- LoTW upload integration (TQSL complexity)
-- Statistics dashboard with charts (low-risk addition after core is stable)
-- CSV export (easy addition, not urgent)
-
-**Note on "real-time" multi-operator logging:** The project requirement for simultaneous
-multi-operator logging means concurrent writes must be safe (no data corruption). The
-REST API + MongoDB model handles this. Real-time *visibility* (seeing others' QSOs appear
-without refresh) is a differentiator that can be phased in after the write path is solid.
+**Defer:**
+- Multiple station profiles
+- POTA/SOTA per-activation fields
+- Callbook lookup integration
+- Award-specific fields (ARRL_SECT, CQ zone, etc.)
+- Email on profile
 
 ---
 
-## Competitive Landscape Notes
+## Surprising Fields Operators Expect
 
-**QRZ Logbook** (HIGH confidence — stable product, widely used)
-- Online log tied to QRZ.com callsign profile
-- ADIF import/export, LoTW sync, eQSL sync
-- Basic award tracking, DXCC counter
-- Single-operator only
-- Gated behind QRZ subscription for full features
+Findings from community research (HAMRS forum, POTA documentation, N1MM+ documentation):
 
-**ARRL LoTW** (HIGH confidence)
-- Not a logbook — a QSO confirmation system
-- ADIF upload via TQSL (signing tool), not a logging interface
-- Gold standard for award credit confirmation
-- Integration is the goal, not competition
+1. **TX_PWR is the power field — MY_POWER does not exist in ADIF.** Apps store a default wattage in the station profile and stamp individual QSOs with `TX_PWR`. Operators searching for "MY_POWER" in ADIF output are looking for a non-standard field that some logging apps emit incorrectly. The correct field is `TX_PWR`.
 
-**CloudLog** (HIGH confidence — open source, well-documented)
-- Self-hosted PHP/MySQL web logbook
-- Multi-operator aware (station profiles)
-- ADIF import/export, LoTW sync, clublog sync, eQSL sync
-- API available
-- Closest open-source analog to this project
-- Weakness: dated UI, complex self-hosting, PHP stack
+2. **STATION_CALLSIGN confusion is widespread.** The HAMRS community thread on Field Day logging shows this is a recurring operator support issue. Operators running a club station often produce ADIF with only CALL and OPERATOR and miss STATION_CALLSIGN entirely, causing POTA log upload rejections. The profile UI should surface the OPERATOR vs STATION_CALLSIGN distinction with clear explanatory text.
 
-**HRD Logbook / Ham Radio Deluxe** (MEDIUM confidence)
-- Desktop-primary with cloud sync
-- Deep radio control integration (CAT)
-- Strong contest and award tracking
-- Windows-only; subscription required
-- Not an online-first logbook
+3. **Grid locator is the primary location concept for most operators — not lat/lon.** Operators think in grid squares (EN52, FN20pi), not decimal degrees. Accept grid as the primary location input. WSJT-X, GridTracker, and every VHF contest tool use 6-char grid as the canonical station location identifier. Derive lat/lon from grid automatically.
 
-**Log4OM** (MEDIUM confidence)
-- Desktop application, Windows
-- Strong ADIF support, LoTW integration
-- Club/multi-operator features
-- Not a web product
+4. **6-char grid minimum for practical use.** 4-char grid (e.g., EN52) is acceptable for ADIF storage but gives 120 km precision — too coarse for VHF DX and POTA spot maps. Operators expect 6-char (e.g., EN52ab) as the default. The ADIF spec accepts 4 or 6 chars; some apps accept 8. Store whatever is entered but nudge toward 6-char.
 
-**N1MM+** (HIGH confidence)
-- Contest logging only, desktop, Windows-only, free
-- Exports ADIF; not a general logbook
+5. **MY_SOTA_REF and MY_POTA_REF are NOT profile fields — they are per-activation.** SOTA summits and POTA parks change with every trip. Operators who activate SOTA regularly expect to change MY_SOTA_REF for each activation session, not edit their station profile. Do not put these in the profile settings form.
 
-**DXKeeper** (MEDIUM confidence)
-- Desktop, Windows, part of DXLab Suite
-- Extremely comprehensive ADIF support
-- Single-operator focused
-
-**Gap this project fills:** There is no well-supported, modern, web-native, multi-operator
-logbook with a clean REST API and ADIF-native data model that is not self-hosted PHP
-(CloudLog) or tightly coupled to a callsign registry (QRZ). This project occupies that gap.
+6. **Log4OM's three-callsign model (owner / station / operator) is more nuanced than needed here.** Log4OM distinguishes the equipment owner from the station licensee from the operating control point. For this project's scope (admin-managed accounts, single-station context), the ADIF two-field model (OPERATOR + STATION_CALLSIGN) is sufficient and appropriate.
 
 ---
 
 ## Sources
 
-**Confidence levels:**
-
-- ADIF specification (fields, enumerations, format): HIGH — based on ADIF 3.x spec which is
-  stable and widely implemented. Fields used (BAND, MODE, FREQ, RST_SENT, RST_RCVD,
-  QSL_SENT, QSL_RCVD, DXCC, GRIDSQUARE, COMMENT, NOTES, CONTEST_ID, SRX, STX) are
-  long-established ADIF fields. Source: https://www.adif.org/adif.htm
-- QRZ Logbook features: HIGH — product has been stable and documented for years
-- LoTW behavior (upload-only, TQSL requirement): HIGH — core architectural fact of LoTW
-- CloudLog feature set: HIGH — open source, GitHub-documented, widely discussed in community
-- HRDLogbook and Log4OM feature sets: MEDIUM — training knowledge, not directly verified
-  in this session due to tool unavailability
-- Market gap analysis: MEDIUM — based on community discussion patterns in training data;
-  should be verified with current ham radio forums (QRZ forums, /r/amateurradio) before
-  treating as definitive
-
-**Note on tool availability:** WebSearch, WebFetch, and Bash tools were all denied in this
-session. All findings are from training knowledge. The ham radio logbook ecosystem is
-stable enough that ADIF fields, LoTW architecture, and CloudLog feature sets are unlikely
-to have changed materially since training cutoff. The competitive landscape section
-should be spot-checked against current product pages before finalizing roadmap decisions.
+| Source | Confidence | Use |
+|--------|------------|-----|
+| [ADIF 3.1.7 specification, 2026-03-22](https://adif.org.uk/317/ADIF_317.htm) | MEDIUM (page not directly fetched; assembled from search snippets) | MY_* field list, field data types |
+| [ADIF 3.1.4 specification](https://www.adif.org/314/ADIF_314.htm) | MEDIUM (authoritative source, 3.1.4 field set confirmed by multiple snippets) | Baseline MY_* fields |
+| [ADIF 3.1.6 release notes](https://adif.org/316/ADIF_316.htm) | MEDIUM | MY_CNTY_ALT, MY_DARC_DOK, MY_MORSE_KEY_* additions |
+| [ADIF for POTA Technical Reference](https://docs.pota.app/docs/activator_reference/ADIF_for_POTA_reference.html) | HIGH (official POTA documentation) | STATION_CALLSIGN vs OPERATOR for club activations; MY_SIG_INFO for park IDs |
+| [HAMRS Community — Field Day STATION_CALLSIGN confusion](https://community.hamrs.app/t/field-day-help-ive-confused-myself-with-adif-station-callsign-and-operator/584) | MEDIUM (community forum) | Confirms OPERATOR/STATION_CALLSIGN confusion is a real, recurring operator problem |
+| [N1MM+ The Configurer](https://n1mmwp.hamdocs.com/setup/the-configurer/) | HIGH (official N1MM+ documentation) | OPERATOR per-QSO, STATION_CALLSIGN from station data; OPON command pattern |
+| [Log4OM forum — Owner, Station & Operator Callsign](https://forum.log4om.com/viewtopic.php?t=227) | MEDIUM (community forum) | Three-callsign model; confirms Log4OM separates owner/station/operator |
+| [Ham Radio Deluxe — My Station setup](https://support.hamradiodeluxe.com/support/solutions/articles/51000052682-setup-configuration-my-station) | MEDIUM (official HRD support docs) | Field inventory: street, city, county, state, postal code, email, locator, lat/lon |
+| [MacLoggerDX Station Info](https://dogparksoftware.com/MacLoggerDX/Manual/Pages/stationinfo.html) | MEDIUM (official MacLoggerDX docs) | Callsign, lat/lon, grid, name/address fields |
+| [WSJT-X User Guide 2.6.1](https://wsjt.sourceforge.io/wsjtx-doc/wsjtx-main-2.6.1.html) | HIGH (official WSJT-X documentation) | My Call + My Grid as primary station fields; 6-char preferred |
+| [Maidenhead Locator System — Wikipedia](https://en.wikipedia.org/wiki/Maidenhead_Locator_System) | HIGH | 4/6/8-char precision levels: ±120 km / ±5 km / ±460 m |
+| [POTA Club Activation Guide](https://docs.pota.app/docs/activator_reference/activator_guide_clubs.html) | HIGH (official POTA documentation) | STATION_CALLSIGN = club call mandate for club logs |

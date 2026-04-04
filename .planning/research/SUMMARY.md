@@ -1,232 +1,189 @@
 # Project Research Summary
 
-**Project:** Ham Radio Online Logbook (ollog)
-**Domain:** Multi-operator ADIF-native web logbook
-**Researched:** 2026-04-03
-**Confidence:** MEDIUM (all research from training data; external tool access blocked during session)
+**Project:** Ham Radio Online Logbook (ollog) — Operator & Station Profiles Milestone (v1.1)
+**Domain:** Ham radio QSO logbook — per-operator profile with ADIF MY_* field storage and QSO auto-stamping
+**Researched:** 2026-04-04
+**Confidence:** HIGH (architecture from direct codebase inspection; stack and features from ADIF spec cross-checks)
 
 ## Executive Summary
 
-ollog is a web-native, multi-operator ham radio QSO logbook with ADIF as the central data contract. The key architectural insight from research is that ADIF field names should be stored verbatim as MongoDB document keys — no translation layer, no snake_case mapping. This eliminates an entire class of import/export bugs and makes round-trip fidelity trivial. The recommended stack is FastAPI + Motor + Beanie (Python async throughout), with HTMX + Jinja2 for the UI, deployed via Docker Compose with Caddy for automatic TLS. This is a layered monolith with clean internal component boundaries, not microservices.
+This milestone adds operator and station profiles to an existing, production-tested FastAPI/MongoDB/HTMX logbook. The v1.0 foundation (QSO logging, ADIF import/export, auth, admin, SSE feed) is complete and validated. The new work is narrowly scoped: a profile data model, a settings UI, and auto-stamping of ADIF MY_* fields onto new QSOs. The overall pattern is additive — nothing in the existing QSO flow, ADIF serializer, or auth system requires redesign.
 
-The market gap this project fills is real: there is no well-supported, modern, web-native, multi-operator logbook with a clean REST API that is not either self-hosted PHP (CloudLog) or tightly coupled to a commercial callsign registry (QRZ). The closest analog is CloudLog, which has a dated UI, complex self-hosting, and a PHP stack. ollog's differentiator is a clean Python API, ADIF-native data model, and first-class multi-operator support from day one.
+The recommended architecture embeds profile fields directly in the existing `User` Beanie document rather than creating a separate `OperatorProfile` collection. This is the right call for this codebase: the authenticated `User` is already fetched on every protected request, so profile data comes at zero extra DB cost. The key implementation change is extending `build_qso_dict()` to accept the `User` document and stamp ADIF fields conditionally. Both the REST and UI QSO creation paths converge there, so the stamp happens in exactly one place.
 
-The dominant risk category is data integrity, not technical complexity. Operators will not migrate logs to a system they cannot trust. The most dangerous pitfalls — ADIF byte-vs-character length corruption, UTC datetime naive/aware mixing, and silent duplicate insertion under concurrent load — must be addressed at the foundation before any user-facing features are built. Getting the ADIF parser, MongoDB schema, and duplicate detection right in phase 1 is more important than shipping a UI quickly.
-
----
+The two highest-stakes risks are both security and data-integrity concerns: operator isolation (profile routes must derive the operator identity from the JWT, never from a client-supplied parameter) and auto-stamp null safety (a profile-less operator must not produce `OPERATOR: null` in QSO documents). A third significant risk is the `OPERATOR` vs. `STATION_CALLSIGN` distinction, which is a documented recurring operator support problem. Clear UI labeling and correct conditional stamping are the mitigation. The Maidenhead `center=True` parameter (not the library default) must be used whenever converting grid to lat/lon — using the SW corner produces systematic location errors of up to 80 km.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is Python-first and async throughout. FastAPI is the correct framework choice: async-native, Pydantic v2 for ADIF field validation at the boundary, and automatic OpenAPI docs. Motor (async MongoDB driver) is mandatory — using PyMongo (sync) inside async FastAPI handlers causes thread-pool exhaustion. Beanie ODM on top of Motor reduces boilerplate significantly for a project of this size. For the UI, HTMX + Jinja2 delivers full interactivity without a JavaScript build pipeline, which is right-sized for a CRUD logbook. Docker Compose with Caddy (automatic HTTPS) is the deployment target.
+The existing stack (FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+, HTMX 2.0.4, PyJWT, pwdlib, MongoDB 7 replica set) is unchanged. Two new dependencies are needed and nothing else: `maidenhead>=1.8.0` for Maidenhead grid-to-lat/lon conversion (pure Python, zero system deps, de facto standard in Python ham radio tooling) and `pydantic[email]>=2.0` to enable `EmailStr` validation. Both are additive — add them to `pyproject.toml` and the rest of the stack is unaffected.
 
-ADIF library selection carries LOW confidence: both `adif-io` and `adif3` are small ecosystem libraries whose maintenance status needs PyPI verification at project start. The ADIF format is simple enough (~100 lines of Python) that a custom parser is a viable fallback, and given the critical pitfalls identified in parsing (see below), a custom parser may be preferable anyway.
+All ADIF MY_* profile fields are simple `Optional[str]` or `Optional[float]` values. No additional library is needed for their storage or serialization. The existing `_qso_to_adif_dict()` serializer already handles `model_extra` passthrough losslessly — once MY_* fields are stamped onto QSO documents, they export correctly with no serializer changes.
 
-**Core technologies:**
-- Python 3.12 + FastAPI 0.111+: async-native API framework with automatic OpenAPI and Pydantic v2 validation
-- Motor 3.x + Beanie 1.x: async MongoDB driver and ODM; Beanie eliminates query boilerplate
-- MongoDB 7.x: document model maps 1:1 to ADIF flat records; no schema migration pain for new ADIF fields
-- python-jose + passlib[bcrypt]: JWT auth with bcrypt password hashing; callsign from JWT scopes all queries
-- HTMX 1.9+ + Jinja2 3.x: interactive UI without a JS build pipeline; TailwindCSS via CDN for styling
-- Docker + Docker Compose + Caddy: single-command self-hosted deployment with automatic TLS
-
-**Version verification required before kickoff:** `adif-io`, `adif3`, `mongomock-motor`, `python-jose` (check CVEs), FastAPI current stable version.
+**Core technologies (new additions only):**
+- `maidenhead 1.8.0`: Maidenhead grid conversion — pure Python, well-tested, two-function API (`to_maiden` / `to_location`)
+- `pydantic[email] 2.0`: enables `EmailStr` on the `User` model — required for Pydantic v2's email type to function
+- No new frameworks, no new DB, no geospatial index needed
 
 ### Expected Features
 
 **Must have (table stakes):**
-- Manual QSO entry form (CALL, QSO_DATE, TIME_ON, BAND, FREQ, MODE, RST_SENT, RST_RCVD)
-- Per-operator logbook scoped by callsign
-- ADIF import (.adi/.adif) with duplicate detection and lossless N+1 field passthrough
-- ADIF export with full round-trip fidelity (no field loss)
-- QSO list view with pagination, sort, and filter (callsign, date range, band, mode)
-- Duplicate QSO detection (fuzzy ±2 min window, not exact match)
-- UTC date/time handling everywhere
-- DXCC entity derivation using cty.dat (no external API dependency)
-- QSO count and basic per-operator statistics
-- Admin account management UI
-- Multi-operator concurrent write safety
-- QSO editing and soft-delete with confirmation
+- Profile storage per operator (name, QTH city, state, country) — every logger has a "My Station" page
+- `STATION_CALLSIGN` and `OPERATOR` as distinct profile fields — mandatory for club, POTA, and special-event operations
+- Maidenhead grid locator (`MY_GRIDSQUARE`) — required for FT8/WSJT-X, VHF contests, POTA spot maps
+- Decimal lat/lon auto-derived from grid on profile save — operators think in grid squares, not coordinates
+- Rig description (`MY_RIG`) and antenna description (`MY_ANT`) — present in every logging application
+- Default transmit power stamped as `TX_PWR` on new QSOs — note: `MY_POWER` does not exist in the ADIF spec
+- Auto-stamp `OPERATOR`, `STATION_CALLSIGN`, `MY_GRIDSQUARE`, `MY_RIG`, `MY_ANT`, `TX_PWR` on new interactive QSOs
+- Profile settings UI at `/log/profile` — HTMX form consistent with existing UI patterns
 
 **Should have (differentiators):**
-- Real-time multi-operator visibility (WebSocket/SSE — the primary differentiator over single-user logbooks)
-- Band/mode statistics dashboard with charts
-- QSO confirmation status display (LOTW_QSL_SENT/RCVD, EQSL fields)
-- Per-operator activity log/audit trail
-- Flexible QSO editing with clean UX
-- APP_ field passthrough (preserves HRD, N1MM, WSJT-X internal IDs on round-trip)
-- QSO notes/comment field (ADIF COMMENT and NOTES)
+- Grid-to-lat/lon auto-compute storing center of grid square (not SW corner)
+- Profile completeness nudge before first QSO — reduces missing data in ADIF exports
+- Clear `OPERATOR` vs. `STATION_CALLSIGN` UI labeling with explanatory tooltip — this is a documented recurring operator confusion point
 
 **Defer (v2+):**
-- LoTW direct upload integration (TQSL certificate management per-operator is operationally complex)
-- Callsign lookup via QRZ XML / HamQTH (external API dependency; adds signup friction)
-- CSV export (easy addition, not urgent)
-- Award tracking (DXCC, WAS, VUCC) — complex rule sets, a separate product concern
+- Multiple station profiles per operator
+- `MY_SOTA_REF` and `MY_POTA_REF` in the profile form — these are per-activation, not permanent station attributes
+- DXCC and CQ zone auto-derivation from callsign prefix (requires cty.dat lookup)
+- QRZ / HamQTH callbook prefill
+- INTL field variants (`MY_NAME_INTL`, `MY_CITY_INTL`, etc.)
+- Niche award fields (`MY_DARC_DOK`, `MY_FISTS`, `MY_USACA_COUNTIES`, `MY_MORSE_KEY_*`)
 
 ### Architecture Approach
 
-The architecture is a layered service-oriented monolith: Web UI (thin) → REST API + Auth → MongoDB, with ADIF Library and Import/Export Services as internal modules. The two hard constraints that keep the architecture clean: the UI never touches MongoDB directly, and the ADIF Library never touches MongoDB. Operator isolation is enforced by injecting the callsign from the JWT at the auth boundary — it never comes from user-supplied request data. The shared `qsos` collection with `_operator` as the leading field in all compound indexes is the correct multi-tenancy model (not per-operator collections, which create operational problems).
+Profile fields are embedded directly as `Optional` fields on the existing `User` Beanie document. This is the architecturally correct choice: the `User` is already in scope on every authenticated request, no second DB fetch is needed, and Beanie adds optional fields to existing documents transparently with no migration. The profile module adds two routers (`app/profile/router.py` and `app/profile/ui_router.py`), one grid utility (`app/profile/grid.py`), and Pydantic schemas. The single service-layer integration point is `build_qso_dict()` in `app/qso/service.py`, which gains an optional `profile` parameter with a `None` default — fully backward-compatible. ADIF import (`process_import()`) is explicitly excluded from auto-stamping to preserve historical record integrity.
 
 **Major components:**
-1. ADIF Library (`app/adif/parser.py`) — pure functions, parse .adi/.adif to Python dicts and back; no framework dependencies; fully testable in isolation
-2. Auth Service — JWT issuance/validation, callsign-to-account binding, admin role check; single enforcement point for operator identity
-3. QSO API — CRUD endpoints, enforces operator isolation via `_operator` injection, validates ADIF fields
-4. Import Service — multipart file upload, batch insert with `ordered=False`, returns summary with accepted/rejected/errors
-5. Export Service — query by operator + optional filters, streaming response to avoid memory spikes on large logs
-6. Admin API — user/account management; no QSO logic
-7. Web UI — form-based QSO entry, log view, import/export triggers, admin panel; consumes REST API only
-
-**Recommended build order:** ADIF Library → MongoDB Schema + Indexes → Auth Service → QSO API → Import Service → Export Service → Admin API → Web UI.
+1. `User` model extensions (`app/auth/models.py`) — add ~10 Optional profile fields; no migration required; existing documents get `None` for absent keys
+2. Grid conversion utility (`app/profile/grid.py`) — wraps `maidenhead` library; pure function; testable in complete isolation
+3. Profile Pydantic schemas — `ProfileUpdateRequest` (validates form input with grid format regex), `ProfileResponse` (read shape)
+4. Profile API router (`GET /api/profile`, `PATCH /api/profile`) — JWT auth; no callsign param on GET
+5. Profile UI router and template (`GET /log/profile`, `POST /log/profile`) — HTMX form, cookie auth
+6. `build_qso_dict()` extension — accepts `profile=None`; stamps fields additively (body always wins over profile defaults)
 
 ### Critical Pitfalls
 
-1. **ADIF byte-vs-character length** — Use `len(value.encode('utf-8'))` not `len(value)` when writing ADIF tags. UTF-8 multi-byte characters (common in European operator names/QTH) cause silent data corruption if `len()` is used. Add a round-trip test with non-ASCII fixtures before shipping.
+1. **Profile endpoint isolation leak** — profile GET/PATCH must derive operator from JWT only, never from a client-supplied callsign param or request body; add a cross-operator isolation test matching existing v1.0 audit patterns
 
-2. **UTC datetime naive/aware mixing in PyMongo** — PyMongo strips tzinfo when storing datetime objects. Establish a codebase-wide convention: all datetimes are UTC-aware. After every MongoDB read, re-attach UTC tzinfo via a utility function `from_mongo_dt()`. A unit test that stores and reads back a UTC-aware datetime will catch this immediately.
+2. **Auto-stamp null crash for profile-less operators** — `profile is None` must be guarded in `build_qso_dict()`; omit the field entirely rather than writing `OPERATOR: null` (the existing serializer converts `None` via `str(None)` producing the literal string `"None"` in ADIF output)
 
-3. **Concurrent duplicate insertion race condition** — Application-layer check-then-insert has a race condition under concurrent imports. Requires a MongoDB compound unique index on `{_operator, CALL, qso_date_utc, BAND, MODE}` plus `upsert=True` (not `insert_one`) for all QSO writes. The index must exist before the first production write.
+3. **Maidenhead SW corner vs. center** — always use `maidenhead.to_location(grid, center=True)`; the default returns the SW corner of the grid square, introducing up to 80 km systematic location error for 4-char grids
 
-4. **Duplicate detection false positives/negatives** — Exact-match on (CALL, QSO_DATE, TIME_ON, BAND, MODE) produces both false positives (same station worked twice in a contest) and false negatives (same QSO with 1-minute time drift). Use configurable fuzzy window (default ±2 min), surface a dedup report for operator review, never auto-delete.
+4. **`STATION_CALLSIGN` absent breaks LoTW and POTA upload for club calls** — stamp both `OPERATOR` and `STATION_CALLSIGN` when the profile has a station callsign set; omit `STATION_CALLSIGN` entirely (do not write an empty string) when it is blank
 
-5. **ADIF parser correctness** — The ADIF header is optional; `<EOH>` may be absent; `<EOR>` whitespace varies; field names are case-insensitive; `APP_` and `USERDEF` fields must round-trip. Write the parser as a tag-stream state machine (not line-splitter). Test against a corpus of real-world files from HRD, Log4OM, WSJT-X, N1MM, MacLoggerDX, CQRLOG before claiming any ADIF compliance.
+5. **Auto-stamp must not apply during ADIF import** — `process_import()` in `app/adif/router.py` must remain unchanged; stamping profile values over imported historical records corrupts original logging data
 
----
+6. **ADIF `MY_LAT`/`MY_LON` export format** — the ADIF spec defines these as strings in `XDDD MM.MMM` format, not decimal degrees; store as float internally for computation, convert to spec format on ADIF export
 
 ## Implications for Roadmap
 
-Based on research, the architecture's build-order dependency chain and the data-integrity-first imperative suggest this phase structure:
+Dependencies flow from data model outward to UI. The recommended build order is:
 
-### Phase 1: Foundation — ADIF Library, Data Model, and Auth
+### Phase 1: Profile Data Model and Grid Utility
 
-**Rationale:** The ADIF Library and MongoDB schema are the foundation everything else builds on. Both must be correct before any QSO data is persisted. Auth is required before any endpoint can be protected. This phase has no user-visible UI but produces the entire skeleton.
+**Rationale:** Everything downstream — schemas, service logic, routers, UI — depends on the `User` model field names being defined first. The grid utility is a pure function with no DB dependency and can be tested immediately after installation. Locking field names first prevents cascading rework in later phases.
 
-**Delivers:** Correct ADIF parser + serializer (with full round-trip test suite), MongoDB schema with all required indexes (including the compound unique index for dedup), Auth Service with JWT issuance and callsign scoping.
+**Delivers:** Extended `User` Beanie document with Optional profile fields; `app/profile/grid.py` with `grid_to_latlon()` and `latlon_to_grid()`; maidenhead and pydantic[email] added to pyproject.toml
 
-**Addresses:** Manual QSO entry prerequisite, per-operator logbook scoping, admin account model
+**Addresses:** Table stakes profile storage; grid/lat/lon conversion feature
 
-**Avoids:** Pitfall 1 (byte/char length), Pitfall 2 (UTC datetime), Pitfall 5 (concurrent duplicate insertion), Pitfall 6 (ADIF header variants), Pitfall 11 (naive datetime from PyMongo), Pitfall 15 (case-insensitive field names)
+**Avoids:** Pitfalls 6 (grid/lat/lon dual-truth drift), 7 (SW corner default), 10 (ADIF field naming must match spec exactly), 12 (Beanie index handling on new fields)
 
-**Research flag:** Needs verification of ADIF library maintainership (`adif-io`, `adif3`) before committing to a library vs. custom parser decision.
+### Phase 2: Profile Service, Schemas, and API Router
 
----
+**Rationale:** With field names locked, schemas can be written and the API router gives a testable surface for profile CRUD before the UI exists. Operator isolation tests and null-guard tests are written in this phase before any QSO stamping logic is touched.
 
-### Phase 2: Core QSO API and Log View
+**Delivers:** `ProfileUpdateRequest` and `ProfileResponse` schemas; `GET /api/profile` and `PATCH /api/profile` endpoints; grid/lat/lon bidirectional sync on profile save; cross-operator isolation tests
 
-**Rationale:** With the foundation in place, build the QSO CRUD API and the basic log view. This is the first phase with user-visible functionality. Pagination must be built from day one — retrofitting it breaks API contracts.
+**Addresses:** Must-have: profile persistence, lat/lon auto-compute, operator-scoped access
 
-**Delivers:** QSO CRUD endpoints (POST, GET, PATCH, DELETE with soft-delete), paginated and filterable log view (callsign, date range, band, mode), basic per-operator QSO count, manual QSO entry web form.
+**Avoids:** Pitfalls 1 (isolation leak), 17 (PII enumeration via callsign param), 4 (null profile on read)
 
-**Addresses:** Manual QSO entry, QSO list view with pagination, search/filter, QSO editing, soft-delete with confirmation, UTC display, band/mode fields, RST fields
+### Phase 3: QSO Auto-Stamping
 
-**Avoids:** Pitfall 14 (pagination missing until it's a crisis), Pitfall 4 (mode/band normalization on entry)
+**Rationale:** Profile data layer must exist before `build_qso_dict()` can consume it. This phase changes both QSO creation call sites (`create_qso()` and `submit_qso()`) from `get_current_operator_callsign` to `get_current_user`. The `profile=None` default makes the change backward-compatible and verifiable in isolation against existing QSO tests.
 
-**Uses:** FastAPI + Motor/Beanie, HTMX + Jinja2 for form and list view
+**Delivers:** Modified `build_qso_dict()` with additive profile stamping; both QSO creation paths updated; ADIF export of `OPERATOR`, `STATION_CALLSIGN`, `MY_GRIDSQUARE`, `MY_RIG`, `MY_ANTENNA`, `TX_PWR` without any serializer changes
 
----
+**Addresses:** Must-have: auto-stamp all table-stakes fields on new interactive QSOs
 
-### Phase 3: ADIF Import and Export
+**Avoids:** Pitfalls 4 (null stamp into QSO), 5 (overwriting explicit OPERATOR from body), 8 (missing STATION_CALLSIGN for club calls breaking LoTW and POTA upload)
 
-**Rationale:** Import is the trust-building feature. Operators evaluate any logbook by importing their existing log. If import is lossy or slow, they leave. Export must be equally correct — operators use ADIF exports for LoTW uploads and software migrations. These two features share the ADIF Library from Phase 1 and build on the QSO API from Phase 2.
+### Phase 4: Profile UI
 
-**Delivers:** ADIF file upload with async processing (202 Accepted + job status polling), duplicate detection with fuzzy window and import report, lossless N+1 / APP_ field passthrough, ADIF export with streaming response and optional filters, import rollback via import_batch_id.
+**Rationale:** UI depends on all preceding layers being stable and tested. The HTMX form is the lowest-risk surface — it consumes the API layer already verified in Phase 2. UI copy can explain the new-QSOs-only stamping behavior, preventing operator confusion about retroactive updates.
 
-**Addresses:** ADIF import, ADIF export, duplicate detection, N+1 field passthrough, APP_ field round-trip
+**Delivers:** `GET /log/profile` and `POST /log/profile` routes; `templates/log/profile.html` HTMX form; nav link added to log templates; `OPERATOR` vs. `STATION_CALLSIGN` explanatory tooltip
 
-**Avoids:** Pitfall 3 (duplicate detection strategy), Pitfall 4 (ADIF enumeration normalization), Pitfall 9 (FREQ vs BAND derivation), Pitfall 12 (APP_ field loss), Pitfall 16 (sync import blocks worker), Pitfall 7 (EOR whitespace), Pitfall 8 (TIME_OFF optional)
+**Addresses:** Must-have: settings UI; differentiator: clear callsign distinction labeling; optional: profile completeness nudge
 
-**Research flag:** Needs validation of async job queue choice (Celery + Redis vs. FastAPI BackgroundTasks vs. RQ) — for self-hosted deployments, adding Redis is an operational burden; FastAPI BackgroundTasks may be sufficient for typical file sizes.
-
----
-
-### Phase 4: Multi-Operator and Admin
-
-**Rationale:** Multi-operator concurrent safety is built into the data model from Phase 1, but the operator attribution, admin UI, and account management features are grouped here. Real-time visibility (WebSocket) is the primary differentiator and belongs in its own phase after the write path is proven.
-
-**Delivers:** Admin UI for account creation/disable/reset, operator attribution on all QSOs (`imported_by_operator_id`), multi-operator concurrent write safety validation, basic DXCC entity derivation from cty.dat.
-
-**Addresses:** Admin user management, multi-operator logging, operator attribution from import, DXCC entity display
-
-**Avoids:** Pitfall 10 (STATION_CALLSIGN vs OPERATOR confusion on import)
-
----
-
-### Phase 5: Real-Time Visibility and Statistics
-
-**Rationale:** Real-time multi-operator visibility (seeing other operators' QSOs appear without page refresh) is the primary differentiator over single-user logbooks and CloudLog. It belongs after the write path is stable. Statistics dashboard is low-risk (reads only) and grouped here as a natural companion.
-
-**Delivers:** WebSocket or SSE live QSO feed per station/session, band/mode/time statistics dashboard, QSO confirmation status display (LOTW_QSL_SENT/RCVD, EQSL fields).
-
-**Addresses:** Real-time multi-operator visibility, statistics dashboard, QSO confirmation status
-
-**Avoids:** Pitfall 17 (LoTW sync state per-QSO, not per-batch — fields must be in schema from Phase 1)
-
-**Research flag:** WebSocket vs SSE tradeoff in FastAPI for this use case; also whether Beanie's watch/change-stream support is sufficient or requires raw Motor.
-
----
+**Avoids:** Pitfall 20 (retroactive update misunderstanding — UI copy clarifies new-QSOs-only behavior explicitly)
 
 ### Phase Ordering Rationale
 
-- The ADIF Library must precede everything that touches QSO data — parser correctness cannot be retrofitted without data migration risk.
-- The compound unique index (Pitfall 5) and UTC datetime convention (Pitfall 11) must exist before the first production write. No exceptions.
-- Import/Export (Phase 3) depends on a stable QSO API contract (Phase 2) so the import pipeline writes through the same validation logic as manual entry.
-- Real-time features (Phase 5) are intentionally last — concurrent write safety from the data model handles the correctness requirement; the visibility layer is additive.
-- Admin and operator management (Phase 4) is placed before real-time because it establishes the account model that WebSocket sessions will authenticate against.
+- Model before schema before router before UI is forced by Beanie and Pydantic import dependencies — there is no flexibility in this order
+- Grid utility is decoupled from DB and can be validated immediately after Phase 1 without standing up the full app
+- QSO auto-stamping (Phase 3) is deferred until the profile API is verified — the `profile=None` default means Phase 3 can be developed and shipped without breaking existing QSO creation at any point
+- ADIF import path (`process_import()`) is explicitly out-of-scope for all phases — it is not touched
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 1:** Verify ADIF library maintainership on PyPI (`adif-io`, `adif3`) before choosing library vs. custom parser. Custom is ~100 lines and avoids a dependency risk — lean toward custom given the parser correctness requirements documented in PITFALLS.md.
-- **Phase 3:** Validate async job queue choice for import. For self-hosted Docker deployments, adding Redis/Celery is a non-trivial operational dependency. Research whether FastAPI BackgroundTasks + status polling is sufficient for expected file sizes (most operator logs are under 50,000 QSOs).
-- **Phase 5:** Research FastAPI WebSocket patterns for multi-operator live feed; verify Beanie/Motor change stream support.
+Phases that need verification during planning:
 
-Phases with standard patterns (can skip `/gsd:research-phase`):
-- **Phase 2:** Standard FastAPI CRUD with pagination — well-documented, no novel patterns.
-- **Phase 4:** Standard admin panel CRUD with HTMX — well-documented. DXCC lookup from cty.dat is a solved problem with multiple Python implementations.
+- **Phase 2:** Verify the exact ADIF 3.1.7 field name (`MY_ANT` vs. `MY_ANTENNA`) against adif.org before locking the schema — field name confidence is MEDIUM because WebFetch to adif.org was unavailable during research. A single direct fetch of the spec at planning time resolves this permanently and affects only one field name in the schema and stamp mapping.
 
----
+- **Phase 4 (ADIF lat/lon export):** Verify the `XDDD MM.MMM` format against ADIF 3.1.7 spec before writing the export conversion utility — confidence on the exact format string is MEDIUM.
+
+Phases with standard, well-documented patterns (can skip research-phase):
+
+- **Phase 1:** Beanie optional field addition is the canonical documented pattern; `maidenhead` API confirmed via PyPI and multiple sources
+- **Phase 3:** `build_qso_dict()` extension is a local function change; the additive stamp pattern is straightforward and follows patterns established in v1.0
+- **Phase 4:** HTMX form follows established patterns from existing log templates in the codebase
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM | Core choices (FastAPI, Motor, MongoDB, Docker) are solid. ADIF library selection is LOW — verify on PyPI before kickoff. python-jose should be checked for CVEs. |
-| Features | HIGH | ADIF spec is stable. Ham radio logbook feature expectations are well-established across QRZ, CloudLog, LoTW documentation. Competitive landscape should be spot-checked on current product pages. |
-| Architecture | MEDIUM-HIGH | ADIF-as-internal-format and shared-collection multi-tenancy are strong, well-reasoned recommendations. Specific FastAPI/Beanie integration patterns should be validated against current docs. |
-| Pitfalls | MEDIUM-HIGH | ADIF parsing gotchas and MongoDB concurrency hazards are well-documented. UTC/datetime issues are a known Python/PyMongo problem. ADIF byte-length issue is spec-defined and verifiable. |
+| Stack | HIGH | Existing stack unchanged; maidenhead API confirmed via PyPI and multiple sources; pydantic[email] is standard Pydantic ecosystem practice |
+| Features | MEDIUM-HIGH | ADIF spec cross-checked via multiple search snippets; POTA, LoTW, and N1MM+ behavior from official docs; direct adif.org fetch unavailable — field list assembled from spec mirrors |
+| Architecture | HIGH | Based on direct inspection of the live codebase; all integration points identified with specific file and function references; no guesswork |
+| Pitfalls | HIGH | 8 of 8 v1.1-specific pitfalls derived from direct code inspection; `center=True` and LoTW STATION_CALLSIGN behavior verified via WebSearch against official sources |
 
-**Overall confidence:** MEDIUM — sufficient to begin implementation with the phase structure above. The main uncertainty is ADIF library maintainership and async job queue choice for import, both of which should be resolved before Phase 1 and Phase 3 planning respectively.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **ADIF library selection:** Verify `adif-io` and `adif3` on PyPI before Phase 1. If both are unmaintained or have correctness issues, build a custom parser — the PITFALLS research makes clear it needs to be a tag-stream state machine anyway, which a maintained library may not be.
-- **Async import job queue:** Before Phase 3 planning, decide whether to accept Redis/Celery as a Docker Compose service dependency or stay with FastAPI BackgroundTasks. This affects the deployment architecture.
-- **cty.dat integration:** DXCC entity lookup from cty.dat is needed for Phase 4. The format is well-documented (AD1C Country Files) but a Python library needs to be identified or a simple parser written.
-- **LoTW/eQSL field schema:** The per-QSO LoTW/eQSL sync fields (`LOTW_QSL_SENT`, `LOTW_QSL_RCVD`, etc.) must be in the Phase 1 schema even though the LoTW integration feature is deferred to v2. Adding them later requires a data migration.
-- **Version pinning:** All library versions in STACK.md carry MEDIUM confidence and require PyPI verification before writing `requirements.txt`.
+- **`MY_ANT` vs. `MY_ANTENNA` field name:** STACK.md identifies `MY_ANTENNA` as the correct ADIF name; ARCHITECTURE.md stores `my_ant` internally and maps to `MY_ANTENNA` at stamp time; FEATURES.md lists `MY_ANT`. The research source for this is LOW confidence (a forum post). Resolve at Phase 2 planning by fetching adif.org/317 directly. This affects only one field name in the schema and stamp mapping.
 
----
+- **ADIF `MY_LAT`/`MY_LON` export format:** Stored as decimal float internally (correct for computation). The ADIF `Location` data type specifies `XDDD MM.MMM` format for export. A conversion utility is needed in Phase 4 but the exact format string should be verified against the spec before writing tests.
+
+- **`MY_POWER` vs. `TX_PWR`:** Research is conclusive — `MY_POWER` does not exist in ADIF; `TX_PWR` is the correct field. Profile stores `power_watts`; `build_qso_dict()` stamps it as `TX_PWR`. No blocker, but worth checking whether any existing imported QSO documents carry `MY_POWER` from third-party ADIF imports (cosmetic concern only).
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- ADIF 3.x specification (training data) — field names, format structure, enumeration values, byte-length encoding, EOH/EOR semantics
-- MongoDB multi-tenancy and compound index patterns (training data) — shared collection vs. per-collection recommendation, upsert idempotency
-- Python/PyMongo naive datetime behavior (training data) — PyMongo BSON datetime storage, tzinfo stripping
+- Live codebase inspection (`app/auth/models.py`, `app/qso/models.py`, `app/qso/service.py`, `app/adif/router.py`, `app/auth/dependencies.py`, `app/database.py`, `app/main.py`) — architecture decisions, integration points, existing field names
+- ADIF for POTA Technical Reference (https://docs.pota.app/docs/activator_reference/ADIF_for_POTA_reference.html) — STATION_CALLSIGN mandate for club logs
+- POTA Club Activation Guide (https://docs.pota.app/docs/activator_reference/activator_guide_clubs.html) — club call requirements
+- N1MM+ The Configurer (https://n1mmwp.hamdocs.com/setup/the-configurer/) — OPERATOR per-QSO, STATION_CALLSIGN model
+- WSJT-X User Guide 2.6.1 (https://wsjt.sourceforge.io/wsjtx-doc/wsjtx-main-2.6.1.html) — 6-char grid as primary station location input
+- Maidenhead Locator System Wikipedia (https://en.wikipedia.org/wiki/Maidenhead_Locator_System) — 4/6/8-char precision levels, SW corner vs. center
+- maidenhead PyPI 1.8.0 (https://pypi.org/project/maidenhead/) — `center=True` parameter confirmed
+- email-validator PyPI 2.3.0 (https://pypi.org/project/email-validator/) — pydantic[email] integration
+- Beanie ODM initialization (https://beanie-odm.dev/tutorial/initialization/) — `allow_index_dropping=False` default, index creation behavior
+- LoTW developer docs (https://lotw.arrl.org/lotw-help/developer-submit-qsos/?lang=en) — STATION_CALLSIGN certificate mismatch behavior
 
 ### Secondary (MEDIUM confidence)
-- CloudLog (open source, GitHub) — multi-operator feature set, self-hosted PHP reference implementation
-- QRZ Logbook, LoTW documentation (training data) — feature expectations, LoTW TQSL architecture
-- FastAPI, Motor, Beanie documentation (training data, Aug 2025 cutoff) — async patterns, ODM usage
+- ADIF 3.1.7 specification (https://adif.org/317/ADIF_317.htm) — MY_* field list assembled from search snippets; direct page fetch unavailable during research
+- ADIF 3.1.4 specification (https://www.adif.org/314/ADIF_314.htm) — baseline MY_* field set confirmed via multiple snippets
+- ADIF 3.1.6 release notes — MY_CNTY_ALT, MY_DARC_DOK, MY_MORSE_KEY_* additions
+- HAMRS Community thread (https://community.hamrs.app/t/field-day-help-ive-confused-myself-with-adif-station-callsign-and-operator/584) — confirms OPERATOR/STATION_CALLSIGN confusion is a real, recurring operator problem
 
 ### Tertiary (LOW confidence — verify before implementation)
-- `adif-io` on PyPI: https://pypi.org/project/adif-io/ — verify maintained, current version
-- `adif3` on PyPI: https://pypi.org/project/adif3/ — evaluate as fallback
-- `mongomock-motor` — verify Motor 3.x compatibility
-- `python-jose` — check for security advisories
-- FastAPI current stable version: https://fastapi.tiangolo.com
+- Log4OM forum (https://forum.log4om.com/viewtopic.php?t=5219) — `MY_ANTENNA` vs. `MY_ANT` field name; needs verification against adif.org spec directly
 
 ---
-
-*Research completed: 2026-04-03*
+*Research completed: 2026-04-04*
 *Ready for roadmap: yes*

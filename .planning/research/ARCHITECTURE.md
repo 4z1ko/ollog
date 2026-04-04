@@ -1,378 +1,436 @@
 # Architecture Patterns
 
-**Domain:** Multi-operator ham radio QSO logbook
-**Researched:** 2026-04-03
-**Confidence:** MEDIUM (training data; external verification blocked — flag for validation)
+**Domain:** Operator profile integration — ham radio logbook (v1.1 milestone)
+**Researched:** 2026-04-04
+**Confidence:** HIGH — based on direct inspection of the live codebase
+
+---
+
+## Context: What Already Exists
+
+The existing codebase has these components relevant to this milestone:
+
+| Existing Component | Location | Notes |
+|-------------------|----------|-------|
+| `User` Beanie Document | `app/auth/models.py` | `username`, `callsign`, `hashed_password`, `role`, `enabled` — `model_config` has `extra` not set (defaults to `ignore`) |
+| `QSO` Beanie Document | `app/qso/models.py` | `extra="allow"` — stores arbitrary ADIF fields |
+| `build_qso_dict()` | `app/qso/service.py` | Constructs QSO dict from form input + injects `operator_callsign` |
+| `get_current_user` / `get_current_operator_callsign` | `app/auth/dependencies.py` | Returns `User` doc or `user.callsign` string |
+| QSO creation flow | `app/qso/router.py` `create_qso()`, `app/qso/ui_router.py` `submit_qso()` | Two call sites — both delegate to `build_qso_dict()` |
+| `init_beanie()` | `app/database.py` | Document models list must be updated for any new Beanie document |
 
 ---
 
 ## Recommended Architecture
 
-A layered, service-oriented monolith is the right shape for this project. It is not a microservices system (premature for a self-hosted ham radio log), but it has clean internal component boundaries so pieces can be extracted later. Three tiers:
+### Decision: Embed Profile Fields Directly in `User` — Do Not Create a Separate Collection
 
-```
-[Web UI]  ←→  [REST API / Auth layer]  ←→  [MongoDB]
-                       |
-               [ADIF Parser / Serializer]
-                       |
-               [Import / Export Service]
-```
+**Rationale:**
 
-The API tier owns all business logic. The UI is a thin client. ADIF parsing is a pure library with no database dependency — this keeps it testable and reusable by both the REST endpoints and the import/export service.
+1. **Beanie supports it cleanly.** The `User` document currently uses `ConfigDict(populate_by_name=True)` with no `extra` setting. Adding `Optional` fields to the class body requires zero schema migration — MongoDB documents without the new fields simply return `None` for those attributes.
 
----
+2. **No join problem.** Profile data is always accessed in the context of the authenticated user. A separate `OperatorProfile` collection would require a second DB round-trip on every profile read, or a `fetch_links()` call in Beanie. Embedding eliminates that entirely.
 
-## Component Boundaries
+3. **Profile data is small and user-scoped.** Grid locators, rig descriptions, station callsigns — these are a handful of string fields, not a growing subdocument list. Embedding does not create document bloat.
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| **ADIF Library** | Parse `.adi`/`.adif` text → Python dicts; serialize Python dicts → ADIF text | API layer, Import/Export service |
-| **Auth Service** | JWT or session issuance, callsign-to-account binding, admin role check | API layer only |
-| **QSO API** | CRUD endpoints for QSOs; enforces operator isolation; validates ADIF fields | MongoDB, ADIF Library, Auth Service |
-| **Import Service** | Accept multipart `.adi`/`.adif` upload; batch-write QSOs under authenticated operator | QSO API (or MongoDB directly with operator context), ADIF Library |
-| **Export Service** | Query QSOs for operator, serialize to ADIF, stream file download | MongoDB, ADIF Library |
-| **Admin API** | User/account management (create, disable, reset); no QSO logic | MongoDB (users collection), Auth Service |
-| **Web UI** | Form-based QSO entry, log view/search, import/export triggers, admin panel | REST API only |
-| **MongoDB** | Persistent storage: QSOs collection, users collection | API layer only (never from UI) |
+4. **Separate collection does not solve any real problem here.** It would be appropriate if profile data were independently queried, shared across users, or had a different access control boundary. None of those apply.
 
-The UI never touches MongoDB directly. The ADIF Library never touches MongoDB. These two constraints keep the architecture clean.
+**What to change in `User`:** Add `Optional` fields for all profile data. The existing `model_config = ConfigDict(populate_by_name=True)` is sufficient — do not add `extra="allow"` (profile fields are declared, not arbitrary).
 
 ---
 
-## Data Flow: QSO Entry (Manual)
+## Component Boundaries (New vs Modified)
 
-```
-Operator fills web form
-  → POST /api/qsos  (JSON body: ADIF field names as keys)
-    → Auth middleware validates JWT, extracts callsign
-      → QSO API validates required fields (CALL, QSO_DATE, TIME_ON, BAND or FREQ, MODE)
-        → ADIF Library normalizes field names (uppercase) and types
-          → MongoDB insert into `qsos` collection with operator field injected
-            → Return created document (with _id)
-              → UI appends to log view
-```
+### New Components
 
----
+| Component | Location | Responsibility |
+|-----------|----------|---------------|
+| Profile fields on `User` | `app/auth/models.py` | Store all MY_* ADIF fields, name, QTH, email, grid, lat/lon |
+| Profile Pydantic schemas | `app/auth/models.py` or new `app/profile/schemas.py` | `ProfileUpdateRequest` (validates form input), `ProfileResponse` (read shape) |
+| Grid conversion utility | `app/utils.py` or `app/profile/grid.py` | `grid_to_latlon()` and `latlon_to_grid()` wrappers around `maidenhead` library |
+| Profile API router | `app/profile/router.py` | `GET /api/profile` and `PATCH /api/profile` — Bearer auth |
+| Profile UI router | `app/profile/ui_router.py` | `GET /log/profile` and `POST /log/profile` — cookie auth, HTMX form |
+| Profile template | `templates/log/profile.html` | Settings page form |
 
-## Data Flow: ADIF File Import
+### Modified Components
 
-```
-Operator selects .adi/.adif file in UI
-  → POST /api/import  (multipart/form-data)
-    → Auth middleware validates JWT, extracts callsign
-      → Import Service streams/reads file
-        → ADIF Library parses into list of QSO dicts
-          → For each QSO dict:
-              - Inject operator_callsign field
-              - Validate required fields (skip or accumulate errors)
-              - Bulk-insert to MongoDB (ordered=False for concurrency resilience)
-            → Return summary: {accepted: N, rejected: M, errors: [...]}
-```
-
-Using `ordered=False` on bulk inserts means one bad QSO does not abort the whole batch — critical for real-world ADIF files that may contain edge-case records.
+| Component | What Changes | Why |
+|-----------|-------------|-----|
+| `app/auth/models.py` | Add profile fields to `User` | Core storage decision |
+| `app/qso/service.py` `build_qso_dict()` | Accept optional `profile` param; stamp MY_* fields | Auto-stamp logic lives here |
+| `app/qso/router.py` `create_qso()` | Fetch `User` doc, pass profile to `build_qso_dict()` | REST API QSO creation path |
+| `app/qso/ui_router.py` `submit_qso()` | Fetch `User` doc, pass profile to `build_qso_dict()` | UI QSO creation path |
+| `app/database.py` | No change if profile stays in `User` | Profile fields are on existing document |
+| `app/main.py` | Register new profile routers | Wire profile routers into app |
+| `templates/log/form.html` and nav partials | Add "Profile / Settings" nav link | UI navigation |
 
 ---
 
-## Data Flow: ADIF File Export
-
-```
-Operator clicks "Export Log" in UI
-  → GET /api/export  (query params: optional date range, band, mode filters)
-    → Auth middleware validates JWT, extracts callsign
-      → Export Service queries MongoDB for operator's QSOs (with filters)
-        → ADIF Library serializes each document to ADIF record
-          → Streaming HTTP response with Content-Disposition: attachment
-            → Browser saves .adi file
-```
-
-Streaming the response (generator pattern in Python) avoids loading thousands of QSOs into memory at once.
-
----
-
-## MongoDB Document Structure
-
-### Collection: `qsos`
-
-One document per QSO. Field names follow ADIF standard (uppercase strings) with two system fields prefixed with underscore.
-
-```json
-{
-  "_id": "ObjectId(...)",
-  "_operator": "W1AW",
-  "_imported_at": "2026-04-03T14:32:00Z",
-  "CALL": "K9XYZ",
-  "QSO_DATE": "20260403",
-  "TIME_ON": "1430",
-  "BAND": "20M",
-  "FREQ": "14.225",
-  "MODE": "SSB",
-  "RST_SENT": "59",
-  "RST_RCVD": "57",
-  "NAME": "Bob",
-  "QTH": "Chicago, IL",
-  "COMMENT": "Good signal, slight QSB",
-  "GRIDSQUARE": "EN61",
-  "DXCC": "291",
-  "COUNTRY": "United States",
-  "STATE": "IL",
-  "CONT": "NA",
-  "IOTA": "",
-  "TX_PWR": "100",
-  "ANT_AZ": "",
-  "NOTES": ""
-}
-```
-
-**Key design decisions:**
-
-- `_operator` is the single multi-tenancy discriminator. All queries filter on this field first.
-- ADIF field names stored verbatim (uppercase). No translation layer needed on read — ADIF export is trivial.
-- `_imported_at` is server-assigned on write. Not an ADIF field so prefixed with `_`.
-- No nested documents. ADIF is flat; keep MongoDB documents flat. Avoids projection complexity.
-- Flexible schema: operators may log non-standard ADIF fields (contest software extensions, app-defined fields). Store them as-is. MongoDB handles this naturally.
-
-### Collection: `users`
-
-```json
-{
-  "_id": "ObjectId(...)",
-  "callsign": "W1AW",
-  "callsign_normalized": "w1aw",
-  "email": "op@example.com",
-  "password_hash": "bcrypt...",
-  "role": "operator",
-  "active": true,
-  "created_at": "2026-01-15T10:00:00Z",
-  "last_login": "2026-04-03T14:00:00Z"
-}
-```
-
-`callsign_normalized` (lowercase) enables case-insensitive uniqueness index. Callsigns are case-insensitive in ham radio practice.
-
-### Indexes
-
-```
-qsos:
-  { _operator: 1, QSO_DATE: -1, TIME_ON: -1 }  // primary query pattern: operator's log sorted by date
-  { _operator: 1, CALL: 1 }                     // search by contacted callsign
-  { _operator: 1, BAND: 1, MODE: 1 }            // filter by band/mode
-  { _operator: 1, _id: 1 }                      // pagination cursor
-
-users:
-  { callsign_normalized: 1 }  // unique index
-  { email: 1 }                // unique index
-```
-
-All QSO indexes lead with `_operator`. This is the most important performance decision — without it, any query scans the entire collection as the log grows.
-
----
-
-## Multi-Operator Isolation
-
-**Recommendation: shared collection with `_operator` field — not per-operator collections.**
-
-Rationale:
-- Per-operator collections seem intuitive but cause operational problems: dynamic collection creation, inability to use collection-level indexes efficiently across operators, harder aggregation queries for admin views.
-- Shared collection with a leading `_operator` in every compound index gives equivalent query isolation with none of the operational overhead.
-- MongoDB handles millions of documents in a single collection without degradation when indexes are correct.
-- Auth middleware injects the operator's callsign into every query — it is structurally impossible for the API to return another operator's QSOs without an explicit bug in the auth layer.
-
-**Isolation enforcement pattern:**
+## `User` Model After Profile Fields
 
 ```python
-# In every QSO query, operator is always injected from the JWT, never from request body
-def get_qsos(operator_callsign: str, filters: dict) -> list:
-    query = {"_operator": operator_callsign, **filters}
-    return db.qsos.find(query)
+class User(Document):
+    model_config = ConfigDict(populate_by_name=True)
+
+    # Auth fields (unchanged)
+    username: str
+    hashed_password: str
+    callsign: str
+    role: str = "operator"
+    enabled: bool = True
+
+    # Profile — personal info
+    name: Optional[str] = None          # ADIF MY_NAME equivalent
+    email: Optional[str] = None
+    qth: Optional[str] = None           # City/location free text
+
+    # Station identification
+    station_callsign: Optional[str] = None  # ADIF STATION_CALLSIGN (club call etc.)
+
+    # Location
+    gridsquare: Optional[str] = None    # Maidenhead, stored uppercase, e.g. "FN31pr"
+    lat: Optional[float] = None         # WGS84, derived from gridsquare or entered directly
+    lon: Optional[float] = None         # WGS84
+
+    # Station equipment — ADIF MY_* fields
+    my_rig: Optional[str] = None
+    my_ant: Optional[str] = None
+    my_pwr: Optional[str] = None        # Stored as string per ADIF TX_PWR convention
+    my_city: Optional[str] = None
+    my_country: Optional[str] = None
+    my_state: Optional[str] = None
+    my_dxcc: Optional[str] = None
+    my_cont: Optional[str] = None
+    my_iota: Optional[str] = None
+    my_cnty: Optional[str] = None
+
+    class Settings:
+        name = "users"
+        indexes = [...]  # unchanged
 ```
 
-The operator callsign never comes from user-supplied query parameters for read/write operations. It comes only from the validated auth token.
+All new fields are `Optional[str | float] = None`. Existing `User` documents with none of these fields continue to load correctly — Beanie/Pydantic fills `None` for absent keys.
 
 ---
 
-## ADIF Parsing Architecture
+## Data Flow: QSO Auto-Stamping
 
-The ADIF parser is a standalone Python module with no framework dependencies.
+The auto-stamp behavior must work identically for both the REST API path and the UI path. Both already call `build_qso_dict()`. The modification is minimal.
 
-**ADIF format recap:**
+### Current Flow (both paths)
 
 ```
-<CALL:5>W1AW <BAND:3>20M <MODE:3>SSB <QSO_DATE:8>20260403 <TIME_ON:4>1430 <EOR>
+JWT -> callsign string -> build_qso_dict(body_dict, operator=callsign) -> QSO dict
 ```
 
-Each field: `<FIELDNAME:LENGTH>value`. Record ends with `<EOR>`. File header ends with `<EOH>`.
+### New Flow
 
-**Parser responsibilities:**
+```
+JWT -> User document -> build_qso_dict(body_dict, operator=user.callsign, profile=user) -> QSO dict
+```
 
-1. Tokenize: scan for `<TAG:LEN>` markers, extract value by length
-2. Handle header (ignore everything before `<EOH>`)
-3. Build dict per record: `{"CALL": "W1AW", "BAND": "20M", ...}`
-4. Normalize field names to uppercase
-5. Strip leading/trailing whitespace from values
-6. Accumulate records until EOF
+The dependency injection already returns the full `User` document via `get_current_user`. Both `create_qso()` (REST) and `submit_qso()` (UI) currently call `get_current_operator_callsign` which strips the `User` to just a string. Change the dependency to `get_current_user` (or `get_current_user_cookie` for UI routes), then derive both the callsign and profile from the same document. No extra DB round-trip.
 
-**Serializer responsibilities:**
+### `build_qso_dict()` Changes
 
-1. For each QSO dict, emit `<FIELDNAME:len(value)>value ` for each field
-2. Skip system fields (`_operator`, `_id`, `_imported_at`)
-3. Emit `<EOR>\n` to close each record
-4. Prepend ADIF header block with timestamp and app name
+```python
+def build_qso_dict(body_dict: dict, operator: str, profile=None) -> dict:
+    result = dict(body_dict)
+    # ... existing normalization unchanged ...
 
-**Parser lives at:** `app/adif/parser.py` — pure functions, no class state required.
+    result["operator_callsign"] = operator
+    result["is_deleted"] = False
+
+    # Always stamp OPERATOR (the logging callsign) as an explicit ADIF field
+    if "OPERATOR" not in result:
+        result["OPERATOR"] = operator
+
+    # Stamp profile fields only if not already provided in body_dict
+    if profile is not None:
+        if profile.station_callsign and "STATION_CALLSIGN" not in result:
+            result["STATION_CALLSIGN"] = profile.station_callsign
+        if profile.name and "MY_NAME" not in result:
+            result["MY_NAME"] = profile.name
+        if profile.gridsquare and "MY_GRIDSQUARE" not in result:
+            result["MY_GRIDSQUARE"] = profile.gridsquare
+        if profile.my_rig and "MY_RIG" not in result:
+            result["MY_RIG"] = profile.my_rig
+        if profile.my_ant and "MY_ANTENNA" not in result:
+            result["MY_ANTENNA"] = profile.my_ant
+        if profile.my_pwr and "TX_PWR" not in result:
+            result["TX_PWR"] = profile.my_pwr
+        # ... additional MY_* fields ...
+
+    return result
+```
+
+**Key behavior:** Body fields always win over profile defaults. This allows an operator to override their default station when logging from a different location — they can send `MY_GRIDSQUARE` in the QSO body and it takes precedence.
+
+**OPERATOR field:** ADIF `OPERATOR` field is the callsign of the person logging — the same value as `_operator`. Stamping it as an explicit QSO field ensures it appears in ADIF export without touching the serializer.
+
+---
+
+## Data Flow: Profile Read and Update
+
+```
+GET /log/profile
+  -> get_current_user_cookie() -> User document
+    -> Render profile.html with user fields pre-filled
+
+POST /log/profile  (HTMX form)
+  -> get_current_user_cookie() -> User document
+    -> Validate ProfileUpdateRequest (Pydantic schema)
+      -> If gridsquare changed: derive lat/lon via grid_to_latlon()
+      -> If lat/lon changed directly: derive gridsquare via latlon_to_grid()
+      -> user.set({updated_fields})
+        -> Return success partial (HTMX swap)
+```
+
+---
+
+## Maidenhead Grid Conversion
+
+### Where It Lives
+
+`app/profile/grid.py` — keeps the module focused. `app/utils.py` is already small but is auth-adjacent; grid conversion is profile-specific.
+
+### Library Choice
+
+Use the **`maidenhead`** package (PyPI: `maidenhead`, maintained by space-physics).
+
+- Pure Python, no compiled dependencies
+- Well-established in the ham radio Python ecosystem
+- API: `mh.to_maiden(lat, lon, level)` for lat/lon to grid; `mh.to_location(grid, center=True)` for grid to lat/lon center point
+- `center=True` returns the center of the grid square — correct for display and distance calculation
+
+Confidence: MEDIUM — confirmed as dominant PyPI library for this purpose via search. Specific function signatures (`to_maiden`, `to_location`, `center` kwarg) confirmed via search results. Validate exact API against installed version before coding.
+
+```python
+# app/profile/grid.py
+import maidenhead as mh
+
+def grid_to_latlon(grid: str) -> tuple[float, float] | None:
+    """Convert Maidenhead grid locator to (lat, lon) center point.
+    Returns None if the grid string is invalid.
+    """
+    try:
+        lat, lon = mh.to_location(grid.upper(), center=True)
+        return lat, lon
+    except Exception:
+        return None
+
+def latlon_to_grid(lat: float, lon: float, precision: int = 3) -> str:
+    """Convert WGS84 lat/lon to Maidenhead grid locator.
+    precision=3 gives 6-character locator (field+square+subsquare).
+    Returns uppercase grid string e.g. "FN31pr".
+    """
+    return mh.to_maiden(lat, lon, level=precision)
+```
+
+**Install:** `pip install maidenhead`
+
+### Validation Rule
+
+Grid locators are validated on profile save: 4, 6, or 8 characters matching the Maidenhead pattern `[A-R]{2}[0-9]{2}([a-x]{2}([0-9]{2})?)?` (case-insensitive). Reject anything else with a clear error message. When a valid grid is saved, derive and overwrite lat/lon immediately.
+
+### Bidirectional Sync Rule
+
+- If operator enters **grid locator**: derive and overwrite lat/lon.
+- If operator enters **lat/lon directly**: derive and overwrite gridsquare (to 6-character precision).
+- Never leave grid and lat/lon out of sync after a save.
+
+---
+
+## Profile API Shape
+
+### `GET /api/profile`
+
+Returns the authenticated operator's profile fields (not auth fields).
+
+```json
+{
+  "callsign": "W1AW",
+  "name": "Hiram Percy Maxim",
+  "email": "op@example.com",
+  "qth": "Hartford, CT",
+  "station_callsign": null,
+  "gridsquare": "FN31pr",
+  "lat": 41.708,
+  "lon": -72.708,
+  "my_rig": "Icom IC-7300",
+  "my_ant": "G5RV",
+  "my_pwr": "100",
+  "my_city": "Hartford",
+  "my_state": "CT",
+  "my_country": "United States",
+  "my_dxcc": "291",
+  "my_cont": "NA",
+  "my_iota": null,
+  "my_cnty": null
+}
+```
+
+### `PATCH /api/profile`
+
+Accepts partial updates. Any field not included in the body is left unchanged. Validates grid locator format if present. Returns updated profile.
+
+---
+
+## MongoDB Document Impact
+
+No migration required. The `users` collection documents gain new optional fields on first profile save. The existing unique index on `username` is unchanged. No new indexes needed — profile is always read by authenticated user identity, which hits the `username` unique index directly.
+
+**New `users` document shape (after first profile save):**
+
+```json
+{
+  "_id": "ObjectId(...)",
+  "username": "w1aw",
+  "hashed_password": "argon2...",
+  "callsign": "W1AW",
+  "role": "operator",
+  "enabled": true,
+  "name": "Hiram Percy Maxim",
+  "email": "op@example.com",
+  "qth": "Hartford, CT",
+  "station_callsign": null,
+  "gridsquare": "FN31pr",
+  "lat": 41.708,
+  "lon": -72.708,
+  "my_rig": "Icom IC-7300",
+  "my_ant": "G5RV",
+  "my_pwr": "100"
+}
+```
+
+**QSO documents after auto-stamp:**
+
+```json
+{
+  "_operator": "W1AW",
+  "CALL": "K9XYZ",
+  "OPERATOR": "W1AW",
+  "STATION_CALLSIGN": "W1AW",
+  "MY_NAME": "Hiram Percy Maxim",
+  "MY_GRIDSQUARE": "FN31pr",
+  "MY_RIG": "Icom IC-7300",
+  "MY_ANTENNA": "G5RV",
+  "TX_PWR": "100",
+  "...": "..."
+}
+```
+
+Auto-stamped fields are regular ADIF fields in the QSO document. Because `QSO` uses `extra="allow"`, they store and export losslessly without any change to the serializer.
 
 ---
 
 ## Patterns to Follow
 
-### Pattern 1: Operator Context Injection at Auth Boundary
+### Pattern 1: Profile Embedded in User — Single Document Fetch
 
-**What:** Auth middleware extracts callsign from JWT and attaches it to the request context object. All downstream handlers read operator identity from context, never from request data.
+The authenticated `User` document is already fetched on every protected request via `get_current_user`. Profile data comes for free. No second collection, no `fetch_links()`, no extra query.
 
-**When:** Every QSO read, write, import, export operation.
+### Pattern 2: Auto-Stamp in Service Layer, Not Route Layer
 
-**Why:** Single enforcement point. If a bug later accepts a spoofed callsign in a request body, the auth boundary still prevails.
+`build_qso_dict()` in `app/qso/service.py` is the single function that constructs QSO documents. Profile stamping belongs here — it is business logic (what goes into a QSO), not routing logic (what HTTP request does what). Both the REST and UI routers call this function, so the stamp happens in exactly one place.
 
-### Pattern 2: ADIF-as-Internal-Format
+### Pattern 3: Body Wins Over Profile Defaults
 
-**What:** Store ADIF field names directly as MongoDB document keys. Do not translate to a different internal schema and back.
+When the QSO request body explicitly includes a MY_* field (e.g., during ADIF import of a legacy file that already has `MY_RIG`), the body value is preserved. Profile values are defaults, not overrides.
 
-**When:** QSO document design.
+### Pattern 4: ADIF Import Bypass
 
-**Why:** Eliminates a translation layer. ADIF import maps 1:1 to document fields. ADIF export maps 1:1 from document fields. Fewer bugs, faster implementation, standard field names are self-documenting.
-
-### Pattern 3: Streaming Export
-
-**What:** Use Python generator + Flask/FastAPI streaming response for export.
-
-**When:** ADIF export endpoint.
-
-**Why:** Operators with 10,000+ QSOs (common for active DX chasers) should not cause memory spikes. MongoDB cursor → generator → streaming response handles arbitrary log sizes.
-
-### Pattern 4: Bulk Insert with ordered=False for Import
-
-**What:** Use `pymongo` `insert_many` with `ordered=False`.
-
-**When:** ADIF file import.
-
-**Why:** One malformed record in a 5,000-QSO import should not abort the entire batch. Collect errors, return summary. `ordered=False` also allows MongoDB to parallelize writes internally.
+Profile auto-stamping applies only to new QSOs logged interactively (REST POST, UI form). `process_import()` in `app/adif/router.py` must NOT auto-stamp profile fields — imported records already have their own MY_* values from when they were originally logged. Stamping over them would corrupt historical data.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Per-Operator Collections
+### Anti-Pattern 1: Separate `OperatorProfile` Collection
 
-**What:** Creating a separate MongoDB collection per callsign (e.g., `qsos_w1aw`, `qsos_k9xyz`).
+**What goes wrong:** Every QSO creation requires a second DB round-trip to fetch profile, or Beanie `fetch_links()` with `LazyRef`. The `init_beanie()` document list grows. A foreign key relationship exists that Beanie handles loosely (no enforced referential integrity in MongoDB).
 
-**Why bad:** Dynamic collection creation is operationally fragile. Cross-operator admin queries require collection enumeration. Indexes cannot span collections. Collection count grows unbounded.
+**Instead:** Embed profile fields in `User`. Beanie adds new optional fields to existing documents transparently. No migration, no extra query.
 
-**Instead:** Single `qsos` collection, `_operator` field, compound indexes leading with `_operator`.
+### Anti-Pattern 2: Nested Sub-Document for Profile
 
-### Anti-Pattern 2: Storing ADIF-Encoded Strings in MongoDB
+**What goes wrong:** `User.profile.gridsquare` vs `User.gridsquare` — the extra nesting adds dot-notation path complexity in Beanie `$set` operations (`{"profile.gridsquare": ...}`) and in Jinja2 templates. Sub-documents are appropriate for repeated/list structures. A flat set of optional string fields does not warrant nesting.
 
-**What:** Storing the raw ADIF string `<CALL:5>W1AW <BAND:3>20M...` as a single document field.
+**Instead:** Flat optional fields directly on `User`.
 
-**Why bad:** Loses all queryability. Cannot filter by band, mode, callsign, or date without parsing at query time. Defeats the purpose of a database.
+### Anti-Pattern 3: Auto-Stamping During ADIF Import
 
-**Instead:** Parse ADIF on ingest, store as flat document with individual fields.
+**What goes wrong:** ADIF files being imported already contain `MY_RIG`, `MY_ANTENNA`, `OPERATOR` etc. from when they were originally logged. Overwriting with current profile values corrupts historical records — the wrong rig, wrong grid square from a different year.
 
-### Anti-Pattern 3: Translating ADIF Field Names to Snake Case
+**Instead:** `process_import()` stays as-is. Profile stamping only in the interactive QSO creation paths (`create_qso()` and `submit_qso()`).
 
-**What:** Storing `call` instead of `CALL`, `qso_date` instead of `QSO_DATE`.
+### Anti-Pattern 4: Computing Grid/Lat/Lon at Query Time
 
-**Why bad:** Creates a translation layer that must be maintained bidirectionally. ADIF spec uses uppercase; deviating means every import and export passes through a renaming step. Subtle mismatches cause bugs.
+**What goes wrong:** Computing `to_location(grid)` on every QSO creation or every API read is waste. More importantly, operators may want to fine-tune lat/lon independently of the grid (precise location vs. grid center).
 
-**Instead:** Store uppercase ADIF field names verbatim. MongoDB has no issue with uppercase keys.
-
-### Anti-Pattern 4: Accepting Operator Identity from Request Body
-
-**What:** `POST /api/qsos` body includes `"operator": "W1AW"` and the API trusts that value.
-
-**Why bad:** Any authenticated user could forge another operator's callsign and write to their log.
-
-**Instead:** Operator identity flows only from the auth token. The API layer injects it; it is never read from request payloads.
+**Instead:** Derive lat/lon on profile save and persist both values. They are independent stored fields that happen to start from a derived value.
 
 ---
 
-## Suggested Build Order
+## Build Order for This Milestone
 
-Dependencies flow upward — build the foundation before what depends on it.
+Dependencies flow from data model outward to UI:
 
 ```
-1. ADIF Library (parser + serializer)
-      No dependencies. Fully testable in isolation.
+1. User model profile fields  (app/auth/models.py)
+      Additive — Optional fields, no migration, no test infrastructure changes.
 
-2. MongoDB Schema + Indexes
-      Defines the data contract. Everything else depends on this.
+2. Grid conversion utility  (app/profile/grid.py)
+      Pure function, no DB dependency. Install maidenhead package.
+      Testable in complete isolation.
 
-3. Auth Service (user model, JWT issue/validate, admin role)
-      QSO API depends on auth. Build and test auth before protecting routes.
+3. Profile Pydantic schemas  (ProfileUpdateRequest, ProfileResponse)
+      Depends on: User model field names being defined.
 
-4. QSO API (CRUD endpoints, protected by auth)
-      Depends on: ADIF Library (field normalization), MongoDB, Auth.
+4. Profile service logic
+      Grid sync on update (grid -> lat/lon and lat/lon -> grid).
+      Depends on: grid utility, User model.
 
-5. Import Service
-      Depends on: ADIF Library (parsing), QSO API or direct MongoDB write, Auth.
+5. Profile API router  (GET /api/profile, PATCH /api/profile)
+      Depends on: schemas, service logic, existing get_current_user dependency.
+      Wire into app/main.py.
 
-6. Export Service
-      Depends on: MongoDB, ADIF Library (serialization), Auth.
+6. build_qso_dict() auto-stamp addition  (app/qso/service.py)
+      Depends on: User model profile fields being defined.
+      Signature change is backward-compatible (profile=None default).
 
-7. Admin API (user management)
-      Depends on: Auth Service, MongoDB users collection.
+7. QSO creation route updates  (app/qso/router.py, app/qso/ui_router.py)
+      Switch from get_current_operator_callsign to get_current_user.
+      Pass user doc to build_qso_dict as profile.
+      Depends on: step 6.
 
-8. Web UI
-      Depends on: all API endpoints. Build last so the API contract is stable.
-      Can build incrementally: log view → QSO entry form → import/export → admin panel.
+8. Profile UI router + template  (app/profile/ui_router.py, templates/log/profile.html)
+      Depends on: steps 3–4.
+      Add nav link in templates/log/form.html and log.html.
+      Wire into app/main.py.
 ```
 
-**Critical path:** ADIF Library → MongoDB Schema → Auth → QSO API. These four are the skeleton everything else hangs on.
+**Critical path:** Step 1 (User model) unlocks steps 3, 6, and 7. Steps 2 and 4 are the only grid-specific work. Steps 5 and 8 are the user-facing surfaces and can be built incrementally after the data layer is verified.
 
 ---
 
-## Scalability Considerations
+## Integration Point Risk Summary
 
-| Concern | At 100 users | At 10K users | At 1M users |
-|---------|--------------|--------------|-------------|
-| QSO query performance | Single-node MongoDB, default indexes sufficient | Compound indexes on `_operator` become critical | Sharding on `_operator` hash; read replicas for export |
-| Import throughput | Synchronous bulk insert fine | Async task queue (Celery/RQ) for large files | Same, plus rate limiting |
-| Export memory | Streaming response handles it | Same | Same |
-| Concurrent writes | MongoDB document-level locking sufficient | Same | Write concern tuning, potential replica set |
-| Auth | Stateless JWT scales horizontally | Same | Same |
-
-For a self-hosted installation, the 100-user scale is the realistic target. Compound indexes on `_operator` are the single most impactful scaling decision at all sizes.
-
----
-
-## Deployment Topology
-
-```
-[Nginx / Caddy]  (TLS termination, static file serving)
-       |
-[Python App Server]  (Gunicorn + Flask or Uvicorn + FastAPI)
-       |
-[MongoDB]  (single node for self-hosted; Atlas for cloud)
-```
-
-Static assets (Web UI) are served by the reverse proxy, not the Python app. This keeps the Python process free for API requests.
-
-For self-hosted Docker deployment:
-- `docker-compose.yml` with three services: `nginx`, `api`, `mongodb`
-- MongoDB data volume mounted for persistence
-- Environment variables for secrets (JWT secret, MongoDB URI)
+| Integration Point | Change Type | Risk |
+|-------------------|-------------|------|
+| `User` model — add profile fields | Additive (backward-compatible) | Low — Optional fields, no migration required |
+| `build_qso_dict()` — add `profile` param | Additive (`profile=None` default) | Low — all existing callers unaffected |
+| `create_qso()` — change dependency | Modified — swap to `get_current_user` | Medium — derive callsign from `user.callsign`; test both REST and duplicate-override paths |
+| `submit_qso()` — change dependency | Modified — swap to `get_current_user_cookie` | Medium — same risk; also affects duplicate warning flow |
+| `process_import()` | No change | None |
+| ADIF export serializer | No change | None — MY_* fields already export as model_extra |
+| `init_beanie()` document list | No change if profile stays in User | None |
 
 ---
 
 ## Sources
 
-All findings are based on training knowledge (confidence: MEDIUM). External verification was blocked during research. The following areas should be validated before implementation:
-
-- ADIF 3.1.4 specification field list: https://adif.org/314/ADIF_314.htm (verify current version)
-- pymongo `insert_many` `ordered` parameter behavior: https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html
-- MongoDB compound index leading-field constraint behavior: https://www.mongodb.com/docs/manual/core/indexes/index-types/index-compound/
-
-**Confidence notes:**
-- ADIF format structure (tag-length-value, EOR, EOH): HIGH — well-established standard, unchanged for many years
-- MongoDB shared-collection vs per-collection recommendation: HIGH — standard MongoDB multi-tenancy guidance
-- `ordered=False` bulk insert behavior: HIGH — core pymongo feature
-- Specific ADIF field names (CALL, BAND, MODE, etc.): HIGH — defined in ADIF spec
-- Streaming response pattern in Python WSGI/ASGI: HIGH — well-established
+- Live codebase inspection: `/Users/royco/ollog/app/` (all Python modules read directly, 2026-04-04)
+- PyPI `maidenhead` library: https://pypi.org/project/maidenhead/
+- `maidenhead` GitHub: https://github.com/space-physics/maidenhead
+- ADIF 3.1.7 specification field names (MY_* fields, OPERATOR, STATION_CALLSIGN): https://adif.org/317/ADIF_317.htm

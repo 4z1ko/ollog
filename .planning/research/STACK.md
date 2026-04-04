@@ -1,69 +1,204 @@
 # Technology Stack
 
-**Project:** Ham Radio Online Logbook (ollog)
-**Researched:** 2026-04-03
-**Confidence note:** All external research tools (WebSearch, WebFetch, Context7) were unavailable during this research session. All findings are drawn from training data (cutoff August 2025). Versions should be verified against PyPI and official docs before pinning in requirements files.
+**Project:** Ham Radio Online Logbook (ollog) — Operator & Station Profiles Milestone
+**Researched:** 2026-04-04
+**Scope:** NEW capabilities only. Existing validated stack (FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+, HTMX 2.0.4, PyJWT, pwdlib, MongoDB 7 replica set) is not re-researched here.
 
 ---
 
-## Recommended Stack
+## Stack Additions for Operator Profile Feature
 
-### Core Framework
+This milestone adds one new Beanie Document, grid square conversion, and email
+validation. No framework changes are needed. All additions are additive.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Python | 3.12+ | Runtime | Active LTS with full async support, type annotation improvements, and the widest library compatibility. Avoid 3.13 in production until libraries catch up. | [MEDIUM confidence — 3.12 was stable as of Aug 2025]
-| FastAPI | 0.111+ | HTTP framework / REST API | Async-native, OpenAPI auto-docs out of the box, Pydantic v2 integration for request/response validation. Directly models the QSO record schema as Pydantic models, validating ADIF fields at the boundary. Flask requires manual OpenAPI tooling; Django is overkill for a JSON API with no ORM need. | [MEDIUM confidence]
-| Uvicorn | 0.29+ | ASGI server | FastAPI's recommended production server. Pair with Gunicorn for multi-worker deployments. | [MEDIUM confidence]
-| Pydantic | 2.x | Data validation / serialization | Ships with FastAPI. Use it to define the QSO document model with ADIF field names as Python attributes. Pydantic v2 is 5-17x faster than v1 for validation — important for bulk ADIF import operations. | [MEDIUM confidence]
+---
 
-### Database
+### New Library: Maidenhead Grid Conversion
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| MongoDB | 7.x | Primary datastore | Required by spec. Document model maps naturally to ADIF: each QSO is a document whose keys are ADIF field names (CALL, BAND, MODE, QSO_DATE, etc.). No schema migration pain when new ADIF fields are added. | [HIGH confidence — project requirement]
-| Motor | 3.x | Async MongoDB driver | The official async Python driver for MongoDB, built on top of PyMongo. Required for use with FastAPI's async request handlers. Using PyMongo (sync) directly in async FastAPI routes causes thread-pool exhaustion under load. | [MEDIUM confidence]
-| Beanie | 1.x | ODM (optional, recommended) | Async ODM built on Motor + Pydantic. Define QSO as a Beanie Document, get typed queries, validation, and index management for free. Eliminates boilerplate for insert/find/aggregate. Alternative: use Motor directly for full control, but Beanie reduces code volume significantly. | [MEDIUM confidence]
+| maidenhead | 1.8.0 | Grid square ↔ lat/lon conversion | Pure Python, no C extensions, zero system dependencies. Two-function API: `to_maiden(lat, lon, level)` returns a grid locator string; `to_location(locator)` returns (lat, lon) tuple (southwest corner by default, `center=True` for centroid). Production/Stable classifier. Works on Python ≥ 3.9. Maintained by space-physics group. |
 
-### Authentication
+**Confidence:** MEDIUM — PyPI page confirms 1.8.0 released May 25, 2025. API shape (to_maiden / to_location) confirmed by multiple sources. WebFetch was unavailable to verify README directly, but the API is stable and consistent across search results.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| python-jose | 3.x | JWT token handling | Standard JWT library for Python. Use with FastAPI's OAuth2PasswordBearer for per-callsign auth. Each operator authenticates as their callsign; JWT encodes the callsign so all queries are automatically scoped. | [MEDIUM confidence]
-| passlib[bcrypt] | 1.7+ | Password hashing | Industry-standard bcrypt hashing. `passlib` provides a stable API layer. | [MEDIUM confidence]
+**API in use:**
+```python
+import maidenhead as mh
 
-### File Import / Export (ADIF)
+# lat/lon -> grid (level=2 gives 4-char, level=3 gives 6-char)
+grid = mh.to_maiden(lat=51.4778, lon=-0.0015, level=3)   # "IO91wm"
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| adif-io | 0.0.6+ | ADIF file parsing | Pure-Python ADIF parser. Handles .adi and .adif file formats. Returns records as dicts, which map directly to MongoDB document insertion. This is the most widely cited lightweight ADIF library in the Python ham radio community. | [LOW confidence — verify on PyPI; project is small and may have gone unmaintained] |
-| adif3 | latest | Alternative ADIF parser | Another Python ADIF library. If adif-io is abandoned, adif3 is a fallback. Evaluate both at project start. | [LOW confidence — verify on PyPI] |
-| Custom parser (fallback) | N/A | ADIF parsing | ADIF format is simple enough to implement a robust parser in ~100 lines of Python if neither library is actively maintained. The format spec is at adif.org. Prefer a maintained library first. | [HIGH confidence on feasibility] |
+# grid -> lat/lon (southwest corner of square)
+lat, lon = mh.to_location("IO91wm")
 
-### Web UI
+# grid -> center point of square
+lat, lon = mh.to_location("IO91wm", center=True)
+```
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| HTMX | 1.9+ | Frontend interactivity | Delivers a functional, interactive UI without a JavaScript build pipeline. Operators submit QSOs via forms; HTMX swaps in results in-place. Right-size for a logbook: no React/Vue complexity for what is essentially a CRUD interface. Works naturally with Jinja2 server-side rendering. | [MEDIUM confidence]
-| Jinja2 | 3.x | Server-side templating | Ships with FastAPI optionally; standard Python templating. Renders QSO list, import results, and log views. | [MEDIUM confidence]
-| TailwindCSS | 3.x (CDN) | Styling | Use via CDN for simplicity. No Node.js build step required. Sufficient for a logbook UI. If a richer UI is needed later, upgrade to a full Vite+Tailwind pipeline. | [MEDIUM confidence]
+**Why not a custom implementation:** Maidenhead encoding has edge cases at field
+boundaries and the precision arithmetic is fiddly. The library is 15 lines of
+math tested by the wider ham radio community. Do not reimplement.
 
-### Infrastructure / Deployment
+---
+
+### New Library: Email Validation
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| Docker | latest | Containerization | Single `docker compose up` for self-hosted deployments. Bundles Python app + MongoDB + optional reverse proxy. Essential for the "self-hosted or cloud" requirement. | [HIGH confidence]
-| Docker Compose | v2 | Local dev + self-hosted | Defines app, MongoDB, and Caddy/Nginx as services. Makes onboarding trivial for self-hosters. | [HIGH confidence]
-| Caddy | 2.x | Reverse proxy / TLS | Automatic HTTPS via Let's Encrypt with zero config. Better DX than Nginx for self-hosted scenarios where the operator may not be a sysadmin. | [MEDIUM confidence]
+| email-validator | 2.3.0 | Pydantic EmailStr backend | Required for Pydantic's `EmailStr` type to function. Without it, `from pydantic import EmailStr` raises an ImportError at runtime. Install via `pydantic[email]` to get the correct version pin. |
 
-### Testing
+**Confidence:** HIGH — email-validator 2.3.0 is the current release (August 2025). Pydantic v2 requires email-validator ≥ 2.0. This is standard Pydantic ecosystem practice.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| pytest | 8.x | Test runner | Standard. | [MEDIUM confidence]
-| httpx | 0.27+ | Async HTTP test client | FastAPI's TestClient is synchronous; httpx provides an async client for testing async endpoints. FastAPI's official docs recommend httpx for async testing. | [MEDIUM confidence]
-| pytest-asyncio | 0.23+ | Async test support | Required to `await` coroutines inside pytest tests. | [MEDIUM confidence]
-| mongomock-motor | latest | In-memory MongoDB for tests | Allows unit tests to run without a live MongoDB instance. Speeds up CI. | [LOW confidence — verify it supports Motor 3.x and your MongoDB version] |
+**Install path:** Add `pydantic[email]` to pyproject.toml dependencies (pydantic itself
+is already a transitive dependency of FastAPI; adding the `[email]` extra is
+sufficient — no separate version pin needed for email-validator).
+
+---
+
+### No New Libraries for MY_* Field Storage
+
+The ADIF MY_* fields (MY_RIG, MY_ANTENNA, MY_POWER, MY_GRIDSQUARE, MY_CITY,
+MY_CITY_INTL, MY_COUNTRY, MY_COUNTRY_INTL, MY_STATE, MY_LAT, MY_LON,
+MY_GRIDSQUARE_EXT, MY_POTA_REF, MY_SOTA_REF, MY_IOTA, etc.) are all simple
+string or numeric values. Pydantic handles validation of these as `Optional[str]`
+or `Optional[float]` fields. No additional library is needed.
+
+---
+
+## Beanie Model Design Decision: Explicit Fields vs model_extra="allow"
+
+**Decision: Use explicit Pydantic fields for all MY_* fields on OperatorProfile.**
+
+Rationale:
+
+1. **Profile is user-entered, not arbitrary:** Unlike QSO documents where operators
+   can import arbitrary ADIF fields from third-party software, the profile has a
+   defined, finite set of fields (the ADIF MY_* namespace). Explicit fields give
+   validation, type safety, and IDE autocomplete at no cost.
+
+2. **model_extra="allow" carries a known Beanie projection risk:** Beanie's
+   default projection is derived from declared model fields. With extra="allow",
+   Beanie returns `None` for the projection, fetching the full document — this is
+   correct behavior but confirmed-by-source to be the mechanism. For a fixed-schema
+   document like a profile, explicit fields give deterministic projection behavior.
+
+3. **QSO uses extra="allow" correctly** because QSOs import arbitrary third-party
+   ADIF fields. OperatorProfile does not need that property.
+
+4. **All current ADIF MY_* fields are known:** ADIF 3.1.6 (current as of
+   September 2025) defines a complete, enumerable MY_* field set. Explicit fields
+   document the schema at the model layer.
+
+**Exception:** If the project wants to future-proof for arbitrary MY_* fields not
+yet in the spec, use `model_extra="allow"` and declare only the commonly-used ones
+explicitly. This is acceptable but not the recommended default for a profile document.
+
+---
+
+## OperatorProfile Beanie Document: Integration Notes
+
+**Collection:** `operator_profiles` (separate from `users` — keeps auth concern separate
+from station data; allows profile upsert without touching password hash).
+
+**User linkage:** Store `username: str` (matching `User.username`) as the lookup key.
+Add a unique index on `username`. Do not use Beanie's Link type — a string foreign
+key is simpler, avoids fetch-on-load overhead, and profile is always fetched alone.
+
+**Upsert pattern:** Beanie 2.x supports `find_one(...).upsert(Set({...}), on_insert=...)`.
+Use this for profile save: one round-trip, no race condition on first-time create.
+
+**Stamping QSOs:** On new QSO creation, the router fetches the operator's profile
+and stamps `OPERATOR`, `STATION_CALLSIGN`, and other MY_* fields. This is a
+service-layer concern, not a model concern. Keep the profile model pure.
+
+---
+
+## Maidenhead Grid Validation
+
+Use a Pydantic `field_validator` with a regex pattern rather than calling
+`maidenhead.to_location()` for validation — the library raises on invalid input
+but does not give clean Pydantic error messages.
+
+Maidenhead grid format (ADIF MY_GRIDSQUARE / GRIDSQUARE field):
+- 4 characters: `[A-R]{2}[0-9]{2}` (field + square, e.g., "FN31")
+- 6 characters: `[A-R]{2}[0-9]{2}[a-x]{2}` (+ subsquare, e.g., "FN31pr")
+- 8 characters: `[A-R]{2}[0-9]{2}[a-x]{2}[0-9]{2}` (extended, e.g., "FN31pr26")
+
+The ADIF spec (MY_GRIDSQUARE field) accepts 4 or 6 character forms in common use.
+MY_GRIDSQUARE_EXT (added in ADIF 3.1.4+) is for 8-character extended precision.
+
+Recommended pattern for MY_GRIDSQUARE: `^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$`
+(case-insensitive per ADIF spec; normalize to uppercase on save).
+
+---
+
+## ADIF MY_* Field Reference (ADIF 3.1.6)
+
+Fields confirmed present in ADIF 3.1.6 specification. Group into profile
+sections for the UI:
+
+**Identity:**
+- `MY_NAME` / `MY_NAME_INTL` — operator name
+
+**Location:**
+- `MY_CITY` / `MY_CITY_INTL` — city (QTH)
+- `MY_STATE` — US state / subdivision
+- `MY_CNTY` — US county
+- `MY_COUNTRY` / `MY_COUNTRY_INTL` — DXCC entity name
+- `MY_POSTAL_CODE` / `MY_POSTAL_CODE_INTL`
+- `MY_STREET` / `MY_STREET_INTL`
+- `MY_GRIDSQUARE` — 4 or 6 char Maidenhead
+- `MY_GRIDSQUARE_EXT` — 8 char extended (ADIF 3.1.4+)
+- `MY_LAT` — latitude (decimal degrees, ADIF Location type)
+- `MY_LON` — longitude (decimal degrees, ADIF Location type)
+
+**Awards / Programs:**
+- `MY_CQ_ZONE` — CQ zone number
+- `MY_ITU_ZONE` — ITU zone number
+- `MY_DXCC` — DXCC entity code
+- `MY_IOTA` — Islands on the Air reference
+- `MY_SOTA_REF` — SOTA summit reference
+- `MY_POTA_REF` — Parks on the Air reference (ADIF 3.1.4+)
+- `MY_SIG` / `MY_SIG_INTL` / `MY_SIG_INFO` / `MY_SIG_INFO_INTL` — special interest group
+- `MY_USACA_COUNTIES` — US county award
+- `MY_VUCC_GRIDS` — VUCC grid squares
+- `MY_FISTS` — FISTS CW club number
+
+**Station / Equipment:**
+- `MY_RIG` / `MY_RIG_INTL` — transceiver description
+- `MY_ANTENNA` / `MY_ANTENNA_INTL` — antenna description (correct ADIF name; NOT MY_ANT)
+- `MY_POWER` — transmit power in watts
+
+**Note on MY_ANT vs MY_ANTENNA:** The correct ADIF field name is `MY_ANTENNA`.
+Some logging software uses non-standard `MY_ANT`. Store as `MY_ANTENNA` in the
+profile; the QSO stamping layer can output whichever name is needed.
+
+**Confidence on field list:** MEDIUM — field names sourced from web search results
+citing ADIF 3.1.6 and adif-mcp.com spec mirror. WebFetch to adif.org was
+unavailable. Verify MY_ANTENNA vs MY_ANT against official spec before locking
+the model.
+
+---
+
+## Recommended pyproject.toml Changes
+
+```toml
+[project]
+dependencies = [
+    # ... existing deps unchanged ...
+    "fastapi[standard]>=0.135.0",
+    "beanie>=2.1.0",
+    "pymongo>=4.16.0",
+    "pyjwt>=2.12.0",
+    "pwdlib[argon2]>=0.3.0",
+    "pydantic-settings>=2.0",
+    # NEW for operator profile milestone:
+    "maidenhead>=1.8.0",
+    "pydantic[email]>=2.0",   # enables EmailStr; pins email-validator>=2.0
+]
+```
+
+**No other dependency changes needed.**
 
 ---
 
@@ -71,74 +206,31 @@
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| HTTP Framework | FastAPI | Flask | Flask is sync-first; async support via Quart is a workaround. No built-in OpenAPI. Would require flask-smorest or flasgger for docs. FastAPI wins on DX and async native. |
-| HTTP Framework | FastAPI | Django + DRF | Django's ORM is wasted (MongoDB backend). DRF's serializer system duplicates Pydantic. Significant added complexity for no benefit here. |
-| MongoDB Driver | Motor (async) | PyMongo (sync) | PyMongo blocks the event loop inside FastAPI async handlers. Wrapping in `run_in_executor` is possible but defeats the purpose. Motor is the correct choice. |
-| ODM | Beanie | MongoEngine | MongoEngine is sync-only. Not compatible with Motor/async FastAPI. |
-| ODM | Beanie | Motor (raw) | Using Motor directly is fine; Beanie just reduces boilerplate. For a small project, Motor direct is also acceptable if the team prefers minimal abstraction. |
-| Frontend | HTMX + Jinja2 | React / Vue SPA | SPA adds a Node.js build pipeline, CORS config, separate deployment concern, and JS bundle size for what is a CRUD interface. Operators accessing a self-hosted logbook do not need SPA performance characteristics. |
-| Frontend | HTMX + Jinja2 | Flask-Admin / FastAPI-Admin | Admin UIs look like admin UIs. A purpose-built logbook UI can present QSO data in ham radio conventions (band plan colors, log table format, etc.) |
-| TLS / Proxy | Caddy | Nginx | Nginx requires manual certificate management. Caddy's automatic HTTPS is a significant UX win for self-hosters. |
-| ADIF Parsing | adif-io | Custom parser | Only use custom if adif-io is unmaintained or has correctness bugs. Do not build custom first. |
+| Grid conversion | maidenhead 1.8.0 | gridtools (miaowware) | gridtools is a smaller project with less adoption; maidenhead is the de facto standard in Python ham radio tooling |
+| Grid conversion | maidenhead 1.8.0 | Custom math | Edge cases at field boundaries (e.g., longitude wrap); use the tested library |
+| Email validation | pydantic[email] (EmailStr) | Manual regex | EmailStr validates deliverability-aware syntax per RFC; a regex misses subtleties |
+| MY_* storage | Explicit Pydantic fields | model_extra="allow" | Profile schema is finite and known; explicit fields are better documented and avoid Beanie projection ambiguity |
+| Profile collection | Separate `operator_profiles` | Embed in `users` doc | Keeps auth model clean; profile can be fetched/updated independently without touching password hash |
+| Profile-to-user link | `username: str` (FK string) | Beanie `Link[User]` | Link requires eager/lazy fetch ceremony; string FK is simpler for a document that is always fetched alone |
 
 ---
 
-## Installation
+## What NOT to Add
 
-```bash
-# Core application
-pip install "fastapi[all]" motor beanie python-jose[cryptography] passlib[bcrypt] adif-io Jinja2
-
-# Dev / test
-pip install -D pytest httpx pytest-asyncio mongomock-motor ruff mypy
-
-# Pin versions in requirements.txt after verification:
-# fastapi>=0.111,<0.200
-# motor>=3.0,<4.0
-# beanie>=1.0,<2.0
-# python-jose[cryptography]>=3.3
-# passlib[bcrypt]>=1.7
-# adif-io>=0.0.6        # VERIFY current version on PyPI
-# jinja2>=3.1
-# uvicorn[standard]>=0.29
-```
-
----
-
-## Key Architecture Decisions Driven by Stack
-
-**ADIF fields as MongoDB keys:** Store each QSO document with ADIF field names directly as top-level keys (`CALL`, `BAND`, `MODE`, `QSO_DATE`, `RST_SENT`, etc.). Do not map to "Pythonic" snake_case internally — it adds a translation layer and breaks round-trip fidelity on ADIF import/export. Pydantic model aliases can present snake_case in Python while serializing to ADIF names.
-
-**Callsign as partition key:** Every QSO document includes `operator_callsign` (or use the ADIF `OPERATOR` field). All queries filter by this field first. Create a compound index on `(operator_callsign, QSO_DATE)` as the primary access pattern.
-
-**ADIF import as streaming:** For large .adif file imports (contest logs can be 10,000+ QSOs), use `Motor`'s `insert_many` in batches of 500. Do not load the entire file into memory as a single Pydantic list.
-
----
-
-## Version Verification Needed (LOW confidence items)
-
-The following must be verified against PyPI / official docs before project kickoff:
-
-- [ ] `adif-io` — confirm still maintained, check current version and last release date
-- [ ] `adif3` — same check; compare parse correctness against ADIF 3.1.4 spec
-- [ ] `mongomock-motor` — confirm Motor 3.x compatibility
-- [ ] `python-jose` — check for any security advisories (JWT libraries accumulate CVEs)
-- [ ] FastAPI version — confirm 0.111+ is still current stable (may have moved to 0.11x or higher)
+- **No geospatial index** on lat/lon — profiles are not queried by proximity; a 2dsphere index adds overhead with zero benefit for this use case.
+- **No separate MY_* collection** — MY_* fields live directly on the profile document; no normalization needed.
+- **No geocoding library** — lat/lon is entered by the operator or derived from Maidenhead grid; do not call external geocoding APIs.
+- **No ADIF profile import** — profile fields are entered via web form, not imported from ADIF files.
 
 ---
 
 ## Sources
 
-**Confidence note:** All recommendations are based on training data (cutoff August 2025). No external verification was possible during this research session due to tool restrictions. Confidence levels reflect this:
-
-- **HIGH**: Project requirements (MongoDB, Python) or industry-stable choices (Docker, bcrypt, pytest) unlikely to have changed
-- **MEDIUM**: Well-established libraries that were current as of Aug 2025 but versions should be verified
-- **LOW**: Smaller ecosystem libraries (especially ADIF-specific) where maintainership is uncertain
-
-Authoritative sources to verify at project start:
-- FastAPI docs: https://fastapi.tiangolo.com
-- Motor docs: https://motor.readthedocs.io
-- Beanie docs: https://beanie-odm.dev
-- adif-io on PyPI: https://pypi.org/project/adif-io/
-- adif3 on PyPI: https://pypi.org/project/adif3/
-- ADIF spec: https://adif.org/adif
+- maidenhead on PyPI: https://pypi.org/project/maidenhead/ (1.8.0, May 2025)
+- space-physics/maidenhead GitHub: https://github.com/space-physics/maidenhead
+- email-validator on PyPI: https://pypi.org/project/email-validator/ (2.3.0, August 2025)
+- ADIF 3.1.6 specification: https://adif.org/316/ADIF_316.htm
+- Beanie extra fields discussion: https://github.com/BeanieODM/beanie/issues/244
+- Beanie upsert pattern: https://beanie-odm.dev/tutorial/updating-&-deleting/
+- MY_ANTENNA field name: https://forum.log4om.com/viewtopic.php?t=5219 (confirmed MY_ANTENNA, not MY_ANT) — LOW confidence, verify against adif.org
+- Maidenhead grid format: https://en.wikipedia.org/wiki/Maidenhead_Locator_System
