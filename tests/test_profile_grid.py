@@ -11,7 +11,7 @@ class TestGridToLatlon4Char:
     def test_jo22_european_grid(self):
         lat, lon = grid_to_latlon("JO22")
         assert lat == pytest.approx(52.5, abs=0.5)
-        assert lon == pytest.approx(12.0, abs=1.0)
+        assert lon == pytest.approx(5.0, abs=1.0)
 
     def test_returns_float_tuple(self):
         result = grid_to_latlon("FN31")
@@ -24,8 +24,8 @@ class TestGridToLatlon4Char:
 class TestGridToLatlon6Char:
     def test_fn31pr_returns_precise_center(self):
         lat, lon = grid_to_latlon("FN31pr")
-        assert lat == pytest.approx(41.8958, abs=0.05)
-        assert lon == pytest.approx(-72.4583, abs=0.05)
+        assert lat == pytest.approx(41.7292, abs=0.05)
+        assert lon == pytest.approx(-72.7083, abs=0.05)
 
     def test_6char_more_precise_than_4char(self):
         lat4, lon4 = grid_to_latlon("FN31")
