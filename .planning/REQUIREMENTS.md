@@ -44,10 +44,10 @@ Requirements for v1.2 Callsign Entity Lookup & Country Flags milestone.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PRFX-01 | Phase 11 | Pending |
-| PRFX-02 | Phase 11 | Pending |
-| PRFX-03 | Phase 11 | Pending |
-| PRFX-04 | Phase 11 | Pending |
+| PRFX-01 | Phase 11 | Complete |
+| PRFX-02 | Phase 11 | Complete |
+| PRFX-03 | Phase 11 | Complete |
+| PRFX-04 | Phase 11 | Complete |
 | FLAG-01 | Phase 12 | Pending |
 | FLAG-02 | Phase 12 | Pending |
 
