@@ -89,4 +89,26 @@
 </div>
 
 <div id="qso-result"></div>
+
+<div class="card" style="margin-top:1rem;">
+  <h2>Station Feed</h2>
+  <div hx-ext="sse" sse-connect="/feed/station">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Call</th>
+          <th>Band</th>
+          <th>Mode</th>
+          <th>Freq</th>
+          <th>Operator</th>
+        </tr>
+      </thead>
+      <tbody id="station-feed" sse-swap="new_qso" hx-swap="afterbegin">
+        <!-- New QSO rows prepended here via SSE -->
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.8rem;color:#888;margin-top:0.5rem;">Live feed — new QSOs from all operators appear automatically</p>
+</div>
 {% endblock %}
