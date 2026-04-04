@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 8 — Profile Service Schemas and API Router (v1.1)
+**Current focus:** Phase 9 — QSO Auto-Stamping (v1.1)
 
 ## Current Position
 
-Phase: 8 of 10 (Profile Service Schemas and API Router)
-Plan: 2 of 2 in current phase — both plans complete
-Status: Phase 8 complete — ready for Phase 9
-Last activity: 2026-04-04 — 08-02 complete (profile service, GET/PATCH endpoints, 8 integration tests)
+Phase: 9 of 10 (QSO Auto-Stamping)
+Plan: 1 of 1 in current phase — complete
+Status: Phase 9 complete — ready for Phase 10
+Last activity: 2026-04-04 — 09-01 complete (build_qso_dict profile stamping, dependency swap in create_qso and submit_qso, 7 unit tests)
 
-Progress: [███████░░░] ~68% (v1.0 complete; v1.1 phases 07-08 done)
+Progress: [████████░░] ~78% (v1.0 complete; v1.1 phases 07-09 done)
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [███████░░░] ~68% (v1.0 complete; v1.1 phases 07-0
 | 07-02 | 1/1 | ~3 min | ~3 min |
 | 08-01 | 1/1 | ~3 min | ~3 min |
 | 08-02 | 1/1 | ~8 min | ~8 min |
+| 09-01 | 1/1 | ~16 min | ~16 min |
 
 ## Accumulated Context
 
@@ -57,6 +58,10 @@ Progress: [███████░░░] ~68% (v1.0 complete; v1.1 phases 07-0
 - Profile test fixture uses directConnection=True to reach localhost:27017, avoiding Docker hostname issues
 - STATION_CALLSIGN omitted entirely (not empty string) when blank — prevents LoTW/POTA upload failures
 - ADIF import path explicitly excluded from auto-stamping — historical records preserved as-is
+- build_qso_dict extended with Optional[User] profile param — ADIF import callers pass no profile arg (backward compatible)
+- TYPE_CHECKING guard used for User import in service.py to prevent circular import risk
+- User.model_construct() used in stamping tests — Beanie Document() constructor requires DB init, model_construct() bypasses it
+- tx_pwr uses is not None check (not truthiness) to correctly stamp TX_PWR=0.0 (zero watts is valid)
 - MY_ANTENNA confirmed as ADIF 3.1.6 field name — my_ant renamed to my_antenna in User model at 08-01 (no migration needed, field was Optional with no production data)
 - MY_GRIDSQUARE_RE accepts 4-char and 6-char Maidenhead only — regex r"^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$"
 - latitude/longitude excluded from ProfileUpdateRequest — derived by service layer from my_gridsquare, not user-supplied
@@ -79,5 +84,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 08-02-PLAN.md (profile service, GET/PATCH endpoints, 8 integration tests)
+Stopped at: Completed 09-01-PLAN.md (build_qso_dict profile stamping, QSO creation endpoint dependency swap, 7 stamping unit tests)
 Resume file: None
