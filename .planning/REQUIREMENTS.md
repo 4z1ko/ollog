@@ -1,0 +1,90 @@
+# Requirements: ollog — Operator & Station Profiles
+
+**Defined:** 2026-04-04
+**Core Value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
+
+## v1.1 Requirements
+
+Requirements for v1.1 Operator & Station Profiles milestone.
+
+### Profile Data Model
+
+- [ ] **PROF-01**: Operator profile stores OPERATOR callsign (derived from login) and optional STATION_CALLSIGN (club/event call)
+- [ ] **PROF-02**: Operator profile stores personal info: name, email, QTH city, state/province, country
+- [ ] **PROF-03**: Operator profile stores Maidenhead grid locator (MY_GRIDSQUARE, up to 6 chars)
+- [ ] **PROF-04**: Operator profile stores decimal lat/lon auto-derived from grid square (center of grid, not SW corner)
+- [ ] **PROF-05**: Operator profile stores station equipment: MY_RIG, MY_ANT, TX_PWR (watts)
+
+### QSO Auto-Stamping
+
+- [ ] **STAMP-01**: New QSOs logged via UI or REST API are auto-stamped with OPERATOR from the operator's profile
+- [ ] **STAMP-02**: New QSOs are auto-stamped with STATION_CALLSIGN only when it is set in the profile (omitted entirely when blank — not empty string)
+- [ ] **STAMP-03**: ADIF import path is NOT auto-stamped — historical records preserved as-is
+
+### Profile API
+
+- [ ] **API-01**: Operator can retrieve their own profile via GET /api/profile (JWT auth, no callsign param)
+- [ ] **API-02**: Operator can update their profile via PATCH /api/profile (JWT auth, operator-scoped)
+- [ ] **API-03**: Profile API enforces operator isolation — operators cannot read or write another operator's profile
+
+### Profile UI
+
+- [ ] **UI-01**: Operator has a profile settings page at /log/profile with an HTMX form
+- [ ] **UI-02**: Profile form includes clear labeling distinguishing OPERATOR call from STATION_CALLSIGN with explanatory tooltip
+- [ ] **UI-03**: Profile page is accessible via navigation link in the log UI
+
+## v2 Requirements
+
+Deferred to future milestone.
+
+### Location & Propagation
+- **LOC-01**: DXCC entity auto-derived from callsign prefix (requires cty.dat lookup)
+- **LOC-02**: CQ zone and ITU zone derivation from callsign prefix
+
+### Per-Activation Fields
+- **ACT-01**: MY_SOTA_REF and MY_POTA_REF as session-level QSO overrides (per-activation, not profile)
+- **ACT-02**: Multiple station profiles per operator (e.g., home station vs. portable)
+
+### Integrations
+- **INT-01**: QRZ / HamQTH callbook prefill of profile fields
+- **INT-02**: LoTW / eQSL direct upload
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| MY_POWER field | Does not exist in ADIF spec — TX_PWR is the correct field |
+| INTL field variants (MY_NAME_INTL, MY_CITY_INTL) | Niche, adds form complexity for minimal value |
+| Niche award fields (MY_DARC_DOK, MY_FISTS, MY_MORSE_KEY_*) | Very low operator demand; defer to v2+ |
+| Retroactive QSO stamping | Historical QSOs are immutable — auto-stamp applies to new QSOs only |
+| MY_LAT / MY_LON in ADIF export | ADIF Location format is non-trivial (XDDD MM.MMM); stored as float internally for future use |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PROF-01 | — | Pending |
+| PROF-02 | — | Pending |
+| PROF-03 | — | Pending |
+| PROF-04 | — | Pending |
+| PROF-05 | — | Pending |
+| STAMP-01 | — | Pending |
+| STAMP-02 | — | Pending |
+| STAMP-03 | — | Pending |
+| API-01 | — | Pending |
+| API-02 | — | Pending |
+| API-03 | — | Pending |
+| UI-01 | — | Pending |
+| UI-02 | — | Pending |
+| UI-03 | — | Pending |
+
+**Coverage:**
+- v1.1 requirements: 14 total
+- Mapped to phases: 0
+- Unmapped: 14 ⚠️
+
+---
+*Requirements defined: 2026-04-04*
+*Last updated: 2026-04-04 after initial definition*
