@@ -2,17 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-04 after v1.0)
+See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.1 Operator & Station Profiles
+**Current focus:** Phase 7 — Profile Data Model and Grid Utility (v1.1)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-04 — Milestone v1.1 Operator & Station Profiles started
+Phase: 7 of 10 (Profile Data Model and Grid Utility)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-04-04 — v1.1 roadmap created (phases 7–10)
+
+Progress: [██████░░░░] ~55% (v1.0 complete; v1.1 not started)
 
 ## Performance Metrics
 
@@ -32,25 +34,30 @@ Last activity: 2026-04-04 — Milestone v1.1 Operator & Station Profiles started
 | 05-multi-operator-live-feed | 4/4 | ~37 min | ~9.3 min |
 | 06-navigation-fix | 1/1 | ~2 min | ~2 min |
 
-*Updated after v1.0 milestone completion*
+*v1.1 metrics will accumulate as phases complete*
 
 ## Accumulated Context
 
 ### Key Decisions (summary — full log in PROJECT.md)
 
-- pymongo AsyncMongoClient (not Motor) — Motor EOL May 2025; pymongo 4.9+ native async
-- Shared `qsos` collection, `_operator` leading index field — compound index per-operator queries
-- ADIF field names as internal data model — lossless N+1 passthrough
-- Unique compound index dropped in 03-02 — app-level find_duplicate() is the enforcement mechanism
-- SSE over WebSockets for live feed — htmx-ext-sse 2.2.4 + FastAPI native EventSourceResponse
-- MongoDB single-node replica set — change streams require oplog; self-initiating healthcheck pattern
-- directConnection=true in test fixtures — works for standalone and replica set
+- Profile fields embedded in existing User Beanie document — no separate collection, no migration
+- maidenhead>=1.8.0 + pydantic[email]>=2.0 are the only new dependencies
+- center=True required for maidenhead.to_location() — SW corner default causes up to 80 km error
+- Profile GET/PATCH derives operator from JWT only — no callsign in query params or body
+- STATION_CALLSIGN omitted entirely (not empty string) when blank — prevents LoTW/POTA upload failures
+- ADIF import path explicitly excluded from auto-stamping — historical records preserved as-is
+- MY_ANT vs MY_ANTENNA field name: verify against adif.org/317 at Phase 8 planning (LOW confidence source)
 
-### Known Tech Debt
+### Research Flags for Planning
 
-- `QSO.find_active()` in models.py — dead production code (superseded by `get_qso_page()`)
-- `from_mongo_dt()` in utils.py — tested utility, not called in production
-- Docker end-to-end verification pending (code correct; environment constraint)
+- Phase 8: Verify MY_ANT vs MY_ANTENNA field name in ADIF 3.1.7 spec before locking schema
+- Phase 10: Verify ADIF MY_LAT/MY_LON XDDD MM.MMM export format before writing conversion utility
+
+### Known Tech Debt (from v1.0)
+
+- QSO.find_active() in models.py — dead production code
+- from_mongo_dt() in utils.py — tested, not called in production
+- Docker end-to-end verification pending
 
 ### Pending Todos
 
@@ -59,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: v1.0 milestone complete — all 6 phases shipped, archived to .planning/milestones/, git tagged v1.0.
+Stopped at: v1.1 roadmap written — phases 7–10 defined, ready to plan Phase 7
 Resume file: None
