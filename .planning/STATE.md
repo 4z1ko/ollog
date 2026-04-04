@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-04-04 after v1.1 roadmap)
 ## Current Position
 
 Phase: 10 of 10 (Profile UI)
-Plan: 1 of 1 in current phase — complete
+Plan: 2 of 2 in current phase — complete
 Status: Phase 10 complete — v1.1 complete
-Last activity: 2026-04-04 — 10-01 complete (profile settings page /log/profile, GET + POST HTMX handlers, profile.html and profile_result.html templates)
+Last activity: 2026-04-04 — 10-02 complete (Profile nav link added to form.html, log.html, import.html; import.html also gained Export link for nav bar parity)
 
 Progress: [██████████] ~100% (v1.0 complete; v1.1 phases 07-10 done)
 
@@ -44,6 +44,7 @@ Progress: [██████████] ~100% (v1.0 complete; v1.1 phases 07-
 | 08-02 | 1/1 | ~8 min | ~8 min |
 | 09-01 | 1/1 | ~16 min | ~16 min |
 | 10-01 | 1/1 | ~2 min | ~2 min |
+| 10-02 | 1/1 | ~1 min | ~1 min |
 
 ## Accumulated Context
 
@@ -70,6 +71,7 @@ Progress: [██████████] ~100% (v1.0 complete; v1.1 phases 07-
 - Profile UI POST handler converts tx_pwr empty string to float/None before ProfileUpdateRequest — HTML forms always submit strings
 - model_dump(exclude_unset=True) in profile POST handler prevents clearing unsubmitted fields
 - Profile UI always returns HTTP 200 (even on validation error) for HTMX 2.x swap compatibility
+- Export link added to import.html nav alongside Profile — import was the only log page missing Export, creating nav bar inconsistency
 
 ### Research Flags for Planning
 
@@ -88,5 +90,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 10-01-PLAN.md (profile settings page /log/profile, GET + POST HTMX handlers, profile.html and profile_result.html templates)
+Stopped at: Completed 10-02-PLAN.md (Profile nav link added to form.html, log.html, import.html; import.html also gained Export link)
 Resume file: None
