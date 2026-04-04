@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 1–6 (shipped 2026-04-04)
 - ✅ **v1.1 Operator & Station Profiles** — Phases 7–10 (shipped 2026-04-04)
-- 🚧 **v1.2 Callsign Entity Lookup & Country Flags** — Phases 11–12 (in progress)
+- ✅ **v1.2 Callsign Entity Lookup & Country Flags** — Phases 11–12 (shipped 2026-04-04)
 
 ## Phases
 
@@ -39,7 +39,7 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
 **Milestone Goal:** Resolve any logged callsign to its ITU-allocated country/entity and display the corresponding flag in the QSO log view. Purely presentational — no new database schema, no stored data.
 
 - [x] **Phase 11: Prefix Resolver Module** — Pure Python module with bundled ITU prefix range table, range-aware longest-match lookup, suffix stripping, and ISO mapping (completed 2026-04-04)
-- [ ] **Phase 12: Flag Display Integration** — Wire resolver into _qso_to_view_dict(), fix static file path, render flag img tag in qso_row.html
+- [x] **Phase 12: Flag Display Integration** — Wire resolver into _qso_to_view_dict(), fix static file path, render flag img tag in qso_row.html (completed 2026-04-04)
 
 #### Phase 11: Prefix Resolver Module
 
@@ -90,4 +90,4 @@ Phases execute in numeric order: 11 → 12
 | 9. QSO Auto-Stamping | v1.1 | 1/1 | ✓ Complete | 2026-04-04 |
 | 10. Profile UI | v1.1 | 2/2 | ✓ Complete | 2026-04-04 |
 | 11. Prefix Resolver Module | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
-| 12. Flag Display Integration | v1.2 | 0/1 | Not started | - |
+| 12. Flag Display Integration | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |

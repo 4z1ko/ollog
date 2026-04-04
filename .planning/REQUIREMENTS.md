@@ -48,8 +48,8 @@ Requirements for v1.2 Callsign Entity Lookup & Country Flags milestone.
 | PRFX-02 | Phase 11 | Complete |
 | PRFX-03 | Phase 11 | Complete |
 | PRFX-04 | Phase 11 | Complete |
-| FLAG-01 | Phase 12 | Pending |
-| FLAG-02 | Phase 12 | Pending |
+| FLAG-01 | Phase 12 | Complete |
+| FLAG-02 | Phase 12 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 6 total
