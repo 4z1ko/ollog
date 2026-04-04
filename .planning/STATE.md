@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 5 of 5 (Multi-Operator Live Feed)
-Plan: 3 of 4 in current phase
-Status: Phase 5 in progress — 3/4 plans done
-Last activity: 2026-04-04 — Completed 05-03 (Live Station Feed: SSE endpoint, change stream watcher, HTMX integration)
+Plan: 4 of 4 in current phase
+Status: Phase 5 complete — 4/4 plans done
+Last activity: 2026-04-04 — Completed 05-04 (Fix MongoDB fixture URIs: directConnection=true in conftest.py and test_operator_isolation.py)
 
-Progress: [████████████████████████████] 74% (17 of ~23 plans)
+Progress: [██████████████████████████████] 78% (18 of ~23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02, 05-03)
-- Average duration: ~7.6 min
-- Total execution time: ~1.63 hours
+- Total plans completed: 17 (01-01, 01-02, 01-03, 01-04, 02-01, 03-01, 03-02, 03-03, 03-04, 04-01, 04-02, 04-03, 04-04, 05-01, 05-02, 05-03, 05-04)
+- Average duration: ~7.5 min
+- Total execution time: ~1.71 hours
 
 **By Phase:**
 
@@ -38,7 +38,7 @@ Progress: [███████████████████████
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 05-multi-operator-live-feed | 3/4 | ~32 min | ~10.7 min |
+| 05-multi-operator-live-feed | 4/4 | ~37 min | ~9.3 min |
 
 *Updated after each plan completion*
 
@@ -95,6 +95,7 @@ Recent decisions affecting current work:
 - [Phase 05-multi-operator-live-feed]: 05-03: SSE endpoint uses cookie auth (get_current_operator_callsign_cookie) — EventSource API cannot send Authorization headers
 - [Phase 05-multi-operator-live-feed]: 05-03: Change stream watcher started after init_db() in lifespan, cancelled before close_db() — prevents use of closed connection
 - [Phase 05-multi-operator-live-feed]: 05-03: feed_row.html uses flat context dict keys rendered via get_template().render(ctx) — no Request object available in watcher scope
+- [Phase 05-04]: directConnection=true added to all integration test fixture URIs — enables direct driver connection to replica set node, works for both standalone and replica set without ServerSelectionTimeoutError
 
 ### Pending Todos
 
@@ -110,5 +111,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-04
-Stopped at: Completed 05-03 — Live station feed: SSE endpoint at /feed/station with cookie auth, ConnectionManager asyncio.Queue broadcast, MongoDB change stream watcher in lifespan, HTMX SSE extension and Station Feed section in QSO form page. Human verification approved.
+Stopped at: Completed 05-04 — Fixed MongoDB URI fixtures: directConnection=true in conftest.py and test_operator_isolation.py; all 8 integration tests PASS. Phase 5 complete.
 Resume file: None
