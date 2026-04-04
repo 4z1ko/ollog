@@ -19,6 +19,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.adif.router import _qso_to_adif_dict, process_import
+from app.callsign.prefixes import lookup_prefix
+import pycountry
 from app.adif.serializer import serialize_adi
 from app.auth.dependencies import get_current_operator_callsign_cookie, get_current_user_cookie
 from app.auth.models import User
@@ -232,6 +234,11 @@ def _qso_to_view_dict(qso: QSO) -> dict:
     d["RST_RCVD"] = extra.get("RST_RCVD", "")
     d["QSO_DATE"] = extra.get("QSO_DATE", "")
     d["TIME_ON"] = extra.get("TIME_ON", "")
+    # Flag enrichment — render-time lookup, not stored
+    iso = lookup_prefix(qso.CALL) if qso.CALL else None
+    d["flag_iso"] = iso.lower() if iso else None
+    country_obj = pycountry.countries.get(alpha_2=iso) if iso else None
+    d["flag_country"] = country_obj.name if country_obj else (iso if iso else None)
     return d
 
 
