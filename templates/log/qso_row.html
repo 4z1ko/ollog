@@ -1,6 +1,15 @@
 <tr id="qso-{{ qso.id }}">
   <td>{{ qso.qso_date_utc.strftime('%Y-%m-%d %H:%M') if qso.qso_date_utc else '' }} UTC</td>
-  <td>{{ qso.CALL }}</td>
+  <td>
+    {% if qso.flag_iso %}
+    <img src="/static/flags/{{ qso.flag_iso }}.svg"
+         width="20" height="15"
+         alt="{{ qso.flag_country or '' }}"
+         title="{{ qso.flag_country or '' }}"
+         style="vertical-align:middle;margin-right:4px;">
+    {% endif %}
+    {{ qso.CALL }}
+  </td>
   <td>{{ qso.BAND or '' }}</td>
   <td>{{ qso.MODE or '' }}</td>
   <td>{{ qso.FREQ or '' }}</td>
