@@ -64,33 +64,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OAPI-01 | — | Pending |
-| OAPI-02 | — | Pending |
-| OAPI-03 | — | Pending |
-| OAPI-04 | — | Pending |
-| OAPI-05 | — | Pending |
-| OAPI-06 | — | Pending |
-| MKDOCS-01 | — | Pending |
-| MKDOCS-02 | — | Pending |
-| MKDOCS-03 | — | Pending |
-| MKDOCS-04 | — | Pending |
-| MKDOCS-05 | — | Pending |
-| MKDOCS-06 | — | Pending |
-| MKDOCS-07 | — | Pending |
-| MKDOCS-08 | — | Pending |
-| DOCS-01 | — | Pending |
-| DOCS-02 | — | Pending |
-| DOCS-03 | — | Pending |
-| DOCS-04 | — | Pending |
-| DOCS-05 | — | Pending |
-| DOCS-06 | — | Pending |
-| DOCS-07 | — | Pending |
+| OAPI-01 | Phase 13 | Pending |
+| OAPI-02 | Phase 13 | Pending |
+| OAPI-03 | Phase 13 | Pending |
+| OAPI-04 | Phase 13 | Pending |
+| OAPI-05 | Phase 13 | Pending |
+| OAPI-06 | Phase 13 | Pending |
+| MKDOCS-01 | Phase 14 | Pending |
+| MKDOCS-02 | Phase 14 | Pending |
+| MKDOCS-03 | Phase 14 | Pending |
+| MKDOCS-04 | Phase 14 | Pending |
+| MKDOCS-05 | Phase 14 | Pending |
+| MKDOCS-06 | Phase 14 | Pending |
+| MKDOCS-07 | Phase 14 | Pending |
+| MKDOCS-08 | Phase 14 | Pending |
+| DOCS-01 | Phase 15 | Pending |
+| DOCS-02 | Phase 15 | Pending |
+| DOCS-03 | Phase 15 | Pending |
+| DOCS-04 | Phase 15 | Pending |
+| DOCS-05 | Phase 15 | Pending |
+| DOCS-06 | Phase 15 | Pending |
+| DOCS-07 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-04*
-*Last updated: 2026-04-04 after initial definition*
+*Last updated: 2026-04-04 — traceability filled after roadmap creation*
