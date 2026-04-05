@@ -69,7 +69,10 @@ Full archive: `.planning/milestones/v1.2-ROADMAP.md`
   3. `POST /api/qsos` in Swagger shows the 409 response with `DuplicateQSOError` schema and `force=true` query parameter with description
   4. ADIF import and export endpoints show typed responses: `ADIFImportReport` model for import, `text/plain` content type for export
   5. ADIF request fields carry description strings that explain format conventions (YYYYMMDD, HHMM/HHMMSS, band designators, OPERATOR vs STATION_CALLSIGN)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 13-01-PLAN.md — QSO endpoint response models, 409 error schema, field descriptions, soft-delete disclosure
+- [ ] 13-02-PLAN.md — ADIF import/export annotations, exclude HTMX and feed routes from schema
 
 ---
 
@@ -105,7 +108,7 @@ Full archive: `.planning/milestones/v1.2-ROADMAP.md`
 ## Progress
 
 **Execution Order:**
-Phases 13 and 14 can run in parallel. Phase 15 runs after both complete: 13 ∥ 14 → 15
+Phases 13 and 14 can run in parallel. Phase 15 runs after both complete: 13 || 14 -> 15
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -121,6 +124,6 @@ Phases 13 and 14 can run in parallel. Phase 15 runs after both complete: 13 ∥ 
 | 10. Profile UI | v1.1 | 2/2 | ✓ Complete | 2026-04-04 |
 | 11. Prefix Resolver Module | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
 | 12. Flag Display Integration | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
-| 13. OpenAPI Schema Cleanup | v1.3 | 0/TBD | Not started | - |
+| 13. OpenAPI Schema Cleanup | v1.3 | 0/2 | Planning complete | - |
 | 14. MkDocs Infrastructure | v1.3 | 0/TBD | Not started | - |
 | 15. Narrative Documentation Content | v1.3 | 0/TBD | Not started | - |
