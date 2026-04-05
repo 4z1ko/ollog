@@ -1,0 +1,12 @@
+site_name: ollog
+site_url: http://localhost:8000/guide/
+use_directory_urls: true
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+
+nav:
+  - Home: index.md
