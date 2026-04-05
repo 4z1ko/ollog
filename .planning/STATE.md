@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 
 ## Current Position
 
-Phase: 13 of 15 (OpenAPI Schema Cleanup)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-04-04 — v1.3 roadmap created (phases 13–15)
+Phase: 14 of 15 (MkDocs Infrastructure)
+Plan: 1 of 1 in current phase
+Status: Plan complete
+Last activity: 2026-04-05 — 14-01 MkDocs infrastructure build pipeline established
 
-Progress: [████████░░░░░░░░░░░░] ~40% (v1.0+v1.1+v1.2 complete; v1.3 starting)
+Progress: [██████████████░░░░░░] ~70% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-14 done)
 
 ## Performance Metrics
 
@@ -34,6 +34,7 @@ Progress: [████████░░░░░░░░░░░░] ~40% (v
 
 **Recent Trend:** Stable
 | Phase 13-openapi-schema-cleanup P02 | 2 | 2 tasks | 2 files |
+| Phase 14-mkdocs-infrastructure P01 | 8 | 2 tasks | 54 files |
 
 ## Accumulated Context
 
@@ -50,6 +51,8 @@ Progress: [████████░░░░░░░░░░░░] ~40% (v
 - v1.3 (13-02): ADIFRecordError.call is Optional[str] — parse errors have no call key; per-record errors do
 - v1.3 (13-02): Export endpoint annotated with responses= (not response_model=) — StreamingResponse cannot be Pydantic-validated
 - v1.3 (13-02): Feed router excluded from OpenAPI schema — /feed/station uses cookie auth and cannot be exercised from Swagger UI
+- v1.3 (14-01): site_url ends in /guide/ with trailing slash — prevents broken relative asset paths when served at sub-path
+- v1.3 (14-01): site/ committed to repo (not gitignored) — Dockerfile can COPY site/ without installing MkDocs in production image
 
 ### Known Tech Debt
 
@@ -68,6 +71,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-04
-Stopped at: Completed 13-01-PLAN.md — QSO endpoint OpenAPI annotations (Task 2 committed: 0aee0a2)
+Last session: 2026-04-05
+Stopped at: Completed 14-01-PLAN.md — MkDocs infrastructure (Task 2 committed: e854a29)
 Resume file: None
