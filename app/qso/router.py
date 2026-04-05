@@ -58,18 +58,23 @@ class DuplicateQSOError(BaseModel):
 
 
 class QSOCreateRequest(BaseModel):
-    """Request model for QSO creation. extra='allow' captures arbitrary ADIF fields for Phase 4."""
+    """Request model for QSO creation. extra='allow' captures arbitrary ADIF fields.
+
+    OPERATOR and STATION_CALLSIGN are auto-stamped from the authenticated user's
+    profile — do not include them in the request body. OPERATOR identifies the
+    person at the key; STATION_CALLSIGN identifies the station's licensed callsign.
+    """
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    CALL: str
-    QSO_DATE: str
-    TIME_ON: str
-    BAND: str
-    MODE: str
-    FREQ: Optional[str] = None
-    RST_SENT: Optional[str] = None
-    RST_RCVD: Optional[str] = None
+    CALL: str = Field(description="Callsign of the contacted station (e.g. W1AW)")
+    QSO_DATE: str = Field(description="UTC date of QSO in YYYYMMDD format (e.g. 20240115)")
+    TIME_ON: str = Field(description="UTC start time in HHMM or HHMMSS format (e.g. 1430 or 143045)")
+    BAND: str = Field(description="Amateur band designator (e.g. 40m, 20m, 2m)")
+    MODE: str = Field(description="Operating mode per ADIF spec (e.g. SSB, CW, FT8, FM)")
+    FREQ: Optional[str] = Field(None, description="Frequency in MHz (e.g. 14.225)")
+    RST_SENT: Optional[str] = Field(None, description="RST signal report sent to contacted station")
+    RST_RCVD: Optional[str] = Field(None, description="RST signal report received from contacted station")
 
 
 def _qso_to_dict(qso: QSO) -> dict:
@@ -92,10 +97,20 @@ def _qso_to_dict(qso: QSO) -> dict:
     return d
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=QSOResponse,
+    responses={
+        409: {
+            "model": DuplicateQSOError,
+            "description": "Duplicate QSO detected within +/-2 min window. Use force=true to override.",
+        }
+    },
+)
 async def create_qso(
     body: QSOCreateRequest,
-    force: bool = Query(False),  # duplicate override — wired in 03-02, ignored here
+    force: bool = Query(False, description="Override duplicate detection and force insert"),
     user: User = Depends(get_current_user),
 ) -> dict:
     """Create a new QSO for the authenticated operator.
@@ -137,7 +152,7 @@ async def create_qso(
     return _qso_to_dict(qso)
 
 
-@router.get("/", status_code=status.HTTP_200_OK)
+@router.get("/", status_code=status.HTTP_200_OK, response_model=QSOListResponse)
 async def list_qsos(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
@@ -179,7 +194,7 @@ async def list_qsos(
     }
 
 
-@router.get("/{qso_id}", status_code=status.HTTP_200_OK)
+@router.get("/{qso_id}", status_code=status.HTTP_200_OK, response_model=QSOResponse)
 async def get_qso(
     qso_id: str,
     operator: str = Depends(get_current_operator_callsign),
@@ -196,7 +211,7 @@ async def get_qso(
     return _qso_to_dict(qso)
 
 
-@router.patch("/{qso_id}", status_code=status.HTTP_200_OK)
+@router.patch("/{qso_id}", status_code=status.HTTP_200_OK, response_model=QSOResponse)
 async def patch_qso(
     qso_id: str,
     body: Dict[str, Any],
@@ -246,10 +261,14 @@ async def delete_qso(
     qso_id: str,
     operator: str = Depends(get_current_operator_callsign),
 ) -> None:
-    """Soft-delete a QSO by setting _deleted: true in MongoDB.
+    """Soft-delete a QSO by ID.
+
+    The record is marked as deleted in MongoDB — it is NOT physically removed.
+    Soft-deleted QSOs are excluded from all list, get, and export operations.
+    To permanently remove data, direct database access is required.
 
     Returns 204 No Content on success. Returns 404 if not found, not owned,
-    or already deleted. Uses MongoDB alias _deleted (not Python attribute is_deleted).
+    or already deleted.
     """
     try:
         oid = ObjectId(qso_id)
