@@ -111,6 +111,9 @@ from app.profile.router import router as profile_router  # noqa: E402
 
 app.include_router(profile_router)
 
+# Documentation site (served before /static — mount order is load-bearing in FastAPI)
+app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
+
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

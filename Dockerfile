@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir .
 COPY app/ app/
 COPY templates/ templates/
 COPY static/ static/
+COPY site/ site/
 
 EXPOSE 8000
 
