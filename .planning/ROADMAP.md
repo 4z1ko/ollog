@@ -86,7 +86,10 @@ Plans:
   2. Navigating to `/guide` in a running app returns the MkDocs index page — CSS and JS assets load without 404s
   3. `mkdocs-material==9.*` appears in `pyproject.toml` under `[dependency-groups].dev` only (not production dependencies)
   4. The Dockerfile includes `COPY site/ site/` so the built docs are in the production Docker image without MkDocs installed
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 14-01-PLAN.md — Install mkdocs-material, create mkdocs.yml and scaffold docs, build site/
+- [ ] 14-02-PLAN.md — Mount site/ at /guide in FastAPI, update Dockerfile
 
 ---
 
@@ -125,5 +128,5 @@ Phases 13 and 14 can run in parallel. Phase 15 runs after both complete: 13 || 1
 | 11. Prefix Resolver Module | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
 | 12. Flag Display Integration | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
 | 13. OpenAPI Schema Cleanup | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
-| 14. MkDocs Infrastructure | v1.3 | 0/TBD | Not started | - |
+| 14. MkDocs Infrastructure | v1.3 | 0/2 | Not started | - |
 | 15. Narrative Documentation Content | v1.3 | 0/TBD | Not started | - |
