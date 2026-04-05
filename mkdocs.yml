@@ -10,3 +10,9 @@ theme:
 
 nav:
   - Home: index.md
+  - Deployment: deployment.md
+  - Getting Started: getting-started.md
+  - Admin Guide: admin-guide.md
+  - API Reference: api-reference.md
+  - ADIF Field Reference: adif-field-reference.md
+  - Troubleshooting: troubleshooting.md

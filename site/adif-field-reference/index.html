@@ -8,29 +8,31 @@
       
       
       
-        <link rel="canonical" href="http://localhost:8000/guide/">
+        <link rel="canonical" href="http://localhost:8000/guide/adif-field-reference/">
       
       
+        <link rel="prev" href="../api-reference/">
       
-        <link rel="next" href="deployment/">
+      
+        <link rel="next" href="../troubleshooting/">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>ollog</title>
+        <title>ADIF Field Reference - ollog</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -49,7 +51,7 @@
       
     
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -72,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#ollog-ham-radio-online-logbook" class="md-skip">
+        <a href="#adif-field-reference" class="md-skip">
           Skip to content
         </a>
       
@@ -88,7 +90,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="ollog" class="md-header__button md-logo" aria-label="ollog" data-md-component="logo">
+    <a href=".." title="ollog" class="md-header__button md-logo" aria-label="ollog" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -108,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              ADIF Field Reference
             
           </span>
         </div>
@@ -186,7 +188,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="ollog" class="md-nav__button md-logo" aria-label="ollog" data-md-component="logo">
+    <a href=".." title="ollog" class="md-nav__button md-logo" aria-label="ollog" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -201,37 +203,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Home
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="." class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -247,48 +222,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#quick-links" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Links
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#features" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Features
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -300,7 +233,7 @@
   
   
     <li class="md-nav__item">
-      <a href="deployment/" class="md-nav__link">
+      <a href="../deployment/" class="md-nav__link">
         
   
   
@@ -327,7 +260,7 @@
   
   
     <li class="md-nav__item">
-      <a href="getting-started/" class="md-nav__link">
+      <a href="../getting-started/" class="md-nav__link">
         
   
   
@@ -354,7 +287,7 @@
   
   
     <li class="md-nav__item">
-      <a href="admin-guide/" class="md-nav__link">
+      <a href="../admin-guide/" class="md-nav__link">
         
   
   
@@ -381,7 +314,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api-reference/" class="md-nav__link">
+      <a href="../api-reference/" class="md-nav__link">
         
   
   
@@ -405,10 +338,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="adif-field-reference/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADIF Field Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -424,6 +384,70 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-stamped-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-Stamped Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extra-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#duplicate-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Duplicate Detection
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -435,7 +459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="troubleshooting/" class="md-nav__link">
+      <a href="../troubleshooting/" class="md-nav__link">
         
   
   
@@ -482,10 +506,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#quick-links" class="md-nav__link">
+  <a href="#core-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick Links
+        Core Fields
       
     </span>
   </a>
@@ -493,10 +517,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#features" class="md-nav__link">
+  <a href="#auto-stamped-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Features
+        Auto-Stamped Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extra-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#duplicate-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Duplicate Detection
       
     </span>
   </a>
@@ -520,26 +566,101 @@
 
 
 
-<h1 id="ollog-ham-radio-online-logbook">ollog -- Ham Radio Online Logbook</h1>
-<p>ollog is a self-hosted, multi-operator ham radio logbook with ADIF import/export, live station feed, and REST API.</p>
-<h2 id="quick-links">Quick Links</h2>
+<h1 id="adif-field-reference">ADIF Field Reference</h1>
+<p>ollog uses ADIF (Amateur Data Interchange Format) for QSO data. This page describes how key fields are formatted and handled.</p>
+<h2 id="core-fields">Core Fields</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Format</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>QSO_DATE</td>
+<td>YYYYMMDD</td>
+<td>20240415</td>
+<td>UTC date of contact</td>
+</tr>
+<tr>
+<td>TIME_ON</td>
+<td>HHMM or HHMMSS</td>
+<td>1430 or 143045</td>
+<td>UTC time of contact</td>
+</tr>
+<tr>
+<td>CALL</td>
+<td>Callsign string</td>
+<td>DL1ABC</td>
+<td>Station worked</td>
+</tr>
+<tr>
+<td>BAND</td>
+<td>Amateur band designator</td>
+<td>20m, 40m, 2m</td>
+<td>Standard ADIF band values</td>
+</tr>
+<tr>
+<td>MODE</td>
+<td>Uppercased mode</td>
+<td>SSB, CW, FT8, FM</td>
+<td>Standard ADIF mode values</td>
+</tr>
+<tr>
+<td>RST_SENT</td>
+<td>Signal report string</td>
+<td>59, 599</td>
+<td>599 for CW, 59 for phone</td>
+</tr>
+<tr>
+<td>RST_RCVD</td>
+<td>Signal report string</td>
+<td>59, 599</td>
+<td>Received signal report</td>
+</tr>
+</tbody>
+</table>
+<h2 id="auto-stamped-fields">Auto-Stamped Fields</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Source</th>
+<th>When Stamped</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OPERATOR</td>
+<td>JWT callsign (account)</td>
+<td>Every QSO created via API/UI</td>
+<td>Always stamped. Cannot be overridden by the user.</td>
+</tr>
+<tr>
+<td>STATION_CALLSIGN</td>
+<td>Profile station_callsign</td>
+<td>When profile has station_callsign set</td>
+<td>Optional. Represents the station being operated (e.g., club call).</td>
+</tr>
+</tbody>
+</table>
+<p>When importing ADIF files, OPERATOR and STATION_CALLSIGN are <strong>not</strong> auto-stamped. The values from the file are preserved as-is. This ensures historical records maintain their original attribution.</p>
+<h2 id="extra-fields">Extra Fields</h2>
+<p>ollog accepts any standard ADIF field beyond the core set. Extra fields are stored as-is in the QSO record and included in ADIF exports. The QSO creation endpoint uses <code>extra="allow"</code> on its Pydantic model — any additional fields in the JSON body are accepted and persisted.</p>
+<p>Examples of extra fields: <code>FREQ</code>, <code>TX_PWR</code>, <code>COMMENT</code>, <code>QTH</code>, <code>GRIDSQUARE</code>, <code>CONTEST_ID</code>, <code>SRX</code>, <code>STX</code></p>
+<h2 id="duplicate-detection">Duplicate Detection</h2>
+<p>ollog checks for duplicate QSOs on every new record, whether created via the API or imported from an ADIF file. The detection algorithm:</p>
 <ul>
-<li><a href="deployment/">Deployment</a> -- Set up ollog with Docker Compose</li>
-<li><a href="getting-started/">Getting Started</a> -- Your first QSO in 7 steps</li>
-<li><a href="admin-guide/">Admin Guide</a> -- Manage operator accounts</li>
-<li><a href="api-reference/">API Reference</a> -- All 16 endpoints with curl examples</li>
-<li><a href="adif-field-reference/">ADIF Field Reference</a> -- Field format lookup</li>
-<li><a href="troubleshooting/">Troubleshooting</a> -- Common issues and fixes</li>
+<li><strong>Window:</strong> +/- 2 minutes on QSO_DATE + TIME_ON</li>
+<li><strong>Match fields:</strong> CALL + BAND + MODE + operator (the logged-in user)</li>
+<li><strong>Response:</strong> 409 Conflict with error details (single QSO creation endpoint)</li>
+<li><strong>Override:</strong> Append <code>?force=true</code> to the POST URL to bypass duplicate detection for single QSO creation</li>
 </ul>
-<h2 id="features">Features</h2>
-<ul>
-<li>Multi-operator: each operator sees only their own QSOs</li>
-<li>ADIF 3.1.4 import and export</li>
-<li>Live station feed via Server-Sent Events</li>
-<li>REST API with Swagger docs at /docs</li>
-<li>Auto-stamping of OPERATOR and STATION_CALLSIGN</li>
-<li>Duplicate QSO detection with force override</li>
-</ul>
+<p>Note: The ADIF import endpoint does not support <code>?force=true</code>. To re-import a file that was already imported, delete the existing records first, then import again.</p>
 
 
 
@@ -589,10 +710,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

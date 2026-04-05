@@ -4,4 +4,28 @@
          <loc>http://localhost:8000/guide/</loc>
          <lastmod>2026-04-05</lastmod>
     </url>
+    <url>
+         <loc>http://localhost:8000/guide/adif-field-reference/</loc>
+         <lastmod>2026-04-05</lastmod>
+    </url>
+    <url>
+         <loc>http://localhost:8000/guide/admin-guide/</loc>
+         <lastmod>2026-04-05</lastmod>
+    </url>
+    <url>
+         <loc>http://localhost:8000/guide/api-reference/</loc>
+         <lastmod>2026-04-05</lastmod>
+    </url>
+    <url>
+         <loc>http://localhost:8000/guide/deployment/</loc>
+         <lastmod>2026-04-05</lastmod>
+    </url>
+    <url>
+         <loc>http://localhost:8000/guide/getting-started/</loc>
+         <lastmod>2026-04-05</lastmod>
+    </url>
+    <url>
+         <loc>http://localhost:8000/guide/troubleshooting/</loc>
+         <lastmod>2026-04-05</lastmod>
+    </url>
 </urlset>
