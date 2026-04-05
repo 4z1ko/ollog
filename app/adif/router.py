@@ -15,6 +15,8 @@ Provides streaming ADIF export with:
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Optional
 
 from app.adif.parser import parse_adi
 from app.adif.serializer import serialize_adi
@@ -23,6 +25,32 @@ from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate
 
 router = APIRouter(prefix="/api/adif", tags=["adif"])
+
+
+class ADIFRecordAccepted(BaseModel):
+    record_index: int
+    call: str
+    id: str
+
+
+class ADIFRecordDuplicate(BaseModel):
+    record_index: int
+    call: str
+    existing_id: str
+
+
+class ADIFRecordError(BaseModel):
+    record_index: int
+    call: Optional[str] = None
+    error: str
+
+
+class ADIFImportReport(BaseModel):
+    total_records: int
+    accepted: list[ADIFRecordAccepted]
+    duplicates: list[ADIFRecordDuplicate]
+    errors: list[ADIFRecordError]
+
 
 _REQUIRED_FIELDS = {"CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE"}
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -106,7 +134,7 @@ async def process_import(raw: bytes, operator: str) -> dict:
     }
 
 
-@router.post("/import")
+@router.post("/import", response_model=ADIFImportReport)
 async def import_adif(
     file: UploadFile,
     operator: str = Depends(get_current_operator_callsign),
@@ -165,7 +193,16 @@ def _qso_to_adif_dict(qso: QSO) -> dict:
 _ADIF_HEADER = "<ADIF_VER:5>3.1.4\n<PROGRAMID:5>ollog\n<EOH>\n\n"
 
 
-@router.get("/export")
+@router.get(
+    "/export",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {"text/plain": {}},
+            "description": "ADIF (.adi) file download containing the operator's full logbook.",
+        }
+    },
+)
 async def export_adif(
     operator: str = Depends(get_current_operator_callsign),
 ):
