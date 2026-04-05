@@ -84,7 +84,7 @@ app.include_router(admin_router)
 # Admin UI router (browser-based, cookie auth, Jinja2 templates)
 from app.admin.ui_router import ui_router  # noqa: E402
 
-app.include_router(ui_router)
+app.include_router(ui_router, include_in_schema=False)
 
 # QSO REST API router
 from app.qso.router import router as qso_router  # noqa: E402
@@ -94,7 +94,7 @@ app.include_router(qso_router)
 # QSO UI router (browser-based, cookie auth, Jinja2 templates)
 from app.qso.ui_router import ui_router as qso_ui_router  # noqa: E402
 
-app.include_router(qso_ui_router)
+app.include_router(qso_ui_router, include_in_schema=False)
 
 # ADIF import/export router
 from app.adif.router import router as adif_router  # noqa: E402
@@ -104,7 +104,7 @@ app.include_router(adif_router)
 # Feed SSE router
 from app.feed.router import router as feed_router  # noqa: E402
 
-app.include_router(feed_router)
+app.include_router(feed_router, include_in_schema=False)
 
 # Profile API router
 from app.profile.router import router as profile_router  # noqa: E402
