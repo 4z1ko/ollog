@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 13 — OpenAPI Schema Cleanup
+**Current focus:** Phase 14 — MkDocs Infrastructure
 
 ## Current Position
 
 Phase: 14 of 15 (MkDocs Infrastructure)
-Plan: 1 of 1 in current phase
+Plan: 2 of 2 in current phase
 Status: Plan complete
-Last activity: 2026-04-05 — 14-01 MkDocs infrastructure build pipeline established
+Last activity: 2026-04-04 — 14-02 /guide StaticFiles mount and Dockerfile COPY
 
 Progress: [██████████████░░░░░░] ~70% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-14 done)
 
@@ -35,6 +35,7 @@ Progress: [██████████████░░░░░░] ~70% (v
 **Recent Trend:** Stable
 | Phase 13-openapi-schema-cleanup P02 | 2 | 2 tasks | 2 files |
 | Phase 14-mkdocs-infrastructure P01 | 8 | 2 tasks | 54 files |
+| Phase 14-mkdocs-infrastructure P02 | 6 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -53,6 +54,8 @@ Progress: [██████████████░░░░░░] ~70% (v
 - v1.3 (13-02): Feed router excluded from OpenAPI schema — /feed/station uses cookie auth and cannot be exercised from Swagger UI
 - v1.3 (14-01): site_url ends in /guide/ with trailing slash — prevents broken relative asset paths when served at sub-path
 - v1.3 (14-01): site/ committed to repo (not gitignored) — Dockerfile can COPY site/ without installing MkDocs in production image
+- v1.3 (14-02): /guide StaticFiles mount registered before /static with html=True — order is load-bearing; html=True enables automatic index.html serving at directory paths
+- v1.3 (14-02): COPY site/ site/ in Dockerfile — pre-built docs in production image, no MkDocs install needed
 
 ### Known Tech Debt
 
@@ -62,7 +65,6 @@ Progress: [██████████████░░░░░░] ~70% (v
 
 ### Blockers/Concerns
 
-- Phase 14: Verify CSS/JS assets load at `/guide` sub-path before writing content — needs live test (MEDIUM confidence)
 - Phase 15: Troubleshooting items require reproduction against running app — write last
 
 ### Pending Todos
@@ -71,6 +73,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-05
-Stopped at: Completed 14-01-PLAN.md — MkDocs infrastructure (Task 2 committed: e854a29)
+Last session: 2026-04-04
+Stopped at: Completed 14-02-PLAN.md — /guide mount and Dockerfile (Task 1 committed: 1e202b6)
 Resume file: None
