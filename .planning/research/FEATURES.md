@@ -1,297 +1,201 @@
-# Feature Research: Callsign Entity Lookup & Country Flag Display
+# Feature Research: Documentation Milestone (v1.3)
 
-**Domain:** Ham radio QSO logbook — v1.2 milestone: ITU callsign prefix→country resolution + flag icons in log view
+**Domain:** Self-hosted ham radio logging application — REST API reference, deployment guide, operator walkthrough, admin guide
 **Researched:** 2026-04-04
-**Confidence:** HIGH for core lookup behavior; MEDIUM for suffix/edge-case handling (community-consensus patterns, not a single authoritative spec)
+**Confidence:** HIGH for API reference scope (derived from codebase inspection); MEDIUM for deployment guide content (cross-referenced against real-world self-hosted app docs from n8n, Supabase, Infisical); MEDIUM for workflow documentation structure (derived from CloudLog wiki, ham radio community patterns, and general technical-user onboarding conventions)
 
 ---
 
 ## Scope Note
 
-This document covers ONLY what is new in v1.2. The existing feature set is already built
-and tested. Key constraints from the existing codebase:
+This document covers ONLY the documentation milestone (v1.3). All application features are already built and
+tested. The question is: what documentation features to produce, in what form, at what depth?
 
-- `qso_row.html`: callsign rendered as `{{ qso.CALL }}` in a plain `<td>` — flag goes here
-- `feed_row.html`: callsign rendered as `<strong>{{ call }}</strong>` — separate template, flag opportunity
-- `_qso_to_view_dict()` in `ui_router.py`: builds the dict passed to templates; flag data injected here
-- `QSO.CALL`: stored verbatim as typed by the operator — may include suffixes like `/P`, `/MM`
-- Flag SVGs: 271 ISO 3166-1 alpha-2 files already present at `app/static/flags/{code}.svg`
-- ITU prefix data: ranges provided directly (e.g., `WAA–WAZ → United States`, `3DA–3DM → Eswatini`)
-- No QSO data is stored; flag display is purely a render-time decoration
+The existing codebase provides the ground truth for all API endpoints, auth flows, request/response schemas,
+and configuration surface. The research task is: what does a self-hosted technical tool's documentation need
+to contain to be genuinely useful to its target audience (club/contest operators comfortable with self-hosting)?
 
 ---
 
-## How Callsign Prefix→Country Lookup Works in Ham Radio
+## Feature Landscape
 
-### The ITU Allocation Model (HIGH confidence)
+### Table Stakes (Users Expect These)
 
-The ITU allocates blocks of prefix ranges to administrations (countries). Prefixes are
-1–3 character alphanumeric strings. Ranges can be:
-
-- **Single-letter blocks**: "K" → United States (full block)
-- **Two-letter ranges**: "AAA–ALZ" → United States; "EA" → Spain (each needs ≥2 chars because the letter block is split among countries)
-- **Three-character sub-ranges**: "3DA–3DM" → Eswatini; "3DN–3DZ" → Fiji (sub-ranges required because a 2-char prefix is shared)
-
-The range boundary comparison is **lexicographic on the prefix characters**. A callsign like
-`3DA0JK` has prefix `3DA`; it falls in `3DA–3DM`, so it resolves to Eswatini. A callsign
-`3DM0AB` also falls in that range. A callsign `3DN5XY` falls in `3DN–3DZ`, so it resolves
-to Fiji.
-
-### Standard Matching Algorithm: Longest ITU Prefix Match (HIGH confidence)
-
-This is the universally-adopted approach across ham radio logging software (N1MM+, Log4OM,
-pyhamtools, DXCC command-line tools, cty.dat-based utilities):
-
-1. **Strip operating suffixes** from the CALL field (see Suffix Handling below)
-2. **Extract the base callsign** (the portion before any slash, or the whole call if no slash)
-3. **Try progressively shorter prefixes** starting from the full base callsign down to 1 character
-4. **Return the first (longest) match** found in the prefix range table
-
-For the ITU prefix range table used in this project (not cty.dat, but the ITU Series Ranges
-data with `start–end` format), the matching logic is:
-
-```
-For prefix_length in [len(base_call), len(base_call)-1, ..., 1]:
-    candidate = base_call[:prefix_length]
-    if any range where range.start <= candidate <= range.end:
-        return that range's country
-return None
-```
-
-This works because ITU ranges use lexicographic ordering and the data already encodes the
-sub-range structure (e.g., `3DA–3DM` covers all strings ≥ `3DA` and ≤ `3DM`).
-
-### Why Not Exact-Prefix Lookup (MEDIUM confidence)
-
-A simple dict lookup (prefix → country) is insufficient because:
-- ITU data is given as ranges, not enumerated individual prefixes
-- Sub-ranges like `3DA–3DM` vs `3DN–3DZ` require range comparison
-- A callsign `3DA0JK` would need to match `3DA` as the relevant prefix, not `3D` (which is unallocated as a standalone)
-- The longest-match approach naturally resolves this without pre-expanding ranges
-
----
-
-## Suffix Handling: Operating Indicators on Callsigns (MEDIUM confidence)
-
-Operators log callsigns with suffixes appended via `/`. The suffix changes the operational
-context but NOT the country of origin for the base callsign (unless the suffix is itself a
-valid country prefix for a different operation).
-
-### Standard Suffixes to Strip (no country change)
-
-| Suffix | Meaning | Action |
-|--------|---------|--------|
-| `/P` | Portable operation | Strip; use base call |
-| `/M` | Mobile operation | Strip; use base call |
-| `/A` | Alternative licensed address | Strip; use base call |
-| `/QRP` | Low-power self-identification | Strip; use base call |
-| `/LH` | Lighthouse activation (non-standard) | Strip; use base call |
-| `/R` | Relay/repeater (rare in QSO logging) | Strip; use base call |
-| `/B` | Beacon station | Strip; use base call |
-
-### Suffixes That ARE Country Prefixes (Complex — MEDIUM confidence)
-
-Some suffixes are themselves valid ITU country prefixes. These indicate a **guest operation**
-from another country — the prefix used over the air is the foreign prefix, not the home call.
-
-| Suffix | Example | Meaning |
-|--------|---------|---------|
-| `/MM` | `G3YWX/MM` | Maritime Mobile — NOT Scotland (**M** is England, **MM** is Scotland conflict) |
-| `/AM` | `EA5XY/AM` | Aeronautical Mobile — NOT Spain (**AM** is Spain conflict) |
-| Numeric only, e.g., `/7` | `W6ABC/7` | US call area indicator — different US district, same country |
-| Valid foreign prefix, e.g., `/VP9` | `G3YWX/VP9` | Operating from Bermuda — country changes to Bermuda |
-
-**Practical rule for v1.2 (LOW complexity, covers 99% of cases):**
-
-Strip any suffix that is:
-- A known non-location indicator: `/P`, `/M`, `/A`, `/QRP`, `/MM`, `/AM`, `/LH`, `/R`, `/B`
-- A single digit (call area indicator within same country)
-
-Use the base callsign (part before the last `/`) for prefix lookup. If the suffix is
-longer than 2 characters and not in the known-strip list, it may be a foreign prefix —
-but this edge case (guest operations logged with `/VP9` style suffixes) is uncommon enough
-that a "no match found → no flag" graceful fallback is the correct v1.2 behavior.
-
-### The /MM and /AM Ambiguity (HIGH confidence — known domain gotcha)
-
-`/MM` conflicts with the ITU prefix `MM` (Scotland). `G3YWX/MM` is a British station
-operating maritime mobile, NOT a Scottish callsign. Similarly `/AM` conflicts with `AM`
-(Spain). The standard industry resolution: when the suffix is exactly `MM` or `AM`, treat it
-as an operational indicator (maritime mobile / aeronautical mobile) and look up the BASE
-call, not the suffix.
-
----
-
-## Table Stakes
-
-Features operators expect from callsign entity display. Missing these = product feels broken.
+Features that self-hosting technical users assume exist. Missing any of these makes the product feel
+unfinished. These are the baseline for trust-building with the target audience.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Country flag icon next to callsign in log view | Every major logger (Ham Radio Deluxe, Log4OM, GridTracker, CloudLog) shows a flag beside the callsign in the log table | LOW | SVGs already present; inject `iso_code` via `_qso_to_view_dict()`; render with `<img>` in `qso_row.html` |
-| Graceful fallback when prefix unknown | No flag shown, no error, no broken layout | LOW | `iso_code = None` → template skips `<img>` entirely; no placeholder needed |
-| Flag lookup at render time (server-side) | Stateless rendering; no AJAX round-trips for individual rows | LOW | Prefix resolver called in `_qso_to_view_dict()`; result passed as template context variable |
-| Correct flag for common DX callsigns | W, K, N, VE, G, DL, F, JA, VK, ZL resolve correctly | LOW | Covered by ITU prefix table and longest-match algorithm |
-| Handle callsign entered in uppercase | ADIF CALL field is convention uppercase; `build_qso_dict()` already uppercases CALL | LOW | Resolver operates on uppercase input; no lowercasing needed |
-| Paginated log view unchanged in structure | Existing sort/filter/pagination must continue to work | LOW | Flag is additive to `qso_row.html`; no table structure changes required |
+| REST API endpoint reference (all routes) | Any project exposing a REST API is expected to document every endpoint, especially when operators need to integrate external tools (FLdigi, macros, scripts) | MEDIUM | 13 routes across 6 groups: auth (/auth/token, /auth/me), QSOs (5 routes), profile (2 routes), ADIF import/export (2 routes), admin (4 routes), SSE feed (1 route) |
+| Auth flow documentation | JWT-based auth has two distinct flows (Bearer token for REST, HTTP cookie for SSE); neither is self-evident | LOW | The dual-auth model is a genuine gotcha — must be documented explicitly with curl/fetch examples |
+| Request/response schemas for every endpoint | Operators scripting against the API need exact field names, types, and optional/required status | MEDIUM | Request bodies: QSOCreateRequest, CreateUserRequest, SetEnabledRequest, ResetPasswordRequest, ProfileUpdateRequest. Response shapes vary; ADIF import returns a structured report object |
+| HTTP status codes and error payloads | Self-hosting operators diagnosing problems need to know what 409 means (duplicate or last-admin lockout guard), what 401 means, what 413 means | LOW | Document per-endpoint: normal code, error codes, and the JSON error payload shape |
+| Example curl requests for each endpoint | The single most-requested element in API docs for technical users; reduces time-to-first-call | MEDIUM | One curl example per endpoint covering the happy path; auth header pattern shown once, referenced everywhere else |
+| Deployment guide: prerequisites and install steps | Self-hosters need Docker + Docker Compose version requirements, git clone, env file setup, and `docker compose up` in order | LOW | Prerequisites: Docker 20.10+, Docker Compose v2. Steps: clone → copy .env.example → set SECRET_KEY → docker compose up -d |
+| Environment variable reference | Every env var must be documented: name, purpose, required vs optional, example value | LOW | Variables: SECRET_KEY (required), MONGODB_URI, MONGODB_DB, JWT_EXPIRE_MINUTES, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_CALLSIGN |
+| Bootstrap admin account explanation | The admin account bootstrapped from env vars is non-obvious; operators need to know ADMIN_USERNAME/PASSWORD/CALLSIGN are only read at first startup | LOW | Explain one-time bootstrap; explain how to create additional operators via admin UI/API afterward |
+| Operator getting-started walkthrough | First-time operators need a linear path from login to first logged QSO; the UI is functional but not self-explanatory to non-developers | LOW | Steps: login → set profile (callsign, grid, equipment) → log a QSO → verify in log view → see it in station feed |
+| ADIF import/export instructions | Operators migrating from HRD, Log4OM, or FLdigi need to know the import process, the file size limit (10 MB), and what the import report means | LOW | Document the import report fields (accepted, duplicates, errors) so operators know when to use force=true or when to investigate errors |
+| Admin account management guide | Admins who are not developers need step-by-step instructions for creating accounts, enabling/disabling operators, and resetting passwords | LOW | Admin UI exists; also document the equivalent API calls for scripted provisioning |
 
----
+### Differentiators (Value Beyond Baseline)
 
-## Differentiators
-
-Features that improve the product beyond baseline expectations.
+Features that go beyond a minimal reference dump and reflect the actual complexity of the domain and
+deployment model.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Country name tooltip on flag | Hovering the flag shows full country name (e.g., "United States") | LOW | `title` attribute on `<img>`; no JS needed; country name already in prefix table data |
-| Consistent flag size / styling | Small, uniform flag icons that don't break table row height | LOW | CSS `width: 20px; height: auto; vertical-align: middle;` or similar; SVG scales cleanly |
-| Flag also in SSE live feed rows | New QSOs appearing in the shared station feed show the flag too | MEDIUM | `feed_row.html` uses plain variables not a QSO dict; resolver would need to be called in feed manager or SSE push path |
+| Dual-auth model explanation (Bearer vs Cookie) | The SSE /feed/station endpoint requires cookie auth because the browser EventSource API cannot send Authorization headers; this is non-obvious and will block operators who try to curl the SSE endpoint or automate feed access | LOW | Include a dedicated auth section explaining both flows, why each is used, and what happens if wrong auth type is used |
+| Duplicate detection behavior documentation | The ±2 minute fuzzy window for duplicate detection is not visible in the UI; operators importing historical logs or logging under contest conditions will encounter 409s they don't understand | LOW | Explain the window, what a 409 duplicate response contains (existing_id, existing_call), and when/how to use force=true |
+| Soft-delete explanation | Deleted QSOs are not removed from MongoDB — they are flagged `_deleted: true`; this matters for operators who delete a QSO and then try to re-import it (the re-import will succeed because find_duplicate only looks at non-deleted records) | LOW | One paragraph in the QSO deletion section explaining soft-delete semantics |
+| ADIF import report field guide | The import report returns four fields (total_records, accepted, duplicates, errors); each has a different shape; operators who get partial imports need to understand how to read the error list | LOW | Document the full import report schema with an annotated example response |
+| Profile auto-stamp behavior | Operators logging via REST API may be surprised to find OPERATOR, STATION_CALLSIGN, MY_GRIDSQUARE etc. auto-injected into QSOs from their profile — document this clearly so they don't think the API is broken | LOW | Include a "profile stamping" section in operator walkthrough |
+| Replica set requirement explanation | MongoDB must be configured as a single-node replica set to support change streams for the SSE feed; bare mongodb without --replSet rs0 will fail silently on the feed | LOW | Include in deployment guide: why the replica set is required, that the docker-compose.yml handles this automatically, what to check if the feed doesn't work |
+| Extra ADIF fields (extensibility) | POST /api/qsos accepts arbitrary ADIF fields beyond the declared set (extra="allow"); documenting this lets operators log SOTA references, contest exchanges, or any ADIF field without waiting for a new release | MEDIUM | Include a section on arbitrary ADIF field storage with an example showing APP_HAMLOG_NOTE or SOTA_REF in a QSO body |
+| Callsign prefix / flag lookup note | Flag display is render-time only; flag data is never stored in the QSO document and never appears in the REST API response or ADIF export — document this so operators don't search for a flag/country field in the API | LOW | One sentence in the QSO schema section |
 
----
+### Anti-Features (Commonly Requested, Often Problematic)
 
-## Anti-Features
+Documentation patterns that seem valuable but create maintenance burden, confusion, or false expectations.
+These are documentation anti-features — not application features.
 
-Features to explicitly NOT build in v1.2.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Store `DXCC_COUNTRY` or `ISO_CODE` in the QSO document | Country attribution can change (prefix reassignments, entity splits); storing it bakes in a point-in-time answer that may become wrong and adds migration complexity | Resolve at render time from the live prefix table; never persist to QSO data |
-| Per-callsign manual country override | Operator-managed exceptions for rare edge cases (special allocations, vanity prefix ops) add UI surface and data model complexity for an extremely rare case | Graceful "no flag" fallback handles unresolvable calls cleanly |
-| External callsign API integration (QRZ, HamQTH, hamcall.net) | These have rate limits, subscriptions, and external network dependencies; inappropriate for a self-hosted single-instance logger | Use the ITU prefix table only; external callbook lookup is explicitly deferred to v2 per PROJECT.md |
-| DXCC entity numbering / CQ zone / ITU zone derivation | These require cty.dat or equivalent and add significant data complexity; out of scope per PROJECT.md | Deferred to v2 |
-| Flag in ADIF export | Flags are display decoration only; no ADIF field exists for flag or ISO code; exporting them would break ADIF compliance | ADIF export unchanged; flag is a render-time artifact |
-| "New country" / DXCC worked indicator | Award tracking requires a persistent "worked" database per operator; adds model complexity | Deferred to v2 per PROJECT.md |
-| Animated flag or interactive flag click (opens QRZ profile) | Adds JS complexity; external link may not load in self-hosted deployments; QRZ is a subscription service | Static SVG with `title` tooltip is sufficient for v1.2 |
+| Anti-Feature | Why Requested | Why Problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| Auto-generated Swagger/ReDoc as the sole API reference | FastAPI generates Swagger UI at /docs automatically; seems like free documentation | Swagger UI requires the app to be running to be useful; it cannot be read offline or in a PR; it does not include narrative context (auth flows, duplicate behavior, SSE constraints); self-hosting operators often have the app on a LAN without public docs access | Write a static Markdown API reference that includes Swagger UI as a supplement, not as the primary reference |
+| Video walkthrough as the operator guide | Video seems comprehensive and accessible | Videos go stale immediately when the UI changes; self-hosting technical users prefer copy-pasteable commands and scannable text; videos are inaccessible without audio and cannot be searched | Markdown walkthrough with annotated screenshots (or none) and numbered steps |
+| Comprehensive "all ADIF fields" table | ADIF 3.1.7 has hundreds of fields; might seem valuable to enumerate them all | ollog stores all valid ADIF fields (extra="allow") but only requires 5; a full ADIF field table is a maintenance burden and belongs in the ADIF spec, not the app docs | Document only the required fields and the ~10 most common optional fields; link to adif.org/317 for the full spec |
+| FAQ document without a search | FAQ sections appear in many self-hosted project docs | FAQs grow without structure; users cannot scan them; they become stale; they duplicate content from other pages | Put common-problem content in context: auth failures in the auth section, import errors in the import section, feed not working in deployment troubleshooting |
+| API reference as a single monolithic page | Puts all 13 endpoints in one file; seems complete | Massive single page is hard to navigate, hard to link to individual endpoints, and hard to update incrementally | Organize by feature group (auth, QSOs, profile, ADIF, admin, SSE) as distinct sections within a structured document |
+| Changelog in the documentation | Developers sometimes include changelogs in user-facing docs | Self-hosting club operators don't care about developer changelog entries; it adds noise and becomes stale | Keep changelog in git commit history and ROADMAP.md; link to GitHub releases if public |
+| Architecture/internals documentation for operators | Some projects document MongoDB schema, Beanie models, etc. in user-facing docs | Club operators running ollog don't need to know about Beanie or change streams; it creates confusion and maintenance burden | Internal architecture belongs in ARCHITECTURE.md (planning), not in operator-facing docs. Admin guide covers only operational concerns |
 
 ---
 
 ## Feature Dependencies
 
 ```
-ITU prefix table (seed data or static Python dict)
-    └──required by──> Prefix resolver function
-                          └──called by──> _qso_to_view_dict() in ui_router.py
-                                              └──produces──> iso_code, country_name in template context
-                                                                 └──consumed by──> qso_row.html (log view)
-                                                                                  qso_row_edit.html (inline edit, optional)
+REST API Reference
+    └──requires──> Auth flow documentation
+                       └──covers──> Bearer token (POST /auth/token → use in Authorization header)
+                       └──covers──> Cookie auth (UI login only; SSE endpoint uses cookie, not Bearer)
+    └──requires──> Request/response schema tables
+    └──requires──> Example curl commands
+    └──requires──> HTTP status code / error payload reference
 
-Prefix resolver
-    └──needs──> Suffix stripper (strip /P, /M, /MM, /AM, digits)
-    └──needs──> Range comparator (lexicographic: start <= candidate <= end)
+Deployment Guide
+    └──requires──> Environment variable reference (SECRET_KEY, MONGODB_URI, etc.)
+    └──requires──> Bootstrap admin account explanation
+                       └──prerequisite for──> Admin guide
+    └──requires──> Replica set requirement note (why --replSet rs0 is in docker-compose.yml)
 
-Flag SVGs (already present at app/static/flags/{iso_code}.svg)
-    └──consumed by──> qso_row.html via <img src="/static/flags/{{ iso_code }}.svg">
+Operator Walkthrough
+    └──requires──> Deployment Guide (app must be running first)
+    └──requires──> Bootstrap admin + create-operator steps (operator account must exist)
+    └──covers──> Profile setup (MY_GRIDSQUARE, STATION_CALLSIGN, equipment)
+                     └──explains──> Profile auto-stamp behavior on POST /api/qsos
+    └──covers──> Logging a QSO via UI
+    └──covers──> Logging a QSO via REST API
+    └──covers──> ADIF import + reading the import report
+    └──covers──> ADIF export
+    └──covers──> Station feed (SSE) in browser
+
+Admin Guide
+    └──requires──> Bootstrap admin account explanation (from Deployment Guide)
+    └──covers──> Create operator account (UI + API)
+    └──covers──> Enable/disable operator (UI + API)
+    └──covers──> Reset password (UI + API)
+    └──covers──> Last-admin lockout guard (409 when disabling last enabled admin)
 ```
 
 ### Dependency Notes
 
-- **Prefix resolver requires suffix stripper:** CALL field may contain `/P`, `/M` etc.; resolver must strip before attempting prefix match.
-- **Resolver requires range comparator:** ITU data is expressed as ranges, not enumerated prefixes; lexicographic comparison against `(start, end)` tuples is required.
-- **`_qso_to_view_dict()` is the correct injection point:** It already prepares the dict for all log-view templates; adding `iso_code` and `country_name` here requires no changes to the service layer, models, or database.
-- **`qso_row.html` for log view; `feed_row.html` for SSE feed:** These are separate templates. Flag in the feed is a differentiator (not table stakes); defer if complexity warrants.
-- **`qso_row_edit.html` (inline edit row):** May also need to show the flag or at minimum preserve it across the edit/cancel cycle; check template structure.
+- **Deployment guide must come first:** Operator walkthrough and admin guide assume the app is running. Deployment guide is the prerequisite for all other documentation.
+- **Bootstrap admin explanation bridges deployment and admin guide:** The ADMIN_USERNAME/PASSWORD/CALLSIGN env vars create the first account at startup. This is documented in the deployment guide and referenced again in the admin guide.
+- **Auth flow explanation is the prerequisite for all REST API examples:** Every curl example depends on understanding how to obtain and pass a Bearer token. Auth must be documented before any endpoint examples.
+- **Profile setup precedes QSO logging in the operator walkthrough:** Auto-stamp behavior makes profile setup a prerequisite for correct QSO logging. Document in that order.
+- **Import report schema is standalone:** The ADIF import section has no hard dependency on other sections but should follow the basic operator walkthrough (so the reader has already logged QSOs before importing more).
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1.2)
+### Launch With (v1.3)
 
-Minimum viable set — validates the feature delivers value.
+Minimum viable documentation set — covers every shipped feature with enough detail for a self-hosting
+technical operator to use the application without asking questions.
 
-- [ ] Prefix resolver module: suffix stripping + range-aware lookup → `(country_name, iso_code) | None`
-- [ ] ITU prefix range data loaded into the resolver (static Python dict or MongoDB collection seeded at startup)
-- [ ] `_qso_to_view_dict()` extended to call resolver and include `iso_code` and `country_name` in output dict
-- [ ] `qso_row.html` updated to render flag `<img>` when `iso_code` is present, silent when absent
-- [ ] `country_name` surfaced as `title` tooltip attribute on the flag `<img>`
-- [ ] Graceful no-flag path verified (unknown prefix, empty CALL, malformed callsign → no error)
+- [ ] REST API reference: all 13 endpoints, grouped by feature area, each with method + path, auth requirement, request schema, response schema, HTTP status codes, and one curl example
+- [ ] Auth section: Bearer token flow (POST /auth/token + Authorization header), cookie auth for SSE (how the browser UI handles it, why curl cannot replicate the SSE endpoint without a session cookie), JWT expiry
+- [ ] Deployment guide: prerequisites, clone/env setup, `docker compose up -d`, bootstrap admin account, how to verify the app is running
+- [ ] Environment variable reference: SECRET_KEY (required, must change), MONGODB_URI, MONGODB_DB, JWT_EXPIRE_MINUTES (default 60), ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_CALLSIGN (one-time bootstrap)
+- [ ] Operator getting-started walkthrough: login → profile setup → log first QSO via UI → log first QSO via API → ADIF import → ADIF export → station feed
+- [ ] Admin account management guide: create operator, enable/disable, reset password, last-admin guard explanation
 
 ### Add After Validation (v1.x)
 
-- [ ] Flag in SSE live feed rows (`feed_row.html`) — requires resolver call in SSE push path
-- [ ] Flag in inline-edit row (`qso_row_edit.html`) if it disappears during edit/cancel cycle
+- [ ] Troubleshooting section for the deployment guide: SSE feed not updating (replica set issue), login fails (SECRET_KEY mismatch between containers, JWT expiry), import returns all duplicates (why and what to do)
+- [ ] Integration example: how to point FLdigi or WSJT-X at ollog's REST API for automated QSO posting
 
 ### Future Consideration (v2+)
 
-- [ ] DXCC "worked before" indicator (requires per-operator worked-entity tracking)
-- [ ] CQ zone / ITU zone derivation
-- [ ] cty.dat-based full DXCC entity lookup
-- [ ] Award tracking (DXCC, WAS, WAZ, IOTA)
+- [ ] OpenAPI spec file (openapi.json) published alongside the docs for tool integration
+- [ ] Multi-language or localized documentation (English-only is correct for v1.3)
+- [ ] Documentation versioning tied to application version tags
 
 ---
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Flag icon in log view | HIGH | LOW | P1 |
-| Country name tooltip | HIGH | LOW | P1 |
-| Graceful no-flag fallback | HIGH | LOW | P1 |
-| Suffix stripping (/P, /M, /MM, /AM, digits) | HIGH | LOW | P1 |
-| Resolver seeded from ITU range table | HIGH | MEDIUM | P1 |
-| Flag in SSE live feed | MEDIUM | MEDIUM | P2 |
-| Flag in inline edit row | LOW | LOW | P2 |
-| Per-callsign override | LOW | HIGH | P3 |
+| Documentation Feature | User Value | Implementation Cost | Priority |
+|-----------------------|------------|---------------------|----------|
+| REST API endpoint reference (all 13 routes) | HIGH | MEDIUM | P1 |
+| Auth flow (Bearer + cookie dual-auth explanation) | HIGH | LOW | P1 |
+| Deployment guide (Docker Compose + env setup) | HIGH | LOW | P1 |
+| Environment variable reference | HIGH | LOW | P1 |
+| Bootstrap admin account explanation | HIGH | LOW | P1 |
+| Operator getting-started walkthrough | HIGH | MEDIUM | P1 |
+| Admin account management guide | MEDIUM | LOW | P1 |
+| Duplicate detection behavior (±2 min window, force=true) | MEDIUM | LOW | P1 |
+| ADIF import report schema (accepted/duplicates/errors) | MEDIUM | LOW | P1 |
+| Replica set requirement explanation | MEDIUM | LOW | P1 |
+| Profile auto-stamp behavior documentation | MEDIUM | LOW | P2 |
+| Soft-delete semantics | LOW | LOW | P2 |
+| Extra ADIF field extensibility (extra="allow") | LOW | LOW | P2 |
+| Troubleshooting guide | HIGH | MEDIUM | P2 |
+| FLdigi / WSJT-X integration example | MEDIUM | MEDIUM | P3 |
 
 ---
 
-## Ham Radio Domain Gotchas
+## Competitor / Comparable Project Reference
 
-These are specific to the amateur radio domain and not obvious from general web app patterns.
+| Feature | CloudLog (PHP/MySQL, self-hosted) | ollog | Note |
+|---------|-----------------------------------|-------|------|
+| API reference | GitHub wiki, API key auth, curl examples | Bearer JWT auth, Markdown reference needed | CloudLog wiki is the closest comparable; demonstrates that API key examples in curl are sufficient for this audience |
+| Deployment guide | Apache/MySQL manual install + Docker alternative | Docker Compose only | Docker-only is simpler; deployment guide is correspondingly shorter |
+| Operator walkthrough | Basic wiki pages, no linear flow | Linear walkthrough needed | Ham radio self-hosters tolerate sparse docs but appreciate a clear first-run flow |
+| Admin guide | Admin panel documented inline | Admin UI + API both need documentation | Admin audience is likely the same person as the deployer |
 
-### 1. The /MM and /AM Suffix Conflict
+CloudLog's wiki (github.com/magicbug/Cloudlog/wiki/API) demonstrates that a curl-based API reference
+with JSON request/response examples is the right format for this user population. It does not use
+Swagger UI as the primary reference. The target audience (self-hosting hams) will recognize and
+appreciate this pattern.
 
-`G3YWX/MM` is a British station operating maritime mobile — NOT a Scottish station (MM = Scotland).
-`EA5XY/AM` is a Spanish station operating aeronautical mobile — NOT a Spanish call resolving via the AM prefix (AM = Spain).
-Strip these suffixes before lookup; do not attempt to use them as a country prefix.
+---
 
-### 2. Single-Digit Suffixes Are Call Area Indicators, Not Country Changes
+## Ham Radio Domain Notes Relevant to Documentation
 
-`W6ABC/7` is a US station operating in call area 7 (Pacific Northwest), NOT a different country.
-`VE7BC/3` is a Canadian station in Ontario call area, NOT a different country.
-Strip single-digit suffixes before lookup; they do not change country.
+These are domain facts that must be documented to prevent operator confusion; they are not obvious
+from general web-app mental models.
 
-### 3. Callsigns With No Number (Rare But Valid)
+1. **ADIF field names are uppercase by convention** — the API uses CALL, BAND, MODE, QSO_DATE, TIME_ON as JSON keys. This surprises developers used to snake_case APIs. Must be documented in the API reference with an explicit note.
 
-Some UK special event and club callsigns omit the numeric separator: `GB2HQ`, `GX4BJC`.
-The standard ITU structure (letters, then digit, then letters) does not hold for these.
-Longest-prefix match on progressively shorter substrings still works correctly: `GB` matches
-the UK range in the ITU table.
+2. **BAND values are strings, not numbers** — "20M", "40M", not 14.000 or similar. FREQ is a separate optional field. Document valid examples.
 
-### 4. The 3DA–3DM / 3DN–3DZ Sub-Range Example
+3. **QSO_DATE format is YYYYMMDD, TIME_ON format is HHMM or HHMMSS** — ADIF date/time format is not ISO 8601. Operators scripting against the API will use wrong formats. Examples are essential.
 
-Both Eswatini and Fiji share the `3D` two-character prefix. The ITU resolves this by allocating
-sub-ranges at the third character. A callsign `3DA0JK` must be matched at 3-character prefix
-granularity (`3DA`) to land in the correct range `3DA–3DM`. A 2-character lookup for `3D`
-alone is ambiguous and must not be used as the final answer.
-Longest-match with range comparison handles this correctly by preferring the 3-character match.
+4. **STATION_CALLSIGN vs OPERATOR** — these are different ADIF fields with different semantics: OPERATOR is the person logging (from their login identity), STATION_CALLSIGN is the callsign transmitted over the air (e.g., club callsign). This distinction must be explained in the profile setup section.
 
-### 5. US Callsigns: Multiple Valid Prefixes
-
-The US holds: `AA–AL`, `K`, `N`, `W` (full single-letter blocks), plus `KA–KZ`, `NA–NZ`,
-`WA–WZ`. All of these resolve to United States. The longest-match algorithm will correctly
-match `W6ABC` to `W` (or `WA`–`WZ` if the data includes those sub-ranges).
-
-### 6. Special Prefixes With No ISO Country Code
-
-| Prefix | Entity | ISO Code | Note |
-|--------|--------|----------|------|
-| `1A` | Sovereign Military Order of Malta | None (not a UN member state) | No flag SVG; graceful fallback |
-| `4U1ITU` | ITU Geneva | None | No ISO alpha-2; graceful fallback |
-| `4U1UN` | United Nations NY | None | No ISO alpha-2; graceful fallback |
-
-These will return a country name but no valid ISO alpha-2 → no flag shown, no error.
-The country name is still useful for tooltip display even without a flag.
-
-### 7. Callsigns From Entities Not in ISO 3166-1 alpha-2
-
-Some DXCC entities recognized for amateur radio purposes are not UN-recognized states and
-have no ISO 3166-1 alpha-2 code (and thus no flag SVG in the existing set):
-- Kosovo (DXCC entity Z6; ISO code XK exists in practice but is not officially assigned)
-- Various dependent territories may use their parent country's ISO code in flag collections
-
-The resolver should return `iso_code = None` when the country name has no ISO mapping;
-the template renders no flag without error.
+5. **SSE /feed/station is browser-only in practice** — the endpoint requires cookie auth (not Bearer), because the browser EventSource API cannot send custom headers. Operators should not expect to consume the SSE feed programmatically without implementing cookie session management.
 
 ---
 
@@ -299,17 +203,16 @@ the template renders no flag without error.
 
 | Source | Confidence | Use |
 |--------|------------|-----|
-| [ITU Table of International Call Sign Series (Appendix 42)](https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx) | HIGH | Authoritative ITU prefix range allocations |
-| [ITU prefix — Wikipedia](https://en.wikipedia.org/wiki/ITU_prefix) | HIGH | Prefix structure, range examples, sub-range explanation |
-| [Amateur radio call signs — Wikipedia](https://en.wikipedia.org/wiki/Amateur_radio_call_signs) | HIGH | Callsign structure, suffix conventions, international operating |
-| [Portable operation (amateur radio) — Wikipedia](https://en.wikipedia.org/wiki/Portable_operation_(amateur_radio)) | HIGH | /P, /M, /A suffix semantics |
-| [pyhamtools on GitHub](https://github.com/dh1tw/pyhamtools) | MEDIUM | Industry reference: Python callsign-to-country library using longest-prefix-match approach |
-| [hamradio on PyPI](https://pypi.org/project/hamradio/) | MEDIUM | cty.dat-based Python lookup; confirms longest-match is standard |
-| [Ham-Locator on GitHub](https://github.com/SheldonT/Ham-Locator) | MEDIUM | Example of flag + city + country display in log table (visual UX confirmation) |
-| [Ham Radio Deluxe Country List docs](https://support.hamradiodeluxe.com/support/solutions/articles/51000052697-the-hrd-country-list) | MEDIUM | Confirms country list display is standard in logging software |
-| [/MM and /AM conflict note — river.cat](https://river.cat/radio/mobile-or-portable.html) | MEDIUM | /MM vs MM Scotland, /AM vs AM Spain ambiguity — documented community pattern |
-| Existing ollog codebase inspection | HIGH | Template structure, `_qso_to_view_dict()`, flag SVG inventory, QSO model |
+| ollog codebase: app/qso/router.py, app/auth/router.py, app/admin/router.py, app/profile/router.py, app/adif/router.py, app/feed/router.py | HIGH | Ground truth for all endpoint paths, request/response schemas, auth dependencies, status codes |
+| ollog docker-compose.yml | HIGH | Deployment surface: replica set config, env var names, service healthcheck |
+| ollog app/config.py | HIGH | Complete env var inventory: SECRET_KEY, MONGODB_URI, MONGODB_DB, JWT_EXPIRE_MINUTES, ADMIN_* |
+| [CloudLog API wiki](https://github.com/magicbug/Cloudlog/wiki/API) | MEDIUM | Comparable self-hosted ham radio API documentation format; curl examples are standard for this audience |
+| [n8n Docker Compose self-hosted guide](https://docs.n8n.io/hosting/installation/server-setups/docker-compose/) | MEDIUM | Real-world self-hosted deployment guide structure: prerequisites, env vars, verification steps |
+| [Supabase self-hosting Docker guide](https://supabase.com/docs/guides/self-hosting/docker) | MEDIUM | Env var reference format (.env.example pattern), secrets guidance, bootstrap account pattern |
+| [Infisical Docker Compose docs](https://infisical.com/docs/self-hosting/deployment-options/docker-compose) | MEDIUM | Pre-launch checklist pattern; "CHANGEME" env var marking convention |
+| [FastAPI OpenAPI documentation guide](https://fastapi.tiangolo.com/advanced/extending-openapi/) | HIGH | FastAPI auto-generates /docs (Swagger UI) and /redoc; these are supplementary, not the primary reference |
+| [GitHub REST API getting started](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api) | MEDIUM | Pattern: curl examples, auth section first, then endpoint groups |
 
 ---
-*Feature research for: ollog v1.2 — callsign entity lookup & country flag display*
+*Feature research for: ollog v1.3 — documentation milestone*
 *Researched: 2026-04-04*

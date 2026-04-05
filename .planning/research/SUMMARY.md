@@ -1,7 +1,7 @@
 # Project Research Summary
 
-**Project:** ollog v1.2 — Callsign Prefix Lookup & Country Flag Display
-**Domain:** Ham radio QSO logbook — ITU prefix-to-country resolution + flag icons in log view
+**Project:** ollog — documentation milestone (v1.3)
+**Domain:** REST API documentation + operator/admin narrative docs for a self-hosted FastAPI + HTMX + MongoDB ham radio logbook
 **Researched:** 2026-04-04
 **Confidence:** HIGH
 
@@ -9,11 +9,11 @@
 
 ## Executive Summary
 
-This milestone adds a self-contained, display-only feature to ollog: resolve the CALL field of each logged QSO to a country using the ITU prefix range table, then render the country's flag SVG inline in the log table. The feature is purely presentational — no new database schema, no new routes, no stored data. The entire addition reduces to one new Python module, one import, one dict key, and one template change. All major ham radio logging software (Ham Radio Deluxe, Log4OM, CloudLog) treats this as a baseline expectation; users will notice its absence.
+The ollog documentation milestone divides cleanly into two non-overlapping problems: (1) enriching the auto-generated OpenAPI schema that FastAPI already produces, and (2) writing and serving human-authored narrative documentation for operators and admins. These require different tooling and different phases of work. The API schema work is pure code annotation — no new packages, no new infrastructure — and must come first because the narrative docs will cross-reference Swagger UI. The narrative docs require one new dev dependency (`mkdocs-material==9.*`) and a StaticFiles mount that serves the built site at `/guide`, preserving `/docs` as Swagger UI.
 
-The recommended implementation is intentionally minimal: bundle the ITU prefix range table (~340–600 rows) as a static Python list in `app/callsign/prefixes.py`, loaded once at import time. A `lookup_prefix(callsign)` function using a linear range scan (O(n) over < 800 rows = microseconds) returns an ISO 3166-1 alpha-2 code or `None`. This is injected into `_qso_to_view_dict()` as a `flag_iso` key. The flag SVG is already present at `app/static/flags/{iso}.svg` (271 files) but is currently unserved due to a static file mount path discrepancy that must be resolved first. One new dependency is added: `pycountry>=26.2.16` for ITU-name-to-ISO mapping at data build time (not at request time).
+The recommended architecture is a single-process model: FastAPI serves both the OpenAPI reference (at `/docs`) and the built MkDocs site (at `/guide`) from the same Docker Compose service. There is no separate docs container, no CI deploy, no external hosting required. The MkDocs `site/` output is committed to the repo and copied into the Docker image via one new `COPY site/ site/` line in the Dockerfile. This keeps operational complexity at zero while giving self-hosted deployments access to narrative docs without internet access.
 
-The primary risk is correctness, not performance. The ITU prefix model uses overlapping sub-ranges (e.g., `3DA–3DM` vs `3DN–3DZ`) that require longest-match resolution, not a flat scan. Callsigns may include portable suffixes (`/P`, `/MM`, `/AM`) that must be stripped before lookup, with specific rules for `MM` and `AM` which conflict with valid country prefixes. ITU country names use parenthetical forms that `pycountry.lookup()` rejects — a small override dict is required alongside `search_fuzzy()`. All three correctness risks are well-understood and have clear solutions documented in the research.
+The primary risk is trust destruction from an incorrect or incomplete OpenAPI schema. The existing codebase has six confirmed schema gaps: QSO endpoints return untyped `dict` (OpenAPI shows `{}`), ADIF import/export responses are undocumented, the 409 duplicate response has no schema, the health endpoint has no 503 documented, soft-delete is not disclosed, and HTMX cookie-auth routes appear alongside REST endpoints without distinction. All six must be resolved before narrative docs are written — narrative docs that say "see /docs for the response schema" are false advertising if Swagger shows empty objects.
 
 ---
 
@@ -21,119 +21,136 @@ The primary risk is correctness, not performance. The ITU prefix model uses over
 
 ### Recommended Stack
 
-The existing stack (FastAPI 0.135+, Beanie 2.1+, Jinja2, HTMX 2.0.4, Python 3.12, MongoDB 7) requires only one new addition: `pycountry>=26.2.16`, a pure-Python library used to map ITU country names to ISO alpha-2 codes when building the static prefix table. All other capabilities — CSV parsing, linear/binary search, Jinja2 template rendering, static file serving — use Python stdlib or existing dependencies.
+The existing stack requires exactly one new dev dependency: `mkdocs-material==9.*` (currently 9.7.6, released March 19, 2026). This single install transitively pulls MkDocs 1.6.1, pymdown-extensions 10.21.2, and Pygments — no further packages needed. All other documentation work (OpenAPI enrichment, route annotations, tag descriptions) uses FastAPI's built-in annotation surface with no new packages at all.
+
+MkDocs Material is the correct choice for this project: FastAPI itself uses it, it is Markdown-native, `mkdocs build` produces standalone static HTML that can be mounted via `StaticFiles`, and it is a dev-only dependency that does not bloat the production Docker image.
 
 **Core technologies:**
-- `pycountry>=26.2.16`: Map ITU country name strings to ISO 3166-1 alpha-2 at data-build time — handles ITU long-form names via `search_fuzzy()` that exact-match libraries like `iso3166` cannot handle
-- `bisect` (stdlib): O(log n) range lookup if sorted list is preferred; linear scan is also acceptable at < 800 rows
-- `csv` (stdlib): Parse the bundled ITU prefix CSV at module import time
-- Jinja2 `<img>` tag (existing): Render flag SVGs — inline `<svg>` must NOT be used due to a confirmed HTMX namespace bug (htmx issue #2761)
+- `mkdocs-material==9.*`: Static site generator for narrative docs — dev dependency only, pin to `9.*` per official recommendation to prevent unreviewed major-version upgrades
+- FastAPI built-in OpenAPI: API reference via `/docs` (Swagger UI) and `/redoc` — zero new packages, enriched by annotating existing code with `response_model=`, `responses={}`, `openapi_tags`, `Field(description=...)`
+- `StaticFiles(directory="site", html=True)`: Serves built MkDocs output at `/guide` within the existing FastAPI process — no new container, no new service
 
-**Critical prerequisite — static file path mismatch:** The `StaticFiles` mount in `app/main.py` points to the project root `static/` (currently empty). Flag SVGs live at `app/static/flags/`. Fix: `git mv app/static/flags static/flags` — zero code changes required, aligns with the existing Dockerfile `COPY static/ static/` line. This must be done before any flag rendering works.
+**What NOT to add:** `mkdocstrings` (library tool, not REST API user guide tool), Sphinx (RST-based, wrong audience), Redocly CLI (adds Node.js to a pure-Python project), `mkdocs-material[imaging]` extras (requires system dependencies for social card generation), any SaaS doc hosting.
 
 ### Expected Features
 
-The feature set for v1.2 is small and tightly scoped. Everything beyond the MVP is explicitly deferred.
+This milestone produces documentation, not application features. The content scope is well-defined and derived directly from codebase inspection.
 
-**Must have (table stakes):**
-- Country flag icon next to callsign in log view — every major logger shows this; absence is noticed
-- Graceful no-flag fallback — unknown prefix, empty CALL, or missing ISO code renders nothing, not a broken image
-- Correct resolution for common DX callsigns — W, K, N, VE, G, DL, F, JA, VK, ZL must resolve correctly
-- Portable suffix stripping — `/P`, `/M`, `/QRP`, `/MM`, `/AM`, single-digit call area indicators must be stripped before lookup
-- Country name tooltip on flag — `title` attribute on `<img>`; zero JS required; name is already in the prefix table
+**Must have (table stakes) — all P1:**
+- REST API endpoint reference: all 13 routes across 6 groups (auth, QSOs, ADIF, profile, admin, SSE feed), each with method + path, auth requirement, request schema, response schema, HTTP status codes, and one curl example
+- Auth flow documentation: Bearer token path (POST `/auth/token`, `Authorization: Bearer`) and cookie path (browser SSE, why EventSource cannot send custom headers) documented separately and clearly
+- Deployment guide: Docker Compose prerequisites, `.env` setup, `docker compose up -d`, bootstrap admin account explanation, verification steps
+- Environment variable reference: `SECRET_KEY` (required, must change), `MONGODB_URI`, `MONGODB_DB`, `JWT_EXPIRE_MINUTES`, `ADMIN_USERNAME/PASSWORD/CALLSIGN` (one-time bootstrap only, not re-read after first startup)
+- Operator getting-started walkthrough: login → profile setup → first QSO via UI → first QSO via API → ADIF import → ADIF export → station feed
+- Admin account management guide: create/enable/disable/reset password, last-admin lockout guard explanation
+- Duplicate detection behavior: ±2 minute window, 409 response structure, `force=true` override
+- ADIF import report schema: `total_records`, `accepted`, `duplicates`, `errors` — shape of each field
+- Replica set requirement: why `--replSet rs0` is in docker-compose.yml, what fails if it is absent
 
-**Should have (differentiators for v1.x after validation):**
-- Flag in SSE live feed rows (`feed_row.html`) — separate template and context path; medium complexity
-- Flag in inline-edit row (`qso_row_edit.html`) — prevents flag disappearing during edit/cancel cycle
+**Should have (differentiators) — P2:**
+- Profile auto-stamp behavior (OPERATOR, STATION_CALLSIGN, MY_GRIDSQUARE injected from profile on QSO creation — operators may think the API is broken if this is undocumented)
+- Soft-delete semantics for `DELETE /api/qsos/{qso_id}`
+- Extra ADIF field extensibility (`extra="allow"` — any valid ADIF field accepted beyond the declared set)
+- Troubleshooting section (SSE feed not updating, login fails after restart, import returns all duplicates)
 
 **Defer to v2+:**
-- DXCC "worked before" / new country indicator — requires per-operator worked-entity tracking
-- CQ zone / ITU zone derivation — requires cty.dat or equivalent
-- Award tracking (DXCC, WAS, WAZ, IOTA) — significant model complexity
-- External callbook lookup (QRZ, HamQTH) — subscription APIs, network dependency, out of scope per PROJECT.md
-
-**Anti-features (explicitly do not build):**
-- Store `DXCC_COUNTRY` or `ISO_CODE` in the QSO document — ITU allocations change; baking display data into stored records creates stale data and future migration pain
-- External CDN for flag images — self-hosted deployment model; CDN dependency breaks offline/air-gapped setups
+- FLdigi / WSJT-X integration examples
+- Published `openapi.json` spec file for tool integration
+- Documentation versioning tied to application version tags
+- Multi-language documentation
 
 ### Architecture Approach
 
-The architecture is additive with minimal coupling. A new `app/callsign/` package holds the static prefix table and lookup function. The only modifications to existing code are one import and one dict key in `_qso_to_view_dict()` in `ui_router.py`, and one `{% if qso.flag_iso %}<img>{% endif %}` block in `qso_row.html`. All three render paths (full page load, HTMX pagination partial, inline edit save) flow through `_qso_to_view_dict()`, so a single change covers all three automatically. No changes to the QSO model, MongoDB schema, service layer, ADIF import/export, auth, admin, or feed router.
+Documentation is served by the existing single FastAPI process via two mechanisms: the built-in OpenAPI endpoint at `/docs` (augmented via `FastAPI()` constructor metadata and route annotations) and a StaticFiles mount at `/guide` serving the MkDocs-built `site/` directory. No separate container, no external hosting, no CI pipeline required. The `site/` directory is built locally with `uv run mkdocs build --strict` and committed to the repo. The Dockerfile gains one line: `COPY site/ site/`. Mount order in `app/main.py` is critical — `/guide` must be registered before `/static`.
 
 **Major components:**
-1. `app/callsign/prefixes.py` — Bundled ITU prefix range table as a Python list literal + `lookup_prefix(call: str) -> str | None` function; loaded once at import, zero I/O per call
-2. `_qso_to_view_dict()` in `app/qso/ui_router.py` — Modified to call `lookup_prefix()` and add `flag_iso` key; this is the single correct injection point covering all render paths
-3. `static/flags/<iso>.svg` — 271 flag SVGs (already present, needs path fix); served by existing `StaticFiles` mount; referenced via `<img>` tag only (never inline SVG)
-
-**Build order (dependency-driven):**
-1. Prefix data + `lookup_prefix()` — pure Python, no dependencies, fully unit-testable in isolation
-2. Flag SVG path fix (`git mv app/static/flags static/flags`) — can run parallel to step 1
-3. Wire `lookup_prefix()` into `_qso_to_view_dict()` — depends on step 1
-4. Update `qso_row.html` template — depends on steps 2 and 3
+1. OpenAPI metadata (`app/main.py` `FastAPI()` constructor) — `description` and `openapi_tags` with per-group Markdown descriptions; enriches `/docs` and `/redoc` with zero logic changes
+2. Route annotations (across all `router.py` files) — `summary=`, `response_model=`, `responses={409: ...}`, `Field(description=...)` on ADIF fields, `include_in_schema=False` on HTMX routes; all additive, zero runtime behavior change
+3. MkDocs source (`docs/` directory + `mkdocs.yml`) — Markdown source for operator guide, admin guide, API tutorials, ADIF field reference, deployment guide
+4. Built site (`site/` directory) — MkDocs output committed to repo, served at `/guide` via StaticFiles mount with `html=True`
+5. Dockerfile addition — `COPY site/ site/` ensures the built docs artifact is in the production image
 
 ### Critical Pitfalls
 
-1. **Inline SVG in HTMX-swapped partials breaks rendering** — HTMX parses responses in the HTML namespace; SVG elements are silently mangled (confirmed htmx issue #2761). Use `<img src="/static/flags/{iso}.svg">` exclusively. Flags appear on first page load but vanish after pagination if this rule is violated.
+All six critical pitfalls are confirmed from direct codebase inspection (HIGH confidence). Every one must be resolved in the OpenAPI schema cleanup phase before narrative docs are written.
 
-2. **Flat range scan without longest-match fails on sub-ranges** — The ITU has overlapping allocations (e.g., `3DA–3DM` = Eswatini, `3DN–3DZ` = Fiji, sharing the `3D` stem). A flat list scanned in insertion order silently misclassifies callsigns. Always match the most-specific (longest common prefix) range by trying progressively shorter prefix candidates (3-char, then 2-char, then 1-char).
+1. **QSO endpoints return untyped `dict` — Swagger shows `{}`** — Add `response_model` Pydantic classes with `model_config = ConfigDict(extra="allow")` or use `openapi_extra` to inject hand-authored response schemas. The runtime `_qso_to_dict()` serialization does not need to change.
 
-3. **`/MM` and `/AM` suffix stripping conflict** — `MM` is the ITU prefix for Scotland; `AM` is the prefix for Spain. `G3YWX/MM` is British maritime mobile, not a Scottish callsign. Strip these as operating suffixes; never resolve `MM` or `AM` as a country prefix when they follow a slash.
+2. **Cookie-auth HTMX routes appear alongside REST endpoints in Swagger** — Apply `include_in_schema=False` to all `/log/*` and `/admin/ui/*` routes. Document both auth flows explicitly in narrative docs: Bearer token for REST/scripts, cookie for browser SSE.
 
-4. **ITU parenthetical country names fail `pycountry.lookup()`** — Names like `Germany (Federal Republic of)` and `Korea (Republic of)` raise `LookupError`. `search_fuzzy()` is not a safe primary method — it has documented silent wrong-results (e.g., `"Niger"` returns Nigeria). Use a static override dict keyed by exact ITU name strings as the primary lookup; `search_fuzzy()` as fallback only.
+3. **ADIF import/export response schemas missing** — Create `ADIFImportReport` Pydantic response model for `POST /api/adif/import`; use `openapi_extra` to declare `text/plain` content type for `GET /api/adif/export` (which returns a StreamingResponse and cannot be typed via `response_model`).
 
-5. **Flag SVG path mismatch (must fix before rendering works)** — The `StaticFiles` mount serves `static/` at the project root, which is currently empty. Fix with `git mv app/static/flags static/flags`. Without this, all flag `<img>` tags return 404.
+4. **409 duplicate detection undocumented** — Add `responses={409: {"model": DuplicateQSOError}}` to `create_qso`; add `Query(description=...)` to the `force` parameter explaining when to use it.
+
+5. **ADIF field names and formats unexplained** — Add `Field(description=...)` to every ADIF field in request models. Critical formats: `QSO_DATE` is YYYYMMDD (not ISO 8601), `TIME_ON` is HHMM or HHMMSS, `BAND` uses amateur radio band designators (`"20m"`, `"40m"`, not frequencies), ADIF field names are uppercase by ADIF convention.
+
+6. **Soft-delete not disclosed in DELETE endpoint** — Add "soft-delete — record is marked deleted in the database but not physically removed" to the `DELETE /api/qsos/{qso_id}` endpoint description. Affects duplicate detection behavior (soft-deleted QSOs are excluded from `find_duplicate`).
+
+Additionally: mount narrative docs at `/guide`, not `/docs`. Shadowing FastAPI's conventional Swagger UI path causes silent confusion for API consumers — they hit the MkDocs index page instead of Swagger with no error message.
 
 ---
 
 ## Implications for Roadmap
 
-This milestone decomposes into two phases following the architectural dependency chain.
+The milestone decomposes into three sequential phases. Phases 1 and 2 can be worked in parallel (they touch different files with no overlap); Phase 3 must come after both.
 
-### Phase 1: Prefix Resolver Module
+### Phase 1: OpenAPI Schema Cleanup
 
-**Rationale:** The prefix lookup function is the foundational dependency for everything else. It is pure Python with no FastAPI, MongoDB, or template coupling — it can be built, tested, and validated in complete isolation before any display work begins. Building it first eliminates the biggest correctness risks (sub-range matching, suffix stripping, ITU name normalization) before they can contaminate the integration layer.
+**Rationale:** All six critical pitfalls live in the OpenAPI schema layer. Fixing them requires only code annotations — no new packages, no infrastructure. This work must precede narrative documentation because the operator guide, API reference, and auth sections will cross-reference `/docs`. If Swagger shows `{}` for QSO responses when narrative docs say "see the schema in /docs," the docs actively mislead readers.
 
-**Delivers:** `app/callsign/prefixes.py` with the complete ITU prefix range table (bundled as a Python list literal or parsed from a bundled CSV), `lookup_prefix(callsign: str) -> str | None` with suffix stripping and longest-match range logic, and a test suite covering: common prefixes (W, K, DL, G, JA), sub-range cases (3DA/3DN), suffix stripping (`/P`, `/M`, `/MM`, `/AM`, single-digit), non-country entities (4U1, C7), and the no-match fallback.
+**Delivers:** A complete, accurate, self-consistent OpenAPI schema at `/docs` and `/redoc`. Every endpoint has a non-empty response schema. ADIF fields have `description` strings and format notes. 409 and 503 error responses are declared. Cookie-auth routes are excluded from the schema. The app-level description and tag descriptions give Swagger users orientation without opening any other documentation.
 
-**Addresses:** Correct flag for common DX callsigns, suffix handling, graceful fallback (table stakes)
+**Addresses:** REST API endpoint reference (table stakes), auth flow documentation (table stakes), HTTP status codes and error payloads (table stakes), duplicate detection behavior (P1), soft-delete disclosure (P2)
 
-**Avoids:**
-- Pitfall 1: range comparison on raw strings
-- Pitfall 2: flat scan without longest-match
-- Pitfall 3: structural digit included in prefix
-- Pitfall 4: suffixes not stripped before lookup
-- Pitfall 5: non-country entities causing exceptions
-- Pitfall 6: ITU parenthetical names failing pycountry
+**Avoids:** All six critical pitfalls from PITFALLS.md
 
-### Phase 2: Flag Display Integration
+**No deeper research needed.** All annotation APIs (`response_model=`, `responses={}`, `openapi_extra`, `Field(description=...)`, `include_in_schema=False`, `openapi_tags`) are in FastAPI official documentation.
 
-**Rationale:** Once `lookup_prefix()` is verified correct, the display integration is mechanical: fix the static file path, wire the resolver into `_qso_to_view_dict()`, and update the template. All three steps are low-risk additive changes with no structural impact on existing routes, models, or the database.
+### Phase 2: MkDocs Infrastructure and Deployment Guide
 
-**Delivers:** Working country flag display in the log view — flag SVG served from `static/flags/`, `flag_iso` key injected via `_qso_to_view_dict()`, `<img>` rendered in `qso_row.html` with `title` tooltip and `onerror="this.style.display='none'"` fallback, `{% if qso.flag_iso %}` guard ensuring no broken images for unresolved callsigns.
+**Rationale:** Before narrative content can be written, the serving infrastructure must be verified end-to-end. This phase is deliberately narrow — install tooling, wire the StaticFiles mount, confirm `/guide` works in both `uvicorn` and `docker compose` contexts. The deployment guide is included here because it has no dependency on a stable UI and is entirely factual content (env vars, Docker commands, bootstrap steps) that can be written once the infrastructure validates.
 
-**Uses:** `lookup_prefix()` from Phase 1, existing `StaticFiles` mount, existing `Jinja2Templates` instance, `<img>` tag (not inline SVG)
+**Delivers:** Working MkDocs pipeline (`uv run mkdocs serve` for local preview, `uv run mkdocs build --strict` for production build), `site/` committed to repo, `/guide` StaticFiles mount registered in `app/main.py` before `/static`, `COPY site/ site/` in Dockerfile, `mkdocs-material==9.*` in `[dependency-groups].dev` in `pyproject.toml`, and a complete deployment guide.
 
-**Implements:** Modified `_qso_to_view_dict()` (architecture component 2) and flag SVG serving (architecture component 3)
+**Uses:** `mkdocs-material==9.*`, StaticFiles mount pattern (FastAPI official docs), `html=True` for directory index serving
 
-**Avoids:**
-- Pitfall 7: inline SVG breaks HTMX swap — use `<img>` exclusively
-- Pitfall 8: CDN cascade on pagination — self-hosted static files, no external requests
-- Pitfall 9: `_qso_to_view_dict()` not updated — this is the explicit implementation target
-- Pitfall 10: N+1 DB queries — in-memory lookup from Phase 1, zero DB calls per row
-- Pitfall 11: None rendered as string "None" — `{% if qso.flag_iso %}` guard
+**Implements:** Architecture components 3, 4, and 5 (MkDocs source, built site, Dockerfile addition)
+
+**Avoids:** Over-engineering pitfall — infrastructure is one dev dependency and one mount line; `mkdocs-material` as a runtime dependency (add to dev group only); mount order pitfall (register `/guide` before `/static`)
+
+**No deeper research needed.** StaticFiles mount pattern is in FastAPI official docs. MkDocs build/serve workflow is in MkDocs Material official docs.
+
+**Watch for:** MkDocs generates relative asset paths by default. Verify that CSS and JS assets load correctly when the site is mounted at `/guide` (not `/`). If assets 404, set `use_directory_urls: true` (the default) and verify StaticFiles `html=True` is in place. The ARCHITECTURE.md notes this as a MEDIUM-confidence community finding — confirm with a live test before writing content.
+
+### Phase 3: Narrative Documentation Content
+
+**Rationale:** Content must come last, after OpenAPI is correct (Phase 1 — so narrative can reference accurate schema) and the MkDocs infrastructure works (Phase 2 — so authors can verify rendering as they write). PITFALLS.md explicitly warns against writing workflow docs before the UI is in a stable committed state (Pitfall 8). Writing narrative content in Phase 3 eliminates this risk entirely.
+
+**Delivers:** Complete operator getting-started walkthrough, admin account management guide, full API reference in Markdown (supplementing Swagger with auth flow explanation, curl examples, ADIF field format reference), auth section explaining both flows in plain language (not developer-centric JWT/OAuth2 terminology for operator-facing sections), and troubleshooting entries for the three most common failure modes.
+
+**Addresses:** All P1 features (operator walkthrough, admin guide, auth flows, ADIF import/export instructions, duplicate detection, replica set explanation); P2 features (profile auto-stamp, soft-delete, extra ADIF fields, troubleshooting)
+
+**Avoids:** JWT dual-auth under-documentation (Pitfall 4), ADIF field format opacity (Pitfall 5), workflow docs written before UI is stable (Pitfall 8), developer-centric language in operator sections (UX pitfall), documenting admin credentials as example values (security pitfall), using obviously fake tokens in examples
+
+**Content order within Phase 3:** Write deployment guide first (no UI dependency), then API reference (references Phase 1 schema — already done), then operator walkthrough and admin guide last (must be written against a stable UI — do a final pass confirming each documented step against the live app before committing).
+
+**No deeper research needed.** Content quality depends on domain knowledge (ham radio ADIF conventions, deployment patterns) which is fully documented in FEATURES.md and PITFALLS.md.
 
 ### Phase Ordering Rationale
 
-- The resolver must exist and be tested before it can be wired into `_qso_to_view_dict()`. Phase 1 before Phase 2 is a hard dependency.
-- The static file path fix (`git mv`) is a prerequisite for Phase 2 but is trivially fast — it is the first step of Phase 2, not a standalone phase.
-- Both phases are small. Phase 1 carries the correctness complexity (domain knowledge required). Phase 2 is mechanical integration.
-- SSE live feed (`feed_row.html`) and inline-edit row (`qso_row_edit.html`) flags are post-MVP and can be added as a Phase 3 or deferred to v1.x maintenance.
+- Phase 1 must precede Phase 3: narrative auth documentation, API usage tutorials, and the ADIF field reference all say "see /docs" — that requires Swagger to be accurate first.
+- Phase 2 must precede Phase 3: content authors need a working `/guide` endpoint to verify cross-links and rendering as they write.
+- Phases 1 and 2 can run in parallel: Phase 1 touches `app/` router files; Phase 2 touches `docs/`, `mkdocs.yml`, `site/`, and the Dockerfile. No file overlap, no sequencing constraint between them.
+- Within Phase 3, write deployment guide and API reference before operator/admin workflow docs to avoid the workflow-before-stable-UI pitfall.
 
 ### Research Flags
 
-Phases with standard patterns (no additional research needed):
-- **Phase 1 (Prefix Resolver):** Algorithm is fully specified in FEATURES.md and ARCHITECTURE.md. Suffix rules, longest-match logic, and ITU name normalization strategy are all documented in detail. Data can be compiled directly from the ITU Appendix 42 table.
-- **Phase 2 (Flag Display Integration):** HTMX `<img>` vs inline SVG decision is already resolved. `_qso_to_view_dict()` injection point is identified. Template guard pattern is specified. No unknowns remain.
+Phases with standard, well-documented patterns (skip `/gsd:research-phase`):
+- **Phase 1 (OpenAPI Schema Cleanup):** All annotation APIs are in FastAPI official docs and confirmed against codebase. No unknowns remain.
+- **Phase 2 (MkDocs Infrastructure):** StaticFiles mount pattern is in FastAPI official docs. MkDocs build/serve workflow is in MkDocs Material official docs. One thing to verify live: asset paths at the `/guide` sub-path mount point.
+- **Phase 3 (Narrative Content):** Content writing does not require technical research. ADIF field formats, ham radio conventions, and deployment patterns are fully specified in FEATURES.md and PITFALLS.md.
+
+No phase requires `/gsd:research-phase`. All necessary technical patterns are resolved by existing research.
 
 ---
 
@@ -141,19 +158,20 @@ Phases with standard patterns (no additional research needed):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | One new dependency (`pycountry`). All other tools are stdlib or existing. Static file path discrepancy is identified with a zero-code resolution (`git mv`). |
-| Features | HIGH for core; MEDIUM for suffix edge cases | Core ITU allocation model is well-documented via ITU.int and Wikipedia. Suffix handling for geographic overrides (`/KH6`-style) relies on community consensus patterns rather than a single formal spec. The v1.2 scope decision (strip known operating suffixes, graceful fallback for the rest) is correct and pragmatic. |
-| Architecture | HIGH | Based on direct codebase inspection. `_qso_to_view_dict()` as the injection point, `app/callsign/prefixes.py` as the new module, and `<img>` over inline SVG are all confirmed against actual code and confirmed HTMX behavior (htmx issue #2761). |
-| Pitfalls | HIGH for critical pitfalls | Pitfalls 1–11 (v1.2 specific) are grounded in direct codebase inspection, ITU data format analysis, confirmed htmx issues, and pycountry GitHub issues. Not theoretical. |
+| Stack | HIGH | `mkdocs-material` version verified on PyPI (9.7.6, March 19, 2026). FastAPI annotation APIs verified against official docs. One new dev dependency is a minimal-risk change. |
+| Features | HIGH | Derived from direct codebase inspection of all router files and `app/config.py`. Content scope is factual, not speculative. |
+| Architecture | HIGH | Based on direct codebase inspection (`app/main.py`, Dockerfile, `pyproject.toml`) + FastAPI official StaticFiles documentation. Mount order behavior confirmed from FastAPI docs. `/guide` vs `/docs` conflict resolution is clearly specified. |
+| Pitfalls | HIGH | All six critical pitfalls confirmed by reading the actual source files (`app/qso/router.py`, `app/adif/router.py`, `app/auth/dependencies.py`, `app/main.py`). Not inferred — directly observed in the code. |
 
-**Overall confidence: HIGH**
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **ITU prefix table data completeness:** The algorithm and format are specified but the actual CSV data (~340–600 rows) still needs to be compiled and bundled. Verify correctness by testing a representative sample including rare prefixes and sub-range callsigns (3DA, 3DN) after building the module.
-- **pycountry override dict coverage:** The exceptions dict for ITU parenthetical names is specified in principle. The complete list of failing names depends on the actual ITU table content. Build iteratively: run name-to-ISO mapping at startup with logging, capture all `LookupError` and wrong-result cases, add to the override dict.
-- **`/KH6`-style geographic suffix handling:** The v1.2 decision is to not attempt geographic-override suffix resolution — graceful no-flag fallback is acceptable. This is a deliberate scope decision, not a gap. Revisit in v1.x if operators frequently log remote operations with geographic suffixes.
-- **Flag SVG coverage for edge-case entities:** The 271 existing SVGs cover ISO 3166-1 alpha-2 standard countries. Non-country ITU entities (1A, 4U1ITU, 4U1UN) correctly return `None` from the resolver and show no flag. The `onerror` handler in the template handles any remaining SVG-file gaps silently.
+- **Asset paths at `/guide` sub-path:** MkDocs generates relative asset links. StaticFiles with `html=True` handles directory indexes, but verify CSS/JS assets load correctly when mounted at `/guide` (not at root `/`). If assets 404, the fix is straightforward (confirm `use_directory_urls: true` default is set, or use a path prefix plugin). Validate with a live test as the first step of Phase 2 before writing any content.
+
+- **Complete list of HTMX routes to exclude from schema:** ARCHITECTURE.md and PITFALLS.md agree that `/log/*` and `/admin/ui/*` routes should be marked `include_in_schema=False`. During Phase 1, enumerate all route files containing `tags=["log-ui"]` or `tags=["admin-ui"]` to ensure complete exclusion. No routes should appear in Swagger that cannot be called via Bearer token.
+
+- **Troubleshooting content requires live testing:** The three troubleshooting topics (SSE feed not updating, login fails after restart, import returns all duplicates) need to be reproduced against the running app to document accurately. They cannot be written from code inspection alone. Flag these as the last items in Phase 3.
 
 ---
 
@@ -161,26 +179,27 @@ Phases with standard patterns (no additional research needed):
 
 ### Primary (HIGH confidence)
 
-- Direct codebase inspection — `app/qso/ui_router.py`, `templates/log/qso_row.html`, `templates/log/log_table.html`, `app/main.py`, `app/static/flags/` (2026-04-04)
-- [ITU Table of International Call Sign Series (Appendix 42)](https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx) — authoritative prefix range allocations
-- [pycountry on PyPI](https://pypi.org/project/pycountry/) — v26.2.16 API, `search_fuzzy()` behavior
-- [Python bisect stdlib](https://docs.python.org/3/library/bisect.html) — O(log n) range lookup
-- [htmx GitHub issue #2761](https://github.com/bigskysoftware/htmx/issues/2761) — confirmed SVG namespace break on HTMX partial swap
-- [FastAPI Jinja2 custom filters](https://www.slingacademy.com/article/fastapi-jinja-how-to-create-custom-filters/) — `templates.env.filters[name] = fn` pattern
+- ollog codebase (direct inspection, 2026-04-04): `app/main.py`, `app/qso/router.py`, `app/adif/router.py`, `app/auth/dependencies.py`, `app/auth/router.py`, `app/admin/router.py`, `app/profile/router.py`, `app/feed/router.py`, `app/config.py`, `docker-compose.yml`, `Dockerfile`, `pyproject.toml`
+- [FastAPI Metadata and Docs URLs](https://fastapi.tiangolo.com/tutorial/metadata/) — `openapi_tags`, `description`, `docs_url`
+- [FastAPI Static Files](https://fastapi.tiangolo.com/tutorial/static-files/) — StaticFiles mount, `html=True`
+- [FastAPI Additional Responses](https://fastapi.tiangolo.com/advanced/additional-responses/) — `responses={409: ...}` pattern
+- [FastAPI Response Model](https://fastapi.tiangolo.com/tutorial/response-model/) — `response_model=`, `include_in_schema=False`
+- [FastAPI OAuth2 Simple Password Bearer](https://fastapi.tiangolo.com/tutorial/security/simple-oauth2/) — `tokenUrl` wires Swagger UI Authorize button
+- [mkdocs-material on PyPI](https://pypi.org/project/mkdocs-material/) — v9.7.6, March 19, 2026
+- [Material for MkDocs installation guide](https://squidfunk.github.io/mkdocs-material/getting-started/) — dependency tree, version pinning recommendation
 
 ### Secondary (MEDIUM confidence)
 
-- [ITU prefix — Wikipedia](https://en.wikipedia.org/wiki/ITU_prefix) — prefix structure, sub-range examples
-- [Amateur radio call signs — Wikipedia](https://en.wikipedia.org/wiki/Amateur_radio_call_signs) — suffix conventions, structural digit
-- [pyhamtools GitHub](https://github.com/dh1tw/pyhamtools) — confirms longest-prefix-match is the industry standard; used as counter-example for dependency reasons (DXCC names, lxml — do not use)
-- [lipis/flag-icons](https://github.com/lipis/flag-icons) — MIT-licensed ISO alpha-2 SVG flag set, self-hosting reference
-- [/MM and /AM conflict — river.cat](https://river.cat/radio/mobile-or-portable.html) — `/MM` vs MM Scotland, `/AM` vs AM Spain documented community pattern
+- [CloudLog API wiki](https://github.com/magicbug/Cloudlog/wiki/API) — comparable self-hosted ham radio API doc format; confirms curl examples are the right format for this user population
+- [n8n Docker Compose self-hosted guide](https://docs.n8n.io/hosting/installation/server-setups/docker-compose/) — deployment guide structure (prerequisites, env vars, verification steps)
+- [Supabase self-hosting Docker guide](https://supabase.com/docs/guides/self-hosting/docker) — env var reference format, bootstrap account pattern, "CHANGEME" marking convention
+- [FastAPI x MkDocs integration pattern](https://rakuichi4817.github.io/posts/2023/fastapi-mkdocs/) — community-verified `app.mount("/devdocs", StaticFiles(directory=site_dir, html=True))` pattern
+- [MkDocs discussion: sub-path mounting](https://github.com/squidfunk/mkdocs-material/discussions/6784) — relative URL considerations when MkDocs site is mounted at a sub-path
 
 ### Tertiary (LOW confidence)
 
-- pycountry GitHub issues #126, #129, #242 — `search_fuzzy()` failure cases for specific country names; behavior may vary by version; validate against `pycountry>=26.2.16` during integration
+None — all significant findings have HIGH or MEDIUM confidence backing.
 
 ---
-
 *Research completed: 2026-04-04*
 *Ready for roadmap: yes*

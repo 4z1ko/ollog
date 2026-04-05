@@ -1,302 +1,245 @@
 # Pitfalls Research
 
-**Domain:** Ham radio QSO logbook — callsign entity lookup and country flag display (v1.2)
+**Domain:** Adding REST API documentation and app documentation to an existing FastAPI + HTMX + MongoDB app (ollog ham radio logbook)
 **Researched:** 2026-04-04
-**Scope:** Pitfalls specific to adding ITU prefix lookup, ISO country mapping, and flag icon rendering to the existing ollog stack (FastAPI + Beanie/MongoDB + HTMX 2.x + Jinja2).
-**Confidence note:** Findings draw from direct codebase inspection (`app/qso/ui_router.py`, `templates/log/qso_row.html`, `templates/log/log_table.html`), ITU prefix data research (WebSearch + ITU.int), pycountry behavior (WebSearch + GitHub issues), HTMX SVG rendering behavior (WebSearch + htmx GitHub issues), and training data. Confidence levels are assigned per-finding.
+**Confidence:** HIGH for FastAPI-specific schema pitfalls (codebase confirmed + official docs); MEDIUM for workflow doc drift and over-engineering (community evidence + general principle); HIGH for JWT dual-auth documentation (confirmed from codebase analysis).
 
 ---
 
-## How This File Is Organized
+## Critical Pitfalls
 
-Pitfalls 1–11 are **new** — specific to adding callsign entity lookup and flag display in v1.2.
-Pitfalls 12–32 are **carried forward** from v1.0 / v1.1 research and remain relevant to any continued work.
-
----
-
-## Critical Pitfalls (v1.2 specific)
-
-Mistakes that produce wrong entity resolutions, broken rendering, or silent data corruption.
+Mistakes that produce incorrect, misleading, or trust-destroying documentation.
 
 ---
 
-### Pitfall 1: Range Comparison on Raw Strings Instead of Character-Position Logic
+### Pitfall 1: Documenting Cookie Auth Routes in the OpenAPI "Try It Out" Flow
 
 **What goes wrong:**
-The ITU data format `WAA - WAZ,United States of America` implies that a range like `3DA–3DM` means "all callsigns whose prefix starts with 3D and whose third character falls between A and M inclusive." A naive implementation does lexicographic string comparison (`"3DA" <= prefix <= "3DZ"`) which breaks down as soon as the range boundary and the callsign have different lengths. For example, comparing a 4-character prefix extract like `"3DA0"` against the 3-character bound `"3DM"` will produce wrong results depending on collation.
+The ollog app has two distinct auth flows. REST API endpoints under `/api/*` use Bearer token auth (`OAuth2PasswordBearer`, `get_current_user`). UI routes under `/log/*` and `/admin/ui/*` use an HttpOnly cookie (`get_current_user_cookie`). FastAPI's Swagger UI only understands the Bearer scheme that `OAuth2PasswordBearer` exposes. The cookie-auth dependencies (`get_current_user_cookie`, `require_admin_cookie`) produce no lock icon in the Swagger UI and cannot be tested interactively. If documentation does not clearly separate these two flows, a reader will attempt to use the Swagger "Authorize" button for cookie routes, get 401s, and conclude the docs are wrong or the app is broken.
 
 **Why it happens:**
-Python's `<=` operator on strings does lexicographic comparison by Unicode code point. `"3DA0" <= "3DM"` is `True` (correct), but `"3DN0" <= "3DM"` is `False` (correct), and edge cases like `"3DM9"` against the upper bound `"3DM"` are `True` (which may be wrong depending on interpretation). The real complexity comes when the range format uses 2-character tails (`AA–AZ`), 3-character tails (`3DA–3DM`), or mixed-length sub-ranges. A developer who tests only the happy path (matching clearly inside a range) never discovers the edge-case failures.
+FastAPI auto-generates security schemes only for dependencies that inherit from `fastapi.security.SecurityBase`. `OAuth2PasswordBearer` does this. Cookie dependencies using `Cookie(default=None)` do not register as a security scheme — they appear in OpenAPI as a cookie parameter with no lock icon. Developers adding docs often copy the Bearer pattern to describe all auth without checking which dependency type each route actually uses.
 
 **How to avoid:**
-Normalize the comparison: extract exactly N characters from the callsign's prefix (where N is the length of the range boundary), then compare. For `3DA–3DM`, extract the first 3 characters of the callsign before the structural digit (the number separating prefix from suffix in a typical amateur callsign). Apply the range test only on that extracted segment. Separately, use longest-prefix-match: if `3DA` and `3D` both have entries, `3DA` wins for callsign `3DA9XY`.
+In the OpenAPI schema enhancement phase, mark UI routes explicitly as excluded from the "Try It Out" contract. Use `include_in_schema=False` on HTMX-specific routes (`/log/*`, `/admin/ui/*`) that exist only for browser rendering — they should not appear in Swagger at all, since they cannot be tested without a browser cookie context. For the narrative app documentation, dedicate a section called "Two Auth Flows" that draws a clear line: the `/auth/token` endpoint issues a token for REST API use (Bearer, Authorization header); the browser UI uses the same token stored in an HttpOnly cookie set by the login form submission.
 
 **Warning signs:**
-- A callsign known to be in Eswatini (`3DA9RS`) resolves to Fiji, or vice versa.
-- Any callsign whose prefix ends in a digit immediately before the range boundary letter is misclassified.
-- Unit tests that only test clean 2-character prefix cases pass while 3-character sub-range cases are untested.
+- Draft docs describe "logging in" without specifying where the token goes (header vs cookie).
+- Swagger UI shows lock icons on `/api/*` endpoints but no lock icons on `/log/*` endpoints, and the docs don't explain why.
+- The `/auth/token` endpoint is described as "how to log in" without distinguishing which consumers use that endpoint (REST clients) vs. which consumers use the `/log/login` form (browser operators).
 
-**Phase to address:** ITU prefix data seeding and resolver implementation (the first v1.2 phase).
+**Phase to address:** OpenAPI schema cleanup phase (the first documentation phase). This must be resolved before writing narrative auth documentation, because the narrative must accurately reflect what Swagger shows.
 
-**Confidence:** HIGH — based on direct analysis of the range format and Python string comparison semantics.
+**Confidence:** HIGH — confirmed by reading `app/auth/dependencies.py` (two parallel dependency chains) and FastAPI official security documentation.
 
 ---
 
-### Pitfall 2: Using Lexicographic String Sort to Resolve Overlapping Sub-Ranges (3DA–3DM vs 3DN–3DZ)
+### Pitfall 2: QSO Endpoints Return `dict` — OpenAPI Schema Shows `{}` (Empty Object)
 
 **What goes wrong:**
-Both `3DA–3DM` (Eswatini) and `3DN–3DZ` (Fiji) share the common 2-character stem `3D`. A lookup that scans all ranges in insertion order and returns on first match will return whichever entry was inserted first, regardless of which range actually applies. The longer/more-specific range must always win — this is the longest-prefix-match principle.
+Every QSO endpoint in `app/qso/router.py` declares `-> dict` as its return type and has no `response_model` parameter. FastAPI cannot infer a schema from a bare `dict` return annotation. The OpenAPI schema for `POST /api/qsos/`, `GET /api/qsos/`, `GET /api/qsos/{qso_id}`, `PATCH /api/qsos/{qso_id}` will all show `{}` as the response schema — an empty object. API consumers reading the docs have no way to know what fields the response contains without making a live request.
 
 **Why it happens:**
-A developer builds a flat list of `(lower, upper, country)` tuples and iterates from the top. If `3D,Fiji` is stored as a catch-all and `3DA–3DM,Eswatini` is stored as a sub-range below it, calls to Eswatini are silently misidentified. The ITU data includes many of these sub-range overlaps and they are not a corner case — they are the rule for the 3D, 4U, and similar blocks.
+The `dict` return type was chosen deliberately to handle the MongoDB `ObjectId`-to-string conversion and the arbitrary ADIF extra fields from `model_extra`. A Pydantic response model would need to declare `extra="allow"` and handle the `id` vs `_id` field renaming, which adds complexity. The shortcut (return dict, handle serialization manually in `_qso_to_dict`) is correct at runtime but invisible to OpenAPI.
 
 **How to avoid:**
-Structure the lookup as a trie or, more practically, sort candidate ranges by specificity (length of common prefix prefix, then range width) before matching. The correct rule: always match the most specific (longest matching prefix) range that contains the callsign prefix. Store ranges keyed by their common prefix characters so only plausible candidates are checked.
+Add `response_model` Pydantic classes for the fields that are always present in QSO responses: `id`, `CALL`, `BAND`, `MODE`, `QSO_DATE`, `TIME_ON`, `FREQ`, `RST_SENT`, `RST_RCVD`, `qso_date_utc`. Mark extra ADIF fields with `model_config = ConfigDict(extra="allow")` in the response model so OpenAPI shows the declared fields plus an `additionalProperties: true` annotation. For the paginated list response, add a `QSOListResponse` model with `items`, `total`, `page`, `page_size` fields.
+
+Alternatively: use `openapi_extra` on each route to inject a hand-authored response schema, keeping the `dict` return type but adding schema documentation without changing runtime behavior.
 
 **Warning signs:**
-- Eswatini callsigns (`3DA9RS`) resolve as Fiji.
-- The data is stored as an ordered list without explicit priority or sorted by insertion order.
+- Swagger UI shows `{}` for any QSO endpoint's response schema.
+- The "Schema" tab in Swagger shows only `object` with no properties.
+- A developer reading the docs cannot determine what `id` field type is (string ObjectId, not int) without running the app.
 
-**Phase to address:** ITU prefix resolver design — must be settled before data seeding, not after.
+**Phase to address:** OpenAPI schema cleanup phase. The response models are schema-only artifacts — they do not need to change runtime behavior.
 
-**Confidence:** HIGH — 3DA/3DM vs 3DN/3DZ sub-range is a documented real-world example; the longest-prefix-match principle is standard for prefix-range lookups.
+**Confidence:** HIGH — confirmed by reading `app/qso/router.py` (all endpoints return `dict`, none have `response_model`).
 
 ---
 
-### Pitfall 3: Treating the Structural Digit as Part of the Prefix
+### Pitfall 3: ADIF Import/Export Response Schema Is Undocumented
 
 **What goes wrong:**
-An amateur callsign has the structure `[prefix][digit][suffix]` where the prefix is 1–3 letters (sometimes leading with a digit), the structural digit separates prefix from suffix, and the suffix is 1–4 letters. When extracting the "prefix" to look up in the ITU table, the structural digit must be excluded — the ITU table contains letter-only prefix blocks (`WAA–WAZ`, `3DA–3DM`). A lookup that includes the structural digit extracts `W1` from `W1AW` and finds no match in a table that stores `WAA–WAZ`.
+`POST /api/adif/import` returns a structured dict (`total_records`, `accepted`, `duplicates`, `errors`) with no `response_model`. `GET /api/adif/export` returns a `StreamingResponse` (raw `.adi` file download), which FastAPI cannot schema-ify at all. Neither endpoint has a meaningful OpenAPI response schema. The import report structure is non-obvious (each list contains dicts with `record_index`, `call`, `id`/`existing_id`/`error` keys). Without docs, consumers attempt to parse the response blindly.
 
 **Why it happens:**
-The "prefix" in the ITU table is defined as the characters up to but not including the structural digit, while in common ham radio parlance "prefix" sometimes refers to the `[letters][digit]` portion (e.g., "W1" is the prefix of `W1AW`). These two usages collide. Code that naively strips the last characters or looks for the first digit without understanding the two-meaning problem will build a wrong extraction.
+ADIF import/export was implemented for functionality, not for API consumers. The `StreamingResponse` for export is a deliberate choice (memory efficiency) and genuinely cannot be described with a JSON schema. The import report was built for the UI to parse — it was never explicitly designed as a public API contract.
 
 **How to avoid:**
-For ITU range lookup, extract only the leading alpha characters before the structural digit: `W` from `W1AW`, `3D` from `3DA9RS`, `4X` from `4X4DQ`. The structural digit and the suffix are irrelevant to the ITU range comparison. Use a regex like `^([A-Z0-9]{1,3}[A-Z])` (ITU prefix = up to 3 characters ending in a letter, preceding the structural digit) and strip the structural digit before the lookup. Note that `4X` starts with a digit followed by a letter — this is valid and the leading digit is part of the ITU prefix, not the structural digit.
+For the import endpoint: create a `ADIFImportReport` response model with typed fields. The `errors` list can be `list[dict]` with `openapi_extra` describing the error object shape, or a proper `ADIFImportError` model. For the export endpoint: use `openapi_extra={"responses": {"200": {"description": "ADIF file download", "content": {"text/plain": {}}}}}` to override the default JSON response schema. Document the `Content-Disposition` header and the `.adi` file format in the endpoint description.
 
 **Warning signs:**
-- `4X4DQ` (Israel) returns no match or matches the wrong country.
-- `VK2ABC` (Australia) extracts `VK2` instead of `VK` and fails to match `VKA–VKZ`.
+- Swagger UI shows no schema for `POST /api/adif/import` response.
+- `GET /api/adif/export` shows `application/json` as the response content type in Swagger, not `text/plain`.
+- Documentation says "import returns a report" without describing the report's structure.
 
-**Phase to address:** Prefix extraction utility — implement and test before data seeding.
+**Phase to address:** OpenAPI schema cleanup phase.
 
-**Confidence:** HIGH — ITU prefix structure and structural digit convention verified via WebSearch (Wikipedia: Amateur radio call signs, ARRL international call sign series).
+**Confidence:** HIGH — confirmed by reading `app/adif/router.py`.
 
 ---
 
-### Pitfall 4: Portable and Operating Suffixes Passed to the Resolver Without Stripping
+### Pitfall 4: JWT Auth Flow Under-Documented — Cookie vs. Bearer Confusion for Operators
 
 **What goes wrong:**
-Callsigns logged as `W1AW/P`, `G3XYZ/MM`, `VK2ABC/QRP`, or `W1AW/KH6` are valid ADIF values. If the CALL field value is passed directly to the prefix resolver without stripping the portable suffix, the resolver either finds no match (because `W1AW/P` doesn't match any ITU block) or — worse — tries to resolve `/P` as a callsign and throws an error or returns a garbage entity.
+Ham radio operators self-hosting ollog are not developers. The narrative app documentation must explain how authentication works in plain language without assuming HTTP knowledge. The two common failures: (1) docs describe the login flow only for the browser UI (cookie), leaving API users (scripters, log-sync tools) without instructions for Bearer token usage; (2) docs describe the Bearer flow only, leaving operators confused about why the browser "just works" without them manually setting Authorization headers.
 
-Additionally, `W1AW/KH6` is a special case: the `/KH6` suffix indicates the station is operating from Hawaii, so the correct entity is the suffix, not the base callsign prefix. The ITU resolver must decide: is this a portable suffix (`/P`, `/MM`, `/QRP`) to strip, or a geographic modifier (`/KH6`, `/VK3`) that overrides the base entity?
+A secondary failure: the JWT token expiry is not documented. If an operator's script stops working after a session expires and the docs say nothing about token lifetime or how to re-authenticate, the support burden falls entirely on the app README.
 
 **Why it happens:**
-The QSO entry UI strips nothing — it stores the CALL exactly as logged. This is correct for ADIF fidelity. The prefix resolver that consumes the CALL must do its own normalization. Developers who test only clean callsigns without suffixes build a resolver that silently misbehaves on the majority of DX contest or portable operation logs.
+Developers understand the distinction intuitively. When writing for ham radio operators who may be experts in RF propagation but novices in API authentication, the mental model gap is invisible to the author.
 
 **How to avoid:**
-Before the prefix lookup, apply a two-step normalization:
-1. If the CALL contains `/`, split on `/` and inspect each segment.
-2. If any segment after the slash is a known operating suffix (`P`, `M`, `MM`, `AM`, `QRP`, `QRPP`, `A`, `B`), discard it and use the base callsign.
-3. If the segment after the slash looks like a country prefix (2+ alpha characters or a geographic callsign block), use that segment as the callsign to resolve instead of the base.
-4. After normalization, apply the structural-digit extraction from Pitfall 3.
-
-This is the known-correct behavior for cty.dat-based resolvers (e.g., N1MM+, CQRLOG) and is the industry standard.
+Write two explicit paths in the narrative docs: "Using ollog from a browser" (automatic cookie, no manual steps) and "Using ollog from a script or external tool" (POST to `/auth/token`, extract `access_token`, include as `Authorization: Bearer <token>` on subsequent requests). Include the token expiry setting from `app/config.py` (`ACCESS_TOKEN_EXPIRE_MINUTES`). Show a curl example for each path.
 
 **Warning signs:**
-- A `/P` or `/MM` suffix causes a resolver exception or returns `None`.
-- `W1AW/KH6` resolves as the United States instead of Hawaii (if Hawaii is treated as a separate entity in your data).
-- Log views with imported ADIF data (which frequently contains portable suffixes) show no flag for many rows.
+- Docs describe authentication in one unified section without distinguishing the two use cases.
+- No mention of `Authorization: Bearer` anywhere in the narrative docs.
+- No mention of token expiry or what happens when the token expires.
+- No curl example for obtaining a token via `/auth/token`.
 
-**Phase to address:** Prefix extraction utility — must handle suffixes before any entity lookup.
+**Phase to address:** Narrative app documentation phase (after OpenAPI schema is correct, the narrative can reference it).
 
-**Confidence:** HIGH — operating suffix conventions are documented in ADIF spec and ham radio call sign standards (Wikipedia: Amateur radio call signs). The geographic-override rule for `/KH6`-style suffixes is well-established in DX logging software behavior (MEDIUM confidence — multiple community sources, not formally specified in ADIF).
+**Confidence:** HIGH — confirmed from codebase inspection of the two dependency chains.
 
 ---
 
-### Pitfall 5: ITU Non-Country Entities Have No ISO 3166-1 Code — Lookup Must Gracefully Return None
+### Pitfall 5: ADIF Field Names Not Explained in Any Documentation Layer
 
 **What goes wrong:**
-Several ITU callsign allocations are assigned to international organizations, not sovereign states:
-- `C7A–C7Z` → World Meteorological Organization (WMO)
-- `4U1ITU` → International Telecommunication Union
-- `4U1UN` → United Nations (New York)
-- `HV` → Vatican City (has ISO code `VA`, but is a DXCC entity in its own right)
-
-A lookup that resolves the ITU country name to ISO alpha-2 via pycountry will fail or return a wrong result for these entities. If the code raises an exception or returns a fallback value without null-guarding, the flag rendering code will attempt to display a flag for an organization (e.g., WMO), which either renders broken or shows the wrong country's flag.
+The ollog REST API uses bare ADIF field names as JSON keys: `CALL`, `BAND`, `MODE`, `QSO_DATE`, `TIME_ON`, `FREQ`, `RST_SENT`, `RST_RCVD`. These are opaque to anyone who has not read the ADIF specification. The format for `QSO_DATE` is `YYYYMMDD` (not ISO 8601). The format for `TIME_ON` is `HHMM` or `HHMMSS`. `RST` stands for Readability-Strength-Tone (a signal report scale). `BAND` uses amateur radio band designators (`40m`, `20m`, `2m`, not frequency ranges). These are not documented in the OpenAPI schema or in any current README.
 
 **Why it happens:**
-Developers test with the 200+ sovereign nation codes and never encounter `C7A`-range callsigns in testing. The first time a WMO callsign appears in a log (rare, but real — WMO operates weather observation stations), the resolver blows up at the ISO lookup step.
+The developer writing the app is a ham radio operator and knows these terms. The assumption is that users of a ham radio logbook also know ADIF. This is partially true for experienced operators, but partially false for newly licensed operators or developers building integrations.
 
 **How to avoid:**
-The resolver must return a structured result: `{"country_name": str | None, "iso_alpha2": str | None}`. The `iso_alpha2` field is explicitly `None` for non-country entities — this is not an error condition. The flag rendering template must check `if qso.iso_alpha2` before attempting to render an `<img>` tag. No ISO code → no flag → no error.
-
-Maintain a hardcoded override table for known non-country ITU allocations: `{"C7": None, "4U": None}`. These are never going to have ISO codes; treating them as lookup failures to be retried is wasteful and incorrect.
+Add `description` strings to every ADIF field in the QSO request/response Pydantic models (or via `openapi_extra` field descriptions). At minimum document: `QSO_DATE` format (YYYYMMDD, UTC), `TIME_ON` format (HHMM, UTC), `BAND` enumeration (link to ADIF band table), `MODE` enumeration (common values: SSB, CW, FT8, RTTY), `RST_SENT`/`RST_RCVD` explanation. In the narrative docs, include a "ADIF Field Reference" section that lists all fields the API accepts and their expected formats with examples.
 
 **Warning signs:**
-- Any exception in the ISO lookup step for a callsign beginning with `C7` or `4U1`.
-- A flag renders for an organization callsign (means a wrong ISO code was substituted).
-- The fallback path for `iso_alpha2 = None` was never tested.
+- OpenAPI schema shows `CALL: string` with no description.
+- `QSO_DATE` description says "string" without the `YYYYMMDD` format.
+- A reader cannot tell from the docs alone what value to put in `BAND` for a 14 MHz contact.
 
-**Phase to address:** ISO country mapping layer — design the None path first, test it explicitly.
+**Phase to address:** OpenAPI schema cleanup phase (descriptions on models) and narrative docs phase (ADIF field reference section).
 
-**Confidence:** HIGH — C7/WMO allocation confirmed via ITU and WebSearch. 4U1/UN/ITU allocations confirmed via WebSearch (eham.net, ITU.int). ISO 3166-1 explicitly covers sovereign states only.
+**Confidence:** HIGH — confirmed by reading `QSOCreateRequest` in `app/qso/router.py` (no `Field(description=...)` on any ADIF field).
 
 ---
 
-### Pitfall 6: Country Name Normalization Fails on ITU Parenthetical Forms
+### Pitfall 6: Duplicate Detection Behavior Undocumented (409 Response + `force` Query Parameter)
 
 **What goes wrong:**
-The ITU data uses official UN-style country names, many of which include parenthetical descriptors: `Germany (Federal Republic of)`, `Korea (Republic of)`, `United Kingdom of Great Britain and Northern Ireland`. These names will not match pycountry's `.lookup()` directly. `pycountry.countries.lookup("Germany (Federal Republic of)")` raises `LookupError` — it expects `"Germany"` or `"Federal Republic of Germany"`.
-
-The `search_fuzzy()` method is not a reliable substitute: it has documented failures where `search_fuzzy("Niger")` returns Nigeria, `search_fuzzy("Russia")` fails (must use "Russian Federation"), and the function returns all countries on empty input. Using it without verifying the top result is the correct country is unsafe.
+`POST /api/qsos/` returns `409 Conflict` when a duplicate QSO is detected (same callsign, band, mode within ±2 minutes). The response body is a structured dict with `duplicate: true`, `existing_id`, and other fields. The `force=true` query parameter overrides duplicate detection. Neither the 409 response schema nor the `force` parameter semantics appear in the current OpenAPI schema (no `responses={409: ...}` on the route, no description on `force`). An API consumer who hits a 409 has no schema to parse the response against.
 
 **Why it happens:**
-Developers see that `pycountry.countries.search_fuzzy("United States")` returns `US` and assume the library handles all their input formats. The ITU parenthetical forms are not tested because they don't appear in developer-written unit tests — they appear in production data from the ITU table.
+The 409 behavior was implemented for correctness, not for external API consumers. The `force` parameter was added as a coding convenience for the ADIF import path, not as a documented feature.
 
 **How to avoid:**
-Build a static normalization lookup table keyed by exact ITU name strings, mapping to ISO alpha-2 codes. This table covers all ITU names that do not directly match pycountry's lookup. For names that do match pycountry after simple stripping of parentheticals (e.g., strip ` (Federal Republic of)`, ` (Republic of)`, ` (Democratic People's Republic of)`), apply the stripping before the pycountry call and verify the result. The override table should be the primary lookup; pycountry should be a fallback only for names not in the override table.
-
-Do not rely on fuzzy matching in production path — it is non-deterministic in its error cases and produces plausible-but-wrong results silently.
+Add `responses={status.HTTP_409_CONFLICT: {"model": DuplicateQSOError, "description": "Duplicate QSO detected"}}` to the `create_qso` route decorator. Define `DuplicateQSOError` as a Pydantic model with `duplicate: bool`, `existing_id: str`, `existing_call: str`, `existing_band: str`, `existing_mode: str`, `existing_date: str`. Add a `Query(description=...)` string to the `force` parameter explaining what overriding duplicate detection means.
 
 **Warning signs:**
-- `LookupError` from pycountry at runtime when processing ITU names from the table.
-- Germany, Korea, Russia, or UK callsigns show no flag when the resolver reaches the ISO step.
-- Unit tests only test `"United States"` and `"Canada"` without testing the actual ITU name strings.
+- Swagger UI shows no 409 in the response section for `POST /api/qsos/`.
+- The `force` query parameter has no description in Swagger.
+- Documentation says "the API prevents duplicate QSOs" without explaining what a duplicate means (the ±2 minute window) or how to override it.
 
-**Phase to address:** ISO country name normalization — implement the override table before wiring up pycountry.
+**Phase to address:** OpenAPI schema cleanup phase.
 
-**Confidence:** HIGH — pycountry lookup behavior verified via WebSearch (PyPI, GitHub issues #126, #129, #242). ITU parenthetical name format confirmed via ITU table inspection.
+**Confidence:** HIGH — confirmed by reading `create_qso` in `app/qso/router.py`.
 
 ---
 
-### Pitfall 7: Inline SVG in HTMX-Swapped Partials Breaks Due to Namespace Handling
+## Moderate Pitfalls
 
-**What goes wrong:**
-HTMX parses all content it receives as `text/html` with the HTML namespace (`http://www.w3.org/1999/xhtml`). SVG elements require the SVG namespace (`http://www.w3.org/2000/svg`). When HTMX swaps in a partial response that contains inline `<svg>` elements (e.g., an inline flag SVG), the SVG nodes are created in the HTML namespace and do not render correctly. The SVG appears in the DOM but is invisible or renders as a broken element.
-
-This is a confirmed, open limitation in HTMX. The specific failure mode is that `<svg>` returned in a partial is transformed — `<image>` tags inside SVG become HTML `<img>` tags, and `<path>` elements do not render.
-
-**Why it happens:**
-The developer tests flag rendering on the full page load (where the browser parses the HTML document directly, preserving SVG namespace correctly) and it works. The partial swap path (HTMX request to `/log/view` returning `log_table.html`) is tested less thoroughly, and the namespace bug only manifests during the HTMX swap, not on initial load.
-
-**How to avoid:**
-Do not use inline SVG for flag icons in HTMX-swapped partials. Use `<img>` tags with a flag icon URL instead. The flag icon source can be:
-- A self-hosted set of PNG/SVG files served from FastAPI's static files mount.
-- A CDN URL (e.g., `https://flagcdn.com/w20/{iso_alpha2}.png` for 20px-wide flags).
-
-The `<img>` tag approach is fully compatible with HTMX partial swaps because HTMX handles `<img>` correctly — it does not need to parse SVG namespace. The browser fetches the flag image independently after the swap.
-
-**Warning signs:**
-- Flags render on first page load but disappear after clicking pagination (Next/Previous page).
-- Flags render on a sort click but show as broken images.
-- Any inline `<svg>` element in `qso_row.html` or `log_table.html`.
-
-**Phase to address:** Flag rendering template — establish the `<img>` approach before writing any template code.
-
-**Confidence:** HIGH — HTMX SVG namespace limitation is a confirmed, documented issue in htmx GitHub (issue #2761) and htmx discussions (#1888). Direct inspection of the codebase confirms the paginated view uses HTMX partial swap (`HX-Request` header → return `log_table.html` only).
+Issues that reduce documentation quality or trust without causing complete failure.
 
 ---
 
-### Pitfall 8: Flag Images Requested Per Row Cause a Cascade of Image Requests on Pagination
+### Pitfall 7: Over-Engineering the Documentation Stack
 
 **What goes wrong:**
-The log table renders 50 rows per page (default `page_size=50`). If each row independently fetches a flag image from an external CDN (e.g., `https://flagcdn.com/w20/us.png`), a single page load triggers up to 50 simultaneous image requests to the CDN. On a self-hosted deployment with poor outbound connectivity, or if the CDN is rate-limiting, these requests stall and flags appear slowly or not at all. Each pagination click (HTMX swap) repeats this cascade.
+A small self-hosted app with ~15 REST endpoints and a single-operator or small-group audience does not need MkDocs, Sphinx, Read the Docs, doctest runners, or auto-generated SDK clients. Adding a full documentation build pipeline (MkDocs Material + mike versioning + GitHub Actions deploy) to a self-hosted app creates maintenance overhead without proportional value. The operators who self-host ollog are reading documentation on a GitHub README or a locally served page — not browsing a polished documentation portal.
 
 **Why it happens:**
-The developer tests with a few rows and a fast internet connection. The CDN requests are fast. The problem only manifests with a full page of 50 rows, slow connections, or rate limits. The issue is invisible in development and only surfaces in deployed environments.
+Documentation tooling tutorials use impressive setups. Developers copy the impressive setup without asking whether it serves the actual audience.
 
 **How to avoid:**
-Option 1 (recommended for self-hosted): Serve flag icons from the local FastAPI static files directory. Copy the flag icon set once at deployment; no external request at page render time. This eliminates the CDN dependency entirely.
-
-Option 2 (acceptable if CDN is reliable): Use `loading="lazy"` on flag `<img>` tags. The browser defers off-screen image loads, reducing initial cascade. For a 50-row table with uniform row heights, most rows may be off-screen. However, this does not help for print views or non-visual agents.
-
-Option 3: Limit the unique flag set to the flags actually present in the current page, batch them into CSS background-image sprites, or use CSS `flag-icons` library via CDN (single CSS request covers all flags). This is more complex to integrate but optimal for scale.
-
-The self-hosted static file approach (Option 1) is best for this project's self-hosted deployment model.
+Keep documentation as Markdown files committed to the repository. FastAPI's built-in Swagger UI (`/docs`) serves as the interactive API reference with zero additional tooling. Narrative documentation lives in one or two well-organized Markdown files (or a flat directory). The threshold for adding MkDocs is "more than one person maintaining docs" or "documentation needs search." For ollog v1.x, that threshold is not met.
 
 **Warning signs:**
-- DevTools network panel shows 40–50 image requests on a single log view page load.
-- Flag images appear with noticeable delay after table renders.
-- Browser console shows CDN rate limit errors (HTTP 429).
+- A `mkdocs.yml` appears in the project root before any Markdown content exists.
+- The documentation milestone has more commits touching tooling config than actual content.
+- Setup instructions for reading the docs are longer than the docs themselves.
 
-**Phase to address:** Flag rendering infrastructure — decide the serving strategy before building the template.
+**Phase to address:** The documentation architecture decision should be made before any content is written. Commit to Markdown-only early.
 
-**Confidence:** MEDIUM — cascade behavior is a known web performance pattern. The 50-row default is confirmed from codebase inspection (`page_size: int = Query(50, ...)`). CDN rate limiting specifics are environment-dependent (LOW confidence on specifics).
+**Confidence:** MEDIUM — general principle backed by community evidence; no ollog-specific data.
 
 ---
 
-### Pitfall 9: `_qso_to_view_dict()` Does Not Include Resolver Output — Flag Data Never Reaches the Template
+### Pitfall 8: Workflow Documentation Written Before the UI Is Stable
 
 **What goes wrong:**
-The existing `_qso_to_view_dict()` function in `ui_router.py` extracts only a fixed set of ADIF fields from the QSO document and returns a plain dict. When the flag feature is added, the country entity and ISO code must be added to this dict so Jinja2 templates can render them. If the developer adds flag rendering to `qso_row.html` without updating `_qso_to_view_dict()`, the template receives `qso.iso_alpha2 = undefined`, Jinja2 silently renders it as empty string, and no flag appears with no error.
+HTMX apps with server-rendered partial HTML are particularly prone to small UI changes: a button label changes, a form field is renamed, a nav link moves. If the operator workflow documentation ("how to log a QSO," "how to import an ADIF file") is written before the UI iteration is complete, the screenshots and step-by-step instructions will be stale by the time anyone reads them. The workflow docs describe a flow that no longer matches the actual UI.
 
 **Why it happens:**
-The template-to-dict pipeline is not obvious to a developer unfamiliar with the codebase. The template accesses `qso.CALL`, `qso.BAND`, etc. — these appear to come directly from the Beanie document. In fact, they come from the `_qso_to_view_dict()` dict. Adding a field to the template without adding it to the dict is an easy oversight.
+Documentation feels like it should happen alongside development. But HTMX partial-response apps are hard to document mid-flight because every template change is potentially a documentation change.
 
 **How to avoid:**
-The resolver call must happen inside `_qso_to_view_dict()` (or in the comprehension that calls it), and the result must be written into the dict before the template renders. The call site is:
-```python
-qsos = [_qso_to_view_dict(q) for q in qsos_raw]
-```
-The `iso_alpha2` and `country_name` keys must be present in every dict returned by this function — `None` if unresolved, a string if resolved. Do not add them to `qso_row.html` as template lookups of `qso.model_extra` because model_extra is not passed through to the view dict.
+Write workflow documentation as the last act of the milestone, after the UI is in a committed stable state. Do not include screenshots in the first version of workflow docs — describe actions ("click Import in the navigation bar") rather than pointing at pixels. If a screen reference is necessary, use a descriptive title rather than an image file that must be kept in sync.
 
 **Warning signs:**
-- Template renders `qso.iso_alpha2` but no flags appear and no error is raised.
-- Adding `{{ qso.iso_alpha2 }}` to the template renders an empty string for all rows.
-- The resolver was implemented but never wired into `_qso_to_view_dict()`.
+- Workflow docs reference a UI element that has since been renamed or moved.
+- Docs say "click the green button" but the button color changed.
+- Docs describe a three-step flow that is now a two-step flow because a confirmation dialog was removed.
 
-**Phase to address:** Flag rendering integration — the first task when adding flag rendering to the view.
+**Phase to address:** Narrative app documentation phase (write workflow docs last in that phase).
 
-**Confidence:** HIGH — based on direct code inspection of `_qso_to_view_dict()` and the `qsos = [_qso_to_view_dict(q) for q in qsos_raw]` pattern in `log_view()`.
+**Confidence:** MEDIUM — general principle; confirmed by examining ollog's HTMX template structure.
 
 ---
 
-### Pitfall 10: Resolver Called Per-Row on Every Page Request — N+1 Lookup Pattern
+### Pitfall 9: Soft-Delete Behavior Not Documented in API Reference
 
 **What goes wrong:**
-The prefix resolver is called once per QSO row in `_qso_to_view_dict()` during every page request and every pagination HTMX swap. If the resolver hits MongoDB on each call (e.g., `await PrefixRange.find_one({"prefix_start": {"$lte": prefix}, ...})`), a page of 50 QSOs generates 50 MongoDB queries per page load. At 50 rows × average 10ms per query, a single page load takes 500ms just for entity lookups — before any other work.
+`DELETE /api/qsos/{qso_id}` does not actually delete the MongoDB document — it sets `_deleted: true`. The QSO remains in the database. A `GET /api/qsos/{qso_id}` on a soft-deleted QSO returns 404. An API consumer who reads "DELETE returns 204" will assume the record is gone permanently and may write integration code that doesn't account for the `_deleted` flag. Operators importing ADIF files may not know that "deleting" a QSO in the UI doesn't remove it from MongoDB, which affects duplicate detection behavior (a soft-deleted QSO is invisible to `find_duplicate`).
 
 **Why it happens:**
-MongoDB queries are async and fast in isolation. The developer adds `await PrefixRange.find_one(...)` in the view dict builder and it works fine in development with a few rows. Under load or with a full log, the cumulative latency is unacceptable.
+Soft-delete is an implementation detail that affects visible API behavior but is not surfaced anywhere in the current schema or any documentation.
 
 **How to avoid:**
-Cache the full prefix range table in memory at application startup. The ITU prefix range table has fewer than 800 entries and changes only when the ITU updates its allocations (infrequently). Load the entire table into a Python dict or trie at startup (`@asynccontextmanager` lifespan event in FastAPI) and use in-memory lookup — no database round-trip per row. The lookup becomes microseconds, not milliseconds.
-
-If caching is deferred (MVP tradeoff), at minimum batch the unique callsign prefixes from the current page and perform a single `$in` query rather than N individual queries.
+Add a note to the `DELETE /api/qsos/{qso_id}` endpoint description: "Soft-delete — the record is marked as deleted in the database but not physically removed. Soft-deleted QSOs do not appear in GET responses and are excluded from duplicate detection." In the narrative docs, include this behavior in the "Managing Your Log" section.
 
 **Warning signs:**
-- Log view is noticeably slow for pages with many rows.
-- MongoDB slow query log shows many small queries fired in rapid succession.
-- Application profiling shows the log view endpoint spending most of its time in MongoDB.
+- The DELETE endpoint description says only "Delete a QSO" with no soft-delete clarification.
+- The 204 response description says nothing about the record being retained.
+- There is no mention of the word "soft-delete" or "permanent" anywhere in the docs.
 
-**Phase to address:** Prefix resolver implementation — design for in-memory lookup from the start.
+**Phase to address:** OpenAPI schema cleanup phase (endpoint descriptions); narrative docs phase (data management section).
 
-**Confidence:** HIGH — N+1 database query is a universally recognized anti-pattern. The 50-row default is confirmed. ITU table size is well-known (< 1,000 entries).
+**Confidence:** HIGH — confirmed from `app/qso/router.py` and `app/qso/models.py`.
 
 ---
 
-### Pitfall 11: Callsign With No Matching Prefix Causes Template Rendering Error if Fallback Is Absent
+### Pitfall 10: Health Endpoint and `/api/whoami` Not Placed Correctly in API Reference
 
 **What goes wrong:**
-A callsign in the log cannot be resolved to any ITU prefix (special event calls like `W1AW/ARRL`, contest exchanges, or genuinely unmatched prefixes). The resolver returns `None` for `iso_alpha2`. If the Jinja2 template renders `<img src="/flags/{{ qso.iso_alpha2 }}.svg">` without checking for `None`, the resulting `<img src="/flags/None.svg">` generates an HTTP 404 request for every unresolved row and renders a broken image icon in every such row.
+`GET /health` is a monitoring endpoint that returns MongoDB connection status. `GET /api/whoami` is a diagnostic endpoint that returns the authenticated callsign from the JWT. Neither has a tag, so they appear in an ungrouped "default" section in Swagger. They do not have `response_model` declarations. Health is particularly problematic: its 503 response (when MongoDB is disconnected) is not documented in OpenAPI, and the response shape for 200 vs 503 differs (`{"status": "ok", "mongodb": "connected"}` vs `{"status": "error", "mongodb": "disconnected"}`). An operator monitoring the app does not know to look for a 503 from `/health` — only the 200 is obvious.
 
 **Why it happens:**
-The developer writes the template for the happy path and adds the null check later — or forgets it. Jinja2 does not raise an error for `None`; it renders `"None"` as a string.
+Health and diagnostic endpoints are added quickly and never revisited. They feel "not part of the real API."
 
 **How to avoid:**
-The template must guard: `{% if qso.iso_alpha2 %}<img src="...">{% endif %}`. No fallback image, no placeholder — simply no element. A broken image icon is more visually disruptive than a blank cell. This is stated as a v1.2 explicit requirement in the project spec: "Graceful fallback when no prefix match found (no flag shown, no error)."
-
-Also guard the resolver side: the resolver must return `None` (not raise an exception) for any callsign that has no matching prefix. Any exception in the resolver path must be caught at the `_qso_to_view_dict()` level and result in `iso_alpha2 = None`, not a 500 error.
+Tag `/health` with `tags=["ops"]` or `tags=["monitoring"]`. Add `responses={503: {"description": "MongoDB unreachable"}}` to the health endpoint. Either tag `/api/whoami` with `tags=["auth"]` and include it as a diagnostic tool in the auth section of the narrative docs, or mark it `include_in_schema=False` if it is only a development diagnostic.
 
 **Warning signs:**
-- Network panel shows requests to `/flags/None.svg` with 404 responses.
-- Rows with unrecognized callsigns show a broken image icon instead of being blank.
-- Any unhandled exception in the prefix resolver causes the entire log view to fail.
+- Swagger UI has a "default" group containing `/health` and `/api/whoami`.
+- The health endpoint has no 503 documented.
+- Operators do not know the app has a health check endpoint they can ping.
 
-**Phase to address:** Flag rendering template and prefix resolver — implement and test the None path explicitly before the happy path.
+**Phase to address:** OpenAPI schema cleanup phase.
 
-**Confidence:** HIGH — Jinja2 renders `None` as the string `"None"` is a well-known behavior. The guard pattern is standard and the project spec explicitly requires graceful fallback.
+**Confidence:** HIGH — confirmed from `app/main.py`.
 
 ---
 
@@ -304,11 +247,11 @@ Also guard the resolver side: the resolver must return `None` (not raise an exce
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Use pycountry `search_fuzzy()` without override table | No need to build/maintain mapping table | Silently wrong results for ITU parenthetical names, non-deterministic failures | Never in production path |
-| External CDN for flag images | No file management, always up-to-date | CDN rate limits, outbound network dependency, CDN unavailability breaks flags for offline deployments | Only if CDN uptime guarantee matches deployment requirements |
-| Per-row synchronous DB lookup for prefix resolver | Simple implementation | N+1 query cascade, slow log view at scale | MVP only if page size is very small (< 5 rows); not acceptable at 50/page default |
-| Flat list scan of prefix ranges without longest-match | Easy to implement and reason about | Misclassifies sub-range callsigns (Eswatini/Fiji, etc.) | Never — correctness bug, not a performance bug |
-| Store resolved entity in the QSO document | Avoids runtime resolver call | Data becomes stale when ITU updates allocations; inflates QSO documents with display-layer data | Never — entity resolution is display-only per v1.2 spec |
+| Return `dict` instead of `response_model` in QSO endpoints | Handles ObjectId and ADIF extras easily | OpenAPI schema shows `{}` for all QSO responses; API consumers cannot introspect shape | Never acceptable once docs are written — add response models or `openapi_extra` |
+| No `Field(description=...)` on ADIF field names | Faster initial development | Every ADIF field is opaque in Swagger; operators must guess formats | Never acceptable in a documented API |
+| Skipping `responses={409: ...}` on routes with custom error shapes | One fewer decorator argument | 409 error structure is invisible to API consumers | Acceptable only in pre-documentation phase |
+| Writing workflow docs before UI is final | Feels productive | Docs are stale before anyone reads them | Never — always write narrative docs after UI stabilizes |
+| Treating cookie-auth UI routes as "also documented in Swagger" | No extra work | Operators try to use Swagger for UI routes, hit 401s, lose trust in docs | Never — exclude UI routes from schema or explicitly call them out |
 
 ---
 
@@ -316,21 +259,11 @@ Also guard the resolver side: the resolver must return `None` (not raise an exce
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| pycountry ISO lookup | Call `lookup()` directly with raw ITU name string | Strip parentheticals and build an override table; use pycountry as fallback only |
-| flagcdn.com CDN | Embed CDN URL directly in template, assume always available | Self-host flag PNGs in FastAPI static directory; no runtime CDN dependency |
-| HTMX partial swap + flag rendering | Use inline `<svg>` in `qso_row.html` | Use `<img>` tag only; SVG namespace breaks on HTMX swap (confirmed htmx issue #2761) |
-| FastAPI `StaticFiles` mount | Forget to mount `/static` for flag images | Add `app.mount("/static", StaticFiles(directory="static"), name="static")` in `main.py` — verify it exists |
-| ITU prefix range table in MongoDB | Load and query at runtime per row | Load into memory at startup lifespan event; lookup is pure in-memory |
-
----
-
-## Performance Traps
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| N+1 prefix resolver queries | Log view response time proportional to page size | In-memory prefix table loaded at startup | 10+ rows in development; noticeable at default 50/page |
-| 50 flag image requests per page | Slow initial render; stall on slow connections | Self-host flag files; use `loading="lazy"` | Any deployment with external CDN and > 20 rows |
-| Full prefix table scan per callsign | Resolver latency > 1ms per row | Pre-sort ranges by specificity; use dict keyed by prefix | Acceptable for < 100 rows; unacceptable at 500+ rows per page |
+| Swagger UI + Bearer token | Pasting the full "Bearer abc123" string into the Authorize dialog | The Swagger UI `OAuth2PasswordBearer` dialog wants only the token value, not the `Bearer ` prefix — document this explicitly |
+| ADIF import via `/api/adif/import` | Sending JSON body instead of `multipart/form-data` file upload | The endpoint requires `UploadFile` — document `Content-Type: multipart/form-data` and show a curl example with `-F file=@logbook.adi` |
+| ADIF export via `/api/adif/export` | Expecting JSON response | The endpoint returns `text/plain` with `Content-Disposition: attachment` — document that the response is a file download, not JSON |
+| Bearer token in curl | Omitting the `Authorization: Bearer` prefix | Show explicit curl examples: `curl -H "Authorization: Bearer <token>" https://...` |
+| `QSO_DATE` field format | Sending ISO 8601 (`2024-01-15`) instead of ADIF format (`20240115`) | Document the ADIF `YYYYMMDD` format with an explicit example; the API will return a 422 if the format is wrong |
 
 ---
 
@@ -338,8 +271,10 @@ Also guard the resolver side: the resolver must return `None` (not raise an exce
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Serving flag images from external CDN with user-supplied ISO code in URL | XSS if `iso_alpha2` is not validated and inserted into a CDN URL template | Validate that `iso_alpha2` matches `^[a-z]{2}$` before using in any URL construction |
-| Storing resolved entity in QSO document via PATCH | Operator could inject arbitrary `country_name` values into their QSO records | Entity resolution is display-only; never write resolver output back to QSO documents |
+| Documenting the admin credentials used in environment variables (ADMIN_USERNAME, ADMIN_PASSWORD) | Credential exposure if docs are published | Docs should reference env var names only, never example values that look like real credentials |
+| Showing a JWT token in documentation examples that could be mistaken for a real token | Social engineering / confusion | Use obviously fake tokens in examples: `eyJ...EXAMPLE_TOKEN_NOT_REAL` |
+| Documenting the Bearer token flow without noting token expiry | Operators write scripts that break silently after session expiry | Always document `ACCESS_TOKEN_EXPIRE_MINUTES` and the re-authentication pattern |
+| Publishing Swagger UI publicly on a self-hosted instance without auth | Exposes API surface to scanning | Note in docs that operators should restrict `/docs` access in production (nginx basic auth or network-level restriction) |
 
 ---
 
@@ -347,23 +282,25 @@ Also guard the resolver side: the resolver must return `None` (not raise an exce
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Flag renders for ITU organization callsigns (wrong flag) | Confusing — WMO callsign shows flag of an unrelated country | Return `None` for non-country entities; show no flag |
-| Broken image icon for unresolved callsigns | Visual noise; looks like a bug | Guard with `{% if qso.iso_alpha2 %}` — show nothing for unresolved |
-| Flag too large relative to callsign text | Disrupts table layout; row height increases | Use 16×11px or 20px-wide flags; test with actual table layout |
-| Flag tooltip missing country name | Operator must guess which country the flag represents | Add `title="{{ qso.country_name }}"` and `alt="{{ qso.country_name }}"` to all flag `<img>` tags |
+| Narrative docs use developer-centric language ("JWT", "Bearer token", "OAuth2") for operator-facing sections | Ham radio operators who are not web developers disengage | Use plain language in operator sections: "the app issues a session token" not "the app issues a JWT via OAuth2 password flow" |
+| ADIF field reference buried in technical API docs | Operators logging their first QSO cannot find what format `QSO_DATE` expects | Put the ADIF field reference in a prominent "Quick Reference" section early in the docs |
+| Swagger UI is the only interactive interface documented | Self-hosters who are not developers will not use Swagger | Include curl examples for every API endpoint in the narrative docs; not all users will open Swagger |
+| Workflow docs written in passive voice ("a QSO can be logged by...") | Operators don't know what action to take | Use imperative voice ("To log a QSO, click New QSO in the navigation bar") |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Prefix resolver:** Works on clean callsigns — verify it also handles `/P`, `/MM`, `/QRP` suffixes and geographic `/KH6`-style overrides.
-- [ ] **ISO mapping:** Works on `"United States"` — verify it also handles `"Germany (Federal Republic of)"`, `"Korea (Republic of)"`, `"United Kingdom of Great Britain and Northern Ireland"`.
-- [ ] **Non-country entities:** Resolver returns `None` for `C7A` (WMO) and `4U1ITU` — verify no exception is raised and no wrong flag is shown.
-- [ ] **HTMX pagination:** Flags render on page 1 — verify they also render after clicking Next (HTMX partial swap path, not full page load).
-- [ ] **Null guard in template:** `{% if qso.iso_alpha2 %}` is present — verify that rows with unmatched callsigns render a blank flag cell, not a broken image or "None" text.
-- [ ] **`_qso_to_view_dict()` updated:** Resolver is called and `iso_alpha2`/`country_name` keys are present in the returned dict — verify by inspecting the dict, not just the rendered HTML.
-- [ ] **In-memory lookup:** Prefix table is loaded at startup — verify it is not re-queried per row by checking MongoDB query counts in a test with 50 rows.
-- [ ] **Sub-range correctness:** `3DA9RS` resolves to Eswatini (not Fiji), `3DN1XYZ` resolves to Fiji (not Eswatini) — both must be tested explicitly.
+- [ ] **OpenAPI schema:** Every endpoint has a non-empty response schema (not `{}`) — verify by opening `/docs` and clicking each endpoint's Schema tab.
+- [ ] **Auth documentation:** Both the Bearer token path and the browser cookie path are explicitly described — verify that the narrative docs contain the word "Bearer" at least once.
+- [ ] **ADIF field formats:** `QSO_DATE` description includes "YYYYMMDD"; `TIME_ON` description includes "HHMM" — verify in Swagger field descriptions.
+- [ ] **409 duplicate response:** `POST /api/qsos/` shows 409 in its Swagger responses section with a schema — verify in `/docs`.
+- [ ] **503 health response:** `GET /health` shows 503 in its Swagger responses section — verify in `/docs`.
+- [ ] **Soft-delete disclosure:** `DELETE /api/qsos/{qso_id}` description contains "soft" or "not physically removed" — verify in `/docs`.
+- [ ] **Cookie-auth routes excluded:** `/log/*` and `/admin/ui/*` routes do not appear in Swagger (or are explicitly marked as browser-only in narrative docs) — verify by inspecting `/docs`.
+- [ ] **ADIF export content-type:** `GET /api/adif/export` shows `text/plain` as response content type in Swagger, not `application/json` — verify in `/docs`.
+- [ ] **curl examples exist:** Narrative docs contain at least one curl example for obtaining a token and one for making an authenticated request.
+- [ ] **Token expiry documented:** Narrative docs mention that tokens expire and show how to re-authenticate.
 
 ---
 
@@ -371,12 +308,11 @@ Also guard the resolver side: the resolver must return `None` (not raise an exce
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Wrong sub-range resolution (Pitfall 2) | LOW | Fix sort order / longest-match logic in resolver; no data migration needed (flags are display-only) |
-| Inline SVG breaks on HTMX swap (Pitfall 7) | LOW | Replace `<svg>` with `<img>` in template; no backend changes |
-| N+1 query cascade (Pitfall 10) | MEDIUM | Refactor resolver to in-memory; requires lifespan event and startup load |
-| ISO name normalization wrong (Pitfall 6) | LOW | Add entries to override table; redeploy; no data migration |
-| Flag images missing from static dir | LOW | Copy flag asset set to static directory; restart server |
-| `_qso_to_view_dict()` missing keys (Pitfall 9) | LOW | Add resolver call and dict keys; template immediately starts working |
+| OpenAPI schema shows `{}` for QSO endpoints | LOW | Add `response_model` Pydantic classes or `openapi_extra` to route decorators; no runtime change |
+| Cookie-auth confusion already in published docs | MEDIUM | Add a prominent "Auth Flows" table at the top of the API reference, mark UI routes as browser-only |
+| Workflow docs stale after UI change | LOW | Update the specific steps that changed; use text descriptions not screenshots to minimize future churn |
+| ADIF field formats not documented | LOW | Add `Field(description=...)` to request model fields; regenerates automatically in OpenAPI |
+| Over-engineering (MkDocs pipeline added prematurely) | MEDIUM | Remove the pipeline, move content to Markdown files; the tooling removal is more work than the content migration |
 
 ---
 
@@ -384,115 +320,32 @@ Also guard the resolver side: the resolver must return `None` (not raise an exce
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Range comparison logic (Pitfall 1) | Phase 11: Prefix range data model and resolver | Unit test: `3DA9RS` → Eswatini, `3DN1XYZ` → Fiji, boundary callsigns at both ends of each range |
-| Sub-range longest-match (Pitfall 2) | Phase 11: Prefix range data model and resolver | Unit test: both sides of 3D split; verify specificity ordering |
-| Structural digit extraction (Pitfall 3) | Phase 11: Prefix extraction utility | Unit test: `4X4DQ` → `4X`, `W1AW` → `W`, `VK2ABC` → `VK` |
-| Portable suffix handling (Pitfall 4) | Phase 11: Prefix extraction utility | Unit test: `W1AW/P` → same as `W1AW`; `W1AW/KH6` → KH6 entity |
-| Non-country entities (Pitfall 5) | Phase 11: ISO mapping layer | Unit test: `C7A1XY` → `iso_alpha2 = None`; `4U1ITU` → `iso_alpha2 = None` |
-| ITU name normalization (Pitfall 6) | Phase 11: ISO mapping layer | Unit test: all ITU parenthetical name forms present in the actual data file |
-| Inline SVG / HTMX namespace (Pitfall 7) | Phase 12: Flag rendering template | Manual test: paginate the log view; verify flags render on every page transition |
-| CDN cascade (Pitfall 8) | Phase 12: Flag rendering infrastructure | Network panel: count image requests on page load with 50-row page |
-| `_qso_to_view_dict()` not updated (Pitfall 9) | Phase 12: Flag rendering integration | Unit test: `_qso_to_view_dict()` returns dict with `iso_alpha2` key for any QSO |
-| N+1 resolver queries (Pitfall 10) | Phase 11: Resolver design | Test: log view with 50 rows generates 0 prefix-range MongoDB queries (in-memory path) |
-| Null guard absent (Pitfall 11) | Phase 12: Flag rendering template | Unit test: row with `iso_alpha2 = None` renders no `<img>` tag |
+| Cookie vs Bearer confusion in OpenAPI | OpenAPI schema cleanup | Open `/docs`, confirm UI routes absent or marked browser-only; auth section has two distinct flows |
+| QSO endpoints show `{}` response schema | OpenAPI schema cleanup | Every QSO endpoint in Swagger has a non-empty Schema tab |
+| ADIF import/export schemas missing | OpenAPI schema cleanup | Import shows typed response; export shows `text/plain` not `application/json` |
+| ADIF field names unexplained | OpenAPI schema cleanup + narrative docs | Every ADIF field has a `description` in Swagger; field reference exists in narrative docs |
+| Duplicate detection (409 + force) undocumented | OpenAPI schema cleanup | `POST /api/qsos/` Swagger shows 409 with schema and `force` param has description |
+| Soft-delete not disclosed | OpenAPI schema cleanup | DELETE endpoint description mentions soft-delete |
+| JWT dual-auth under-documented | Narrative docs phase | Narrative contains "Bearer" and "cookie" in auth section; token expiry is stated |
+| Workflow docs stale vs UI | Narrative docs phase (write last) | Walk through each documented workflow step against the live app before committing |
+| Over-engineering documentation stack | Architecture decision (first) | No MkDocs/Sphinx config files in repo; docs are Markdown + FastAPI built-in Swagger |
+| Health/whoami misplaced in Swagger | OpenAPI schema cleanup | `/health` is tagged and has 503 documented; `/api/whoami` is tagged or hidden |
 
 ---
 
 ## Sources
 
-- Direct codebase inspection: `app/qso/ui_router.py`, `templates/log/log_table.html`, `templates/log/qso_row.html`
-- ITU Table of International Call Sign Series: https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx
-- ITU prefix — Wikipedia: https://en.wikipedia.org/wiki/ITU_prefix
-- Amateur radio call signs — Wikipedia: https://en.wikipedia.org/wiki/Amateur_radio_call_signs
-- 3DA/3DM (Eswatini) vs 3DN/3DZ (Fiji) sub-range: confirmed via WebSearch results and ITU table PDF
-- 4U1 callsigns — United Nations and ITU: https://www.eham.net/article/23104 (MEDIUM confidence); https://www.itu.int/hub/2022/06/4u1itu-ham-radio-amateur-station-60-years/ (HIGH confidence)
-- C7A–C7Z / World Meteorological Organization: https://en.wikipedia.org/wiki/World_Meteorological_Organization and ITU table
-- pycountry PyPI: https://pypi.org/project/pycountry/ (HIGH confidence)
-- pycountry `search_fuzzy` failure cases: https://github.com/pycountry/pycountry/issues/126 (England), https://github.com/pycountry/pycountry/issues/129 (Russia), https://github.com/pycountry/pycountry/issues/242 (Czechoslovakia) (HIGH confidence — confirmed GitHub issues)
-- ISO 3166-1 — Wikipedia: https://en.wikipedia.org/wiki/ISO_3166-1
-- HTMX SVG namespace limitation (issue #2761): https://github.com/bigskysoftware/htmx/issues/2761 (HIGH confidence — confirmed GitHub issue)
-- HTMX SVG discussion (#1888): https://github.com/bigskysoftware/htmx/discussions/1888
-- flag-icons (lipis): https://github.com/lipis/flag-icons and https://flagicons.lipis.dev/
-- flagcdn.com API: https://flagpedia.net/download/api
-- SVG icon stress test (external img vs inline): https://cloudfour.com/thinks/svg-icon-stress-test/
+- FastAPI official security documentation: https://fastapi.tiangolo.com/tutorial/security/ and https://fastapi.tiangolo.com/reference/security/
+- FastAPI additional responses in OpenAPI: https://fastapi.tiangolo.com/advanced/additional-responses/
+- FastAPI response model documentation: https://fastapi.tiangolo.com/tutorial/response-model/
+- FastAPI GitHub issue — securitySchemes description gap: https://github.com/fastapi/fastapi/issues/2840
+- FastAPI GitHub issue — 422 OpenAPI schema customization: https://github.com/fastapi/fastapi/issues/3650
+- FastAPI best practices (community): https://github.com/zhanymkanov/fastapi-best-practices
+- Bearer auth in FastAPI Swagger UI: https://medium.com/@zyroneenergy/enabling-bearer-auth-instead-of-basic-auth-in-fast-apis-swagger-ui-9d15f754fdca
+- ADIF specification (current): https://adif.org/adif/
+- Swagger Bearer authentication spec: https://swagger.io/docs/specification/v3_0/authentication/bearer-authentication/
+- Codebase: `app/auth/dependencies.py`, `app/qso/router.py`, `app/adif/router.py`, `app/main.py`, `app/qso/models.py` (direct inspection, HIGH confidence)
 
 ---
-
-## Carried Forward: Critical Pitfalls (v1.0/v1.1 — still relevant)
-
----
-
-### Pitfall 12: Profile Endpoint Returns Another Operator's Data (Isolation Leak)
-
-**What goes wrong:** A `GET /api/profile` endpoint resolves operator identity from a query param, path param, or request body instead of the JWT-injected callsign.
-
-**Prevention:** Profile GET and PUT/PATCH routes MUST use `operator: str = Depends(get_current_operator_callsign)` as the sole source of the operator key. Add a cross-operator profile test.
-
-**Phase to address:** Any new API route touching operator-scoped data.
-
-**Confidence:** HIGH
-
----
-
-### Pitfall 13: ADIF Field Length Is Byte Count, Not Character Count
-
-**What goes wrong:** `len(str)` in Python counts Unicode code points, not UTF-8 bytes. ADIF tag length N is byte length.
-
-**Prevention:** Always use `len(value.encode('utf-8'))` when writing ADIF tags.
-
-**Phase to address:** Any ADIF serializer change.
-
-**Confidence:** HIGH
-
----
-
-### Pitfall 14: ADIF MY_* Field Names Must Match the Spec Exactly
-
-**What goes wrong:** Storing profile fields with Python-friendly names and mapping incorrectly on export produces non-standard ADIF field names.
-
-**Prevention:** Store using exact ADIF 3.1.7 uppercase field names. Verify against https://adif.org/317/ADIF_317.htm.
-
-**Phase to address:** Any profile or QSO export change.
-
-**Confidence:** HIGH
-
----
-
-### Pitfall 15: QSO Auto-Stamp When Profile Does Not Exist
-
-**What goes wrong:** Profile lookup returns `None`; auto-stamp logic crashes or writes `OPERATOR: null` or `OPERATOR: "None"` to the QSO.
-
-**Prevention:** Guard all profile lookups for `None`; if profile is absent, omit the stamp entirely.
-
-**Phase to address:** Any change to QSO creation path.
-
-**Confidence:** HIGH
-
----
-
-### Pitfall 16: Maidenhead-to-Lat/Lon Returns SW Corner, Not Center
-
-**What goes wrong:** `maidenhead.to_location(grid)` default returns SW corner, not center. Introduces up to 80 km systematic error.
-
-**Prevention:** Always call `maidenhead.to_location(grid, center=True)`.
-
-**Phase to address:** Any grid/location conversion work.
-
-**Confidence:** HIGH
-
----
-
-### Pitfall 17: Lat/Lon Precision and ADIF Location Format
-
-**What goes wrong:** ADIF defines `MY_LAT`/`MY_LON` as `XDDD MM.MMM` strings, not decimal degrees. Storing decimal degrees as-is is spec non-compliant for export.
-
-**Prevention:** Store as decimal float internally; convert to ADIF location format on export.
-
-**Phase to address:** Profile ADIF export.
-
-**Confidence:** MEDIUM
-
----
-
-*Pitfalls research for: ollog v1.2 — callsign entity lookup and country flag display*
+*Pitfalls research for: adding API documentation and operator documentation to ollog (FastAPI + HTMX + MongoDB ham radio logbook)*
 *Researched: 2026-04-04*

@@ -1,8 +1,8 @@
 # Architecture Patterns
 
-**Domain:** Callsign prefix lookup & country flag display — ham radio logbook (v1.2 milestone)
+**Domain:** Documentation milestone — API docs + narrative app docs for existing FastAPI + HTMX + MongoDB ham radio logging app
 **Researched:** 2026-04-04
-**Confidence:** HIGH — based on direct inspection of the live codebase
+**Confidence:** HIGH — based on direct codebase inspection + FastAPI official documentation
 
 ---
 
@@ -10,58 +10,50 @@
 
 | Existing Component | Location | Notes |
 |-------------------|----------|-------|
-| `QSO` Beanie Document | `app/qso/models.py` | `extra="allow"`, has `CALL` field |
-| `_qso_to_view_dict()` | `app/qso/ui_router.py` | Converts Beanie doc → plain dict passed to every template; keys: `id`, `CALL`, `BAND`, `MODE`, `qso_date_utc`, `FREQ`, `RST_SENT`, `RST_RCVD`, `QSO_DATE`, `TIME_ON` |
-| `log_view()` + `qso_view_row()` + `qso_update()` | `app/qso/ui_router.py` | All three render `qso_row.html` — touch points for flag display |
-| `qso_row.html` | `templates/log/qso_row.html` | Renders one `<tr>` — CALL is in a bare `<td>` |
-| `log_table.html` | `templates/log/log_table.html` | Iterates `qsos` list; includes `qso_row.html` via `{% include %}` |
-| `Jinja2Templates` instance | `app/qso/ui_router.py` line 31 | `templates = Jinja2Templates(directory="templates")` — this is where custom filters are registered |
-| `static/` mount | `app/main.py` line 115 | `app.mount("/static", StaticFiles(directory="static"), name="static")` — empty `.gitkeep` only; no flags yet |
+| FastAPI app instance | `app/main.py` line 71 | `FastAPI(title="ollog", version="0.1.0", lifespan=lifespan)` — no metadata beyond title/version |
+| `OAuth2PasswordBearer` | `app/auth/dependencies.py` line 8 | `tokenUrl="/auth/token"` — already wires Swagger UI "Authorize" button to the correct token endpoint |
+| Router tags | All routers | `tags=["auth"]`, `tags=["qsos"]`, `tags=["admin"]`, `tags=["adif"]`, `tags=["profile"]`, `tags=["log-ui"]` — tags exist but have no descriptions |
+| Static files mount | `app/main.py` line 115 | `app.mount("/static", StaticFiles(directory="static"), name="static")` — mount order matters; `/static` must be last |
+| Dockerfile | `Dockerfile` | Copies `app/`, `templates/`, `static/` into image — any new directories added to root must be added here |
+| docker-compose.yml | `docker-compose.yml` | Single `api` service; no sidecar; no separate docs service |
+| UI routes | `app/qso/ui_router.py`, `app/admin/ui_router.py` | Cookie-auth, Jinja2+HTMX; `/log/*` and `/admin/ui/*` paths |
+| REST API routes | All `router.py` files | Bearer JWT auth; `/api/*`, `/auth/*`, `/admin/users/*` paths |
 
 ---
 
-## Recommended Architecture
+## Architecture Decision: Layered Documentation
 
-### Decision: In-Memory Python Module for Prefix Data
+Documentation for this project separates into two concerns with different technical approaches:
 
-Do NOT use MongoDB for this. The prefix table is:
-- Static — it changes only when ITU publishes new allocations (rare)
-- Small — ~600 rows; fits in a Python `list` of `dict` or `list` of `tuple` without measurable memory impact
-- Read-only — no operator writes, no per-operator scoping, no concurrency concern
-- Pure lookup — no pagination, no aggregation, no cross-collection joins needed
+**Layer 1 — API Reference (OpenAPI/Swagger UI):** Machine-generated from the existing FastAPI routers. Already exists at `/docs` and `/redoc`. Needs augmentation with descriptions, security info, and grouped tag metadata — but does NOT need a new framework or new service.
 
-A MongoDB collection adds a round-trip I/O call on every `qso_row.html` render. With 50 rows per page that would be 50 blocking async lookups per page load (or one bulk fetch + Python-side join). Both options are strictly worse than an in-memory dict lookup that costs zero I/O.
+**Layer 2 — Narrative Documentation (Markdown):** Human-authored guides covering: operator workflow, admin workflow, deployment/configuration, API usage tutorials. Cannot be generated from code. Needs a home in the repo and a serving mechanism.
 
-**Verdict:** Python module `app/callsign/prefixes.py` — loaded once at import time, stays in process memory. No DB collection, no startup async init required.
+Both layers are served by the existing FastAPI app process. No separate docs service. No CI/CD-built static site deployed separately.
 
 ---
 
 ## System Overview
 
 ```
-Request path for /log/view (50 QSOs per page):
+Browser
+  │
+  ├── GET /docs          → Swagger UI (FastAPI built-in, augmented)
+  ├── GET /redoc         → ReDoc (FastAPI built-in, augmented)
+  ├── GET /docs/...      → Narrative docs (MkDocs-built site, mounted via StaticFiles)
+  │
+  ├── GET /log/*         → HTMX/Jinja2 UI (existing, unchanged)
+  ├── GET /admin/ui/*    → HTMX/Jinja2 admin UI (existing, unchanged)
+  └── /api/*             → REST API endpoints (existing, unchanged)
 
-Browser ──HTMX──> GET /log/view
-                       │
-                  log_view() in ui_router.py
-                       │
-              get_qso_page() ──> MongoDB (one query, 50 docs)
-                       │
-              [_qso_to_view_dict(q) for q in qsos_raw]
-                       │  adds "flag_iso" key via call to
-                       │  lookup_prefix(qso.CALL)
-                       │
-              Jinja2Templates.TemplateResponse
-                       │  qso list with flag_iso included
-                       │
-              log_table.html
-                       │
-              qso_row.html (50x)
-                       │  {{ qso.flag_iso }} → <span class="fi fi-xx">
-                       │
-              <-- HTML partial
+FastAPI app (one process)
+  ├── app/main.py        → FastAPI() with openapi_tags + description metadata
+  ├── All existing routers (unchanged endpoints)
+  ├── app.mount("/docs", StaticFiles(directory="site", html=True))   ← NEW
+  └── app.mount("/static", StaticFiles(directory="static"))          ← existing (must stay last)
 
-No per-row DB calls. Zero I/O beyond the single MongoDB page query.
+Build pipeline (local, not CI)
+  └── mkdocs build → site/           ← built artifact committed to repo
 ```
 
 ---
@@ -72,264 +64,393 @@ No per-row DB calls. Zero I/O beyond the single MongoDB page query.
 
 | Component | Location | Responsibility |
 |-----------|----------|---------------|
-| Prefix data module | `app/callsign/prefixes.py` | Bundled ITU prefix range table as a Python list literal; `lookup_prefix(call: str) -> str \| None` function that returns ISO alpha-2 code or `None` |
-| `app/callsign/__init__.py` | `app/callsign/__init__.py` | Empty package marker |
-| Flag SVG assets | `static/flags/<iso>.svg` | One SVG per country, ISO alpha-2 lowercase filename (e.g., `us.svg`, `gb.svg`) |
+| MkDocs source | `docs/` (repo root) | Markdown source files for narrative docs: operator guide, admin guide, API usage, deployment |
+| MkDocs config | `mkdocs.yml` (repo root) | MkDocs + Material theme config; sets `site_dir: site` |
+| Built site | `site/` (repo root) | MkDocs output; committed to repo; served via StaticFiles mount |
+| Docs mount in main.py | `app/main.py` | `app.mount("/docs", StaticFiles(directory="site", html=True))` — new line before `/static` mount |
+| OpenAPI metadata | `app/main.py` | `description`, `openapi_tags` added to `FastAPI()` constructor |
 
 ### Modified Components
 
 | Component | What Changes | Why |
 |-----------|-------------|-----|
-| `_qso_to_view_dict()` in `app/qso/ui_router.py` | Add `"flag_iso": lookup_prefix(qso.CALL)` to the returned dict | Single place where QSO Beanie docs are converted to template dicts; keeps flag logic out of templates |
-| `qso_row.html` | Add flag `<img>` or CSS span next to `{{ qso.CALL }}` inside the callsign `<td>` | The only display change |
-| `app/qso/ui_router.py` imports | Add `from app.callsign.prefixes import lookup_prefix` | Wire in the lookup |
+| `app/main.py` | Add `description`, `openapi_tags` to `FastAPI()` constructor; add `/docs` StaticFiles mount before `/static` mount | API reference enrichment + narrative docs serving |
+| `Dockerfile` | Add `COPY site/ site/` line | Built docs artifact must be in image |
+| `pyproject.toml` | Add `mkdocs-material` to `[project.optional-dependencies].dev` or a new `docs` group | MkDocs is a dev/build tool only, not a runtime dep |
 
-No changes to: QSO model, MongoDB queries, service layer, ADIF import/export, auth, admin, feed router, or any other route.
-
----
-
-## How the ISO Code Reaches the Template
-
-### Approach: Pre-computed in `_qso_to_view_dict()`
-
-**Rationale over alternatives:**
-
-| Option | Verdict | Reason |
-|--------|---------|--------|
-| Jinja2 filter `{{ qso.CALL \| prefix_flag }}` | Viable but secondary | Filter registration on `Jinja2Templates` is per-instance (`templates.env.filters["x"] = fn`); requires registering in `ui_router.py` on module load; hides the lookup inside template logic rather than Python logic; harder to unit-test |
-| Pre-computed in `_qso_to_view_dict()` | **Recommended** | Keeps templates dumb; `flag_iso` is just another string in the dict; testable with a simple dict assertion; no filter registration boilerplate; consistent with how `FREQ`, `RST_SENT` etc. already work |
-| Computed at template context (pass lookup fn to ctx) | Not viable | Jinja2 templates cannot call arbitrary Python functions directly; would require passing the function as a context variable which is unusual and obscure |
-| Stored in QSO MongoDB document | Wrong layer | Flag display is a presentation concern; it changes when ITU updates allocations, not when the QSO is logged; denormalizing it into QSO documents would require backfill on every ITU update |
-
-**Implementation:**
-
-```python
-# In _qso_to_view_dict() — app/qso/ui_router.py
-from app.callsign.prefixes import lookup_prefix
-
-def _qso_to_view_dict(qso: QSO) -> dict:
-    d = {
-        "id": str(qso.id),
-        "CALL": qso.CALL,
-        "BAND": qso.BAND or "",
-        "MODE": qso.MODE or "",
-        "qso_date_utc": qso.qso_date_utc,
-        "flag_iso": lookup_prefix(qso.CALL),   # str | None
-    }
-    extra = qso.model_extra or {}
-    d["FREQ"] = extra.get("FREQ", "")
-    d["RST_SENT"] = extra.get("RST_SENT", "")
-    d["RST_RCVD"] = extra.get("RST_RCVD", "")
-    d["QSO_DATE"] = extra.get("QSO_DATE", "")
-    d["TIME_ON"] = extra.get("TIME_ON", "")
-    return d
-```
-
-**In `qso_row.html`:**
-
-```html
-<td>
-  {% if qso.flag_iso %}
-    <img src="/static/flags/{{ qso.flag_iso }}.svg"
-         alt="{{ qso.flag_iso }}"
-         width="20" height="15"
-         style="vertical-align:middle;margin-right:4px;">
-  {% endif %}
-  {{ qso.CALL }}
-</td>
-```
-
-Graceful fallback is implicit: `flag_iso` is `None` when no prefix matches → the `{% if %}` block is skipped, callsign renders alone, no error.
+No changes to any router, model, service, template, or authentication logic.
 
 ---
 
-## Prefix Lookup Function Design
+## Layer 1: API Reference Augmentation
 
-### Data Structure
+### What FastAPI's Built-In Docs Already Provide
 
-The ITU prefix table has ~600 entries representing range allocations. Each entry is:
-- `prefix_start` — first prefix in the allocated range (e.g., `"3DA"`)
-- `prefix_end` — last prefix in the allocated range (e.g., `"3DM"`)
-- `country_name` — ITU country/entity name
-- `iso2` — ISO 3166-1 alpha-2 code (e.g., `"SZ"` for Swaziland/Eswatini)
+FastAPI auto-generates `/docs` (Swagger UI) and `/redoc` (ReDoc) from the OpenAPI schema. For this app the schema already includes:
 
-Range-aware matching is required because ITU allocates blocks, not single prefixes. Example: `3DA–3DM` → Eswatini, `3DN–3DZ` → Fiji. A simple exact-prefix dict would miss these — you must check if the callsign prefix falls between `start` and `end` lexicographically.
+- All endpoints with paths, HTTP methods, request/response shapes
+- Bearer auth "Authorize" button — works because `OAuth2PasswordBearer(tokenUrl="/auth/token")` is already declared in `app/auth/dependencies.py`
+- Tag groupings — all routers declare tags
 
-### Lookup Algorithm
+**What they are missing:** `description` on each tag (shown in Swagger UI tag groups), app-level `description` (shown at the top of `/docs`), and operator-friendly guidance on how to authenticate and what the endpoints are for.
 
-```
-Given callsign "W1AW":
+### What Needs to Be Added
 
-1. Strip any portable designator suffix: "W1AW/M" -> "W1AW"
-2. Try progressively shorter prefixes: "W1AW", "W1A", "W1", "W"
-3. For each candidate prefix P, check all table rows where prefix_start <= P <= prefix_end
-4. Return iso2 of first match (longest match wins — try longest P first)
-5. If no match: return None
-```
-
-**Data structure choice:** Sort the table once at module load time. For 600 rows, a linear scan with `prefix_start <= candidate <= prefix_end` is O(600) per lookup and completes in microseconds. No trie, no bisect needed at this scale.
+**In `app/main.py` — `FastAPI()` constructor:**
 
 ```python
-# app/callsign/prefixes.py
+description = """
+ollog REST API. All endpoints require Bearer JWT authentication.
 
-from __future__ import annotations
+## Authentication
 
-_PREFIX_TABLE: list[tuple[str, str, str, str]] = [
-    # (prefix_start, prefix_end, country_name, iso2)
-    ("3DA", "3DM", "Eswatini", "SZ"),
-    ("3DN", "3DZ", "Fiji", "FJ"),
-    # ... ~600 rows total ...
+1. POST `/auth/token` with `username` and `password` (form fields)
+2. Copy the `access_token` from the response
+3. Click **Authorize** in Swagger UI and paste the token
+
+## Operator Isolation
+
+All QSO data is scoped to the authenticated operator's callsign.
+The callsign is derived from the JWT — never from request body.
+"""
+
+tags_metadata = [
+    {
+        "name": "auth",
+        "description": "Login and token management. POST `/auth/token` to receive a Bearer JWT.",
+    },
+    {
+        "name": "qsos",
+        "description": "QSO CRUD operations. All endpoints require Bearer JWT. Callsign is injected from JWT.",
+    },
+    {
+        "name": "adif",
+        "description": "ADIF import (POST) and export (GET streaming). Import accepts `.adi` files up to 10 MB.",
+    },
+    {
+        "name": "profile",
+        "description": "Operator profile fields (OPERATOR, STATION_CALLSIGN, gridsquare, etc.). GET and PATCH.",
+    },
+    {
+        "name": "admin",
+        "description": "Admin-only operator account management. Requires admin role JWT.",
+    },
 ]
 
-def lookup_prefix(callsign: str) -> str | None:
-    """Return ISO 3166-1 alpha-2 code for the country that issued `callsign`.
+app = FastAPI(
+    title="ollog",
+    version="0.1.0",
+    description=description,
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
+)
+```
 
-    Uses ITU prefix range table. Returns None if no match found.
-    Handles portable suffixes (W1AW/M -> strip /M before lookup).
-    """
-    if not callsign:
-        return None
-    # Strip portable designator suffix
-    call = callsign.upper().split("/")[0]
-    # Try progressively shorter prefixes (longest match wins)
-    for length in range(len(call), 0, -1):
-        candidate = call[:length]
-        for start, end, _, iso2 in _PREFIX_TABLE:
-            if start <= candidate <= end:
-                return iso2
-    return None
+The `log-ui` tag (HTMX/cookie routes) should be excluded from `openapi_tags` or given a clear description that it is browser-only. These routes appear in the schema but are not useful to API consumers.
+
+### What the Built-In /docs Cannot Do
+
+Swagger UI has no concept of multi-page narrative documentation, screenshots, workflow guides, or deployment instructions. For that, a separate Markdown-based site is required.
+
+---
+
+## Layer 2: Narrative Documentation
+
+### Technology Choice: MkDocs + Material Theme
+
+**Recommended:** `mkdocs-material` (MkDocs + Material theme).
+
+Rationale:
+- FastAPI itself uses MkDocs Material — the toolchain is well-understood in the Python ecosystem
+- pip-installable dev dependency: `pip install mkdocs-material`
+- `mkdocs build` produces a `site/` directory of static HTML/CSS/JS
+- FastAPI can serve `site/` directly via `StaticFiles(directory="site", html=True)`
+- No separate process, no Node.js toolchain, no GitHub Pages required
+- Self-hosted deployment model matches the rest of the app
+
+**Not recommended:** Docusaurus (Node.js dependency, overkill), Sphinx (RST-first, wrong audience), Gitbook (SaaS), serving raw Markdown at runtime via a Python Markdown parser (no navigation, no search, no theme).
+
+### File Locations
+
+```
+ollog/                         ← repo root
+├── docs/                      ← MkDocs source (Markdown, images)
+│   ├── index.md               ← Home page / overview
+│   ├── operator/
+│   │   ├── getting-started.md ← First login, logging a QSO
+│   │   ├── log-view.md        ← Using the log table, filters, pagination
+│   │   ├── import-export.md   ← ADIF import/export workflow
+│   │   └── profile.md         ← Setting profile fields
+│   ├── admin/
+│   │   ├── setup.md           ← Docker Compose, environment variables
+│   │   ├── user-management.md ← Creating/enabling/disabling operators
+│   │   └── deployment.md      ← Production deployment considerations
+│   └── api/
+│       ├── authentication.md  ← Bearer JWT workflow, token endpoint
+│       ├── qsos.md            ← QSO CRUD walkthrough
+│       └── adif.md            ← ADIF import/export API usage
+├── mkdocs.yml                 ← MkDocs config
+├── site/                      ← MkDocs build output (committed)
+├── app/
+├── templates/
+└── static/
+```
+
+### mkdocs.yml
+
+```yaml
+site_name: ollog Documentation
+site_description: Ham Radio Online Logbook
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    scheme: default
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Operator Guide:
+    - Getting Started: operator/getting-started.md
+    - Log View: operator/log-view.md
+    - Import & Export: operator/import-export.md
+    - Profile: operator/profile.md
+  - Admin Guide:
+    - Setup: admin/setup.md
+    - User Management: admin/user-management.md
+    - Deployment: admin/deployment.md
+  - API Reference:
+    - Authentication: api/authentication.md
+    - QSOs: api/qsos.md
+    - ADIF: api/adif.md
+```
+
+### Serving the Built Site from FastAPI
+
+The built `site/` directory is mounted in `app/main.py`:
+
+```python
+# Mount narrative docs — must come BEFORE /static mount
+app.mount("/docs", StaticFiles(directory="site", html=True), name="docs")
+
+# Static files (existing — must remain last)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+```
+
+**Mount order is critical.** FastAPI evaluates mounts in registration order. `/docs` must be registered before `/static` to avoid the wildcard static handler intercepting requests to `/docs/...`.
+
+**`html=True` is required.** This causes StaticFiles to serve `index.html` for requests to directories (e.g., `GET /docs/operator/` serves `site/operator/index.html`). Without it, directory paths return 404.
+
+**Conflict with existing `/docs` route:** FastAPI's default Swagger UI is mounted at `/docs`. Mounting a StaticFiles application at `/docs` will shadow the built-in Swagger UI. Two options:
+
+- Option A: Move narrative docs to `/manual` or `/guide` — preserves `/docs` as Swagger UI (recommended for self-hosted developer audience that uses the API)
+- Option B: Rename Swagger UI to `/api/docs` via `FastAPI(docs_url="/api/docs")` — makes the narrative docs the primary `/docs` endpoint
+
+**Recommendation: Option A — serve narrative docs at `/guide`.** The self-hosted ham radio operator audience who installs this app will use it via the web UI, not the API. Swagger UI at `/docs` is the convention API consumers expect. Narrative docs at `/guide` is explicit and unambiguous.
+
+```python
+# app/main.py
+app = FastAPI(
+    title="ollog",
+    version="0.1.0",
+    description=description,
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
+    # docs_url="/docs" is the default — leave it; Swagger UI stays at /docs
+)
+
+# Narrative docs — after all routers, before /static
+app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 ```
 
 ---
 
-## Flag Asset Strategy
+## HTMX UI Documentation Strategy
 
-**Use lipis/flag-icons SVG files served from `static/flags/`.**
+The HTMX-based UI (`/log/*`, `/admin/ui/*`) does not have a programmatic API — it is a browser-only interface. Documentation for it belongs in the narrative docs (`docs/operator/` and `docs/admin/`), not in the OpenAPI schema.
 
-- MIT licensed, 4:3 ratio SVGs for all ISO 3166-1 alpha-2 countries
-- Filename convention: `<lowercase-iso2>.svg` (e.g., `us.svg`, `gb.svg`)
-- Self-hosted under `static/flags/` — no CDN dependency, works in offline/air-gapped setups
-- The existing `app.mount("/static", ...)` already serves this path
+The `log-ui` tag and `admin-ui` routes that appear in `/docs` (Swagger UI) should be explained in the app-level description or tag description as "browser-only routes, not REST API endpoints." This prevents API consumers from trying to call them programmatically.
 
-**At build time:** Download the SVG collection and place files in `static/flags/`. The ITU covers ~200+ entities; the ISO collection has 250 flags. Not every ITU entity has an ISO code (contested territories, ITU entities without ISO status) — those will have `None` from `lookup_prefix()` and show no flag.
+For HTMX-specific workflow documentation:
+
+- **Operator workflow docs** describe the complete browser workflow: login → log a QSO → edit inline → paginate/filter → import/export ADIF
+- **Screenshots** go in `docs/` as images referenced from Markdown (`![Alt](../images/log-view.png)`)
+- **Partial HTMX responses** (`HX-Request` header paths) do not need separate documentation — they are internal implementation details, not user-facing behaviors
 
 ---
 
 ## Data Flow
 
-### Full Page Load
+### Doc Build Pipeline
 
 ```
-GET /log/view
-  -> log_view() fetches 50 QSOs from MongoDB (one query)
-  -> [_qso_to_view_dict(q) for q in qsos_raw]
-       each call: lookup_prefix(q.CALL) — in-memory, ~microseconds
-  -> Jinja2 renders log.html -> log_table.html -> 50x qso_row.html
-  -> Each row: {% if qso.flag_iso %}<img ...>{% endif %}{{ qso.CALL }}
+Author edits docs/*.md
+  → mkdocs build (local)
+  → site/ (static HTML/CSS/JS)
+  → git commit site/
+  → docker-compose build (COPY site/ site/)
+  → FastAPI serves site/ at /guide
 ```
 
-### HTMX Partial (pagination/filter)
+This is a commit-triggered rebuild, not a live-reload pipeline. For a self-hosted single-operator or small-group app this is acceptable — docs do not change on every deploy.
+
+### API Reference Request Flow
 
 ```
-HTMX GET /log/view?page=2
-  -> Same log_view() path; HX-Request header detected
-  -> Returns log_table.html partial only (same qsos with flag_iso)
+GET /docs
+  → FastAPI built-in Swagger UI
+  → fetches /openapi.json (auto-generated from routers)
+  → renders tag groups with descriptions from openapi_tags
+  → "Authorize" button POSTs to /auth/token
+  → Bearer token injected into subsequent test requests
 ```
 
-### Inline Edit Save (HTMX)
+### Narrative Docs Request Flow
 
 ```
-PATCH /log/qsos/{id}
-  -> qso_update() patches MongoDB doc
-  -> Refetches updated QSO via QSO.get(oid)
-  -> _qso_to_view_dict(updated)  — flag_iso resolved again
-  -> Returns qso_row.html partial
+GET /guide/operator/getting-started
+  → StaticFiles mount (directory="site", html=True)
+  → serves site/operator/getting-started/index.html
+  → all CSS/JS assets served from site/assets/
+  → no Python logic involved
 ```
-
-All three render paths go through `_qso_to_view_dict()`, so adding `flag_iso` there covers them all.
 
 ---
 
 ## Recommended Project Structure Changes
 
 ```
-app/
-├── callsign/
-│   ├── __init__.py         (empty)
-│   └── prefixes.py         (PREFIX_TABLE data + lookup_prefix function)
-├── qso/
-│   └── ui_router.py        (modified: import lookup_prefix, add flag_iso to _qso_to_view_dict)
-static/
-└── flags/
-    ├── us.svg
-    ├── gb.svg
-    ├── de.svg
-    └── ...  (~250 SVG files from lipis/flag-icons)
-templates/
-└── log/
-    └── qso_row.html        (modified: add flag img next to CALL)
+ollog/
+├── docs/                          NEW — MkDocs source files
+│   ├── index.md
+│   ├── operator/
+│   │   ├── getting-started.md
+│   │   ├── log-view.md
+│   │   ├── import-export.md
+│   │   └── profile.md
+│   ├── admin/
+│   │   ├── setup.md
+│   │   ├── user-management.md
+│   │   └── deployment.md
+│   └── api/
+│       ├── authentication.md
+│       ├── qsos.md
+│       └── adif.md
+├── mkdocs.yml                     NEW — MkDocs config
+├── site/                          NEW — MkDocs built output (committed)
+├── app/
+│   └── main.py                    MODIFIED — description, openapi_tags, /guide mount
+├── Dockerfile                     MODIFIED — COPY site/ site/
+├── pyproject.toml                 MODIFIED — mkdocs-material dev dependency
+├── templates/                     unchanged
+└── static/                        unchanged
 ```
 
 ---
 
-## Anti-Patterns to Avoid
+## Architectural Patterns
 
-### Anti-Pattern 1: MongoDB Collection for Prefix Data
+### Pattern 1: Built Site Committed to Repo
 
-**What goes wrong:** Every row render requires an async DB call. With 50 QSOs per page that is 50 coroutine dispatches per page load even with connection pooling. The data is static and tiny; a DB adds I/O overhead with zero benefit.
+**What:** `mkdocs build` output (`site/`) is committed to the repo rather than built during Docker image construction.
 
-**Instead:** In-memory Python module. Loaded once at import, zero I/O per lookup.
+**Why:** The Dockerfile currently uses `pip install` + `COPY` — it has no MkDocs build step. Adding `mkdocs build` to the Dockerfile requires `mkdocs-material` to be a runtime pip dependency (it is 50+ MB). Committing `site/` keeps it as a dev-only tool and keeps the Docker image lean.
 
-### Anti-Pattern 2: Jinja2 Filter as the Integration Point
+**Trade-off:** `site/` in the repo adds ~1-3 MB of generated HTML per doc set. Acceptable for a self-hosted project. If repo size becomes a concern, add `site/` to `.gitignore` and add a `mkdocs build` step to the Dockerfile or a CI job.
 
-**What goes wrong:** The filter must be registered on the `Jinja2Templates` instance. The `ui_router.py` file has its own `templates = Jinja2Templates(directory="templates")` instance separate from `main.py`'s `_templates`. Forgetting to register the filter on the right instance causes a silent template error. The filter approach also hides logic inside the template layer rather than the Python layer.
+### Pattern 2: Single-Process Documentation Serving
 
-**Instead:** Pre-compute `flag_iso` in `_qso_to_view_dict()` before the template sees the data.
+**What:** Narrative docs are served by the same FastAPI process that serves the API and UI, via a StaticFiles mount.
 
-### Anti-Pattern 3: Storing `flag_iso` or Country Name in the QSO Document
+**Why:** The deployment model is Docker Compose with a single `api` service. Adding a separate Nginx or documentation service adds operational complexity (another container, another port, another failure point) with no benefit for a self-hosted single-operator app.
 
-**What goes wrong:** ITU allocations change (rarely, but they do). If country name is baked into historical QSO records, old QSOs show the wrong country after a re-allocation. The DXCC entity at time-of-contact is a distinct concept (DX chasing) from the current ITU allocation — do not conflate them.
+**Trade-off:** A restart of the FastAPI app briefly takes down the docs. Acceptable — the docs are static and the restart is fast.
 
-**Instead:** Derive `flag_iso` at display time from the current prefix table. It is presentation data, not logged contact data.
+### Pattern 3: openapi_tags Descriptions as the API's First-Page UX
 
-### Anti-Pattern 4: Longest-Match Without Stripping Portable Suffix
+**What:** Tag descriptions in `openapi_tags` appear in Swagger UI before any endpoint is expanded. This is the first thing an API consumer reads.
 
-**What goes wrong:** `W1AW/M` (mobile portable) would try candidates `W1AW/`, `W1AW`, etc. The `/` breaks the range comparison because ASCII `/` (0x2F) sorts before digits and letters — a candidate containing `/` will match incorrectly or not at all.
+**Why:** Without tag descriptions, Swagger UI shows raw tag names (`auth`, `qsos`, `adif`) with no context. With descriptions, each section explains what it does and what auth is required.
 
-**Instead:** Strip the portable suffix (`call.split("/")[0]`) before the prefix scan.
+**Implementation:** Descriptions support CommonMark Markdown. Use `**bold**` for key terms (token endpoint URL, role names).
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Serving Raw Markdown at Runtime
+
+**What people do:** Add a `/docs/{page}` route that reads `.md` files from disk, renders them via `python-markdown` or `mistune`, and returns HTML.
+
+**Why it's wrong:** No navigation, no search, no consistent styling, no cross-linking. Every page render hits the filesystem. HTMX-style partial updates do not work with runtime-rendered docs.
+
+**Do this instead:** `mkdocs build` once, commit `site/`, mount with StaticFiles. Full navigation and search with zero Python code.
+
+### Anti-Pattern 2: Shadowing Swagger UI with the Narrative Docs Mount
+
+**What people do:** Mount `StaticFiles(directory="site")` at `/docs`, overriding FastAPI's built-in Swagger UI.
+
+**Why it's wrong:** `/docs` is the conventional and expected Swagger UI path. API consumers, curl examples, and team members will expect Swagger UI there. The StaticFiles mount silently replaces it with the narrative site's `index.html`, giving no error — only confusion.
+
+**Do this instead:** Mount narrative docs at `/guide` (or `/manual`). Leave `/docs` as Swagger UI. If you genuinely want the narrative docs at `/docs`, rename Swagger UI to `/api/docs` via `FastAPI(docs_url="/api/docs")` and document the new path explicitly.
+
+### Anti-Pattern 3: Adding `mkdocs-material` as a Runtime Dependency
+
+**What people do:** Add `mkdocs-material` to `[project.dependencies]` in `pyproject.toml`.
+
+**Why it's wrong:** MkDocs is a build tool, not a runtime library. Adding it to runtime deps bloats the Docker image by 50+ MB and installs it in production where it is never used.
+
+**Do this instead:** Add to `[project.optional-dependencies].docs` or `[dependency-groups].docs`. Install with `pip install -e ".[docs]"` locally. Do not install in the production Docker image.
+
+### Anti-Pattern 4: Mount Order with /static Before /docs or /guide
+
+**What people do:** Add the StaticFiles mount for the docs directory after the `/static` mount, or add it without checking the existing mount registration order.
+
+**Why it's wrong:** FastAPI evaluates mounts in registration order. The `/static` mount is a wildcard handler for any path under `/static`. If the docs mount path starts with a prefix that doesn't conflict (`/guide`), order doesn't matter. But if the docs mount overlaps with any existing route prefix, incorrect order causes silent 404s.
+
+**Do this instead:** Register the docs StaticFiles mount immediately before the `/static` mount, after all APIRouters. Verify by checking that `GET /guide/` returns the docs index, not a 404.
 
 ---
 
 ## Build Order for This Milestone
 
-Dependencies flow from data inward to display:
+Documentation work decomposes into two independent tracks that can proceed in parallel, with a small integration step at the end.
 
 ```
-1. Prefix data + lookup function  (app/callsign/prefixes.py)
-      Pure Python. No DB dependency. No FastAPI dependency.
-      Fully testable with synchronous unit tests.
-      Data entry: compile ~600 ITU range rows into the _PREFIX_TABLE list.
+Track A: OpenAPI Augmentation
+  1. Write openapi_tags metadata (descriptions for auth, qsos, adif, profile, admin)
+  2. Write app-level description string
+  3. Add both to FastAPI() constructor in app/main.py
+  4. Verify at /docs — tag sections show descriptions, Authorize works
 
-2. Flag SVG assets  (static/flags/*.svg)
-      Download from lipis/flag-icons release (MIT, v7+).
-      Place lowercase ISO alpha-2 named SVGs in static/flags/.
-      No code change; just file addition.
-      Can be done in parallel with step 1.
+  Dependencies: none (pure metadata, zero logic changes)
+  Risk: LOW — additive metadata only
 
-3. Wire lookup_prefix into _qso_to_view_dict()  (app/qso/ui_router.py)
-      Add import + one dict key.
-      Depends on: step 1 (function must exist).
-      Test: _qso_to_view_dict() unit test asserts flag_iso key present.
+Track B: Narrative Docs
+  1. Install mkdocs-material (dev dependency)
+  2. Create mkdocs.yml
+  3. Create docs/ directory with stub index.md
+  4. mkdocs build → site/ generated
+  5. Commit site/
+  6. Add /guide StaticFiles mount to app/main.py (after routers, before /static)
+  7. Add COPY site/ site/ to Dockerfile
+  8. Write content: operator guide, admin guide, API tutorials
 
-4. Template update  (templates/log/qso_row.html)
-      Add {% if qso.flag_iso %}<img ...>{% endif %} in CALL cell.
-      Depends on: step 2 (SVG files must exist to render) + step 3 (flag_iso key).
-      Test: integration test or manual browser check.
+  Dependencies within track: steps 1-5 must complete before step 6 (site/ must exist)
+  Risk: LOW for serving; MEDIUM for content quality (content is the hard part)
+
+Integration step (after both tracks complete):
+  9. Verify /docs shows augmented API reference
+  10. Verify /guide serves narrative docs
+  11. Verify /log/* and /admin/ui/* are unaffected
+  12. docker-compose build && docker-compose up — verify both endpoints work in container
 ```
-
-**Critical path:** Step 1 (prefix data + function) unlocks step 3. Step 2 (SVGs) and step 1 are fully parallel. Step 4 depends on both 2 and 3.
-
-Steps 3 and 4 together touch only two files (`ui_router.py` and `qso_row.html`) and add zero new routes, zero new DB calls, and zero new middleware.
 
 ---
 
@@ -337,24 +458,39 @@ Steps 3 and 4 together touch only two files (`ui_router.py` and `qso_row.html`) 
 
 | Integration Point | Change Type | Risk |
 |-------------------|-------------|------|
-| `_qso_to_view_dict()` — add `flag_iso` key | Additive (new dict key) | Low — templates that don't reference `flag_iso` ignore it silently |
-| `qso_row.html` — add flag `<img>` | Modified template | Low — `{% if qso.flag_iso %}` guards against None; existing layout unchanged if flag_iso is None |
-| `app/callsign/prefixes.py` — new module | New file | Low — pure function, no side effects, no DB |
-| `static/flags/` — new directory with SVGs | New static files | Low — served by existing StaticFiles mount; missing flag files cause broken img (not a 500 error) |
-| ADIF import/export | No change | None |
-| MongoDB schema | No change | None |
-| Auth / operator isolation | No change | None — lookup is display-only, not stored |
-| Admin UI | No change | None |
-| Feed SSE (`feed_row.html`) | No change unless desired | `feed_row.html` has its own template and context; flag display in the live feed is a separate decision for a future sub-task |
+| `FastAPI()` — add `description` + `openapi_tags` | Additive metadata | LOW — no logic change; worst case is a typo in the description string |
+| `app.mount("/guide", StaticFiles(...))` | New mount | LOW — does not touch existing routes; failure mode is 404 (not a 500) |
+| Mount order (`/guide` before `/static`) | Mount ordering | MEDIUM — incorrect order is silent; must verify manually |
+| `Dockerfile` — add `COPY site/ site/` | New COPY line | LOW — if `site/` is missing the image build fails (loud error, not silent) |
+| `site/` committed to repo | New committed directory | LOW — adds build artifact to repo; document in contributing guide |
+| All existing routes | No change | NONE |
+| MongoDB schema | No change | NONE |
+| Auth / operator isolation | No change | NONE |
+| HTMX UI behavior | No change | NONE |
 
 ---
 
 ## Sources
 
-- Live codebase inspection: `/Users/royco/ollog/app/` and `/Users/royco/ollog/templates/` (all relevant files read directly, 2026-04-04)
-- lipis/flag-icons SVG collection: https://github.com/lipis/flag-icons (MIT license, ISO alpha-2 naming)
-- flag-icons CDN/usage: https://flagicons.lipis.dev/
-- ITU Table of International Call Sign Series (Appendix 42 to Radio Regulations): https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/call_sign_series.aspx
-- ITU prefix Wikipedia reference: https://en.wikipedia.org/wiki/ITU_prefix
-- FastAPI Jinja2 custom filters: https://www.slingacademy.com/article/fastapi-jinja-how-to-create-custom-filters/ (HIGH confidence — confirmed `templates.env.filters["x"] = fn` pattern)
-- Callsign prefix gist (M0LTE): https://gist.github.com/M0LTE/2fe745393d23eefaab9f17bd9b36c37e (format reference)
+**HIGH confidence (official documentation):**
+- [FastAPI Metadata and Docs URLs](https://fastapi.tiangolo.com/tutorial/metadata/) — `openapi_tags`, `description`, `docs_url`, `redoc_url` parameters (verified 2026-04-04)
+- [FastAPI Custom Docs UI Assets (Self-Hosting)](https://fastapi.tiangolo.com/how-to/custom-docs-ui-assets/) — `docs_url=None`, custom `get_swagger_ui_html()` pattern
+- [FastAPI Static Files](https://fastapi.tiangolo.com/tutorial/static-files/) — `StaticFiles`, `html=True`, mount pattern
+- [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) — theme capabilities, `mkdocs build`, `site_dir`
+- [FastAPI OAuth2 Simple Password Bearer](https://fastapi.tiangolo.com/tutorial/security/simple-oauth2/) — `tokenUrl` wires Swagger UI Authorize button
+
+**MEDIUM confidence (verified against official source + community use):**
+- [FastAPI × MkDocs integration pattern](https://rakuichi4817.github.io/posts/2023/fastapi-mkdocs/) — `app.mount("/devdocs", StaticFiles(directory=site_dir, html=True))` pattern; community-verified but not in official FastAPI docs
+- [MkDocs discussion: Publish via FastAPI](https://github.com/squidfunk/mkdocs-material/discussions/6784) — relative URL considerations when MkDocs site is mounted at a sub-path
+
+**Direct codebase inspection (HIGH confidence):**
+- `app/main.py` — existing `FastAPI()` constructor, mount order, `OAuth2PasswordBearer` declaration
+- `app/auth/dependencies.py` — `OAuth2PasswordBearer(tokenUrl="/auth/token")` already in place
+- All `router.py` files — existing `tags=["..."]` declarations
+- `Dockerfile` — `COPY` structure, no existing docs build step
+- `pyproject.toml` — current dependencies, no MkDocs
+
+---
+
+*Architecture research for: documentation milestone — FastAPI + HTMX + MongoDB ham radio logbook*
+*Researched: 2026-04-04*
