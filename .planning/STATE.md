@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 14 — MkDocs Infrastructure
+**Current focus:** Phase 15 — Narrative Documentation Content
 
 ## Current Position
 
-Phase: 14 of 15 (MkDocs Infrastructure)
-Plan: 2 of 2 in current phase
+Phase: 15 of 15 (Narrative Documentation Content)
+Plan: 2 of N in current phase
 Status: Plan complete
-Last activity: 2026-04-04 — 14-02 /guide StaticFiles mount and Dockerfile COPY
+Last activity: 2026-04-05 — 15-02 getting-started operator walkthrough
 
-Progress: [██████████████░░░░░░] ~70% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-14 done)
+Progress: [████████████████░░░░] ~78% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-15-P02 done)
 
 ## Performance Metrics
 
@@ -36,6 +36,7 @@ Progress: [██████████████░░░░░░] ~70% (v
 | Phase 13-openapi-schema-cleanup P02 | 2 | 2 tasks | 2 files |
 | Phase 14-mkdocs-infrastructure P01 | 8 | 2 tasks | 54 files |
 | Phase 14-mkdocs-infrastructure P02 | 6 | 1 tasks | 2 files |
+| Phase 15 P01 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -56,6 +57,7 @@ Progress: [██████████████░░░░░░] ~70% (v
 - v1.3 (14-01): site/ committed to repo (not gitignored) — Dockerfile can COPY site/ without installing MkDocs in production image
 - v1.3 (14-02): /guide StaticFiles mount registered before /static with html=True — order is load-bearing; html=True enables automatic index.html serving at directory paths
 - v1.3 (14-02): COPY site/ site/ in Dockerfile — pre-built docs in production image, no MkDocs install needed
+- v1.3 (15-01): admin-guide.md reset-password uses {password} field (not new_password) — matched actual ResetPasswordRequest model in router.py
 
 ### Known Tech Debt
 
@@ -73,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-04
-Stopped at: Completed 14-02-PLAN.md — /guide mount and Dockerfile (Task 1 committed: 1e202b6)
+Last session: 2026-04-05
+Stopped at: Completed 15-01-PLAN.md — deployment guide and admin guide
 Resume file: None
