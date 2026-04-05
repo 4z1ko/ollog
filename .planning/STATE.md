@@ -33,6 +33,7 @@ Progress: [████████░░░░░░░░░░░░] ~40% (v
 | 13–15 | TBD | v1.3 |
 
 **Recent Trend:** Stable
+| Phase 13-openapi-schema-cleanup P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -44,6 +45,9 @@ Progress: [████████░░░░░░░░░░░░] ~40% (v
 - v1.3: Register `/guide` StaticFiles mount before `/static` in app/main.py — order is load-bearing
 - v1.2: ISO code not stored in QSO records — render-time lookup, stored codes go stale with ITU reallocations
 - v1.2: `_NOTFOUND` sentinel in range lookup distinguishes "no match" from "found, iso=None" (non-country entities)
+- v1.3 (13-02): ADIFRecordError.call is Optional[str] — parse errors have no call key; per-record errors do
+- v1.3 (13-02): Export endpoint annotated with responses= (not response_model=) — StreamingResponse cannot be Pydantic-validated
+- v1.3 (13-02): Feed router excluded from OpenAPI schema — /feed/station uses cookie auth and cannot be exercised from Swagger UI
 
 ### Known Tech Debt
 
@@ -62,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-04
-Stopped at: v1.3 roadmap created — phases 13, 14, 15 defined
+Last session: 2026-04-05
+Stopped at: Completed 13-02-PLAN.md — ADIF schema annotations and route exclusions
 Resume file: None
