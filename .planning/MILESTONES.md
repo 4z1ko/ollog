@@ -53,3 +53,20 @@
 
 ---
 
+
+## v1.3 Documentation (Shipped: 2026-04-05)
+
+**Phases:** 13–15 (3 phases) | **Plans:** 8 | **Timeline:** 2 days (2026-04-03 → 2026-04-05)
+**LOC:** +18,033 lines (89 files, mostly `site/` static build) | **Git commits:** 20+ feat/docs
+
+**Key accomplishments:**
+- All 16 REST endpoints annotated with typed Pydantic response models — QSOResponse (alias-aware `_operator`/`_deleted`), ADIFImportReport (per-record typed sub-models), StreamingResponse export; Swagger UI now shows complete schemas
+- HTMX browser routes and SSE feed excluded from OpenAPI schema via `include_in_schema=False` — `/docs` shows only REST endpoints, no HTML fragment routes
+- MkDocs Material 9.x build pipeline: `site_url` trailing-slash sub-path config, dev-only dep, `site/` committed and served via `StaticFiles(html=True)` at `/guide` — no MkDocs in production Docker image
+- Complete 7-page documentation site at `/guide`: deployment guide, operator getting-started walkthrough, admin account management guide, full API reference with curl examples for all 16 endpoints, ADIF field format reference, troubleshooting
+- Both auth flows documented with rationale: Bearer token (REST endpoints) and HttpOnly cookie (SSE/EventSource cannot send custom headers)
+
+**Archive:** `.planning/milestones/v1.3-ROADMAP.md` | `.planning/milestones/v1.3-REQUIREMENTS.md`
+
+---
+

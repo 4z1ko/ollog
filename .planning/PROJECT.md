@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. Each operator maintains their own individual logbook identified by their callsign. Operators log QSOs in real-time via REST API or browser web UI, import/export full ADIF logbooks, and see each other's QSOs appear live in a shared station feed. All QSO data is stored using native ADIF field names, enabling seamless round-trip import/export with external logging tools. Each operator has a profile with personal info, station details, and grid location — auto-stamped onto every new QSO they log.
+A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. Each operator maintains their own individual logbook identified by their callsign. Operators log QSOs in real-time via REST API or browser web UI, import/export full ADIF logbooks, and see each other's QSOs appear live in a shared station feed. All QSO data is stored using native ADIF field names, enabling seamless round-trip import/export with external logging tools. Each operator has a profile with personal info, station details, and grid location — auto-stamped onto every new QSO they log. Complete operator and admin documentation is available at `/guide` (deployment guide, operator walkthrough, API reference, ADIF field reference, troubleshooting).
 
 ## Core Value
 
@@ -48,6 +48,27 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Graceful fallback when no prefix match found (no flag shown, no error) — v1.2
 - ✓ Maritime/aeronautical mobile suffixes (/MM, /AM) treated as unresolvable — v1.2
 
+### Validated (v1.3)
+
+- ✓ Every QSO endpoint in Swagger shows fully typed response schema (QSOResponse with alias-aware fields) — v1.3
+- ✓ POST /api/qsos shows 409 DuplicateQSOError schema and force=true query param description — v1.3
+- ✓ ADIF import shows typed ADIFImportReport model; export annotated with text/plain StreamingResponse — v1.3
+- ✓ ADIF request fields carry description strings explaining format conventions (YYYYMMDD, HHMM/HHMMSS, band designators) — v1.3
+- ✓ HTMX browser routes (/log/*, /admin/ui/*) absent from Swagger UI and /openapi.json — v1.3
+- ✓ SSE feed route (/feed/station) excluded from OpenAPI schema — v1.3
+- ✓ mkdocs-material dev dependency only (not in production Docker image) — v1.3
+- ✓ mkdocs.yml configured with Material theme, site_url at /guide/ (trailing slash for sub-path asset resolution) — v1.3
+- ✓ uv run mkdocs build --strict completes without errors — v1.3
+- ✓ site/ built and committed to repo; Dockerfile gains COPY site/ site/ — v1.3
+- ✓ /guide endpoint serves MkDocs site via FastAPI StaticFiles (html=True, mounted before /static) — v1.3
+- ✓ Deployment guide covers prerequisites, .env setup, docker compose up -d, bootstrap admin, verification — v1.3
+- ✓ Operator getting-started walkthrough: login → profile (OPERATOR vs STATION_CALLSIGN explained) → QSO via UI → QSO via API → import → export → station feed — v1.3
+- ✓ Admin guide: create/enable-disable/reset-password operators, last-admin lockout guard documented — v1.3
+- ✓ API reference: all 16 endpoints with method, auth, request/response, status codes, curl examples — v1.3
+- ✓ Both auth flows documented with rationale: Bearer token (REST) and HttpOnly cookie (SSE/EventSource) — v1.3
+- ✓ ADIF field reference: QSO_DATE, TIME_ON, BAND, MODE, OPERATOR vs STATION_CALLSIGN format tables — v1.3
+- ✓ Troubleshooting: SSE not updating (replica set), login fails after restart (SECRET_KEY/JWT), ADIF import all duplicates (delete-then-import) — v1.3
+
 ### Out of Scope
 
 - Award tracking (DXCC, WAS, WAZ, etc.) — deferred to v2
@@ -75,22 +96,13 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
-## Current Milestone: v1.3 Documentation
-
-**Goal:** Create comprehensive documentation for ollog — REST API reference, app setup/deployment guide, and operator workflow walkthrough.
-
-**Target features:**
-- REST API reference covering all endpoints (QSO CRUD, auth, profile, import/export, admin, SSE feed)
-- App installation and deployment guide (Docker Compose, config, environment setup)
-- Operator workflow documentation (login → profile setup → log QSOs → import/export → station feed)
-
 ## Current State
 
-**Version:** v1.2 Callsign Entity Lookup & Country Flags (shipped 2026-04-04)
-**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+
+**Version:** v1.3 Documentation (shipped 2026-04-05)
+**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
 **Database:** MongoDB 7 (single-node replica set for change streams)
-**Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI, Bearer token for REST API
-**Codebase:** ~8,264 LOC (Python + HTML templates)
+**Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
+**Codebase:** ~8,264 LOC (Python + HTML templates) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
 **Shipped features (cumulative):**
 - Custom ADIF parser + serializer (no third-party ADIF lib)
@@ -105,9 +117,10 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Profile API: GET/PATCH `/api/profile` with JWT auth, lat/lon auto-sync on grid change, operator isolation
 - QSO auto-stamping: OPERATOR always, STATION_CALLSIGN/equipment conditionally; ADIF import path excluded
 - Profile UI at `/log/profile` — HTMX inline save, OPERATOR vs STATION_CALLSIGN clearly labeled
-- Profile nav link in all log UI templates (form, log view, import)
 - `app/callsign/prefixes.py` — pure-Python ITU prefix resolver: 313 Series Range entries, bisect-based longest-prefix-match, suffix stripping, ISO mapping (28 unit tests)
 - Country flag icons displayed in QSO log table rows — render-time `lookup_prefix()` enrichment in `_qso_to_view_dict()`, conditional `<img>` tag with tooltip, graceful no-flag fallback
+- Typed OpenAPI schema: all 16 REST endpoints annotated; HTMX/SSE routes excluded from `/docs`
+- MkDocs Material documentation site at `/guide`: deployment guide, operator walkthrough, admin guide, API reference, ADIF field reference, troubleshooting
 
 **Known tech debt:**
 - `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
@@ -143,6 +156,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | `iso.lower()` before flag path construction | `lookup_prefix` returns "US" but SVG files are named "us.svg" | ✓ Good — .lower() in _qso_to_view_dict(); flag_iso always lowercase |
 | `git mv app/static/flags static/flags` for flag serving | StaticFiles mounts root `static/` at `/static`; `app/static/flags/` was unreachable | ✓ Good — 271 SVG files now at `static/flags/`, served at `/static/flags/*.svg` |
 | Render-time flag enrichment in `_qso_to_view_dict()` | Single injection point for all 4 render paths; prefix allocations can change — not stored in QSO | ✓ Good — no schema change; enrichment transparent to all existing render paths |
+| QSOResponse uses `Field(alias='_operator'/'_deleted')` | `_qso_to_dict()` uses `model_dump(by_alias=True)` — response model must declare aliases to pass validation | ✓ Good — `populate_by_name=True` + `extra='ignore'` handles both construction and arbitrary ADIF passthrough |
+| `extra='ignore'` on QSOResponse | Arbitrary ADIF `model_extra` fields must not cause 500 validation errors | ✓ Good — silently drops extra fields at response serialization boundary |
+| Export annotated with `responses=` (not `response_model=`) | `StreamingResponse` body cannot be Pydantic-validated | ✓ Good — `response_class=StreamingResponse` + `responses={200: {"content": {"text/plain": {}}}}` |
+| Feed/HTMX routers excluded from OpenAPI (`include_in_schema=False`) | `/feed/station` uses cookie auth — cannot be exercised from Swagger UI | ✓ Good — clean `/docs` with REST-only endpoints |
+| `site_url` in mkdocs.yml ends with `/guide/` (trailing slash) | Sub-path serving without trailing slash generates broken relative asset URLs | ✓ Good — CSS/JS assets resolve correctly at `/guide` |
+| `site/` committed to repo; `COPY site/ site/` in Dockerfile | No MkDocs in production image; no CI pipeline needed | ✓ Good — pre-built docs served directly from static files |
+| `/guide` StaticFiles mount registered before `/static` with `html=True` | Mount order is load-bearing in FastAPI; `html=True` enables automatic `index.html` serving | ✓ Good — `/guide` serves MkDocs index at directory paths |
+| SECRET_KEY signs JWTs only; Argon2 password hashing is independent | Clearing cookies (not resetting passwords) fixes most login-after-restart issues | ✓ Good — documented clearly in troubleshooting |
+| ADIF import has no `force=true` | Bulk re-import requires delete-then-import; single QSO creation supports `force=true` | ✓ Good — documented in troubleshooting and API reference |
 
 ---
-*Last updated: 2026-04-04 after v1.3 milestone start*
+*Last updated: 2026-04-05 after v1.3 milestone*
