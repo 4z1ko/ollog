@@ -51,7 +51,7 @@ Full archive: `.planning/milestones/v1.2-ROADMAP.md`
 **Milestone Goal:** Create comprehensive documentation for ollog — accurate OpenAPI schema at `/docs`, narrative operator/admin guides at `/guide`, and a full API reference with curl examples.
 
 - [x] **Phase 13: OpenAPI Schema Cleanup** — Annotate all REST routes with typed response models, exclude HTMX-only routes, and document error responses and ADIF field formats — completed 2026-04-04
-- [ ] **Phase 14: MkDocs Infrastructure** — Install tooling, build pipeline, commit `site/`, mount at `/guide`, wire Dockerfile
+- [x] **Phase 14: MkDocs Infrastructure** — Install tooling, build pipeline, commit `site/`, mount at `/guide`, wire Dockerfile — completed 2026-04-04
 - [ ] **Phase 15: Narrative Documentation Content** — Write all Markdown content: deployment guide, operator walkthrough, admin guide, API reference, ADIF field reference, troubleshooting
 
 **Phase execution note:** Phases 13 and 14 touch different files (app/ routers vs docs/ and mkdocs.yml) and can run in parallel. Phase 15 must come after both — it requires accurate Swagger (Phase 13) and a working `/guide` endpoint (Phase 14).
@@ -128,5 +128,5 @@ Phases 13 and 14 can run in parallel. Phase 15 runs after both complete: 13 || 1
 | 11. Prefix Resolver Module | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
 | 12. Flag Display Integration | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
 | 13. OpenAPI Schema Cleanup | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
-| 14. MkDocs Infrastructure | v1.3 | 0/2 | Not started | - |
+| 14. MkDocs Infrastructure | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
 | 15. Narrative Documentation Content | v1.3 | 0/TBD | Not started | - |
