@@ -1,0 +1,1 @@
+{"config":{"lang":["en"],"separator":"[\\s\\-]+","pipeline":["stopWordFilter"],"fields":{"title":{"boost":1000.0},"text":{"boost":1.0},"tags":{"boost":1000000.0}}},"docs":[{"location":"","title":"ollog \u2014 Ham Radio Online Logbook","text":"<p>Welcome to the ollog documentation.</p> <p>This site is under construction. Full content will be added in Phase 15.</p>"}]}
