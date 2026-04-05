@@ -139,3 +139,193 @@ Soft-delete a QSO (sets `_deleted=true` — the record is not physically removed
 curl -X DELETE http://localhost:8000/api/qsos/66123abc... \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+---
+
+## ADIF Endpoints
+
+### POST /api/adif/import
+
+Import QSOs from an ADIF (.adi or .adif) file.
+
+- **Auth:** Bearer token
+- **Request:** `multipart/form-data` with a `file` field containing the ADIF file (max 10 MB)
+- **Response:** 200 with an `ADIFImportReport` object:
+  ```json
+  {
+    "total_records": N,
+    "accepted": [{"record_index": N, "call": "...", "id": "..."}],
+    "duplicates": [{"record_index": N, "call": "...", "existing_id": "..."}],
+    "errors": [{"record_index": N, "call": "..." | null, "error": "..."}]
+  }
+  ```
+  Each `error` entry includes `record_index`, `call` (null for parse errors where no CALL key was found), and `error` (description of the problem).
+- **Errors:** 413 if the file exceeds 10 MB
+- **Notes:**
+  - Duplicate detection uses the same ±2 minute window as the QSO create endpoint
+  - Import preserves file values for OPERATOR and STATION_CALLSIGN — they are NOT auto-stamped from the authenticated user's profile (preserving historical record fidelity)
+  - All per-record errors are accumulated and returned — no records are silently dropped
+
+```bash
+curl -X POST http://localhost:8000/api/adif/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@mylog.adi"
+```
+
+### GET /api/adif/export
+
+Export the authenticated operator's log as an ADIF 3.1.4 file.
+
+- **Auth:** Bearer token
+- **Response:** 200 with `text/plain` streaming body (Content-Disposition: attachment). The filename is `{callsign}_logbook.adi`. Only the authenticated operator's QSOs are included. Soft-deleted records are excluded.
+- **Notes:** The response is a StreamingResponse and is not Pydantic-validated. The ADIF header specifies `ADIF_VER:3.1.4` and `PROGRAMID:ollog`.
+
+```bash
+curl http://localhost:8000/api/adif/export \
+  -H "Authorization: Bearer $TOKEN" \
+  -o mylog.adi
+```
+
+---
+
+## Profile Endpoints
+
+### GET /api/profile/
+
+Get the authenticated operator's profile.
+
+- **Auth:** Bearer token
+- **Response:** 200 with profile object:
+  ```json
+  {
+    "callsign": "W1AW",
+    "station_callsign": "W1AW" | null,
+    "name": "..." | null,
+    "email": "..." | null,
+    "qth": "..." | null,
+    "state": "..." | null,
+    "country": "..." | null,
+    "my_gridsquare": "FN31pr" | null,
+    "latitude": 41.5 | null,
+    "longitude": -72.75 | null,
+    "my_rig": "..." | null,
+    "my_antenna": "..." | null,
+    "tx_pwr": 100.0 | null
+  }
+  ```
+  A user with no profile fields set receives all-null optional fields — not an error.
+
+```bash
+curl http://localhost:8000/api/profile/ \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### PATCH /api/profile/
+
+Update the authenticated operator's profile fields.
+
+- **Auth:** Bearer token
+- **Request:** JSON body with any combination of: `station_callsign`, `name`, `email`, `qth`, `state`, `country`, `my_gridsquare`, `my_rig`, `my_antenna`, `tx_pwr`. Only provided fields are updated (partial update). Absent fields are left unchanged.
+- **Response:** 200 with updated profile object (same shape as GET /api/profile/)
+- **Notes:**
+  - `my_gridsquare` must be a valid Maidenhead locator (4- or 6-character format, e.g. `FN31pr`). When set, `latitude` and `longitude` are auto-computed from the grid center.
+  - `station_callsign` is auto-stamped on future QSOs as `STATION_CALLSIGN`.
+
+```bash
+curl -X PATCH http://localhost:8000/api/profile/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"station_callsign": "W1AW", "my_gridsquare": "FN31pr"}'
+```
+
+---
+
+## Admin Endpoints
+
+All admin endpoints require a Bearer token from an admin-role account.
+
+### GET /admin/users/
+
+List all user accounts.
+
+- **Auth:** Bearer token (admin role required)
+- **Response:** 200 with array of user objects: `[{"username": "...", "callsign": "...", "role": "...", "enabled": true|false}, ...]`. `hashed_password` is never included.
+
+```bash
+curl http://localhost:8000/admin/users/ \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### POST /admin/users/
+
+Create a new operator account.
+
+- **Auth:** Bearer token (admin role required)
+- **Request:** JSON with `username` (string), `callsign` (string, stored uppercased), `password` (string)
+- **Response:** 201 with created user object: `{"username": "...", "callsign": "...", "enabled": true, "role": "operator"}`
+- **Errors:** 409 if `username` already exists
+
+```bash
+curl -X POST http://localhost:8000/admin/users/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "op1", "password": "securepass", "callsign": "W1AW"}'
+```
+
+### PATCH /admin/users/{username}/enabled
+
+Enable or disable an operator account.
+
+- **Auth:** Bearer token (admin role required)
+- **Path param:** `username`
+- **Request:** JSON with `enabled` (bool)
+- **Response:** 200 with `{"username": "...", "enabled": true|false}`
+- **Errors:**
+  - 404 if user not found
+  - 409 if attempting to disable the last enabled admin account (lockout guard)
+
+```bash
+curl -X PATCH http://localhost:8000/admin/users/op1/enabled \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}'
+```
+
+### POST /admin/users/{username}/reset-password
+
+Reset a user's password.
+
+- **Auth:** Bearer token (admin role required)
+- **Path param:** `username`
+- **Request:** JSON with `password` (string — the new password)
+- **Response:** 200 with `{"username": "...", "password_reset": true}`
+- **Errors:** 404 if user not found
+- **Notes:** This endpoint is POST, not PATCH. The new password is usable immediately.
+
+```bash
+curl -X POST http://localhost:8000/admin/users/op1/reset-password \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"password": "newpass123"}'
+```
+
+---
+
+## SSE Endpoint
+
+### GET /feed/station
+
+Server-Sent Events stream broadcasting new QSOs across all operators.
+
+- **Auth:** HTTP-only cookie (NOT Bearer token — see Authentication section above)
+- **Response:** `text/event-stream`. Each event has `event: new_qso` and `data` containing an HTML fragment rendered for the station feed UI.
+- **Notes:**
+  - This endpoint is excluded from the OpenAPI schema (`/docs`) because it uses cookie auth and cannot be exercised from Swagger UI.
+  - The SSE stream is designed for browser consumption. The browser sets the session cookie automatically at login.
+  - Clients stay connected and receive events as QSOs are logged. The stream does not terminate on its own.
+
+```bash
+# Browser: EventSource connects automatically using the HttpOnly cookie set at login.
+# curl (requires cookie from an active browser session):
+curl -N --cookie "access_token=YOUR_JWT_VALUE" http://localhost:8000/feed/station
+```
