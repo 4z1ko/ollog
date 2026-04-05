@@ -2,17 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-04 after v1.2 milestone start)
+See: .planning/PROJECT.md (updated 2026-04-04 after v1.3 milestone start)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.2 Phase 12 — Flag Display Integration (complete)
+**Current focus:** v1.3 Documentation milestone
 
 ## Current Position
 
-Phase: 12 of 12 (Flag Display Integration)
-Plan: 1 of 1 in current phase
-Status: Phase 12 complete — v1.2 milestone complete
-Last activity: 2026-04-04 — 12-01 flag display integration completed
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-04 — Milestone v1.3 started
 
 Progress: [██████████] 100% v1.0+v1.1 complete; v1.2 starting
 

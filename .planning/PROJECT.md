@@ -75,6 +75,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
+## Current Milestone: v1.3 Documentation
+
+**Goal:** Create comprehensive documentation for ollog — REST API reference, app setup/deployment guide, and operator workflow walkthrough.
+
+**Target features:**
+- REST API reference covering all endpoints (QSO CRUD, auth, profile, import/export, admin, SSE feed)
+- App installation and deployment guide (Docker Compose, config, environment setup)
+- Operator workflow documentation (login → profile setup → log QSOs → import/export → station feed)
+
 ## Current State
 
 **Version:** v1.2 Callsign Entity Lookup & Country Flags (shipped 2026-04-04)
@@ -136,4 +145,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | Render-time flag enrichment in `_qso_to_view_dict()` | Single injection point for all 4 render paths; prefix allocations can change — not stored in QSO | ✓ Good — no schema change; enrichment transparent to all existing render paths |
 
 ---
-*Last updated: 2026-04-04 after v1.2 milestone completion*
+*Last updated: 2026-04-04 after v1.3 milestone start*
