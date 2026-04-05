@@ -37,6 +37,7 @@ Progress: [████████████████░░░░] ~78% (v
 | Phase 14-mkdocs-infrastructure P01 | 8 | 2 tasks | 54 files |
 | Phase 14-mkdocs-infrastructure P02 | 6 | 1 tasks | 2 files |
 | Phase 15 P01 | 2 | 2 tasks | 2 files |
+| Phase 15 P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,7 @@ Progress: [████████████████░░░░] ~78% (v
 - v1.3 (14-02): /guide StaticFiles mount registered before /static with html=True — order is load-bearing; html=True enables automatic index.html serving at directory paths
 - v1.3 (14-02): COPY site/ site/ in Dockerfile — pre-built docs in production image, no MkDocs install needed
 - v1.3 (15-01): admin-guide.md reset-password uses {password} field (not new_password) — matched actual ResetPasswordRequest model in router.py
+- v1.3 (15-02): getting-started.md uses my_gridsquare (not grid_square) — matched ProfileUpdateRequest field name in app/profile/schemas.py
 
 ### Known Tech Debt
 
@@ -76,5 +78,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-05
-Stopped at: Completed 15-01-PLAN.md — deployment guide and admin guide
+Stopped at: Completed 15-02-PLAN.md — getting-started operator walkthrough
 Resume file: None
