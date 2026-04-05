@@ -45,6 +45,8 @@ Progress: [████████░░░░░░░░░░░░] ~40% (v
 - v1.3: Register `/guide` StaticFiles mount before `/static` in app/main.py — order is load-bearing
 - v1.2: ISO code not stored in QSO records — render-time lookup, stored codes go stale with ITU reallocations
 - v1.2: `_NOTFOUND` sentinel in range lookup distinguishes "no match" from "found, iso=None" (non-country entities)
+- v1.3 (13-01): QSOResponse uses Field(alias='_operator'/'_deleted') because _qso_to_dict uses model_dump(by_alias=True) — alias required for response validation to populate those fields
+- v1.3 (13-01): extra='ignore' on QSOResponse silently drops arbitrary ADIF model_extra fields to avoid 500 validation errors
 - v1.3 (13-02): ADIFRecordError.call is Optional[str] — parse errors have no call key; per-record errors do
 - v1.3 (13-02): Export endpoint annotated with responses= (not response_model=) — StreamingResponse cannot be Pydantic-validated
 - v1.3 (13-02): Feed router excluded from OpenAPI schema — /feed/station uses cookie auth and cannot be exercised from Swagger UI
@@ -66,6 +68,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-05
-Stopped at: Completed 13-02-PLAN.md — ADIF schema annotations and route exclusions
+Last session: 2026-04-04
+Stopped at: Completed 13-01-PLAN.md — QSO endpoint OpenAPI annotations (Task 2 committed: 0aee0a2)
 Resume file: None
