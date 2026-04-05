@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 ## Current Position
 
 Phase: 15 of 15 (Narrative Documentation Content)
-Plan: 2 of N in current phase
+Plan: 3 of N in current phase
 Status: Plan complete
-Last activity: 2026-04-05 — 15-02 getting-started operator walkthrough
+Last activity: 2026-04-05 — 15-03 API reference all 16 endpoints
 
-Progress: [████████████████░░░░] ~78% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-15-P02 done)
+Progress: [█████████████████░░░] ~80% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-15-P03 done)
 
 ## Performance Metrics
 
@@ -38,6 +38,7 @@ Progress: [████████████████░░░░] ~78% (v
 | Phase 14-mkdocs-infrastructure P02 | 6 | 1 tasks | 2 files |
 | Phase 15 P01 | 2 | 2 tasks | 2 files |
 | Phase 15 P02 | 2 | 1 tasks | 1 files |
+| Phase 15-narrative-documentation-content P03 | 15 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,9 @@ Progress: [████████████████░░░░] ~78% (v
 - v1.3 (14-02): COPY site/ site/ in Dockerfile — pre-built docs in production image, no MkDocs install needed
 - v1.3 (15-01): admin-guide.md reset-password uses {password} field (not new_password) — matched actual ResetPasswordRequest model in router.py
 - v1.3 (15-02): getting-started.md uses my_gridsquare (not grid_square) — matched ProfileUpdateRequest field name in app/profile/schemas.py
+- v1.3 (15-03): QSO request fields use uppercase ADIF names (CALL, QSO_DATE, TIME_ON, BAND, MODE) matching QSOCreateRequest schema
+- v1.3 (15-03): GET /api/qsos/ response includes page and page_size pagination fields in addition to items/total
+- v1.3 (15-03): Feed SSE events carry HTML fragments (not JSON QSO objects) with event name 'new_qso'
 
 ### Known Tech Debt
 
@@ -78,5 +82,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-05
-Stopped at: Completed 15-02-PLAN.md — getting-started operator walkthrough
+Stopped at: Completed 15-03-PLAN.md — API reference all 16 endpoints
 Resume file: None
