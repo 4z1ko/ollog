@@ -564,7 +564,7 @@
 <li>Clear browser cookies for the ollog domain and log in again to obtain a fresh token.</li>
 <li>To prevent this after future restarts, set <code>SECRET_KEY</code> to a fixed value in your <code>.env</code> file so it persists across restarts:
    <code>SECRET_KEY=your-long-random-secret-here</code></li>
-<li>If accounts are disabled or passwords are unknown, reset them via the admin API (<code>POST /api/admin/users/{username}/reset-password</code>).</li>
+<li>If accounts are disabled or passwords are unknown, reset them via the admin API (<code>POST /admin/users/{username}/reset-password</code>).</li>
 </ol>
 <h2 id="adif-import-returns-all-duplicates">ADIF Import Returns All Duplicates</h2>
 <p><strong>Symptom:</strong> Importing an ADIF file reports every record as a duplicate.</p>

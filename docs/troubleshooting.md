@@ -32,7 +32,7 @@ If login itself fails with correct credentials (username/password rejected), the
    ```
    SECRET_KEY=your-long-random-secret-here
    ```
-3. If accounts are disabled or passwords are unknown, reset them via the admin API (`POST /api/admin/users/{username}/reset-password`).
+3. If accounts are disabled or passwords are unknown, reset them via the admin API (`POST /admin/users/{username}/reset-password`).
 
 ## ADIF Import Returns All Duplicates
 
