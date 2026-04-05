@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 ## Current Position
 
 Phase: 15 of 15 (Narrative Documentation Content)
-Plan: 3 of N in current phase
-Status: Plan complete
-Last activity: 2026-04-05 — 15-03 API reference all 16 endpoints
+Plan: 4 of 4 in current phase
+Status: Phase complete
+Last activity: 2026-04-05 — 15-04 complete documentation site (index, ADIF field reference, troubleshooting, nav, built site/)
 
-Progress: [█████████████████░░░] ~80% (v1.0+v1.1+v1.2 complete; v1.3 phases 13-15-P03 done)
+Progress: [████████████████████] ~100% (v1.0+v1.1+v1.2+v1.3 complete)
 
 ## Performance Metrics
 
@@ -39,6 +39,7 @@ Progress: [█████████████████░░░] ~80% (v
 | Phase 15 P01 | 2 | 2 tasks | 2 files |
 | Phase 15 P02 | 2 | 1 tasks | 1 files |
 | Phase 15-narrative-documentation-content P03 | 15 | 2 tasks | 1 files |
+| Phase 15 P04 | 3 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Progress: [█████████████████░░░] ~80% (v
 - v1.3 (15-03): QSO request fields use uppercase ADIF names (CALL, QSO_DATE, TIME_ON, BAND, MODE) matching QSOCreateRequest schema
 - v1.3 (15-03): GET /api/qsos/ response includes page and page_size pagination fields in addition to items/total
 - v1.3 (15-03): Feed SSE events carry HTML fragments (not JSON QSO objects) with event name 'new_qso'
+- v1.3 (15-04): SECRET_KEY used for JWT signing only; Argon2 password hashing (pwdlib) is independent — clearing cookies fixes most login-after-restart issues
+- v1.3 (15-04): ADIF import endpoint has no force=true parameter — bulk re-import requires delete-then-import
 
 ### Known Tech Debt
 
@@ -73,7 +76,7 @@ Progress: [█████████████████░░░] ~80% (v
 
 ### Blockers/Concerns
 
-- Phase 15: Troubleshooting items require reproduction against running app — write last
+None.
 
 ### Pending Todos
 
@@ -82,5 +85,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-05
-Stopped at: Completed 15-03-PLAN.md — API reference all 16 endpoints
+Stopped at: Completed 15-04-PLAN.md — complete documentation site (index, ADIF field reference, troubleshooting, mkdocs nav, rebuilt site/)
 Resume file: None
