@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.dependencies import get_current_operator_callsign, get_current_user
 from app.auth.models import User
@@ -18,6 +18,43 @@ from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
 
 router = APIRouter(prefix="/api/qsos", tags=["qsos"])
+
+
+class QSOResponse(BaseModel):
+    """Response model for a single QSO. Declares stable fields; extra ADIF fields are silently dropped."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    id: str
+    CALL: str
+    BAND: Optional[str] = None
+    MODE: Optional[str] = None
+    qso_date_utc: Optional[str] = None
+    operator_callsign: Optional[str] = Field(None, alias="_operator")
+    is_deleted: Optional[bool] = Field(None, alias="_deleted")
+    FREQ: Optional[str] = None
+    RST_SENT: Optional[str] = None
+    RST_RCVD: Optional[str] = None
+
+
+class QSOListResponse(BaseModel):
+    """Paginated list of QSOs."""
+
+    items: list[QSOResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class DuplicateQSOError(BaseModel):
+    """Response schema for 409 Conflict when a duplicate QSO is detected."""
+
+    duplicate: bool
+    existing_id: str
+    existing_call: str
+    existing_band: str
+    existing_mode: str
+    existing_date: Optional[str] = None
 
 
 class QSOCreateRequest(BaseModel):
