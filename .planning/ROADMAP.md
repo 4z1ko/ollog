@@ -104,7 +104,12 @@ Plans:
   3. An admin can manage operator accounts using the admin guide — create, enable/disable, reset password, and understand the last-admin lockout guard
   4. A developer or scripter can use the API reference to call any of the 13 endpoints, including understanding both auth flows (Bearer token and HTTP-only cookie) and finding one curl example per endpoint
   5. An operator can look up key ADIF field formats (QSO_DATE, TIME_ON, BAND, MODE, OPERATOR vs STATION_CALLSIGN) and diagnose common failures (SSE not updating, login fails after restart, import returns all duplicates)
-**Plans**: TBD
+**Plans:** 4 plans
+Plans:
+- [ ] 15-01-PLAN.md — Deployment guide and admin guide
+- [ ] 15-02-PLAN.md — Getting-started operator walkthrough
+- [ ] 15-03-PLAN.md — Full API reference (all 15 endpoints with curl examples)
+- [ ] 15-04-PLAN.md — Index page, ADIF field reference, troubleshooting, mkdocs nav update, site rebuild
 
 ---
 
@@ -129,4 +134,4 @@ Phases 13 and 14 can run in parallel. Phase 15 runs after both complete: 13 || 1
 | 12. Flag Display Integration | v1.2 | 1/1 | ✓ Complete | 2026-04-04 |
 | 13. OpenAPI Schema Cleanup | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
 | 14. MkDocs Infrastructure | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
-| 15. Narrative Documentation Content | v1.3 | 0/TBD | Not started | - |
+| 15. Narrative Documentation Content | v1.3 | 0/4 | Not started | - |
