@@ -137,6 +137,11 @@ Plans:
 
 **Note:** OBS-04 (startup banner) is covered in Phase 16 and already mapped there.
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 18-01-PLAN.md — Structured disposition log lines and caplog tests
+
 **Success Criteria:**
 
 1. Every accepted datagram produces a log line at INFO level containing: source IP:port, parsed callsign, and disposition `accepted`.
@@ -168,4 +173,4 @@ Plans:
 | 15. Narrative Documentation Content | v1.3 | 4/4 | ✓ Complete | 2026-04-05 |
 | 16. UDP Infrastructure | v1.4 | 2/2 | ✓ Complete | 2026-04-05 |
 | 17. QSO Processing Pipeline | v1.4 | 0/1 | Planned | -- |
-| 18. Error Handling and Observability | v1.4 | 0/? | Pending | -- |
+| 18. Error Handling and Observability | v1.4 | 0/1 | Planned | -- |
