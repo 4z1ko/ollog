@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.4 — UDP Interface (Phase 18 complete, plans 16-18 done)
+**Current focus:** v1.4 complete — planning next milestone
 
 ## Current Position
 
-Phase: 18 — Error Handling and Observability
-Plan: 01 complete
-Status: Plan 18-01 complete — structured disposition log tokens, double-WARNING fix, 5 caplog tests
-Last activity: 2026-04-06 — Plan 18-01 executed (1/1 plans)
+Phase: —
+Plan: —
+Status: v1.4 UDP Interface shipped — all 3 phases complete, milestone archived
+Last activity: 2026-04-06 — v1.4 milestone completed (Phases 16–18, 4 plans)
 
-Progress: [█████░░░░░░░░░░░░░░░] 44% (v1.4 Phase 18 plan 01 complete, 4 of ~8 plans done)
+Progress: [████████████████████] 100% (v1.4 complete)
 
 ## Performance Metrics
 
 **Velocity (historical):**
-- Total plans completed: 36 (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8)
-- Average duration: ~5–16 min/plan
+- Total plans completed: 40 (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8, v1.4: 4)
+- Average duration: ~5–20 min/plan
 
 **By Milestone:**
 
@@ -30,39 +30,19 @@ Progress: [█████░░░░░░░░░░░░░░░] 44% (v1
 | v1.1 | 7–10 | 7 |
 | v1.2 | 11–12 | 2 |
 | v1.3 | 13–15 | 8 |
-| v1.4 | 16–18 | TBD |
+| v1.4 | 16–18 | 4 |
 
 ## Accumulated Context
 
-### Key Decisions (summary — full log in PROJECT.md)
+### Key Decisions
 
-Full decision log in PROJECT.md Key Decisions table. All v1.0–v1.3 decisions recorded there.
-
-**v1.4 decisions already made (from research):**
-
-| Decision | Rationale |
-|----------|-----------|
-| `UDP_OPERATOR` config for operator identity (not JWT in datagrams) | JWTs expire with no UDP refresh path; overnight FT8 sessions would silently stop logging |
-| Loopback-bind default (`UDP_BIND_HOST=127.0.0.1`) | Protects against LAN exposure by default; matches ham radio ecosystem convention |
-| `UDP_ENABLED=false` default | Existing deployments unaffected on upgrade |
-| Default UDP port 2399 | Port 2237 (WSJT-X) and 12060 (N1MM+) are ecosystem-occupied; dedicated port avoids silent conflict |
-| `asyncio.DatagramProtocol` (stdlib) | No new production dependencies; runs on uvicorn's event loop |
-| `process_import()` extraction before Phase 17 | Current function raises `HTTPException`; uncatchable from UDP async task |
-| `asyncio.get_running_loop()` not `get_event_loop()` | Python 3.14 deprecates `get_event_loop()`; project runs Python 3.14 |
-| Operator `User` document cached at startup | Avoids MongoDB round-trip per datagram |
-| `_background_tasks` set for task strong references | Prevents async tasks from being garbage-collected before completing |
-| Lazy imports inside `_handle_datagram` body | Matches import_qsos_from_bytes pattern, avoids circular imports at module load |
-| `build_qso_dict(profile=user)` called directly (not `import_qsos_from_bytes`) | import_qsos_from_bytes omits profile= parameter, breaking auto-stamping for UDP path |
-| Operator attribution from config only, ADIF OPERATOR field ignored | Prevents spoofing; config operator is authoritative for UDP ingestion |
-| Merged `parse_errors + not records` into single guard | Binary garbage emitted 2 WARNINGs (one per branch); merged to guarantee exactly 1 WARNING per rejected datagram |
-| `disposition=` token on every UDP outcome branch | Operators can grep disposition=accepted\|rejected\|duplicate for full observability without parsing free-form text |
-| `sorted(missing)[0]` for missing-field rejection log | One representative field name makes logs actionable; full set was noisy |
+Full decision log in PROJECT.md Key Decisions table.
 
 ### Known Tech Debt
 
-- QSO.find_active() in models.py — dead production code
-- from_mongo_dt() in utils.py — tested, not called in production
-- Docker end-to-end verification pending
+- `QSO.find_active()` in models.py — dead production code
+- `from_mongo_dt()` in utils.py — tested, not called in production
+- Docker end-to-end verification pending (requires live Docker environment)
 
 ### Blockers/Concerns
 
@@ -70,10 +50,10 @@ None.
 
 ### Pending Todos
 
-- Run `/gsd:plan-phase 17` to plan QSO Processing Pipeline
+- Run `/gsd:new-milestone` to start next milestone
 
 ## Session Continuity
 
 Last session: 2026-04-06
-Stopped at: Completed 18-01-PLAN.md — structured disposition logs and 5 caplog tests
+Stopped at: v1.4 milestone archived and tagged
 Resume file: None

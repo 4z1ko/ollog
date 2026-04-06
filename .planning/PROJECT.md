@@ -48,6 +48,24 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Graceful fallback when no prefix match found (no flag shown, no error) — v1.2
 - ✓ Maritime/aeronautical mobile suffixes (/MM, /AM) treated as unresolvable — v1.2
 
+### Validated (v1.4)
+
+- ✓ Operator can enable a UDP listener on a configurable port (`UDP_PORT` env var, default `2399`) by setting `UDP_ENABLED=true` — v1.4
+- ✓ Operator can configure the bind address via `UDP_BIND_HOST` env var (default `127.0.0.1`; set `0.0.0.0` for LAN access) — v1.4
+- ✓ Operator can configure which user account receives UDP-submitted QSOs via `UDP_OPERATOR` env var (operator callsign) — v1.4
+- ✓ UDP listener starts automatically on app startup and stops cleanly on shutdown (FastAPI lifespan integration) — v1.4
+- ✓ Docker Compose exposes the UDP port with `/udp` suffix so datagrams are not silently dropped — v1.4
+- ✓ App accepts raw ADIF ADI text as the entire UDP datagram payload and parses it using the existing `parse_adi()` function — v1.4
+- ✓ App validates required ADIF fields (CALL, BAND, MODE, QSO_DATE, TIME_ON) before inserting — invalid records are rejected and logged — v1.4
+- ✓ `_operator` field on every UDP-submitted QSO is set from `UDP_OPERATOR` config — never from datagram ADIF content — v1.4
+- ✓ UDP-submitted QSOs receive the same profile auto-stamping as REST API QSOs (OPERATOR, STATION_CALLSIGN, equipment fields from profile) — v1.4
+- ✓ Duplicate detection applies to UDP-submitted QSOs using the same ±2 min CALL+BAND+MODE+operator window as the REST API — v1.4
+- ✓ UDP-inserted QSOs appear in the SSE live station feed without any additional changes — v1.4
+- ✓ App logs accepted, rejected, and duplicate datagrams with: source IP:port, callsign (if parsed), disposition, and reason — v1.4
+- ✓ Malformed ADIF datagrams (parse failure) are logged at WARNING level and silently dropped — app does not crash — v1.4
+- ✓ UDP listener transport errors are caught in `error_received()` and logged — listener continues running — v1.4
+- ✓ App logs a startup banner confirming UDP listener is bound when `UDP_ENABLED=true` — v1.4
+
 ### Validated (v1.3)
 
 - ✓ Every QSO endpoint in Swagger shows fully typed response schema (QSOResponse with alias-aware fields) — v1.3
@@ -96,25 +114,13 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
-## Current Milestone: v1.4 UDP Interface
-
-**Goal:** Add a UDP listener that accepts ADIF-formatted QSO messages over a configurable port, performing equivalently to the REST API — operator authentication, auto-stamping, duplicate detection, and SSE feed integration.
-
-**Target features:**
-- UDP server listening on a configurable port (default via env var)
-- ADIF message parsing over UDP (single QSO per datagram)
-- Operator authentication via token in the ADIF message or datagram header
-- Same QSO processing pipeline as `POST /api/qsos/` (auto-stamp, duplicate detect, store)
-- Configurable via env var (UDP_PORT, UDP_ENABLED)
-- Docker Compose port exposure
-
 ## Current State
 
-**Version:** v1.3 Documentation (shipped 2026-04-05)
+**Version:** v1.4 UDP Interface (shipped 2026-04-06)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
-**Codebase:** ~8,264 LOC (Python + HTML templates) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
+**Codebase:** ~8,102 LOC Python (+ HTML templates) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
 **Shipped features (cumulative):**
 - Custom ADIF parser + serializer (no third-party ADIF lib)
@@ -133,6 +139,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Country flag icons displayed in QSO log table rows — render-time `lookup_prefix()` enrichment in `_qso_to_view_dict()`, conditional `<img>` tag with tooltip, graceful no-flag fallback
 - Typed OpenAPI schema: all 16 REST endpoints annotated; HTMX/SSE routes excluded from `/docs`
 - MkDocs Material documentation site at `/guide`: deployment guide, operator walkthrough, admin guide, API reference, ADIF field reference, troubleshooting
+- UDP listener (`app/udp/server.py`): `asyncio.DatagramProtocol` on configurable port (default 2399); `_handle_datagram` pipeline: parse_adi → validate → build_qso_dict(profile=user) → find_duplicate → QSO.insert; operator identity pinned to `UDP_OPERATOR` config (never from datagram); operator `User` document cached at startup; structured `disposition=accepted|rejected|duplicate` log tokens; Docker UDP port exposed
 
 **Known tech debt:**
 - `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
@@ -177,6 +184,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | `/guide` StaticFiles mount registered before `/static` with `html=True` | Mount order is load-bearing in FastAPI; `html=True` enables automatic `index.html` serving | ✓ Good — `/guide` serves MkDocs index at directory paths |
 | SECRET_KEY signs JWTs only; Argon2 password hashing is independent | Clearing cookies (not resetting passwords) fixes most login-after-restart issues | ✓ Good — documented clearly in troubleshooting |
 | ADIF import has no `force=true` | Bulk re-import requires delete-then-import; single QSO creation supports `force=true` | ✓ Good — documented in troubleshooting and API reference |
+| `UDP_OPERATOR` config for operator identity (not JWT in datagrams) | JWTs expire with no UDP refresh path; overnight FT8 sessions would silently stop logging | ✓ Good — config-pinned identity prevents spoofing; works for long-running unattended sessions |
+| Default UDP port 2399 | Port 2237 (WSJT-X) and 12060 (N1MM+) are ecosystem-occupied; dedicated port avoids silent conflict | ✓ Good — no conflicts with common ham radio logging software |
+| `UDP_BIND_HOST=127.0.0.1` default (loopback) | Protects against LAN exposure by default; matches ham radio ecosystem convention | ✓ Good — operators opt in to LAN exposure by setting `0.0.0.0` |
+| `UDP_ENABLED=false` default | Existing deployments unaffected on upgrade | ✓ Good — clean opt-in; no surprise socket on upgrade |
+| `asyncio.DatagramProtocol` (stdlib) | No new production dependencies; runs on uvicorn's event loop | ✓ Good — zero new deps; transport.close() is synchronous (never awaited) |
+| `build_qso_dict(profile=user)` called directly (not `import_qsos_from_bytes`) | `import_qsos_from_bytes` omits `profile=` parameter, breaking auto-stamping for UDP path | ✓ Good — UDP QSOs get identical profile stamping to REST API QSOs |
+| Operator `User` document cached once at startup | Avoids MongoDB round-trip per datagram | ✓ Good — WARNING logged if UDP_OPERATOR callsign not found in DB |
+| `_background_tasks` set + `add_done_callback(discard)` for create_task | Python 3.12+ GCs tasks without strong references; Ruff RUF006 confirms this is required | ✓ Good — tasks complete reliably under burst load |
+| Merge parse_errors + no-records into single WARNING branch | Two separate WARNING paths produced double-logging for binary garbage input; criterion required exactly one | ✓ Good — `if parse_errors or not records:` single guard satisfies "exactly one WARNING" |
+| Structured `disposition=accepted|rejected|duplicate` log tokens | Operators need grep-able logs to diagnose UDP path in production | ✓ Good — `src=IP:PORT call=CALLSIGN disposition=` on every outcome branch |
 
 ---
-*Last updated: 2026-04-06 after v1.4 milestone start*
+*Last updated: 2026-04-06 after v1.4 milestone*
