@@ -11,12 +11,13 @@ _handle_datagram uses lazy imports inside the function body:
 """
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.auth.models import User
-from app.udp.server import _handle_datagram
+from app.udp.server import QSODatagramProtocol, _handle_datagram
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -260,3 +261,96 @@ async def test_handle_datagram_exception_does_not_raise() -> None:
             operator="VK2ABC",
             user=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Caplog tests: structured log assertions (OBS-01 through OBS-04)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_accepted_datagram_log(caplog, udp_user):
+    """Accepted datagram produces INFO log with disposition=accepted, src, call."""
+    mock_qso = MagicMock()
+    mock_qso.insert = AsyncMock()
+    mock_qso.id = "abc123"
+    with caplog.at_level(logging.INFO, logger="app.udp.server"):
+        with (
+            patch("app.qso.service.find_duplicate", new=AsyncMock(return_value=None)),
+            patch("app.qso.models.QSO", return_value=mock_qso),
+        ):
+            await _handle_datagram(
+                _SAMPLE_ADIF.encode(), _ADDR, operator="VK2ABC", user=udp_user,
+            )
+    assert "disposition=accepted" in caplog.text
+    assert "src=127.0.0.1:9999" in caplog.text
+    assert "call=W1AW" in caplog.text
+    info_records = [r for r in caplog.records if r.levelno == logging.INFO and "disposition=accepted" in r.message]
+    assert len(info_records) == 1
+
+
+@pytest.mark.asyncio
+async def test_rejected_missing_field_log(caplog, udp_user):
+    """Datagram missing required field produces WARNING with disposition=rejected and reason."""
+    adif_no_band = "<CALL:4>W1AW<MODE:3>SSB<QSO_DATE:8>20260406<TIME_ON:4>1200<EOR>"
+    with caplog.at_level(logging.WARNING, logger="app.udp.server"):
+        await _handle_datagram(
+            adif_no_band.encode(), _ADDR, operator="VK2ABC", user=udp_user,
+        )
+    assert "disposition=rejected" in caplog.text
+    assert "missing required field" in caplog.text
+    assert "src=127.0.0.1:9999" in caplog.text
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING and r.name == "app.udp.server"]
+    assert len(warning_records) == 1
+
+
+@pytest.mark.asyncio
+async def test_duplicate_datagram_log(caplog, udp_user):
+    """Duplicate datagram produces INFO log with disposition=duplicate, src, call."""
+    existing = MagicMock()
+    existing.id = "dup123"
+    with caplog.at_level(logging.INFO, logger="app.udp.server"):
+        with (
+            patch("app.qso.service.find_duplicate", new=AsyncMock(return_value=existing)),
+            patch("app.qso.models.QSO", MagicMock()),
+        ):
+            await _handle_datagram(
+                _SAMPLE_ADIF.encode(), _ADDR, operator="VK2ABC", user=udp_user,
+            )
+    assert "disposition=duplicate" in caplog.text
+    assert "call=W1AW" in caplog.text
+    assert "src=127.0.0.1:9999" in caplog.text
+    info_records = [r for r in caplog.records if r.levelno == logging.INFO and "disposition=duplicate" in r.message]
+    assert len(info_records) == 1
+
+
+@pytest.mark.asyncio
+async def test_garbage_datagram_single_warning_no_crash(caplog, udp_user):
+    """Binary garbage input produces exactly one WARNING and does not crash."""
+    with caplog.at_level(logging.WARNING, logger="app.udp.server"):
+        await _handle_datagram(
+            b"\x00\xFF\xFE\xAB garbage bytes",
+            _ADDR,
+            operator="VK2ABC",
+            user=udp_user,
+        )
+    warning_records = [
+        r for r in caplog.records
+        if r.levelno >= logging.WARNING and r.name == "app.udp.server"
+    ]
+    assert len(warning_records) == 1, f"Expected 1 WARNING, got {len(warning_records)}: {[r.message for r in warning_records]}"
+    assert "disposition=rejected" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_error_received_logs_warning_and_continues(caplog):
+    """QSODatagramProtocol.error_received() logs WARNING and protocol continues."""
+    protocol = QSODatagramProtocol(operator="VK2ABC", user=None)
+    with caplog.at_level(logging.WARNING, logger="app.udp.server"):
+        protocol.error_received(OSError("ICMP unreachable"))
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING and r.name == "app.udp.server"]
+    assert len(warning_records) == 1
+    assert "ICMP unreachable" in caplog.text
+    # Protocol has not stopped — transport is still None (never connected) which is fine;
+    # the key assertion is that no exception was raised and no transport.close() was called
+    assert protocol.transport is None
