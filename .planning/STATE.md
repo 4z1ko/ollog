@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Phase: 17 — QSO Processing Pipeline
-Plan: Not started
-Status: Phase 16 verified and complete — ready to plan Phase 17
-Last activity: 2026-04-05 — Phase 16 executed and verified (2/2 plans)
+Plan: 01 complete
+Status: Plan 17-01 complete — _handle_datagram pipeline, lifespan User lookup, 8 unit tests
+Last activity: 2026-04-06 — Plan 17-01 executed (1/1 plans)
 
-Progress: [███░░░░░░░░░░░░░░░░░] 33% (v1.4 Phase 16 complete, 2 of 6+ plans done)
+Progress: [████░░░░░░░░░░░░░░░░] 38% (v1.4 Phase 17 plan 01 complete, 3 of ~8 plans done)
 
 ## Performance Metrics
 
@@ -51,6 +51,9 @@ Full decision log in PROJECT.md Key Decisions table. All v1.0–v1.3 decisions r
 | `asyncio.get_running_loop()` not `get_event_loop()` | Python 3.14 deprecates `get_event_loop()`; project runs Python 3.14 |
 | Operator `User` document cached at startup | Avoids MongoDB round-trip per datagram |
 | `_background_tasks` set for task strong references | Prevents async tasks from being garbage-collected before completing |
+| Lazy imports inside `_handle_datagram` body | Matches import_qsos_from_bytes pattern, avoids circular imports at module load |
+| `build_qso_dict(profile=user)` called directly (not `import_qsos_from_bytes`) | import_qsos_from_bytes omits profile= parameter, breaking auto-stamping for UDP path |
+| Operator attribution from config only, ADIF OPERATOR field ignored | Prevents spoofing; config operator is authoritative for UDP ingestion |
 
 ### Known Tech Debt
 
@@ -68,6 +71,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-05
-Stopped at: Phase 16 complete and verified — ready to plan Phase 17
+Last session: 2026-04-06
+Stopped at: Completed 17-01-PLAN.md — UDP QSO processing pipeline implemented and tested
 Resume file: None
