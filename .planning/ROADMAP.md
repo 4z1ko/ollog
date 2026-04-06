@@ -76,6 +76,12 @@ Full archive: `.planning/milestones/v1.3-ROADMAP.md`
 
 **Requirements:** UDP-01, UDP-02, UDP-03, UDP-04, UDP-05, OBS-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 16-01-PLAN.md — Extract process_import into app/qso/service.py as import_qsos_from_bytes
+- [ ] 16-02-PLAN.md — UDP config, DatagramProtocol skeleton, lifespan hooks, Docker port
+
 **Codebase prep (task within this phase):** Extract shared QSO insertion logic from `app/adif/router.py` `process_import()` into `app/qso/service.py`. The current function raises `HTTPException` which is uncatchable from a UDP async task. This extraction must complete before Phase 17 begins.
 
 **Files created:** `app/udp/__init__.py`, `app/udp/server.py` (skeleton `QSODatagramProtocol`)
@@ -155,6 +161,6 @@ Full archive: `.planning/milestones/v1.3-ROADMAP.md`
 | 13. OpenAPI Schema Cleanup | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
 | 14. MkDocs Infrastructure | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
 | 15. Narrative Documentation Content | v1.3 | 4/4 | ✓ Complete | 2026-04-05 |
-| 16. UDP Infrastructure | v1.4 | 0/? | Pending | — |
+| 16. UDP Infrastructure | v1.4 | 0/2 | Planned | — |
 | 17. QSO Processing Pipeline | v1.4 | 0/? | Pending | — |
 | 18. Error Handling and Observability | v1.4 | 0/? | Pending | — |
