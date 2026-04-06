@@ -58,7 +58,20 @@ async def lifespan(app: FastAPI):
         watcher_task = asyncio.create_task(
             watch_qsos(collection, feed_manager, _templates)
         )
+    # Start UDP listener (conditional on UDP_ENABLED)
+    udp_transport = None
+    if settings.udp_enabled:
+        from app.udp.server import start_udp_listener
+        udp_transport, _ = await start_udp_listener(
+            settings.udp_bind_host, settings.udp_port
+        )
+
     yield
+
+    # Shutdown order: UDP first, then change-stream watcher, then database.
+    # transport.close() is synchronous — do NOT await it.
+    if udp_transport is not None:
+        udp_transport.close()
     if watcher_task is not None:
         watcher_task.cancel()
         try:

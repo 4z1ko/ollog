@@ -20,6 +20,7 @@ services:
     build: .
     ports:
       - "8000:8000"
+      - "2399:2399/udp"  # UDP ADIF listener (UDP_ENABLED=true to activate)
     depends_on:
       mongodb:
         condition: service_healthy
@@ -28,6 +29,8 @@ services:
       - SECRET_KEY=dev-secret-change-in-production
       - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
       - MONGODB_DB=ollog
+      # UDP_BIND_HOST=0.0.0.0 required inside Docker (default 127.0.0.1 blocks host access)
+      # UDP_ENABLED=false by default — set to true and configure UDP_OPERATOR to activate
 
 volumes:
   mongo-data:

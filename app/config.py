@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     admin_password: str | None = None
     admin_callsign: str | None = None
 
+    # UDP listener (v1.4)
+    udp_enabled: bool = False
+    udp_port: int = 2399
+    udp_bind_host: str = "127.0.0.1"
+    udp_operator: str | None = None
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
