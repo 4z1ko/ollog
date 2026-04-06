@@ -106,6 +106,11 @@ Plans:
 
 **Requirements:** QSO-01, QSO-02, QSO-03, QSO-04, QSO-05, QSO-06
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 17-01-PLAN.md — Wire _handle_datagram pipeline, lifespan User lookup, and unit tests
+
 **Key design constraints:**
 - `datagram_received()` is synchronous — all async work dispatched via `asyncio.create_task(_handle_datagram(data, addr))` with a `_background_tasks` set holding strong references.
 - `_operator` is always sourced from `settings.udp_operator` — never from ADIF content in the datagram.
@@ -162,5 +167,5 @@ Plans:
 | 14. MkDocs Infrastructure | v1.3 | 2/2 | ✓ Complete | 2026-04-04 |
 | 15. Narrative Documentation Content | v1.3 | 4/4 | ✓ Complete | 2026-04-05 |
 | 16. UDP Infrastructure | v1.4 | 2/2 | ✓ Complete | 2026-04-05 |
-| 17. QSO Processing Pipeline | v1.4 | 0/? | Pending | — |
-| 18. Error Handling and Observability | v1.4 | 0/? | Pending | — |
+| 17. QSO Processing Pipeline | v1.4 | 0/1 | Planned | -- |
+| 18. Error Handling and Observability | v1.4 | 0/? | Pending | -- |
