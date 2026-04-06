@@ -1,267 +1,188 @@
-# Stack Research
+# Stack Research: UDP ADIF Listener
 
-**Domain:** Documentation milestone — REST API docs + application/operator workflow docs for ollog (FastAPI + HTMX ham radio logbook)
-**Researched:** 2026-04-04
-**Confidence:** HIGH for FastAPI OpenAPI layer (official docs); HIGH for MkDocs Material stack (PyPI-verified); MEDIUM for Docker integration pattern (community practice, structurally sound)
+**Domain:** UDP listener for ADIF datagrams — FastAPI asyncio integration
+**Researched:** 2026-04-05
+**Confidence:** HIGH for core asyncio approach (official Python docs); HIGH for Docker UDP syntax (official Docker docs); MEDIUM for asyncio-dgram assessment (PyPI + GitHub verified, 3.0.0 Jan 2026 release confirmed); LOW for WSJT-X / N1MM wire format specifics (community sources only)
 
 ---
 
 ## Context: What Already Exists (Do Not Re-Research)
 
-Existing validated stack: FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+, Jinja2, HTMX 2.0.4, Python 3.12, Docker Compose, MongoDB 7 replica set, uv package manager.
+Existing validated stack: Python 3.12+, FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), uvicorn, Docker Compose, MongoDB 7 replica set, pydantic-settings, uv package manager.
 
-The `app/main.py` already creates `FastAPI(title="ollog", version="0.1.0")`. The built-in `/docs` (Swagger UI) and `/redoc` (ReDoc) endpoints are live with zero additional packages — FastAPI includes them automatically via `fastapi[standard]`.
+`app/main.py` already uses `@asynccontextmanager async def lifespan(app)` with `asyncio.create_task()` for the change-stream watcher. The pattern for launching a background task in FastAPI's lifespan is already established and proven in this codebase.
 
----
+`app/adif/parser.py` has `parse_adi(text: str)` — pure function, zero dependencies, ready to use.
 
-## Two Distinct Documentation Problems
-
-This milestone has two separate concerns that require different tooling:
-
-| Problem | Solution Layer | Tooling |
-|---------|---------------|---------|
-| REST API reference (endpoints, request/response schemas, auth) | FastAPI built-in OpenAPI generation | No new packages — enrich existing code |
-| Narrative docs (operator workflow, admin setup, ADIF import/export guide) | Static site generator | MkDocs + Material theme |
-
-Do not conflate these. The API reference is auto-generated from Python code; narrative docs are handwritten Markdown. They are complementary, not competing.
+`app/qso/service.py` has `build_qso_dict()` and `find_duplicate()` — both async-capable, Beanie-based.
 
 ---
 
-## Recommended Stack (New Additions Only)
+## The Core Approach: stdlib Only
 
-### Core Documentation Tools
+**Verdict: No new production dependencies are needed. Use `asyncio.DatagramProtocol` + `loop.create_datagram_endpoint()` from the Python standard library.**
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| `mkdocs-material` | `==9.*` (currently 9.7.6, March 2026) | Static site generator for narrative docs — operator guide, admin setup, workflow reference | FastAPI itself uses Material for MkDocs for its own docs. Actively maintained (released March 19, 2026). Single `pip install` pulls MkDocs 1.6.1, Pygments, pymdown-extensions 10.21.2 automatically. Markdown-native, no RST learning curve, excellent code blocks and tabbed content for showing auth examples. |
-| `pymdown-extensions` | pulled as mkdocs-material dep (10.21.2) | Admonitions, code tabs, keyboard shortcut display, highlight | Bundled with mkdocs-material install; no separate install. Extensions like `pymdownx.tabbed`, `pymdownx.highlight`, `pymdownx.superfences`, and `admonition` are the primary ones needed for API reference pages. |
-
-**No additional packages needed for the API layer.** FastAPI's built-in OpenAPI generation handles the REST API documentation entirely. All enrichment is done by annotating existing Python code.
-
-### No New Packages Required For
-
-| Capability | Mechanism | Reason |
-|------------|-----------|--------|
-| Interactive API reference (Swagger UI) | FastAPI built-in `/docs` | Included in `fastapi[standard]`. Already running. |
-| Machine-readable spec | FastAPI built-in `/openapi.json` | No export step needed; live at runtime. |
-| API reference (read-only) | FastAPI built-in `/redoc` | Included in `fastapi[standard]`. ReDoc renders cleaner for sharing. |
-| Endpoint summaries | Function docstrings (first line) | FastAPI extracts the first line of the function docstring as the summary automatically. |
-| Endpoint descriptions | Function docstrings (body after first line) | FastAPI uses the full docstring as the Markdown description in Swagger UI. |
-| Tag-based grouping | `tags=` parameter on route decorators | Already a FastAPI feature — `@router.get("/qsos/", tags=["QSO"])` creates grouped sections. |
-| Tag descriptions | `openapi_tags` list on `FastAPI()` constructor | Pass a list of dicts to enrich tag groups with Markdown descriptions in the rendered docs. |
-| Response schema documentation | Pydantic models (already used) | FastAPI auto-generates schema from existing Pydantic response models. No extra annotation needed. |
+This is not a gap in the ecosystem where a third-party library fills a missing capability. Python's asyncio has first-class UDP support via `asyncio.DatagramProtocol` and `loop.create_datagram_endpoint()`. The API is stable, well-documented, and runs on the same event loop as the FastAPI/uvicorn HTTP server. Adding a library for this would be over-engineering.
 
 ---
 
-## FastAPI API Documentation Enrichment (No New Packages)
+## Specific Question Answers
 
-The following changes to **existing code** are the API documentation work. They require no new packages.
+### Q1: asyncio.DatagramProtocol vs asyncio-dgram vs other third-party libs?
 
-### Constructor-Level Changes (`app/main.py`)
+**Use `asyncio.DatagramProtocol` directly.** Here is why each option was evaluated:
+
+| Option | Assessment | Verdict |
+|--------|------------|---------|
+| `asyncio.DatagramProtocol` | stdlib, Python 3.4+, stable API, zero deps, runs on the exact same event loop as uvicorn, full Python docs coverage | **USE THIS** |
+| `asyncio-dgram` (jsbronder) | Wraps `DatagramProtocol` in a `StreamReader`-style async interface. v3.0.0 released January 2026, healthy per Snyk, requires Python >=3.9. Useful when you need `await stream.recv()` in a `while True` loop rather than callbacks. For a server that receives unsolicited datagrams and has no send requirement, it adds abstraction overhead with negligible benefit. | Skip for this use case |
+| `aiohttp` UDP | `aiohttp` is an HTTP framework / client library. Its UDP support is for internal use (DNS resolver). Not appropriate here. | Do not use |
+| `uvloop` | Drop-in asyncio event loop replacement (libuv-based). **Already installed in this project** (uvloop-0.22.1 is in the venv). It fully supports `create_datagram_endpoint()` and has UDP tests in its test suite. It is not a UDP library — it is an event loop. If uvicorn is already configured to use uvloop (or will be), UDP just works. | No action needed |
+| Separate process / threading | Would break the requirement to share the asyncio event loop and Beanie's MongoDB connection. | Do not use |
+
+**Why `asyncio.DatagramProtocol` is sufficient:** A UDP listener for ADIF is inherently callback-driven — datagrams arrive, you decode, parse, validate, and insert. There is no bidirectional stream to manage. The `datagram_received(data, addr)` callback is the entire interface needed.
+
+### Q2: How does a UDP server integrate with FastAPI's lifespan?
+
+The pattern is identical to the change-stream watcher already in `app/main.py`: create the endpoint during startup, store the transport, close it on shutdown.
 
 ```python
-app = FastAPI(
-    title="ollog",
-    version="0.1.0",
-    summary="Self-hosted ADIF-native ham radio logbook REST API",
-    description="""
-Multi-operator ham radio logbook with QSO CRUD, ADIF import/export,
-JWT authentication (cookie and Bearer), SSE live station feed, and
-operator profile management.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- existing startup ---
+    await init_db()
+    await _bootstrap_admin()
 
-## Authentication
+    # --- UDP listener startup ---
+    loop = asyncio.get_event_loop()
+    transport, protocol = await loop.create_datagram_endpoint(
+        lambda: AdifUdpProtocol(),
+        local_addr=("0.0.0.0", settings.udp_adif_port),
+    )
 
-All API endpoints (except `/auth/login` and `/health`) require a JWT.
-Provide it as a `Bearer` token in `Authorization`, or as an `access_token`
-cookie for browser sessions.
-""",
-    openapi_tags=[
-        {"name": "Auth", "description": "Login, logout, token lifecycle."},
-        {"name": "QSO", "description": "Create, read, update, delete contact log entries."},
-        {"name": "ADIF", "description": "Bulk import (.adi/.adif) and full-log export."},
-        {"name": "Profile", "description": "Operator profile and station details."},
-        {"name": "Admin", "description": "Account management — admin role required."},
-        {"name": "Feed", "description": "SSE stream of real-time QSO events."},
-        {"name": "Health", "description": "Liveness check."},
-    ],
-)
+    # --- existing change-stream watcher ---
+    watcher_task = asyncio.create_task(watch_qsos(...))
+
+    yield
+
+    # --- UDP listener shutdown ---
+    transport.close()
+
+    # --- existing watcher teardown ---
+    watcher_task.cancel()
+    try:
+        await watcher_task
+    except asyncio.CancelledError:
+        pass
+
+    await close_db()
 ```
 
-### Route-Level Changes (Across Routers)
+`create_datagram_endpoint()` is a coroutine that resolves immediately once the OS binds the socket — it does not block the event loop. The protocol's `datagram_received()` method is called by the event loop whenever a UDP packet arrives, on the same event loop thread as the HTTP request handlers. Because Beanie's `AsyncMongoClient` is already bound to this event loop, all `await QSO.insert()` calls inside the protocol handler work without any additional wiring.
 
-```python
-@router.post(
-    "/qsos/",
-    tags=["QSO"],
-    summary="Log a new QSO",
-    response_description="The newly created QSO document",
-    status_code=201,
-)
-async def create_qso(body: QSOCreate, ...):
-    """Log a new QSO contact.
+**Important:** `asyncio.get_event_loop()` works correctly inside lifespan because uvicorn runs the application in an asyncio event loop. No `loop` parameter is needed on `create_datagram_endpoint` in Python 3.10+ (the `loop` parameter was deprecated in 3.8 and removed in 3.10 — use `asyncio.get_event_loop()` or `asyncio.get_running_loop()` before calling the endpoint creation).
 
-    Records a radio contact with another station. The `CALL` field is
-    required. All ADIF fields are optional — omit fields that are not
-    known at log time.
+### Q3: Any libraries that make UDP + asyncio cleaner?
 
-    Requires a valid operator JWT (cookie or Bearer).
-    """
-```
+For this use case: **No.** The stdlib approach is six lines of integration code. The `asyncio-dgram` library is worth knowing about for bidirectional or client-side UDP patterns, but the callback model of `DatagramProtocol` is a perfect fit for a receive-only listener that processes each datagram independently.
 
-The pattern is: **first line of docstring = summary** (FastAPI extracts this automatically if no `summary=` kwarg is given), **rest of docstring = Markdown description**, `tags=` routes to the correct grouped section.
+`uvloop` is already installed. If uvicorn is launched with `--loop uvloop` (or via uvloop's install hook), the UDP endpoint runs on the uvloop event loop transparently. No code change needed.
 
----
+### Q4: How to expose a UDP port in Docker Compose?
 
-## MkDocs Setup (Narrative Docs)
+Docker Compose defaults all port mappings to TCP. UDP requires an explicit `/udp` suffix or a long-syntax `protocol: udp` field.
 
-### Installation (Dev Dependency Only)
-
-```bash
-# Add to [dependency-groups] dev in pyproject.toml, not [project] dependencies
-uv add --dev "mkdocs-material==9.*"
-```
-
-`mkdocs-material` is a **dev-only** dependency. It is not needed at runtime by the FastAPI application. Do not add it to `[project]` dependencies — it would bloat the production Docker image.
-
-### Project Layout
-
-```
-ollog/
-  mkdocs.yml           # MkDocs configuration
-  docs/
-    index.md           # Overview / what is ollog
-    getting-started.md # Docker Compose quick start
-    operator/
-      logging-qsos.md  # How to log contacts
-      import-export.md # ADIF import and export workflow
-      live-feed.md     # Station feed / multi-op setup
-    admin/
-      setup.md         # First-run admin bootstrap
-      accounts.md      # User management
-    api/
-      overview.md      # Links to /docs and /redoc, auth explanation
-      authentication.md
-      endpoints.md     # Narrative description of each route group
-    reference/
-      adif-fields.md   # Supported ADIF field list
-      config.md        # Environment variable reference
-```
-
-### `mkdocs.yml` Baseline
+**Short syntax (add to existing `api` service):**
 
 ```yaml
-site_name: ollog Documentation
-site_description: Self-hosted ADIF-native ham radio logbook
-repo_url: https://github.com/ollog/ollog   # update if public
-
-theme:
-  name: material
-  palette:
-    - scheme: default
-      primary: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - scheme: slate
-      primary: indigo
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.top
-    - content.code.copy
-
-markdown_extensions:
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - tables
-  - toc:
-      permalink: true
-
-nav:
-  - Home: index.md
-  - Getting Started: getting-started.md
-  - Operator Guide:
-    - Logging QSOs: operator/logging-qsos.md
-    - ADIF Import & Export: operator/import-export.md
-    - Live Station Feed: operator/live-feed.md
-  - Admin Guide:
-    - Initial Setup: admin/setup.md
-    - Account Management: admin/accounts.md
-  - API Reference:
-    - Overview: api/overview.md
-    - Authentication: api/authentication.md
-    - Endpoints: api/endpoints.md
-  - Reference:
-    - ADIF Fields: reference/adif-fields.md
-    - Configuration: reference/config.md
-```
-
-### Local Preview
-
-```bash
-# From repo root — docs rebuild on file save
-uv run mkdocs serve
-```
-
-### Static Build
-
-```bash
-# Outputs to site/ directory
-uv run mkdocs build --strict
-```
-
-`--strict` converts warnings (broken links, missing pages) to errors. Use it in CI.
-
----
-
-## Docker Integration
-
-### Option A: Build Docs Outside Docker (Recommended)
-
-Run `mkdocs build` locally or in CI. Commit the `site/` output (or publish to GitHub Pages / Netlify). The FastAPI Docker container has no awareness of docs — docs are a separate static artifact.
-
-**Why this is correct:** The FastAPI app serves an interactive API at `/docs` (runtime, always current). The narrative MkDocs site is static HTML that can be hosted anywhere. Coupling them in one Docker image adds 150MB+ of Python doc tooling to a production image for no operational benefit.
-
-**Implementation:** Add `mkdocs build` as a CI step. Publish `site/` to GitHub Pages or any static host. The built-in `/docs` and `/redoc` endpoints remain the primary API reference for live deployments.
-
-### Option B: Serve MkDocs Alongside App (If Self-Hosted Static Docs Required)
-
-If the operator needs docs accessible on the same Docker Compose stack (e.g., air-gapped deployment), add a separate Nginx service to serve the built `site/` directory:
-
-```yaml
-# Addition to docker-compose.yml
-  docs:
-    image: nginx:alpine
-    volumes:
-      - ./site:/usr/share/nginx/html:ro
+services:
+  api:
     ports:
-      - "8080:80"
+      - "8000:8000"          # existing HTTP (TCP)
+      - "2237:2237/udp"      # UDP ADIF listener
 ```
 
-This requires running `mkdocs build` before `docker compose up`. The `site/` directory is gitignored and rebuilt as needed. The Nginx container is tiny and has no Python dependency.
+**Long syntax (equivalent, more explicit):**
 
-**Do not** serve `mkdocs serve` (dev server) in production. It is not designed for production use.
+```yaml
+services:
+  api:
+    ports:
+      - target: 8000
+        published: 8000
+        protocol: tcp
+      - target: 2237
+        published: 2237
+        protocol: udp
+```
+
+**Port number note:** Port 2237 is the conventional WSJT-X / N1MM Logger+ UDP broadcast port (standard in the amateur radio ecosystem). The port must be configurable via env var (`UDP_ADIF_PORT`) so operators can change it without rebuilding. Default to `2237`.
+
+**If TCP and UDP are needed on the same port number:** They must be listed as two separate entries — one per protocol. Docker does not combine them.
+
+### Q5: Python version constraints or asyncio UDP gotchas?
+
+| Gotcha | Severity | Details | Mitigation |
+|--------|----------|---------|------------|
+| Windows ProactorEventLoop does not support UDP | HIGH (Windows only) | The default event loop on Windows (Python 3.8+) is `ProactorEventLoop`, which does not implement `create_datagram_endpoint()`. | Not relevant — this app runs in Docker on Linux. No action needed. |
+| `loop` parameter removed in Python 3.10 | HIGH | `loop.create_datagram_endpoint(loop=loop)` was deprecated in 3.8 and removed in 3.10. Do not pass the `loop` keyword argument. | Use `asyncio.get_running_loop().create_datagram_endpoint(...)` inside a coroutine. |
+| `error_received()` is called, not an exception | MEDIUM | When an ICMP Port Unreachable arrives (e.g., client sent to a dead port then ollog replies), asyncio calls `protocol.error_received(exc)` instead of raising. If not implemented, the default silently ignores it. | Implement `error_received(self, exc)` with a log warning. Do not let it crash. |
+| Datagram size limit | LOW | asyncio UDP reads are bounded by the OS socket buffer. ADIF files as UDP datagrams will typically be < 4 KB (single QSO). The default asyncio receive buffer (65535 bytes) is sufficient. If datagrams exceed ~8 KB, IP fragmentation occurs — fragmented UDP datagrams can be silently dropped by intermediate routers. | ADIF QSO datagrams from WSJT-X / N1MM are small (< 1 KB typically). Not a concern in practice, but document the limit. |
+| `datagram_received` is synchronous | LOW | `DatagramProtocol.datagram_received()` is a synchronous callback. You cannot `await` directly inside it. | Schedule async work with `asyncio.ensure_future()` or `asyncio.get_event_loop().create_task()`. The protocol handler parses the datagram synchronously, then dispatches an async coroutine for the DB write. |
+| SO_REUSEADDR is set automatically | INFO | `create_datagram_endpoint()` sets `SO_REUSEADDR` before binding. This allows restart without "address already in use" errors. `SO_REUSEPORT` (multi-process load sharing) is not set and not needed here. | No action needed. |
 
 ---
 
-## Alternatives Considered
+## New Stack Additions
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Narrative docs | MkDocs Material | Sphinx | Sphinx uses reStructuredText by default (additional learning curve); autodoc requires docstring format discipline across all modules (RST format), which this project doesn't currently use; heavier setup for what is primarily user-facing narrative docs rather than library API reference. MkDocs Material is Markdown-native and used by FastAPI's own documentation project. |
-| Narrative docs | MkDocs Material | Plain Markdown in `docs/` (no generator) | No navigation, search, or code highlighting. Fine for a README but insufficient for multi-page operator + admin guide. |
-| API reference | FastAPI built-in `/docs` | Redocly, Stoplight, Postman | Adds external tooling with accounts and licensing for a self-hosted app. FastAPI's built-in Swagger UI already covers interactive testing; ReDoc covers read-only reference. No third-party SaaS needed. |
-| API reference enrichment | Docstring + decorator annotations | `fastapi-utils` or schema override tools | FastAPI's own annotation surface covers all needed cases. Adding schema override tools increases maintenance complexity with no meaningful benefit. |
-| Doc hosting | CI-built static site | In-app served MkDocs | Bloats production Docker image; `mkdocs serve` is a dev server. Static build + Nginx sidecar is the correct production pattern if self-hosted docs are required. |
+### Production Dependencies
+
+**None.** The entire UDP listener is implemented with stdlib `asyncio`. No new packages are needed in `[project]` dependencies.
+
+### Configuration Change (pydantic-settings)
+
+Add one field to `app/config.py` — `Settings` already uses `pydantic_settings.BaseSettings`:
+
+```python
+udp_adif_port: int = 2237
+```
+
+This reads from `UDP_ADIF_PORT` environment variable automatically (pydantic-settings lowercases field names to find env vars). The default `2237` matches the WSJT-X / N1MM Logger+ convention.
+
+### Dev/Test Dependencies
+
+`pytest-asyncio` is already a dev dependency. No additions needed for testing the UDP protocol handler, because `DatagramProtocol` is a plain Python class that can be unit-tested by calling `datagram_received()` directly without binding a real socket.
+
+---
+
+## Integration Points
+
+| Component | How It Integrates |
+|-----------|------------------|
+| `app/main.py` lifespan | `await loop.create_datagram_endpoint(...)` before the `yield`; `transport.close()` after the `yield`. Follows the existing watcher task pattern. |
+| `app/config.py` `Settings` | Add `udp_adif_port: int = 2237`. Reads `UDP_ADIF_PORT` env var automatically. |
+| `app/adif/parser.py` `parse_adi()` | Called synchronously inside `datagram_received()`. Pure function, no I/O, safe to call from a sync callback. |
+| `app/qso/service.py` | `build_qso_dict()` and `find_duplicate()` are called inside an async task dispatched from `datagram_received()` via `asyncio.create_task()`. |
+| Beanie / MongoDB | The async task dispatched by the protocol runs on the same event loop where Beanie's `AsyncMongoClient` was initialized. No additional wiring needed. |
+| Auth (`app/auth/service.py`) | UDP is unauthenticated by design — source IP is the only identity signal. The operator callsign must come from configuration or from the ADIF record's `OPERATOR` field, not from a JWT. This is a feature design decision, not a stack limitation. |
+
+---
+
+## Docker Compose Changes
+
+Add `/udp` port mapping to the `api` service in `docker-compose.yml`:
+
+```yaml
+services:
+  api:
+    ports:
+      - "8000:8000"
+      - "2237:2237/udp"    # UDP ADIF listener (WSJT-X / N1MM default port)
+    environment:
+      - UDP_ADIF_PORT=2237  # optional override
+```
+
+The `environment` entry for `UDP_ADIF_PORT` is optional (default is `2237`). Include it explicitly so the port mapping and the env var are visually co-located in the compose file — this prevents the port and the config from drifting apart.
 
 ---
 
@@ -269,56 +190,64 @@ This requires running `mkdocs build` before `docker compose up`. The `site/` dir
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `mkdocs-material[imaging]` extras | Requires `cairo`, `pngquant`, `pillow` system dependencies — only needed for social card image generation. Unnecessary for a self-hosted logbook. | Plain `mkdocs-material==9.*` |
-| `mkdocstrings` + `mkdocstrings-python` | Auto-generates Python API reference from docstrings — this is a library tool, not a REST API user guide tool. Pulls significant dependency tree (griffe, etc.). The FastAPI `/docs` endpoint already serves the interactive API reference. | FastAPI built-in `/docs` |
-| Sphinx | RST-based, heavier setup, autodoc coupling to internal docstring format. Wrong tool for operator/user-facing narrative docs. | MkDocs Material |
-| Redocly CLI / OpenAPI bundler | Adds Node.js toolchain to a pure-Python project for no benefit over the built-in `/redoc` endpoint. | FastAPI built-in `/redoc` |
-| `pycountry` (for this milestone) | Already researched in prior milestone; already added. Not a documentation package. | (already in stack) |
+| `asyncio-dgram` | Adds abstraction over `DatagramProtocol` that is useful for bidirectional or stream-style UDP. This is a receive-only listener — the callback model is a perfect fit and needs no wrapping. | `asyncio.DatagramProtocol` (stdlib) |
+| `aiohttp` | HTTP framework / client. Its UDP support is internal (DNS). Wrong tool for a UDP socket server. | `asyncio.DatagramProtocol` (stdlib) |
+| Separate worker process / threading | Would break the shared asyncio event loop requirement. Beanie's MongoDB connection is bound to the event loop — a separate thread/process cannot access it directly. | Single-process asyncio coroutine dispatched from `datagram_received()` |
+| Motor (MongoDB async driver) | Already using Beanie 2.1+ which wraps Motor 3.x. Do not add Motor directly — Beanie is the correct ORM layer. | Beanie `QSO.insert()` |
+| WebSockets | Unrelated to UDP. Different transport, different use case. | UDP socket |
+| A separate UDP microservice | Adds deployment complexity, inter-process communication, and an additional auth surface. The existing asyncio event loop can handle this feature directly. | Lifespan-managed `DatagramProtocol` |
+| `python-osc` | OSC-over-UDP library. ADIF datagrams are plain text, not OSC. | `asyncio.DatagramProtocol` + `parse_adi()` |
+| `uvloop` (add separately) | Already in the venv (`uvloop-0.22.1`). No action needed. | Already present |
 
 ---
 
-## Version Compatibility
+## Wire Format Notes (LOW Confidence — Verify Before Implementing)
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| `mkdocs-material==9.*` (9.7.6) | Python 3.12, uv, pyproject.toml | Dev dependency only. Pulls mkdocs 1.6.1, pymdown-extensions 10.21.2, Pygments automatically. Pin to `9.*` (not `>=9`) to prevent unreviewed major-version upgrades per official Material docs recommendation. |
-| `mkdocs` 1.6.1 | Python 3.12 | Pulled as a transitive dependency of mkdocs-material. Do not pin separately. |
-| `pymdown-extensions` 10.21.2 | mkdocs-material 9.7.6, Python 3.12 | Pulled as transitive dependency. Do not pin separately. |
-| FastAPI OpenAPI enrichment | FastAPI 0.135+, Pydantic v2 | No new packages. `openapi_tags`, `summary`, `description` on `FastAPI()` constructor are stable API. Route-level `tags=`, `summary=`, `response_description=`, docstring extraction all stable. |
+The intended datagrams come from amateur radio logging software. The wire format affects parsing logic, not the stack choice — the stack (`DatagramProtocol` + `parse_adi()`) is the same regardless.
+
+| Software | Default Port | Format | Notes |
+|----------|-------------|--------|-------|
+| WSJT-X "UDP Server" | 2237 | Binary QMessage protocol (not ADIF) — NOT raw ADIF text | WSJT-X sends structured binary messages. An "ADIF" log UDP message exists (type 12) but it wraps binary-encoded ADIF inside the protocol, not raw ADIF text. Requires separate deserialization before `parse_adi()`. |
+| N1MM Logger+ UDP | 12060 | XML `<contactinfo>` — NOT ADIF | N1MM broadcasts XML, not ADIF. Requires XML parsing, not `parse_adi()`. |
+| Ham Radio Deluxe "QSO Forwarding" | configurable | ADIF text over UDP | Sends raw ADIF text datagrams. `parse_adi()` works directly. |
+| Custom / homebrew loggers | configurable | Varies | If the intent is a custom ADIF-over-UDP protocol (ollog as the receiver, user writes the sender), raw ADIF text is the correct design. `parse_adi()` works directly. |
+
+**The phase plan should clarify which sending software is the target.** If the intent is WSJT-X, the binary protocol requires a separate decoder. If the intent is a custom/homebrew UDP sender or HRD-style raw ADIF text, `parse_adi()` works without modification. **This is a critical design decision that affects implementation scope, not stack selection.**
 
 ---
 
 ## Recommended `pyproject.toml` Change
 
 ```toml
+# No changes to [project] dependencies — all new capability is stdlib.
+
+# If integration tests for the UDP listener are added:
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "httpx>=0.27",
-    # NEW for documentation milestone:
-    "mkdocs-material==9.*",
+    "pytest-asyncio>=0.23",   # already present
+    "httpx>=0.27",             # already present
 ]
 ```
 
-One new dev dependency. Production `[project]` dependencies are unchanged.
+No new production or dev dependencies.
 
 ---
 
 ## Sources
 
-- [mkdocs-material on PyPI](https://pypi.org/project/mkdocs-material/) — v9.7.6, released March 19, 2026. HIGH confidence.
-- [Material for MkDocs installation guide](https://squidfunk.github.io/mkdocs-material/getting-started/) — confirmed deps bundled (mkdocs, Pygments, pymdown-extensions), version pinning recommendation `9.*`. HIGH confidence.
-- [pymdown-extensions on PyPI](https://pypi.org/project/pymdown-extensions/) — v10.21.2, released March 29, 2026. HIGH confidence.
-- [mkdocs on PyPI](https://pypi.org/project/mkdocs/) — v1.6.1, current stable, pulled transitively. HIGH confidence.
-- [FastAPI Metadata and Docs URLs](https://fastapi.tiangolo.com/tutorial/metadata/) — `openapi_tags`, `summary`, `description`, `contact`, `license_info` constructor params. HIGH confidence.
-- [FastAPI Extending OpenAPI](https://fastapi.tiangolo.com/advanced/extending-openapi/) — `openapi_extra`, schema override patterns. HIGH confidence.
-- [FastAPI Custom Docs UI Static Assets](https://fastapi.tiangolo.com/how-to/custom-docs-ui-assets/) — self-hosting `/docs` assets pattern. HIGH confidence.
-- [MkDocs Writing Your Docs](https://www.mkdocs.org/user-guide/writing-your-docs/) — `docs/` directory convention, `nav:` structure. HIGH confidence.
-- [How to Generate OpenAPI Documentation in FastAPI](https://oneuptime.com/blog/post/2026-02-02-fastapi-openapi-documentation/view) — current year (Feb 2026) tutorial confirming built-in patterns. MEDIUM confidence (third-party).
-- [Sphinx vs MkDocs comparison](https://pythonbiellagroup.it/en/learning/mkdocs_tutorial/mkdocs_vs_sphinx/) — rationale for MkDocs for user-facing narrative docs. MEDIUM confidence.
+- [Python asyncio — Transports and Protocols (official docs, Python 3.14)](https://docs.python.org/3/library/asyncio-protocol.html) — `DatagramProtocol`, `create_datagram_endpoint()`, `error_received()`. HIGH confidence.
+- [asyncio-dgram on PyPI](https://pypi.org/project/asyncio-dgram/) — v3.0.0, January 2026, Python >=3.9. MEDIUM confidence.
+- [asyncio-dgram GitHub (jsbronder)](https://github.com/jsbronder/asyncio-dgram) — `bind()` / `connect()` API, active repository. MEDIUM confidence.
+- [FastAPI Lifespan Events (official docs)](https://fastapi.tiangolo.com/advanced/events/) — `@asynccontextmanager` lifespan, `asyncio.create_task()` pattern. HIGH confidence.
+- [Docker port publishing docs](https://docs.docker.com/engine/network/port-publishing/) — `/udp` suffix and long-syntax `protocol: udp`. HIGH confidence.
+- [Python issue #81409 — UDP sockets and SO_REUSEADDR](https://github.com/python/cpython/issues/81409) — automatic SO_REUSEADDR behavior. MEDIUM confidence.
+- [Python issue #23295 — Windows ProactorEventLoop UDP](https://bugs.python.org/issue23295) — confirmed no UDP on ProactorEventLoop. HIGH confidence (not relevant for Linux Docker).
+- [uvloop GitHub — tests/test_udp.py](https://github.com/MagicStack/uvloop/blob/master/tests/test_udp.py) — UDP test coverage confirming `create_datagram_endpoint` support. MEDIUM confidence.
+- [N1MM External UDP Broadcasts](https://n1mmwp.hamdocs.com/appendices/external-udp-broadcasts/) — N1MM sends XML, not ADIF, on port 12060. MEDIUM confidence (official N1MM docs).
+- [WSJT-X User Guide 2.7.0](https://wsjt.sourceforge.io/wsjtx-doc/wsjtx-main-2.7.0.html) — UDP server protocol details, port 2237. MEDIUM confidence (official WSJT-X docs).
 
 ---
 
-*Stack research for: API documentation + operator/admin narrative docs milestone (ollog)*
-*Researched: 2026-04-04*
+*Stack research for: UDP ADIF listener milestone (ollog)*
+*Researched: 2026-04-05*
