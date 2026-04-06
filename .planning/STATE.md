@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.4 — UDP Interface (defining requirements)
+**Current focus:** v1.4 — UDP Interface (roadmap ready, starting Phase 16)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-06 — Milestone v1.4 UDP Interface started
+Phase: 16 — UDP Infrastructure
+Plan: Not started
+Status: Roadmap complete, ready to plan Phase 16
+Last activity: 2026-04-06 — v1.4 roadmap written (Phases 16–18)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.4 not started)
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.4 Phase 16 not started)
 
 ## Performance Metrics
 
@@ -30,13 +30,27 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.
 | v1.1 | 7–10 | 7 |
 | v1.2 | 11–12 | 2 |
 | v1.3 | 13–15 | 8 |
-| v1.4 | 16–? | TBD |
+| v1.4 | 16–18 | TBD |
 
 ## Accumulated Context
 
 ### Key Decisions (summary — full log in PROJECT.md)
 
 Full decision log in PROJECT.md Key Decisions table. All v1.0–v1.3 decisions recorded there.
+
+**v1.4 decisions already made (from research):**
+
+| Decision | Rationale |
+|----------|-----------|
+| `UDP_OPERATOR` config for operator identity (not JWT in datagrams) | JWTs expire with no UDP refresh path; overnight FT8 sessions would silently stop logging |
+| Loopback-bind default (`UDP_BIND_HOST=127.0.0.1`) | Protects against LAN exposure by default; matches ham radio ecosystem convention |
+| `UDP_ENABLED=false` default | Existing deployments unaffected on upgrade |
+| Default UDP port 2399 | Port 2237 (WSJT-X) and 12060 (N1MM+) are ecosystem-occupied; dedicated port avoids silent conflict |
+| `asyncio.DatagramProtocol` (stdlib) | No new production dependencies; runs on uvicorn's event loop |
+| `process_import()` extraction before Phase 17 | Current function raises `HTTPException`; uncatchable from UDP async task |
+| `asyncio.get_running_loop()` not `get_event_loop()` | Python 3.14 deprecates `get_event_loop()`; project runs Python 3.14 |
+| Operator `User` document cached at startup | Avoids MongoDB round-trip per datagram |
+| `_background_tasks` set for task strong references | Prevents async tasks from being garbage-collected before completing |
 
 ### Known Tech Debt
 
@@ -50,10 +64,10 @@ None.
 
 ### Pending Todos
 
-None.
+- Run `/gsd:plan-phase 16` to begin UDP Infrastructure planning
 
 ## Session Continuity
 
 Last session: 2026-04-06
-Stopped at: Starting v1.4 milestone — researching UDP interface for ADIF
+Stopped at: v1.4 roadmap complete — ready to plan Phase 16
 Resume file: None
