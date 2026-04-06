@@ -1,0 +1,92 @@
+# Requirements: ollog — v1.4 UDP Interface
+
+**Defined:** 2026-04-06
+**Core Value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
+
+## v1.4 Requirements
+
+Requirements for the UDP ADIF interface milestone. Each maps to roadmap phases.
+
+### UDP Socket & Configuration
+
+- [ ] **UDP-01**: Operator can enable a UDP listener on a configurable port (`UDP_PORT` env var, default `2399`) by setting `UDP_ENABLED=true`
+- [ ] **UDP-02**: Operator can configure the bind address via `UDP_BIND_HOST` env var (default `127.0.0.1`; set `0.0.0.0` for LAN access)
+- [ ] **UDP-03**: Operator can configure which user account receives UDP-submitted QSOs via `UDP_OPERATOR` env var (operator callsign)
+- [ ] **UDP-04**: UDP listener starts automatically on app startup and stops cleanly on shutdown (FastAPI lifespan integration)
+- [ ] **UDP-05**: Docker Compose exposes the UDP port with `/udp` suffix so datagrams are not silently dropped
+
+### QSO Processing
+
+- [ ] **QSO-01**: App accepts raw ADIF ADI text as the entire UDP datagram payload and parses it using the existing `parse_adi()` function
+- [ ] **QSO-02**: App validates required ADIF fields (CALL, BAND, MODE, QSO_DATE, TIME_ON) before inserting — invalid records are rejected and logged
+- [ ] **QSO-03**: `_operator` field on every UDP-submitted QSO is set from `UDP_OPERATOR` config — never from datagram ADIF content
+- [ ] **QSO-04**: UDP-submitted QSOs receive the same profile auto-stamping as REST API QSOs (OPERATOR, STATION_CALLSIGN, equipment fields from profile)
+- [ ] **QSO-05**: Duplicate detection applies to UDP-submitted QSOs using the same ±2 min CALL+BAND+MODE+operator window as the REST API — duplicates are skipped
+- [ ] **QSO-06**: UDP-inserted QSOs appear in the SSE live station feed without any additional changes
+
+### Error Handling & Observability
+
+- [ ] **OBS-01**: App logs accepted, rejected, and duplicate datagrams to stdout with: source IP:port, callsign (if parsed), disposition (accepted/rejected/duplicate), and reason for rejection
+- [ ] **OBS-02**: Malformed ADIF datagrams (parse failure) are logged at WARNING level and silently dropped — app does not crash
+- [ ] **OBS-03**: UDP listener transport errors (ICMP unreachable, OS errors) are caught in `error_received()` and logged — listener continues running
+- [ ] **OBS-04**: App logs a startup banner confirming UDP listener is bound: `"UDP listener bound to {host}:{port}"` when `UDP_ENABLED=true`
+
+## v2 Requirements (Deferred)
+
+Deferred to v1.5 or later. Not in current roadmap.
+
+### Protocol Compatibility
+
+- **COMPAT-01**: WSJT-X type 12 "Logged ADIF" binary datagram support (12-byte header + ADIF string payload)
+- **COMPAT-02**: N1MM+ XML `<contactinfo>` UDP broadcast support (field mapping from N1MM+ format to ADIF)
+
+### Multi-Operator Authentication
+
+- **AUTH-01**: Pre-shared `APP_OLLOG_APIKEY` field in ADIF datagram for per-user attribution without JWT
+- **AUTH-02**: API key generation and revocation endpoints (`POST /api/udp-keys/`, `DELETE /api/udp-keys/{id}`)
+- **AUTH-03**: Admin UI section for managing operator UDP API keys
+
+### Operational
+
+- **OPS-01**: Per-source-IP rate limiting for UDP datagrams (in-memory token bucket)
+- **OPS-02**: `/health` endpoint `udp_listener` field with last-datagram timestamp and bind status
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| JWT token auth in UDP datagrams | JWT expires with no refresh mechanism over connectionless UDP; operators running overnight FT8 sessions silently stop logging — use UDP_OPERATOR config instead |
+| ACK/NACK response datagrams | Breaks fire-and-forget UDP model; creates UDP amplification risk; no logging software expects responses |
+| TCP alongside UDP | Zero ecosystem demand; all ham radio logging software uses UDP for QSO broadcasts |
+| Auto-format detection | Fragile; use explicit UDP_FORMAT env var or separate ports per format in v1.5+ |
+| WSJT-X type 5 binary "QSO Logged" | Much harder than type 12 (full Qt binary deserialization); type 12 is strictly better and easier |
+| Self-registration via UDP | Admin controls all operator accounts; UDP operator identity comes from config, not datagrams |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| UDP-01 | Phase 16 | Pending |
+| UDP-02 | Phase 16 | Pending |
+| UDP-03 | Phase 16 | Pending |
+| UDP-04 | Phase 16 | Pending |
+| UDP-05 | Phase 16 | Pending |
+| QSO-01 | Phase 17 | Pending |
+| QSO-02 | Phase 17 | Pending |
+| QSO-03 | Phase 17 | Pending |
+| QSO-04 | Phase 17 | Pending |
+| QSO-05 | Phase 17 | Pending |
+| QSO-06 | Phase 17 | Pending |
+| OBS-01 | Phase 18 | Pending |
+| OBS-02 | Phase 18 | Pending |
+| OBS-03 | Phase 18 | Pending |
+| OBS-04 | Phase 16 | Pending |
+
+**Coverage:**
+- v1.4 requirements: 15 total
+- Mapped to phases: 15
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-04-06*
+*Last updated: 2026-04-06 after initial definition*
