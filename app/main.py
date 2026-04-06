@@ -61,9 +61,25 @@ async def lifespan(app: FastAPI):
     # Start UDP listener (conditional on UDP_ENABLED)
     udp_transport = None
     if settings.udp_enabled:
+        from app.auth.models import User as UserModel
         from app.udp.server import start_udp_listener
+
+        udp_user: UserModel | None = None
+        udp_op: str | None = settings.udp_operator
+        if udp_op:
+            udp_op = udp_op.upper()  # normalise callsign casing
+            udp_user = await UserModel.find_one({"callsign": udp_op})
+            if udp_user is None:
+                logger.warning(
+                    "UDP_OPERATOR callsign %r not found in DB — profile stamping disabled",
+                    udp_op,
+                )
+
         udp_transport, _ = await start_udp_listener(
-            settings.udp_bind_host, settings.udp_port
+            settings.udp_bind_host,
+            settings.udp_port,
+            operator=udp_op,
+            user=udp_user,
         )
 
     yield
