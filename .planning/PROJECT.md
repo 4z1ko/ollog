@@ -96,6 +96,18 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
+## Current Milestone: v1.4 UDP Interface
+
+**Goal:** Add a UDP listener that accepts ADIF-formatted QSO messages over a configurable port, performing equivalently to the REST API — operator authentication, auto-stamping, duplicate detection, and SSE feed integration.
+
+**Target features:**
+- UDP server listening on a configurable port (default via env var)
+- ADIF message parsing over UDP (single QSO per datagram)
+- Operator authentication via token in the ADIF message or datagram header
+- Same QSO processing pipeline as `POST /api/qsos/` (auto-stamp, duplicate detect, store)
+- Configurable via env var (UDP_PORT, UDP_ENABLED)
+- Docker Compose port exposure
+
 ## Current State
 
 **Version:** v1.3 Documentation (shipped 2026-04-05)
@@ -167,4 +179,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | ADIF import has no `force=true` | Bulk re-import requires delete-then-import; single QSO creation supports `force=true` | ✓ Good — documented in troubleshooting and API reference |
 
 ---
-*Last updated: 2026-04-05 after v1.3 milestone*
+*Last updated: 2026-04-06 after v1.4 milestone start*
