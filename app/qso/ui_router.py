@@ -18,7 +18,8 @@ from fastapi.templating import Jinja2Templates
 
 from pydantic import ValidationError
 
-from app.adif.router import _qso_to_adif_dict, process_import
+from app.adif.router import _qso_to_adif_dict
+from app.qso.service import import_qsos_from_bytes
 from app.callsign.prefixes import lookup_prefix
 import pycountry
 from app.adif.serializer import serialize_adi
@@ -480,11 +481,11 @@ async def import_submit(
     """
     raw = await file.read()
     try:
-        report = await process_import(raw, callsign)
-    except HTTPException as exc:
+        report = await import_qsos_from_bytes(raw, callsign)
+    except ValueError as exc:
         # Size limit exceeded — render a simple error message in the target div
         return HTMLResponse(
-            content=f'<div class="error-msg">{exc.detail}</div>',
+            content=f'<div class="error-msg">{str(exc)}</div>',
             status_code=200,
         )
     return templates.TemplateResponse(

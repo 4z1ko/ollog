@@ -9,6 +9,9 @@ from app.qso.models import QSO
 if TYPE_CHECKING:
     from app.auth.models import User
 
+_REQUIRED_FIELDS = {"CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE"}
+_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
 
 def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
     """Parse ADIF QSO_DATE (YYYYMMDD) and TIME_ON (HHMM or HHMMSS) into a UTC-aware datetime.
@@ -92,6 +95,89 @@ async def find_duplicate(
         "_deleted": False,
         "qso_date_utc": {"$gte": window_start, "$lte": window_end},
     })
+
+
+async def import_qsos_from_bytes(raw: bytes, operator: str) -> dict:
+    """Core ADIF import logic — raises ValueError, never HTTPException.
+
+    Callable from HTTP routes (via thin wrapper) AND async background tasks
+    (UDP handler, CLI tools) where no HTTP context is available.
+
+    Args:
+        raw: Raw bytes of the uploaded ADIF file.
+        operator: Callsign of the authenticated operator.
+
+    Returns:
+        Report dict with keys: total_records, accepted, duplicates, errors.
+
+    Raises:
+        ValueError: If raw exceeds 10 MB limit.
+    """
+    from app.adif.parser import parse_adi  # avoid circular import at module load
+
+    if len(raw) > _MAX_BYTES:
+        raise ValueError("File exceeds 10 MB limit")
+
+    text = raw.decode("utf-8", errors="replace")
+    records, parse_errors = parse_adi(text)
+
+    accepted: list[dict] = []
+    duplicates: list[dict] = []
+    errors: list[dict] = list(parse_errors)
+
+    for idx, record in enumerate(records):
+        # Required field check
+        if not (_REQUIRED_FIELDS <= set(record)):
+            missing = sorted(_REQUIRED_FIELDS - set(record))
+            errors.append({
+                "record_index": idx,
+                "call": record.get("CALL", "?"),
+                "error": f"Missing required field(s): {', '.join(missing)}",
+            })
+            continue
+
+        # Build QSO dict (validates/normalises fields)
+        try:
+            qso_dict = build_qso_dict(record, operator)
+        except (ValueError, KeyError) as exc:
+            errors.append({
+                "record_index": idx,
+                "call": record.get("CALL", "?"),
+                "error": str(exc),
+            })
+            continue
+
+        # Duplicate detection — same +/-2 min window as live QSO entry
+        dup = await find_duplicate(
+            operator=operator,
+            call=qso_dict["CALL"],
+            band=qso_dict["BAND"],
+            mode=qso_dict["MODE"],
+            qso_date_utc=qso_dict["qso_date_utc"],
+        )
+        if dup is not None:
+            duplicates.append({
+                "record_index": idx,
+                "call": qso_dict["CALL"],
+                "existing_id": str(dup.id),
+            })
+            continue
+
+        # Insert accepted record
+        qso = QSO(**qso_dict)
+        await qso.insert()
+        accepted.append({
+            "record_index": idx,
+            "call": qso_dict["CALL"],
+            "id": str(qso.id),
+        })
+
+    return {
+        "total_records": len(records),
+        "accepted": accepted,
+        "duplicates": duplicates,
+        "errors": errors,
+    }
 
 
 async def get_qso_page(
