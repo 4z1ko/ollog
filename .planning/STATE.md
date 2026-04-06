@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.4 — UDP Interface (Phase 16 complete, starting Phase 17)
+**Current focus:** v1.4 — UDP Interface (Phase 18 complete, plans 16-18 done)
 
 ## Current Position
 
-Phase: 17 — QSO Processing Pipeline
+Phase: 18 — Error Handling and Observability
 Plan: 01 complete
-Status: Plan 17-01 complete — _handle_datagram pipeline, lifespan User lookup, 8 unit tests
-Last activity: 2026-04-06 — Plan 17-01 executed (1/1 plans)
+Status: Plan 18-01 complete — structured disposition log tokens, double-WARNING fix, 5 caplog tests
+Last activity: 2026-04-06 — Plan 18-01 executed (1/1 plans)
 
-Progress: [████░░░░░░░░░░░░░░░░] 38% (v1.4 Phase 17 plan 01 complete, 3 of ~8 plans done)
+Progress: [█████░░░░░░░░░░░░░░░] 44% (v1.4 Phase 18 plan 01 complete, 4 of ~8 plans done)
 
 ## Performance Metrics
 
@@ -54,6 +54,9 @@ Full decision log in PROJECT.md Key Decisions table. All v1.0–v1.3 decisions r
 | Lazy imports inside `_handle_datagram` body | Matches import_qsos_from_bytes pattern, avoids circular imports at module load |
 | `build_qso_dict(profile=user)` called directly (not `import_qsos_from_bytes`) | import_qsos_from_bytes omits profile= parameter, breaking auto-stamping for UDP path |
 | Operator attribution from config only, ADIF OPERATOR field ignored | Prevents spoofing; config operator is authoritative for UDP ingestion |
+| Merged `parse_errors + not records` into single guard | Binary garbage emitted 2 WARNINGs (one per branch); merged to guarantee exactly 1 WARNING per rejected datagram |
+| `disposition=` token on every UDP outcome branch | Operators can grep disposition=accepted\|rejected\|duplicate for full observability without parsing free-form text |
+| `sorted(missing)[0]` for missing-field rejection log | One representative field name makes logs actionable; full set was noisy |
 
 ### Known Tech Debt
 
@@ -72,5 +75,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-06
-Stopped at: Completed 17-01-PLAN.md — UDP QSO processing pipeline implemented and tested
+Stopped at: Completed 18-01-PLAN.md — structured disposition logs and 5 caplog tests
 Resume file: None
