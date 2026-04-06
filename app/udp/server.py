@@ -49,22 +49,17 @@ async def _handle_datagram(
         text = data.decode("utf-8", errors="replace")
         records, parse_errors = parse_adi(text)
 
-        if parse_errors:
+        if parse_errors or not records:
             logger.warning(
-                "UDP datagram from %s had parse errors: %s", addr, parse_errors
-            )
-
-        if not records:
-            logger.warning(
-                "UDP datagram from %s: no ADIF records found", addr
+                "UDP datagram src=%s:%s disposition=rejected reason=parse-failure",
+                addr[0], addr[1],
             )
             return
 
         if len(records) > 1:
             logger.warning(
-                "UDP datagram from %s: %d records found, processing first only",
-                addr,
-                len(records),
+                "UDP datagram src=%s:%s: %d records found, processing first only",
+                addr[0], addr[1], len(records),
             )
 
         record = records[0]
@@ -72,9 +67,8 @@ async def _handle_datagram(
         missing = _REQUIRED_FIELDS - set(record)
         if missing:
             logger.warning(
-                "UDP datagram from %s rejected — missing required field(s): %s",
-                addr,
-                sorted(missing),
+                'UDP datagram src=%s:%s disposition=rejected reason="missing required field: %s"',
+                addr[0], addr[1], sorted(missing)[0],
             )
             return
 
@@ -89,21 +83,16 @@ async def _handle_datagram(
         )
         if dup is not None:
             logger.info(
-                "UDP datagram from %s: duplicate of existing QSO %s — skipped",
-                addr,
-                dup.id,
+                "UDP datagram src=%s:%s call=%s disposition=duplicate",
+                addr[0], addr[1], qso_dict["CALL"],
             )
             return
 
         qso = QSO(**qso_dict)
         await qso.insert()
         logger.info(
-            "UDP QSO inserted: id=%s call=%s band=%s mode=%s operator=%s",
-            qso.id,
-            qso_dict["CALL"],
-            qso_dict["BAND"],
-            qso_dict["MODE"],
-            operator,
+            "UDP datagram src=%s:%s call=%s disposition=accepted id=%s",
+            addr[0], addr[1], qso_dict["CALL"], qso.id,
         )
 
     except Exception:
