@@ -337,6 +337,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#enabling-the-udp-listener" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enabling the UDP Listener
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verification-steps" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -583,6 +594,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#enabling-the-udp-listener" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enabling the UDP Listener
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verification-steps" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -721,6 +743,30 @@
 <td>(none)</td>
 <td>Bootstrap admin callsign (one-time, first startup only)</td>
 </tr>
+<tr>
+<td>UDP_ENABLED</td>
+<td>No</td>
+<td><code>false</code></td>
+<td>Set to <code>true</code> to start the UDP ADIF listener.</td>
+</tr>
+<tr>
+<td>UDP_PORT</td>
+<td>No</td>
+<td><code>2399</code></td>
+<td>UDP port the listener binds to. Must match the Docker port mapping if changed.</td>
+</tr>
+<tr>
+<td>UDP_BIND_HOST</td>
+<td>No</td>
+<td><code>127.0.0.1</code></td>
+<td>Address the UDP socket binds to. Inside Docker, set to <code>0.0.0.0</code> so host traffic reaches the container.</td>
+</tr>
+<tr>
+<td>UDP_OPERATOR</td>
+<td>No</td>
+<td>(none)</td>
+<td>Operator callsign assigned to QSOs received via UDP. Required when <code>UDP_ENABLED=true</code>.</td>
+</tr>
 </tbody>
 </table>
 <p>Sample <code>.env</code> file:</p>
@@ -732,6 +778,20 @@ ADMIN_CALLSIGN=N0CALL
 <h2 id="bootstrap-admin-account">Bootstrap Admin Account</h2>
 <p>On first startup, if <code>ADMIN_USERNAME</code>, <code>ADMIN_PASSWORD</code>, and <code>ADMIN_CALLSIGN</code> are all set, the app creates an admin account automatically. This only happens once — if an account with that username already exists, the variables are ignored.</p>
 <p>After the first startup you can remove the <code>ADMIN_*</code> variables from <code>.env</code>. The account persists in the database.</p>
+<h2 id="enabling-the-udp-listener">Enabling the UDP Listener</h2>
+<p>ollog ships with a UDP ADIF listener that accepts datagrams from logging software such as WSJT-X, N1MM+, and Log4OM. The listener is disabled by default and is enabled via environment variables.</p>
+<p>To enable UDP in Docker Compose, add the following to the <code>api</code> service in your <code>docker-compose.yml</code> (the port mapping is already present in the default file):</p>
+<pre><code class="language-yaml">services:
+  api:
+    ports:
+      - &quot;2399:2399/udp&quot;   # UDP ADIF listener port
+    environment:
+      - UDP_ENABLED=true
+      - UDP_BIND_HOST=0.0.0.0   # required inside Docker
+      - UDP_OPERATOR=N0CALL     # replace with the operator's callsign
+</code></pre>
+<p><code>UDP_OPERATOR</code> must be set to a callsign that has an existing operator account in ollog. QSOs received via UDP are logged under that callsign. If the callsign is not found, the listener logs a WARNING and drops the datagram.</p>
+<p>If you change <code>UDP_PORT</code> from the default <code>2399</code>, update the Docker port mapping to match (e.g., <code>2400:2400/udp</code>).</p>
 <h2 id="verification-steps">Verification Steps</h2>
 <ol>
 <li>Check both services are running and healthy:</li>

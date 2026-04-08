@@ -458,6 +458,50 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#udp-socket-not-binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UDP Socket Not Binding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#udp_operator-callsign-issue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UDP_OPERATOR Callsign Issue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qsos-arrive-but-do-not-appear-in-the-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QSOs Arrive but Do Not Appear in the Log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#no-udp-activity-in-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No UDP Activity in Logs
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -525,6 +569,50 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#udp-socket-not-binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UDP Socket Not Binding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#udp_operator-callsign-issue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UDP_OPERATOR Callsign Issue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qsos-arrive-but-do-not-appear-in-the-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QSOs Arrive but Do Not Appear in the Log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#no-udp-activity-in-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No UDP Activity in Logs
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -574,6 +662,90 @@
 <li>If you intentionally want to re-import, delete the existing records first (via the UI or API) and then import again.</li>
 <li>The import endpoint does not support <code>?force=true</code>. Force override is only available on single QSO creation (<code>POST /api/qsos/?force=true</code>). For bulk re-import, delete first then import.</li>
 </ul>
+<h2 id="udp-socket-not-binding">UDP Socket Not Binding</h2>
+<p><strong>Symptom:</strong> The API container exits on startup with an error, or the UDP listener never starts. No QSOs sent over UDP are received.</p>
+<p><strong>Cause:</strong> Two possible causes:</p>
+<ol>
+<li><strong>Port already in use.</strong> Another process on the host is listening on port 2399/UDP.</li>
+<li><strong>UDP_BIND_HOST mismatch.</strong> The default <code>UDP_BIND_HOST</code> is <code>127.0.0.1</code>, which binds to localhost only. Inside a Docker container this means the listener is unreachable from outside the container. All UDP traffic is silently dropped.</li>
+</ol>
+<p><strong>Fix:</strong></p>
+<ol>
+<li>Confirm the listener started successfully by checking the logs:
+   <code>docker compose logs api | grep -i udp</code>
+   A successful start shows:
+   <code>UDP listener bound to 0.0.0.0:2399</code></li>
+<li>If the port is in use, identify and stop the conflicting process, or change <code>UDP_PORT</code> to an available port in your <code>.env</code> file and update the <code>ports</code> mapping in <code>docker-compose.yml</code> to match.</li>
+<li>For Docker deployments, set <code>UDP_BIND_HOST=0.0.0.0</code> in your <code>.env</code> file so the listener accepts datagrams from outside the container:
+   <code>UDP_BIND_HOST=0.0.0.0
+   UDP_PORT=2399</code></li>
+<li>Restart the stack after any change:
+   <code>docker compose down &amp;&amp; docker compose up -d</code></li>
+</ol>
+<h2 id="udp_operator-callsign-issue">UDP_OPERATOR Callsign Issue</h2>
+<p><strong>Symptom:</strong> QSOs sent over UDP are either silently discarded or accepted but not attributed to an operator profile.</p>
+<p><strong>Cause:</strong> Two distinct sub-cases with different behavior:</p>
+<ol>
+<li><strong><code>UDP_OPERATOR</code> is not set at all.</strong> Every incoming datagram is discarded with a WARNING. No QSOs are inserted.</li>
+<li><strong><code>UDP_OPERATOR</code> is set but the callsign is not found in the database.</strong> A WARNING fires at startup, but QSOs are still inserted — they are just not linked to an operator profile (no profile stamping).</li>
+</ol>
+<p><strong>Fix:</strong></p>
+<ol>
+<li>Tail the logs and look for the relevant warning:
+   <code>docker compose logs -f api | grep -i udp</code>
+   If you see:
+   <code>UDP_OPERATOR not configured — datagram from ('192.168.1.10', 54321) discarded</code>
+   <code>UDP_OPERATOR</code> is missing from your environment. Add it to <code>.env</code>:
+   <code>UDP_OPERATOR=W1AW</code>
+   If you see:
+   <code>UDP_OPERATOR callsign 'W1AW' not found in DB — profile stamping disabled</code>
+   The variable is set but the callsign does not match any operator account.</li>
+<li>Log in to ollog and verify an operator account exists with exactly the callsign set in <code>UDP_OPERATOR</code>. Callsigns are case-sensitive — <code>w1aw</code> and <code>W1AW</code> are different values.</li>
+<li>If the account does not exist, create it via the admin interface or the API (<code>POST /admin/users</code>), then set the operator's callsign field to match <code>UDP_OPERATOR</code> exactly.</li>
+<li>Restart the stack for the new environment variable to take effect:
+   <code>docker compose down &amp;&amp; docker compose up -d</code></li>
+</ol>
+<h2 id="qsos-arrive-but-do-not-appear-in-the-log">QSOs Arrive but Do Not Appear in the Log</h2>
+<p><strong>Symptom:</strong> The API receives UDP datagrams (traffic visible in logs) but no new QSOs appear in the log view or via <code>GET /api/qsos/</code>.</p>
+<p><strong>Cause:</strong> Two possible causes:</p>
+<ol>
+<li><strong>Missing required ADIF field.</strong> The datagram is rejected during parsing because a mandatory field (<code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, or <code>MODE</code>) is absent or empty.</li>
+<li><strong>Duplicate QSO.</strong> A QSO with the same <code>CALL + BAND + MODE</code> and operator already exists within a ±2 minute window and the datagram is flagged as a duplicate.</li>
+</ol>
+<p><strong>Fix:</strong></p>
+<ol>
+<li>Tail the logs to identify the disposition of incoming datagrams:
+   <code>docker compose logs -f api | grep -i udp</code></li>
+<li>A rejection due to a missing field looks like:
+   <code>UDP datagram src=192.168.1.10:54321 disposition=rejected reason="missing required field: BAND"</code>
+   Check the ADIF output your logging software sends and confirm all five required fields are populated: <code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, <code>MODE</code>.</li>
+<li>A duplicate looks like:
+   <code>UDP datagram src=192.168.1.10:54321 call=W1AW disposition=duplicate</code>
+   This is expected behavior if the same QSO is transmitted more than once within two minutes (for example, because your logging software retransmits on save). No action is needed unless you need to force an insert, in which case delete the existing record first and retransmit.</li>
+<li>A successfully accepted datagram looks like:
+   <code>UDP datagram src=192.168.1.10:54321 call=W1AW disposition=accepted id=6614a2b3e4f5c6d7e8f90123</code>
+   If you see <code>accepted</code> but the QSO still does not appear in the UI, check whether the live feed is connected (see "SSE Station Feed Not Updating" above) or apply a page refresh.</li>
+</ol>
+<h2 id="no-udp-activity-in-logs">No UDP Activity in Logs</h2>
+<p><strong>Symptom:</strong> No UDP-related log lines appear at all, even after sending datagrams. The listener never starts.</p>
+<p><strong>Cause:</strong> <code>UDP_ENABLED</code> is not set or is set to <code>false</code>. The UDP listener is disabled by default and must be explicitly enabled.</p>
+<p><strong>Fix:</strong></p>
+<ol>
+<li>Check your <code>.env</code> file for the <code>UDP_ENABLED</code> variable:
+   <code>grep UDP_ENABLED .env</code>
+   If the variable is absent or set to <code>false</code>, the listener will not start.</li>
+<li>Set <code>UDP_ENABLED=true</code> in your <code>.env</code> file:
+   <code>UDP_ENABLED=true
+   UDP_PORT=2399
+   UDP_BIND_HOST=0.0.0.0
+   UDP_OPERATOR=W1AW</code></li>
+<li>Restart the stack:
+   <code>docker compose down &amp;&amp; docker compose up -d</code></li>
+<li>Confirm the listener is running:
+   <code>docker compose logs api | grep -i udp</code>
+   You should see:
+   <code>UDP listener bound to 0.0.0.0:2399</code></li>
+</ol>
 
 
 

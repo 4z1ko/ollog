@@ -397,6 +397,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#step-8-send-qsos-via-udp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 8: Send QSOs via UDP
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 8: Send QSOs via UDP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#testing-with-nc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing with nc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log4om" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log4OM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wsjt-x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WSJT-X
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#n1mm-n1mm-logger-plus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        N1MM+ (N1MM Logger Plus)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#next-steps" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -627,6 +688,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#step-8-send-qsos-via-udp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 8: Send QSOs via UDP
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 8: Send QSOs via UDP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#testing-with-nc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing with nc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log4om" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log4OM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wsjt-x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WSJT-X
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#n1mm-n1mm-logger-plus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        N1MM+ (N1MM Logger Plus)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#next-steps" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -748,6 +870,47 @@
 <pre><code class="language-bash">curl -N --cookie &quot;session=&lt;your-session-cookie&gt;&quot; http://localhost:8000/feed/station
 </code></pre>
 <p>The session cookie is set when you log in via the browser. This endpoint is intentionally excluded from the Swagger UI because it cannot be exercised with Bearer tokens.</p>
+<hr />
+<h2 id="step-8-send-qsos-via-udp">Step 8: Send QSOs via UDP</h2>
+<p>ollog includes a UDP listener that accepts raw ADIF text datagrams. Each arriving QSO is logged under the <strong><code>UDP_OPERATOR</code></strong> callsign configured in your deployment environment — no authentication token is required by the sender.</p>
+<p>Before using this feature, confirm with your administrator that <code>UDP_ENABLED=true</code> and <code>UDP_OPERATOR</code> are set in the deployment environment. The listener binds to <code>UDP_BIND_HOST</code> on <code>UDP_PORT</code> (default <code>2399</code>). See the <a href="../deployment/">Deployment guide</a> for configuration details.</p>
+<p><strong>Required ADIF fields:</strong> Every datagram must contain <code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, and <code>MODE</code>. Datagrams missing any of these fields are discarded.</p>
+<h3 id="testing-with-nc">Testing with nc</h3>
+<p>The fastest way to verify your UDP listener is working is to send a minimal ADIF datagram using <code>nc</code>:</p>
+<pre><code class="language-bash">echo -n '&lt;CALL:6&gt;DL1ABC&lt;BAND:3&gt;20m&lt;MODE:3&gt;FT8&lt;QSO_DATE:8&gt;20240415&lt;TIME_ON:4&gt;1430&lt;EOR&gt;' \
+  | nc -u -w1 127.0.0.1 2399
+</code></pre>
+<p>Replace <code>127.0.0.1</code> with the hostname of your ollog instance if it is remote. The <code>-u</code> flag selects UDP (not TCP) and <code>-w1</code> causes nc to exit after 1 second (required because UDP is connectionless). On Linux with GNU netcat, use <code>-q1</code> instead of <code>-w1</code>.</p>
+<p>After sending, check your log — a new QSO from <code>DL1ABC</code> should appear under the <code>UDP_OPERATOR</code> callsign.</p>
+<p><strong>Note on ADIF field format:</strong> Each field tag is <code>&lt;FIELDNAME:N&gt;value</code> where <code>N</code> is the byte count of <code>value</code>. For ASCII callsigns, bands, modes, and dates, byte count equals character count. Getting the count wrong causes the parser to read truncated values.</p>
+<h3 id="log4om">Log4OM</h3>
+<p>Log4OM 2 can broadcast QSOs as raw ADIF text over UDP, which is directly compatible with ollog's UDP listener.</p>
+<ol>
+<li>In Log4OM, go to <strong>Setup &gt; Connections</strong>.</li>
+<li>In the right panel (Outbound/Broadcast connections), add a new entry:</li>
+<li><strong>Port:</strong> <code>2399</code></li>
+<li><strong>IP:</strong> <code>127.0.0.1</code> (or the IP address of the machine running ollog)</li>
+<li><strong>Name:</strong> <code>ollog</code> (or any label you prefer)</li>
+<li>Enable the <strong>Broadcast</strong> checkbox and confirm ADIF is selected as the message type.</li>
+<li>Click the green <strong>+</strong> button to save the connection.</li>
+</ol>
+<p>From this point, each QSO you save in Log4OM is broadcast to ollog over UDP. The exact field labels in Log4OM's UI vary by version — consult the Log4OM documentation if the steps above do not match your installed version.</p>
+<h3 id="wsjt-x">WSJT-X</h3>
+<p>WSJT-X's UDP output uses a <strong>binary-framed protocol</strong>, not raw ADIF text. It is not directly compatible with ollog's UDP listener.</p>
+<p>For reference, the UDP Server setting is located at <strong>File &gt; Settings (F2) &gt; Reporting &gt; UDP Server</strong>. The default WSJT-X port is <code>2237</code>. Do not point this at ollog's port (<code>2399</code>) — the binary frames will not be parsed correctly.</p>
+<p><strong>To get WSJT-X QSOs into ollog:</strong> Use the ADIF file import path from Step 5. WSJT-X writes a running log to <code>WSJTX_LOG.ADI</code> in its data directory. Periodically import this file:</p>
+<pre><code class="language-bash">curl -X POST http://localhost:8000/api/adif/import \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -F &quot;file=@/path/to/WSJTX_LOG.ADI&quot;
+</code></pre>
+<h3 id="n1mm-n1mm-logger-plus">N1MM+ (N1MM Logger Plus)</h3>
+<p>N1MM+ broadcasts contact data as <strong>XML</strong>, not ADIF text. It is not directly compatible with ollog's UDP listener.</p>
+<p>For reference, the broadcast settings are at <strong>Config &gt; Config Ports, Mode Control, Audio, Other &gt; Broadcast Data tab</strong>. The default N1MM+ broadcast port is <code>12060</code>. Do not point this at ollog's port — the XML format will not be parsed as ADIF.</p>
+<p><strong>To get N1MM+ QSOs into ollog:</strong> Export to ADIF from N1MM+ via <strong>File &gt; Export to ADIF</strong>, then import using the Step 5 file import command:</p>
+<pre><code class="language-bash">curl -X POST http://localhost:8000/api/adif/import \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -F &quot;file=@/path/to/your-log.adi&quot;
+</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <ul>
