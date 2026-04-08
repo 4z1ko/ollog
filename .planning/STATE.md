@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 20
+Phase: 21
 Plan: 01 complete
-Status: In progress — 20-01 complete (2/4 v1.5 plans done)
-Last activity: 2026-04-08 — 20-01 feat(getting-started.md Step 8 Send QSOs via UDP)
+Status: In progress — 21-01 complete (3/4 v1.5 plans done)
+Last activity: 2026-04-08 — 21-01 docs(troubleshooting.md four UDP entries)
 
-Progress: [██░░░░░░░░░░░░░░░░░░] 50% (v1.5 — 2/4 plans)
+Progress: [███░░░░░░░░░░░░░░░░░] 75% (v1.5 — 3/4 plans)
 
 ## Performance Metrics
 
@@ -31,7 +31,7 @@ Progress: [██░░░░░░░░░░░░░░░░░░] 50% (v1
 | v1.2 | 11–12 | 2 |
 | v1.3 | 13–15 | 8 |
 | v1.4 | 16–18 | 4 |
-| v1.5 | 19–22 | 1/4 |
+| v1.5 | 19–22 | 3/4 |
 
 ## Accumulated Context
 
@@ -43,6 +43,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - **19-01:** UDP section placed after Bootstrap Admin Account, before Verification Steps — optional feature config flows naturally before verification
 - **20-01:** WSJT-X and N1MM+ documented with incompatibility notes and ADIF file import workarounds — neither sends raw ADIF text over UDP
 - **20-01:** Log4OM is the only logging program with direct ADIF UDP compatibility with ollog's listener
+- **21-01:** Section headings kept verbatim from plan action content; verify command discrepancy (grep -c "^## UDP" expected 4, only 2 headings match) documented but does not affect correctness
 
 ### Known Tech Debt
 
@@ -61,5 +62,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Completed 20-01-PLAN.md
+Stopped at: Completed 21-01-PLAN.md
 Resume file: None
