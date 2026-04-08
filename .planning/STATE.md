@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 21
+Phase: 22
 Plan: 01 complete
-Status: In progress — 21-01 complete (3/4 v1.5 plans done)
-Last activity: 2026-04-08 — 21-01 docs(troubleshooting.md four UDP entries)
+Status: Complete — 22-01 complete (4/4 v1.5 plans done, v1.5 milestone complete)
+Last activity: 2026-04-08 — 22-01 docs(22-01): rebuild static site with UDP documentation (v1.5)
 
-Progress: [███░░░░░░░░░░░░░░░░░] 75% (v1.5 — 3/4 plans)
+Progress: [████████████████████] 100% (v1.5 — 4/4 plans complete)
 
 ## Performance Metrics
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░░░░░░░░░░░] 75% (v1
 | v1.2 | 11–12 | 2 |
 | v1.3 | 13–15 | 8 |
 | v1.4 | 16–18 | 4 |
-| v1.5 | 19–22 | 3/4 |
+| v1.5 | 19–22 | 4/4 |
 
 ## Accumulated Context
 
@@ -44,6 +44,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - **20-01:** WSJT-X and N1MM+ documented with incompatibility notes and ADIF file import workarounds — neither sends raw ADIF text over UDP
 - **20-01:** Log4OM is the only logging program with direct ADIF UDP compatibility with ollog's listener
 - **21-01:** Section headings kept verbatim from plan action content; verify command discrepancy (grep -c "^## UDP" expected 4, only 2 headings match) documented but does not affect correctness
+- **22-01:** Installed mkdocs-material via pip3 with --break-system-packages due to PEP 668 on macOS; used python3 -m mkdocs (python not available on system)
 
 ### Known Tech Debt
 
@@ -62,5 +63,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Completed 21-01-PLAN.md
+Stopped at: Completed 22-01-PLAN.md (v1.5 milestone complete)
 Resume file: None
