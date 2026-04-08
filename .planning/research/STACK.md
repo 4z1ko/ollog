@@ -1,253 +1,239 @@
-# Stack Research: UDP ADIF Listener
+# Stack Research: Live QSO Auto-Refresh for Paginated Log Table
 
-**Domain:** UDP listener for ADIF datagrams — FastAPI asyncio integration
-**Researched:** 2026-04-05
-**Confidence:** HIGH for core asyncio approach (official Python docs); HIGH for Docker UDP syntax (official Docker docs); MEDIUM for asyncio-dgram assessment (PyPI + GitHub verified, 3.0.0 Jan 2026 release confirmed); LOW for WSJT-X / N1MM wire format specifics (community sources only)
+**Domain:** HTMX-driven live table refresh — SSE-triggered re-fetch vs polling, pagination-aware
+**Researched:** 2026-04-08
+**Confidence:** HIGH for core HTMX attribute syntax (verified via official htmx.org docs); HIGH for htmx-ext-sse 2.2.4 patterns (verified via official extension page + GitHub source); MEDIUM for pagination conditional patterns (community-verified, consistent with docs); LOW for hx-include behavior during polling (official docs are silent; behavior inferred from HTMX request mechanics and community reports)
 
 ---
 
 ## Context: What Already Exists (Do Not Re-Research)
 
-Existing validated stack: Python 3.12+, FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), uvicorn, Docker Compose, MongoDB 7 replica set, pydantic-settings, uv package manager.
-
-`app/main.py` already uses `@asynccontextmanager async def lifespan(app)` with `asyncio.create_task()` for the change-stream watcher. The pattern for launching a background task in FastAPI's lifespan is already established and proven in this codebase.
-
-`app/adif/parser.py` has `parse_adi(text: str)` — pure function, zero dependencies, ready to use.
-
-`app/qso/service.py` has `build_qso_dict()` and `find_duplicate()` — both async-capable, Beanie-based.
+Existing validated stack:
+- HTMX 2.0.4 loaded in `templates/base.html` from unpkg CDN
+- htmx-ext-sse 2.2.4 loaded in `templates/base.html` from jsDelivr CDN
+- SSE endpoint at `/feed/station` — FastAPI `EventSourceResponse`, asyncio.Queue `ConnectionManager`, MongoDB change stream (`watch_qsos()`)
+- `/log/view` endpoint: paginated, filterable, sortable — returns full page or HTMX partial based on `HX-Request` header
+- `#log-table` div in `templates/log/log.html` holds the `log_table.html` partial
+- Filter form (`#filter-form`) uses `hx-get="/log/view"` with `hx-target="#log-table"` and `hx-push-url="true"`
+- SSE already used for the station feed in `templates/log/form.html`: `hx-ext="sse"` + `sse-connect="/feed/station"` + `sse-swap="new_qso"` + `hx-swap="afterbegin"` on `<tbody id="station-feed">`
+- `watch_qsos()` in `app/feed/manager.py` broadcasts `event="new_qso"` SSE events on each QSO insert
 
 ---
 
-## The Core Approach: stdlib Only
+## The Recommended Approach: SSE-Triggered Re-Fetch (Not Polling, Not Row Injection)
 
-**Verdict: No new production dependencies are needed. Use `asyncio.DatagramProtocol` + `loop.create_datagram_endpoint()` from the Python standard library.**
+**Verdict: Use `hx-trigger="sse:new_qso"` on the `#log-table` container to fire an HTTP GET to `/log/view` when a new QSO arrives. Only fire when on page 1 with no active filters. No new dependencies.**
 
-This is not a gap in the ecosystem where a third-party library fills a missing capability. Python's asyncio has first-class UDP support via `asyncio.DatagramProtocol` and `loop.create_datagram_endpoint()`. The API is stable, well-documented, and runs on the same event loop as the FastAPI/uvicorn HTTP server. Adding a library for this would be over-engineering.
+Three approaches were evaluated. The recommendation follows from analyzing how the existing log table works:
+
+| Approach | How It Works | Verdict for This App |
+|----------|-------------|----------------------|
+| **Polling** (`hx-trigger="every Ns"`) | Element re-fetches `/log/view` on a timer | Viable but wasteful — fires even when nothing changed; parameter persistence requires URL-baking workaround |
+| **SSE direct row injection** (`sse-swap` on `tbody`) | SSE event content swapped directly into `<tbody>` `afterbegin` | Wrong for a paginated table — injects a raw row without enrichment (no flag lookup, no proper dict context), breaks page counts, works only on the station feed pattern (already done in `form.html`) |
+| **SSE-triggered re-fetch** (`hx-trigger="sse:new_qso"`) | SSE event fires an HTTP GET to re-render the full `log_table.html` partial | **Correct for this use case** — re-renders with full flag enrichment, accurate totals, no raw row injection, uses existing `/log/view` endpoint unchanged |
+
+The SSE-triggered re-fetch is the right approach because:
+1. The existing `ConnectionManager` already broadcasts `new_qso` events — no backend changes needed
+2. `/log/view` already returns an HTMX partial on `HX-Request` — no endpoint changes needed
+3. The re-rendered partial includes flag enrichment (`lookup_prefix()`) that raw SSE row injection cannot provide
+4. Pagination state (total count, page numbers) is always accurate after a re-fetch
+5. The conditional filter (only refresh on page 1, no active filters) is a single JS expression in the trigger
 
 ---
 
 ## Specific Question Answers
 
-### Q1: asyncio.DatagramProtocol vs asyncio-dgram vs other third-party libs?
+### Q1: HTMX `hx-trigger="every Ns"` polling — does hx-include work without user interaction?
 
-**Use `asyncio.DatagramProtocol` directly.** Here is why each option was evaluated:
+**Yes, hx-include re-reads the DOM on every poll cycle.** HTMX evaluates `hx-include` selectors at request time, capturing current form field values each time the poll fires. This is confirmed by HTMX's `hx-include` documentation: "values are captured at request time" and "evaluated from the element triggering the request."
 
-| Option | Assessment | Verdict |
-|--------|------------|---------|
-| `asyncio.DatagramProtocol` | stdlib, Python 3.4+, stable API, zero deps, runs on the exact same event loop as uvicorn, full Python docs coverage | **USE THIS** |
-| `asyncio-dgram` (jsbronder) | Wraps `DatagramProtocol` in a `StreamReader`-style async interface. v3.0.0 released January 2026, healthy per Snyk, requires Python >=3.9. Useful when you need `await stream.recv()` in a `while True` loop rather than callbacks. For a server that receives unsolicited datagrams and has no send requirement, it adds abstraction overhead with negligible benefit. | Skip for this use case |
-| `aiohttp` UDP | `aiohttp` is an HTTP framework / client library. Its UDP support is for internal use (DNS resolver). Not appropriate here. | Do not use |
-| `uvloop` | Drop-in asyncio event loop replacement (libuv-based). **Already installed in this project** (uvloop-0.22.1 is in the venv). It fully supports `create_datagram_endpoint()` and has UDP tests in its test suite. It is not a UDP library — it is an event loop. If uvicorn is already configured to use uvloop (or will be), UDP just works. | No action needed |
-| Separate process / threading | Would break the requirement to share the asyncio event loop and Beanie's MongoDB connection. | Do not use |
+However, polling for this use case has a practical problem: form filter params must be embedded in the polling element's `hx-get` URL at render time, not via `hx-include`. The Django community confirmed this pattern (see Sources). When a user changes a filter, the polling div's `hx-get` URL does not automatically update to reflect new filter values — the URL was baked in at server-render time. Using `hx-include="#filter-form"` on a polling element would re-read the form values each cycle, but this is fragile: if the user is mid-edit on a filter field, a poll mid-keystroke would fire with half-typed values.
 
-**Why `asyncio.DatagramProtocol` is sufficient:** A UDP listener for ADIF is inherently callback-driven — datagrams arrive, you decode, parse, validate, and insert. There is no bidirectional stream to manage. The `datagram_received(data, addr)` callback is the entire interface needed.
+**Polling is viable but the SSE-triggered re-fetch avoids all of this complexity.**
 
-### Q2: How does a UDP server integrate with FastAPI's lifespan?
-
-The pattern is identical to the change-stream watcher already in `app/main.py`: create the endpoint during startup, store the transport, close it on shutdown.
-
-```python
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # --- existing startup ---
-    await init_db()
-    await _bootstrap_admin()
-
-    # --- UDP listener startup ---
-    loop = asyncio.get_event_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: AdifUdpProtocol(),
-        local_addr=("0.0.0.0", settings.udp_adif_port),
-    )
-
-    # --- existing change-stream watcher ---
-    watcher_task = asyncio.create_task(watch_qsos(...))
-
-    yield
-
-    # --- UDP listener shutdown ---
-    transport.close()
-
-    # --- existing watcher teardown ---
-    watcher_task.cancel()
-    try:
-        await watcher_task
-    except asyncio.CancelledError:
-        pass
-
-    await close_db()
+Polling conditional filter syntax (documented, HIGH confidence):
+```html
+<div hx-get="/log/view?page=1"
+     hx-trigger="every 10s [window.__logAutoRefresh]"
+     hx-target="#log-table"
+     hx-swap="innerHTML">
+</div>
 ```
 
-`create_datagram_endpoint()` is a coroutine that resolves immediately once the OS binds the socket — it does not block the event loop. The protocol's `datagram_received()` method is called by the event loop whenever a UDP packet arrives, on the same event loop thread as the HTTP request handlers. Because Beanie's `AsyncMongoClient` is already bound to this event loop, all `await QSO.insert()` calls inside the protocol handler work without any additional wiring.
+Polling can be disabled from the server by responding with HTTP `286` — HTMX will stop the poll on that status code.
 
-**Important:** `asyncio.get_event_loop()` works correctly inside lifespan because uvicorn runs the application in an asyncio event loop. No `loop` parameter is needed on `create_datagram_endpoint` in Python 3.10+ (the `loop` parameter was deprecated in 3.8 and removed in 3.10 — use `asyncio.get_event_loop()` or `asyncio.get_running_loop()` before calling the endpoint creation).
+### Q2: htmx-ext-sse 2.2.4 `sse-swap` for inserting rows into an existing `tbody`
 
-### Q3: Any libraries that make UDP + asyncio cleaner?
+**This works but is the wrong approach for the log table. Use it only for the station feed (already done).**
 
-For this use case: **No.** The stdlib approach is six lines of integration code. The `asyncio-dgram` library is worth knowing about for bidirectional or client-side UDP patterns, but the callback model of `DatagramProtocol` is a perfect fit for a receive-only listener that processes each datagram independently.
-
-`uvloop` is already installed. If uvicorn is launched with `--loop uvloop` (or via uvloop's install hook), the UDP endpoint runs on the uvloop event loop transparently. No code change needed.
-
-### Q4: How to expose a UDP port in Docker Compose?
-
-Docker Compose defaults all port mappings to TCP. UDP requires an explicit `/udp` suffix or a long-syntax `protocol: udp` field.
-
-**Short syntax (add to existing `api` service):**
-
-```yaml
-services:
-  api:
-    ports:
-      - "8000:8000"          # existing HTTP (TCP)
-      - "2237:2237/udp"      # UDP ADIF listener
+The syntax for `sse-swap` direct row injection on a `tbody`:
+```html
+<div hx-ext="sse" sse-connect="/feed/station">
+  <tbody id="log-tbody" sse-swap="new_qso" hx-swap="afterbegin">
+  </tbody>
+</div>
 ```
 
-**Long syntax (equivalent, more explicit):**
+`sse-swap="new_qso"` listens for SSE events named `new_qso`. The event data (HTML) replaces or inserts into the target element using `hx-swap` positioning. `afterbegin` prepends new rows before existing rows (newest first). `beforeend` appends (oldest first).
 
-```yaml
-services:
-  api:
-    ports:
-      - target: 8000
-        published: 8000
-        protocol: tcp
-      - target: 2237
-        published: 2237
-        protocol: udp
+**Important caveats for the log table:**
+
+1. The SSE event data in `watch_qsos()` is rendered from `log/feed_row.html` — a simplified template with different field names (`call`, `band`, `mode`, `freq`, `operator`) vs the log table's `qso_row.html` (`qso.CALL`, `qso.BAND`, etc. with flag enrichment and action buttons). Injecting feed rows into the log table would produce malformed rows.
+
+2. `<tr>` elements cannot be parsed standalone by the browser's HTML parser outside a table context. HTMX 2.x handles this correctly for `hx-swap-oob` via `htmx.config.useTemplateFragments = true` (wrapping in `<template>` tags), but for `sse-swap` the extension receives the raw SSE event data as HTML and does a direct swap. If the target is already a `<tbody>`, direct `<tr>` injection via `sse-swap="afterbegin"` works correctly in practice because the browser parser sees the `<tbody>` context.
+
+3. The station feed (`form.html`) already uses this pattern correctly — `<tbody id="station-feed" sse-swap="new_qso" hx-swap="afterbegin">` works because it is a display-only feed using `feed_row.html`, not the full `qso_row.html`.
+
+**Do not replicate the station feed pattern into `log_table.html`.** Use the SSE-triggered re-fetch instead.
+
+### Q3: Which approach handles pagination gracefully?
+
+**SSE-triggered re-fetch is the only approach that handles pagination gracefully when the guard condition is applied.**
+
+| Approach | Page 2 behavior | Page 1 behavior | Filter-active behavior |
+|----------|----------------|-----------------|------------------------|
+| Polling | Refreshes page 2 to page 2 (if URL is baked correctly); disorienting | Refreshes correctly | Refreshes with filter applied |
+| SSE row injection | Prepends a row regardless of page — shows QSOs that shouldn't be visible on current view | Adds a row not yet counted in pagination | Breaks filter semantics (shows unfiltered rows in filtered view) |
+| SSE re-fetch (recommended) | **Conditional guard prevents firing at all on page > 1** | Re-fetches page 1, accurate counts | **Conditional guard prevents firing when filters active** |
+
+The correct behavior for a live log table:
+- **On page 1, no filters, default sort:** auto-refresh when a new QSO arrives
+- **On page > 1 or with active filters:** do not auto-refresh (user is navigating/investigating; disrupting this with a reset to page 1 is worse than missing live updates)
+
+### Q4: "Only refresh when on default view" — the conditional guard pattern
+
+**Use a JS expression filter on `hx-trigger` that reads hidden inputs or data attributes rendered server-side.**
+
+The HTMX polling conditional filter syntax is confirmed as working (HIGH confidence — official docs):
+```
+hx-trigger="sse:new_qso [<javascript expression>]"
 ```
 
-**Port number note:** Port 2237 is the conventional WSJT-X / N1MM Logger+ UDP broadcast port (standard in the amateur radio ecosystem). The port must be configurable via env var (`UDP_ADIF_PORT`) so operators can change it without rebuilding. Default to `2237`.
+The JS expression is evaluated in the global scope when the trigger fires. It can reference any DOM query.
 
-**If TCP and UDP are needed on the same port number:** They must be listed as two separate entries — one per protocol. Docker does not combine them.
+**Pattern for "only on default view":**
 
-### Q5: Python version constraints or asyncio UDP gotchas?
+Server renders a hidden marker in `log_table.html` or `log.html` when the view is at defaults:
+```html
+<!-- rendered by server only when page=1, no filters, sort=-qso_date_utc -->
+<span id="auto-refresh-ok" hidden></span>
+```
 
-| Gotcha | Severity | Details | Mitigation |
-|--------|----------|---------|------------|
-| Windows ProactorEventLoop does not support UDP | HIGH (Windows only) | The default event loop on Windows (Python 3.8+) is `ProactorEventLoop`, which does not implement `create_datagram_endpoint()`. | Not relevant — this app runs in Docker on Linux. No action needed. |
-| `loop` parameter removed in Python 3.10 | HIGH | `loop.create_datagram_endpoint(loop=loop)` was deprecated in 3.8 and removed in 3.10. Do not pass the `loop` keyword argument. | Use `asyncio.get_running_loop().create_datagram_endpoint(...)` inside a coroutine. |
-| `error_received()` is called, not an exception | MEDIUM | When an ICMP Port Unreachable arrives (e.g., client sent to a dead port then ollog replies), asyncio calls `protocol.error_received(exc)` instead of raising. If not implemented, the default silently ignores it. | Implement `error_received(self, exc)` with a log warning. Do not let it crash. |
-| Datagram size limit | LOW | asyncio UDP reads are bounded by the OS socket buffer. ADIF files as UDP datagrams will typically be < 4 KB (single QSO). The default asyncio receive buffer (65535 bytes) is sufficient. If datagrams exceed ~8 KB, IP fragmentation occurs — fragmented UDP datagrams can be silently dropped by intermediate routers. | ADIF QSO datagrams from WSJT-X / N1MM are small (< 1 KB typically). Not a concern in practice, but document the limit. |
-| `datagram_received` is synchronous | LOW | `DatagramProtocol.datagram_received()` is a synchronous callback. You cannot `await` directly inside it. | Schedule async work with `asyncio.ensure_future()` or `asyncio.get_event_loop().create_task()`. The protocol handler parses the datagram synchronously, then dispatches an async coroutine for the DB write. |
-| SO_REUSEADDR is set automatically | INFO | `create_datagram_endpoint()` sets `SO_REUSEADDR` before binding. This allows restart without "address already in use" errors. `SO_REUSEPORT` (multi-process load sharing) is not set and not needed here. | No action needed. |
+HTMX trigger on the log table container:
+```html
+<div id="log-table"
+     hx-ext="sse"
+     sse-connect="/feed/station"
+     hx-get="/log/view"
+     hx-trigger="sse:new_qso [!!document.getElementById('auto-refresh-ok')]"
+     hx-target="#log-table"
+     hx-swap="innerHTML">
+  {% include "log/log_table.html" %}
+</div>
+```
+
+When the server renders `log_table.html` with page=1 and no filters, it includes the `#auto-refresh-ok` marker. When filters are active or page > 1, the marker is absent. The JS expression `!!document.getElementById('auto-refresh-ok')` returns `false` when the marker is absent, suppressing the re-fetch.
+
+**Alternative without a hidden marker:** Read page and filter state from URL params or existing hidden form inputs. But a server-rendered marker is simpler and removes JS logic from the conditional expression.
 
 ---
 
-## New Stack Additions
+## Implementation Summary
 
-### Production Dependencies
+### No New Dependencies
 
-**None.** The entire UDP listener is implemented with stdlib `asyncio`. No new packages are needed in `[project]` dependencies.
+All capability is available in the existing stack:
+- HTMX 2.0.4: `hx-trigger="sse:new_qso [condition]"` — built-in
+- htmx-ext-sse 2.2.4: `hx-ext="sse"` + `sse-connect` — already loaded
+- `/feed/station` SSE endpoint: already exists, already broadcasting `new_qso`
+- `/log/view` partial response: already exists (returns `log_table.html` on `HX-Request`)
 
-### Configuration Change (pydantic-settings)
+### Required Template Changes
 
-Add one field to `app/config.py` — `Settings` already uses `pydantic_settings.BaseSettings`:
+1. **`templates/log/log.html`** — move `hx-ext="sse"` and `sse-connect` to the `#log-table` container div; add `hx-get`, `hx-trigger`, `hx-target`, `hx-swap` attributes for the re-fetch
+2. **`templates/log/log_table.html`** — add server-conditional `<span id="auto-refresh-ok" hidden>` when rendering at defaults (page=1, no filters, sort=-qso_date_utc)
 
-```python
-udp_adif_port: int = 2237
+### Required Backend Changes
+
+None. The existing `/feed/station` SSE endpoint and `/log/view` endpoint are fully reusable.
+
+### Attribute Syntax Reference
+
+**On `#log-table` div in `log.html`:**
+```html
+<div id="log-table"
+     hx-ext="sse"
+     sse-connect="/feed/station"
+     hx-get="/log/view"
+     hx-trigger="sse:new_qso [!!document.getElementById('auto-refresh-ok')]"
+     hx-target="#log-table"
+     hx-swap="innerHTML">
 ```
 
-This reads from `UDP_ADIF_PORT` environment variable automatically (pydantic-settings lowercases field names to find env vars). The default `2237` matches the WSJT-X / N1MM Logger+ convention.
-
-### Dev/Test Dependencies
-
-`pytest-asyncio` is already a dev dependency. No additions needed for testing the UDP protocol handler, because `DatagramProtocol` is a plain Python class that can be unit-tested by calling `datagram_received()` directly without binding a real socket.
-
----
-
-## Integration Points
-
-| Component | How It Integrates |
-|-----------|------------------|
-| `app/main.py` lifespan | `await loop.create_datagram_endpoint(...)` before the `yield`; `transport.close()` after the `yield`. Follows the existing watcher task pattern. |
-| `app/config.py` `Settings` | Add `udp_adif_port: int = 2237`. Reads `UDP_ADIF_PORT` env var automatically. |
-| `app/adif/parser.py` `parse_adi()` | Called synchronously inside `datagram_received()`. Pure function, no I/O, safe to call from a sync callback. |
-| `app/qso/service.py` | `build_qso_dict()` and `find_duplicate()` are called inside an async task dispatched from `datagram_received()` via `asyncio.create_task()`. |
-| Beanie / MongoDB | The async task dispatched by the protocol runs on the same event loop where Beanie's `AsyncMongoClient` was initialized. No additional wiring needed. |
-| Auth (`app/auth/service.py`) | UDP is unauthenticated by design — source IP is the only identity signal. The operator callsign must come from configuration or from the ADIF record's `OPERATOR` field, not from a JWT. This is a feature design decision, not a stack limitation. |
-
----
-
-## Docker Compose Changes
-
-Add `/udp` port mapping to the `api` service in `docker-compose.yml`:
-
-```yaml
-services:
-  api:
-    ports:
-      - "8000:8000"
-      - "2237:2237/udp"    # UDP ADIF listener (WSJT-X / N1MM default port)
-    environment:
-      - UDP_ADIF_PORT=2237  # optional override
+**In `log_table.html` (server-conditional):**
+```html
+{% if page == 1 and not filters.call and not filters.band and not filters.mode and not filters.date_from and not filters.date_to and sort == '-qso_date_utc' %}
+<span id="auto-refresh-ok" hidden></span>
+{% endif %}
 ```
 
-The `environment` entry for `UDP_ADIF_PORT` is optional (default is `2237`). Include it explicitly so the port mapping and the env var are visually co-located in the compose file — this prevents the port and the config from drifting apart.
+**Key attribute notes for HTMX 2.0.4 (HIGH confidence):**
+- `hx-trigger="sse:<event-name>"` is the documented SSE trigger syntax for htmx-ext-sse 2.2.4
+- The `[condition]` filter after the trigger name is standard HTMX conditional filter syntax — same as `every Ns [condition]`
+- `hx-swap="innerHTML"` on `#log-table` replaces the partial content, preserving the container div (which holds the SSE connection)
+- `hx-ext="sse"` and `sse-connect` on `#log-table` establishes one SSE connection for the log view page; the station feed on `form.html` has its own separate SSE connection
 
 ---
 
-## What NOT to Add
+## Alternative: hx-trigger with Named SSE Event (Clarification on Two Modes)
+
+htmx-ext-sse 2.2.4 supports two distinct modes — important to understand both:
+
+| Mode | Attribute pattern | What happens |
+|------|------------------|-------------|
+| **Direct content swap** | `sse-swap="new_qso"` + `hx-swap="afterbegin"` | SSE event data (HTML) is directly inserted into the DOM. No HTTP request fired. Used for station feed. |
+| **SSE-triggered HTTP request** | `hx-trigger="sse:new_qso"` + `hx-get="/log/view"` | SSE event fires an HTMX HTTP GET. Response replaces target. Used for log table re-fetch. |
+
+These two modes are mutually exclusive on the same element. The log table needs the second mode (HTTP request re-fetch). The station feed uses the first mode (direct injection). Both can share the same SSE connection if they are nested under the same `hx-ext="sse"` parent, but for simplicity the log view page should have its own `sse-connect` on `#log-table`.
+
+---
+
+## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `asyncio-dgram` | Adds abstraction over `DatagramProtocol` that is useful for bidirectional or stream-style UDP. This is a receive-only listener — the callback model is a perfect fit and needs no wrapping. | `asyncio.DatagramProtocol` (stdlib) |
-| `aiohttp` | HTTP framework / client. Its UDP support is internal (DNS). Wrong tool for a UDP socket server. | `asyncio.DatagramProtocol` (stdlib) |
-| Separate worker process / threading | Would break the shared asyncio event loop requirement. Beanie's MongoDB connection is bound to the event loop — a separate thread/process cannot access it directly. | Single-process asyncio coroutine dispatched from `datagram_received()` |
-| Motor (MongoDB async driver) | Already using Beanie 2.1+ which wraps Motor 3.x. Do not add Motor directly — Beanie is the correct ORM layer. | Beanie `QSO.insert()` |
-| WebSockets | Unrelated to UDP. Different transport, different use case. | UDP socket |
-| A separate UDP microservice | Adds deployment complexity, inter-process communication, and an additional auth surface. The existing asyncio event loop can handle this feature directly. | Lifespan-managed `DatagramProtocol` |
-| `python-osc` | OSC-over-UDP library. ADIF datagrams are plain text, not OSC. | `asyncio.DatagramProtocol` + `parse_adi()` |
-| `uvloop` (add separately) | Already in the venv (`uvloop-0.22.1`). No action needed. | Already present |
+| `sse-swap="new_qso"` on `<tbody>` in `log_table.html` | Injects raw `feed_row.html` content (wrong template, no flags, no action buttons) directly into the paginated log table | `hx-trigger="sse:new_qso"` triggering a full re-fetch |
+| Polling (`hx-trigger="every 10s"`) | Fires even when no new QSOs exist; filter param persistence requires URL-baking at render time; wasteful for a table that can already receive event-driven signals | SSE-triggered re-fetch using the existing `new_qso` event |
+| JavaScript WebSocket or EventSource client code | No JS needed — htmx-ext-sse 2.2.4 is already loaded and handles the SSE connection declaratively | `hx-ext="sse"` + `sse-connect` attributes |
+| A new SSE endpoint for the log view | `/feed/station` already broadcasts `new_qso` events; no reason to create a second endpoint that broadcasts the same signal | Reuse `/feed/station` — the SSE event is just a trigger signal, not the data payload |
+| Auto-refresh on page > 1 or with active filters | Resetting user to page 1 mid-navigation is disorienting and likely unwanted | Conditional guard via `[!!document.getElementById('auto-refresh-ok')]` |
 
 ---
 
-## Wire Format Notes (LOW Confidence — Verify Before Implementing)
+## Version Compatibility
 
-The intended datagrams come from amateur radio logging software. The wire format affects parsing logic, not the stack choice — the stack (`DatagramProtocol` + `parse_adi()`) is the same regardless.
-
-| Software | Default Port | Format | Notes |
-|----------|-------------|--------|-------|
-| WSJT-X "UDP Server" | 2237 | Binary QMessage protocol (not ADIF) — NOT raw ADIF text | WSJT-X sends structured binary messages. An "ADIF" log UDP message exists (type 12) but it wraps binary-encoded ADIF inside the protocol, not raw ADIF text. Requires separate deserialization before `parse_adi()`. |
-| N1MM Logger+ UDP | 12060 | XML `<contactinfo>` — NOT ADIF | N1MM broadcasts XML, not ADIF. Requires XML parsing, not `parse_adi()`. |
-| Ham Radio Deluxe "QSO Forwarding" | configurable | ADIF text over UDP | Sends raw ADIF text datagrams. `parse_adi()` works directly. |
-| Custom / homebrew loggers | configurable | Varies | If the intent is a custom ADIF-over-UDP protocol (ollog as the receiver, user writes the sender), raw ADIF text is the correct design. `parse_adi()` works directly. |
-
-**The phase plan should clarify which sending software is the target.** If the intent is WSJT-X, the binary protocol requires a separate decoder. If the intent is a custom/homebrew UDP sender or HRD-style raw ADIF text, `parse_adi()` works without modification. **This is a critical design decision that affects implementation scope, not stack selection.**
-
----
-
-## Recommended `pyproject.toml` Change
-
-```toml
-# No changes to [project] dependencies — all new capability is stdlib.
-
-# If integration tests for the UDP listener are added:
-[dependency-groups]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",   # already present
-    "httpx>=0.27",             # already present
-]
-```
-
-No new production or dev dependencies.
+| Component | Version | Confirmed Compatible |
+|-----------|---------|---------------------|
+| htmx | 2.0.4 | YES — `hx-trigger="sse:<name>"` syntax confirmed in official docs for htmx 2.x |
+| htmx-ext-sse | 2.2.4 | YES — both `sse-swap` (direct) and `hx-trigger="sse:"` (HTTP request) modes supported |
+| FastAPI | 0.135+ | YES — `EventSourceResponse` is built into `fastapi.sse` since FastAPI 0.115 |
+| Python | 3.14 | YES — no Python-version-specific concerns; all async patterns are stdlib |
 
 ---
 
 ## Sources
 
-- [Python asyncio — Transports and Protocols (official docs, Python 3.14)](https://docs.python.org/3/library/asyncio-protocol.html) — `DatagramProtocol`, `create_datagram_endpoint()`, `error_received()`. HIGH confidence.
-- [asyncio-dgram on PyPI](https://pypi.org/project/asyncio-dgram/) — v3.0.0, January 2026, Python >=3.9. MEDIUM confidence.
-- [asyncio-dgram GitHub (jsbronder)](https://github.com/jsbronder/asyncio-dgram) — `bind()` / `connect()` API, active repository. MEDIUM confidence.
-- [FastAPI Lifespan Events (official docs)](https://fastapi.tiangolo.com/advanced/events/) — `@asynccontextmanager` lifespan, `asyncio.create_task()` pattern. HIGH confidence.
-- [Docker port publishing docs](https://docs.docker.com/engine/network/port-publishing/) — `/udp` suffix and long-syntax `protocol: udp`. HIGH confidence.
-- [Python issue #81409 — UDP sockets and SO_REUSEADDR](https://github.com/python/cpython/issues/81409) — automatic SO_REUSEADDR behavior. MEDIUM confidence.
-- [Python issue #23295 — Windows ProactorEventLoop UDP](https://bugs.python.org/issue23295) — confirmed no UDP on ProactorEventLoop. HIGH confidence (not relevant for Linux Docker).
-- [uvloop GitHub — tests/test_udp.py](https://github.com/MagicStack/uvloop/blob/master/tests/test_udp.py) — UDP test coverage confirming `create_datagram_endpoint` support. MEDIUM confidence.
-- [N1MM External UDP Broadcasts](https://n1mmwp.hamdocs.com/appendices/external-udp-broadcasts/) — N1MM sends XML, not ADIF, on port 12060. MEDIUM confidence (official N1MM docs).
-- [WSJT-X User Guide 2.7.0](https://wsjt.sourceforge.io/wsjtx-doc/wsjtx-main-2.7.0.html) — UDP server protocol details, port 2237. MEDIUM confidence (official WSJT-X docs).
+- [HTMX hx-trigger Attribute (official docs, htmx.org)](https://htmx.org/attributes/hx-trigger/) — `every Ns` syntax, conditional filter `[expression]` after trigger name, `every Ns [condition]` confirmed pattern. HIGH confidence.
+- [HTMX hx-include Attribute (official docs, htmx.org)](https://htmx.org/attributes/hx-include/) — "values captured at request time", selector types. HIGH confidence (behavior during polling: MEDIUM, docs silent on this specific question).
+- [HTMX hx-swap Attribute (official docs, htmx.org)](https://htmx.org/attributes/hx-swap/) — `afterbegin`, `beforeend`, `innerHTML` swap modes confirmed. HIGH confidence.
+- [htmx-ext-sse Extension (official docs, htmx.org)](https://htmx.org/extensions/sse/) — `sse-connect`, `sse-swap`, `hx-trigger="sse:<name>"` syntax, two-mode clarification. HIGH confidence.
+- [htmx-ext-sse source (GitHub, bigskysoftware/htmx)](https://github.com/bigskysoftware/htmx/blob/master/www/content/extensions/sse.md) — extension documentation including `sse-swap` vs `hx-trigger sse:` distinction. HIGH confidence.
+- [Django Forum: Polling table with active filters](https://forum.djangoproject.com/t/how-can-i-implement-polling-the-table-and-keep-the-filter-applied-to-it-django-filter-htmx/18465) — confirms URL-baking approach for polling with filters; `hx-include` not sufficient for polling filter persistence. MEDIUM confidence (community source verified against HTMX docs).
+- [HTMX issue #1198: hx-swap-oob with table row fragments](https://github.com/bigskysoftware/htmx/issues/1198) — `<tr>` DOM parsing constraints, `htmx.config.useTemplateFragments` for OOB swaps. MEDIUM confidence.
+- [Real-time Notification Streaming using SSE and HTMX (Medium)](https://medium.com/@soverignchriss/real-time-notification-streaming-using-sse-and-htmx-32798b5b2247) — confirms `hx-swap="afterbegin"` on SSE container for prepend. MEDIUM confidence (community tutorial, consistent with docs).
+- Existing codebase (`templates/log/form.html`, `app/feed/router.py`, `app/feed/manager.py`, `app/qso/ui_router.py`) — direct inspection of working SSE implementation and `/log/view` endpoint. HIGH confidence.
 
 ---
 
-*Stack research for: UDP ADIF listener milestone (ollog)*
-*Researched: 2026-04-05*
+*Stack research for: Live QSO auto-refresh for paginated log table milestone (ollog)*
+*Researched: 2026-04-08*
