@@ -112,6 +112,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
 - Multiple station profiles per operator — deferred (v2)
 
+## Current Milestone: v1.6 Live Log Table
+
+**Goal:** Auto-refresh the QSO log view table so operators see new QSOs appear without a page reload.
+
+**Target features:**
+- Log table automatically detects and displays new QSOs as they are logged
+- Works for QSOs logged via any path: REST API, UI form, UDP listener
+- Operator-scoped: only shows the operator's own new QSOs
+- No full page reload required — new rows prepended/appended to existing table
+
 ## Context
 
 - **ADIF Spec:** https://adif.org/317/ADIF_317.htm — all QSO fields conform to ADIF 3.1.7 (MY_ANTENNA confirmed as correct field name per 3.1.6)

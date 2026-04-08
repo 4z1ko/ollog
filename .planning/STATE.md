@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-08)
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: v1.5 Documentation Update shipped — all 4 phases complete, milestone archived
-Last activity: 2026-04-08 — v1.5 milestone completed (Phases 19–22, 4 plans)
+Status: Defining requirements
+Last activity: 2026-04-08 — Milestone v1.6 started
 
-Progress: [████████████████████] 100% (v1.5 complete)
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.6 in progress)
 
 ## Performance Metrics
 
@@ -51,7 +51,9 @@ None.
 
 ### Pending Todos
 
-- Run `/gsd:new-milestone` to start next milestone
+- Define requirements for v1.6 Live Log Table
+- Create roadmap
+- Begin execution with `/gsd:plan-phase 23`
 
 ## Session Continuity
 
