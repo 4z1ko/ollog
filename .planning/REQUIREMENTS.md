@@ -37,18 +37,18 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LIVE-01 | TBD | Pending |
-| LIVE-02 | TBD | Pending |
-| LIVE-03 | TBD | Pending |
-| LIVE-04 | TBD | Pending |
-| LIVE-05 | TBD | Pending |
-| SESSION-01 | TBD | Pending |
+| LIVE-01 | Phase 23 | Pending |
+| LIVE-02 | Phase 23 | Pending |
+| LIVE-03 | Phase 23 | Pending |
+| LIVE-04 | Phase 23 | Pending |
+| LIVE-05 | Phase 23 | Pending |
+| SESSION-01 | Phase 24 | Pending |
 
 **Coverage:**
 - v1 requirements: 6 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 6 ⚠️
+- Mapped to phases: 6
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-08*
-*Last updated: 2026-04-08 after initial definition*
+*Last updated: 2026-04-08 — traceability filled after roadmap creation*

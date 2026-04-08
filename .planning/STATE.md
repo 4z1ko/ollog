@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.5 complete — planning next milestone
+**Current focus:** v1.6 Live Log Table — Phase 23: SSE-Triggered Log Table Reload
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 23 — SSE-Triggered Log Table Reload
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-08 — Milestone v1.6 started
+Status: Planning
+Last activity: 2026-04-08 — v1.6 roadmap created (Phases 23–24)
 
 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.6 in progress)
 
@@ -39,6 +39,10 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.
 
 Full decision log in PROJECT.md Key Decisions table.
 
+### Key Architectural Insight (v1.6)
+
+`#log-table` in `log.html` is the HTMX swap *target* — filter, sort, and pagination actions replace its innerHTML but never the container div itself. SSE attributes placed on `#log-table` survive every navigation. This is why `hx-ext="sse"` belongs on `#log-table`, not inside `log_table.html`. The guard condition (`#auto-refresh-ok` hidden marker rendered server-side only at page-1/no-filters/default-sort) prevents disruptive refreshes during browsing.
+
 ### Known Tech Debt
 
 - `QSO.find_active()` in models.py — dead production code
@@ -51,12 +55,10 @@ None.
 
 ### Pending Todos
 
-- Define requirements for v1.6 Live Log Table
-- Create roadmap
 - Begin execution with `/gsd:plan-phase 23`
 
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: v1.5 milestone archived and tagged
+Stopped at: v1.6 roadmap created — ready for Phase 23 planning
 Resume file: None
