@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-08)
 ## Current Position
 
 Phase: 23 — SSE-Triggered Log Table Reload
-Plan: —
-Status: Planning
-Last activity: 2026-04-08 — v1.6 roadmap created (Phases 23–24)
+Plan: 01
+Status: Awaiting human verification (checkpoint)
+Last activity: 2026-04-08 — 23-01 Task 1 complete, paused at human-verify checkpoint
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.6 in progress)
+Progress: [█░░░░░░░░░░░░░░░░░░░] 10% (v1.6 in progress — Phase 23 Plan 01 awaiting checkpoint)
 
 ## Performance Metrics
 
@@ -43,6 +43,12 @@ Full decision log in PROJECT.md Key Decisions table.
 
 `#log-table` in `log.html` is the HTMX swap *target* — filter, sort, and pagination actions replace its innerHTML but never the container div itself. SSE attributes placed on `#log-table` survive every navigation. This is why `hx-ext="sse"` belongs on `#log-table`, not inside `log_table.html`. The guard condition (`#auto-refresh-ok` hidden marker rendered server-side only at page-1/no-filters/default-sort) prevents disruptive refreshes during browsing.
 
+### Key Decisions (v1.6 Phase 23)
+
+- Use `htmx:sseMessage` JS listener instead of `hx-trigger="sse:new_qso [condition]"` — JS filter evaluation in htmx SSE triggers had only medium confidence from research; the listener approach is fully reliable
+- Place `hx-ext="sse"` and `sse-connect` on `#log-table` container (not inside the partial) — attributes survive every htmx innerHTML swap
+- Server-side truth via hidden span: server renders `#auto-refresh-ok` only at page 1 + default sort + no filters; client only needs `getElementById` to check
+
 ### Known Tech Debt
 
 - `QSO.find_active()` in models.py — dead production code
@@ -60,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: v1.6 roadmap created — ready for Phase 23 planning
+Stopped at: Phase 23 Plan 01 Task 1 complete (56b6a8e) — paused at human-verify checkpoint (Task 2)
 Resume file: None
