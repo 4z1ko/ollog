@@ -120,6 +120,11 @@ Plans:
 
 **Requirements:** SESSION-01
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 24-01-PLAN.md — Raise JWT default expiry from 60 to 480 minutes
+
 **Success Criteria:**
 
 1. The `JWT_EXPIRE_MINUTES` environment variable controls session lifetime; setting it to any value changes how long a JWT remains valid without a code change.
@@ -154,4 +159,4 @@ Plans:
 | 21. Troubleshooting Guide — UDP Issues | v1.5 | 1/1 | ✓ Complete | 2026-04-08 |
 | 22. Static Site Rebuild | v1.5 | 1/1 | ✓ Complete | 2026-04-08 |
 | 23. SSE-Triggered Log Table Reload | v1.6 | 0/1 | ○ Planned | — |
-| 24. Session Robustness | v1.6 | 0/? | ○ Pending | — |
+| 24. Session Robustness | v1.6 | 0/1 | ○ Planned | — |
