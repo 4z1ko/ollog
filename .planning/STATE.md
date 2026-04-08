@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 19
+Phase: 20
 Plan: 01 complete
-Status: In progress — 19-01 complete (1/4 v1.5 plans done)
-Last activity: 2026-04-08 — 19-01 docs(deployment.md UDP configuration)
+Status: In progress — 20-01 complete (2/4 v1.5 plans done)
+Last activity: 2026-04-08 — 20-01 feat(getting-started.md Step 8 Send QSOs via UDP)
 
-Progress: [█░░░░░░░░░░░░░░░░░░░] 25% (v1.5 — 1/4 plans)
+Progress: [██░░░░░░░░░░░░░░░░░░] 50% (v1.5 — 2/4 plans)
 
 ## Performance Metrics
 
@@ -41,6 +41,8 @@ Full decision log in PROJECT.md Key Decisions table.
 
 - **19-01:** Port 2399 used throughout — requirements doc cited 2237 but config.py and docker-compose.yml both confirm 2399
 - **19-01:** UDP section placed after Bootstrap Admin Account, before Verification Steps — optional feature config flows naturally before verification
+- **20-01:** WSJT-X and N1MM+ documented with incompatibility notes and ADIF file import workarounds — neither sends raw ADIF text over UDP
+- **20-01:** Log4OM is the only logging program with direct ADIF UDP compatibility with ollog's listener
 
 ### Known Tech Debt
 
@@ -59,5 +61,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Completed 19-01-PLAN.md
+Stopped at: Completed 20-01-PLAN.md
 Resume file: None
