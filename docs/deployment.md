@@ -53,6 +53,10 @@ This guide covers deploying ollog using Docker Compose. The stack includes the A
 | ADMIN_USERNAME | No | (none) | Bootstrap admin username (one-time, first startup only) |
 | ADMIN_PASSWORD | No | (none) | Bootstrap admin password (one-time, first startup only) |
 | ADMIN_CALLSIGN | No | (none) | Bootstrap admin callsign (one-time, first startup only) |
+| UDP_ENABLED | No | `false` | Set to `true` to start the UDP ADIF listener. |
+| UDP_PORT | No | `2399` | UDP port the listener binds to. Must match the Docker port mapping if changed. |
+| UDP_BIND_HOST | No | `127.0.0.1` | Address the UDP socket binds to. Inside Docker, set to `0.0.0.0` so host traffic reaches the container. |
+| UDP_OPERATOR | No | (none) | Operator callsign assigned to QSOs received via UDP. Required when `UDP_ENABLED=true`. |
 
 Sample `.env` file:
 
