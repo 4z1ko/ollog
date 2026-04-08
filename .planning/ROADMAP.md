@@ -81,7 +81,7 @@ Full archive: `.planning/milestones/v1.4-ROADMAP.md`
 **Requirements:** DOC-01, DOC-02
 **Success Criteria** (what must be TRUE):
   1. The Environment Variables table in `deployment.md` includes `UDP_ENABLED`, `UDP_PORT`, `UDP_BIND_HOST`, and `UDP_OPERATOR` with their types, defaults, and descriptions.
-  2. A Docker Compose example snippet shows how to enable UDP: the relevant env vars set and the `"2237:2237/udp"` port mapping present.
+  2. A Docker Compose example snippet shows how to enable UDP: the relevant env vars set and the `"2399:2399/udp"` port mapping present.
 **Plans:** 1 plan
 
 Plans:
