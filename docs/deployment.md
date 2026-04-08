@@ -73,6 +73,27 @@ On first startup, if `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_CALLSIGN` ar
 
 After the first startup you can remove the `ADMIN_*` variables from `.env`. The account persists in the database.
 
+## Enabling the UDP Listener
+
+ollog ships with a UDP ADIF listener that accepts datagrams from logging software such as WSJT-X, N1MM+, and Log4OM. The listener is disabled by default and is enabled via environment variables.
+
+To enable UDP in Docker Compose, add the following to the `api` service in your `docker-compose.yml` (the port mapping is already present in the default file):
+
+```yaml
+services:
+  api:
+    ports:
+      - "2399:2399/udp"   # UDP ADIF listener port
+    environment:
+      - UDP_ENABLED=true
+      - UDP_BIND_HOST=0.0.0.0   # required inside Docker
+      - UDP_OPERATOR=N0CALL     # replace with the operator's callsign
+```
+
+`UDP_OPERATOR` must be set to a callsign that has an existing operator account in ollog. QSOs received via UDP are logged under that callsign. If the callsign is not found, the listener logs a WARNING and drops the datagram.
+
+If you change `UDP_PORT` from the default `2399`, update the Docker port mapping to match (e.g., `2400:2400/udp`).
+
 ## Verification Steps
 
 1. Check both services are running and healthy:
