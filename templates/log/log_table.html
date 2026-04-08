@@ -1,3 +1,6 @@
+{% if page == 1 and sort == '-qso_date_utc' and not filters.call and not filters.band and not filters.mode and not filters.date_from and not filters.date_to %}
+<span id="auto-refresh-ok" hidden></span>
+{% endif %}
 {% if not qsos %}
 <p>No QSOs found.</p>
 {% else %}
