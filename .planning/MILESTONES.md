@@ -73,10 +73,31 @@
 
 ## v1.4 UDP Interface (Shipped: 2026-04-06)
 
-**Phases completed:** 18 phases, 40 plans, 0 tasks
+**Phases:** 16–18 (3 phases) | **Plans:** 4 | **Timeline:** 1 day (2026-04-06)
 
 **Key accomplishments:**
-- (none recorded)
+- `asyncio.DatagramProtocol` UDP listener (`app/udp/server.py`): configurable port (default 2399), bind host, operator; starts/stops with FastAPI lifespan
+- `_handle_datagram` pipeline: `parse_adi()` → validate `_REQUIRED_FIELDS` → `build_qso_dict(profile=user)` → `find_duplicate` → `QSO.insert()` — identical auto-stamping and duplicate detection as REST API path
+- Operator `User` document cached once at startup; `UDP_OPERATOR` config pins identity — never derived from datagram ADIF content, preventing spoofing across overnight FT8 sessions
+- Structured `disposition=accepted|rejected|duplicate` log tokens with `src=IP:PORT call=CALLSIGN` on every outcome branch; single `if parse_errors or not records:` guard eliminates double-WARNING for binary garbage
+
+**Archive:** `.planning/milestones/v1.4-ROADMAP.md` | `.planning/milestones/v1.4-REQUIREMENTS.md`
+
+---
+
+
+## v1.5 Documentation Update (Shipped: 2026-04-08)
+
+**Phases:** 19–22 (4 phases) | **Plans:** 4 | **Timeline:** 1 day (2026-04-08)
+**Files changed:** 22 | **Lines:** +2,439 / -15
+
+**Key accomplishments:**
+- `docs/deployment.md` — 4 UDP env var rows (corrected port 2399, not 2237 from stale requirements) + "Enabling the UDP Listener" section with Docker Compose snippet calling out `UDP_BIND_HOST=0.0.0.0` for Docker
+- `docs/getting-started.md` — Step 8 "Send QSOs via UDP": nc one-liner, Log4OM direct ADIF UDP steps, honest WSJT-X/N1MM+ incompatibility notes (binary/XML formats) with file-import workarounds
+- `docs/troubleshooting.md` — 4 UDP troubleshooting entries with verbatim log strings from `app/udp/server.py` so operators can grep-match against live output; covers socket binding, both UDP_OPERATOR sub-cases, QSO disposition, and UDP_ENABLED
+- Static site rebuilt with mkdocs-material 9.7.6 — `/guide` reflects all UDP documentation; installed via `pip3 --break-system-packages` (macOS PEP 668)
+
+**Archive:** `.planning/milestones/v1.5-ROADMAP.md` | `.planning/milestones/v1.5-REQUIREMENTS.md`
 
 ---
 

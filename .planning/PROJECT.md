@@ -66,6 +66,18 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ UDP listener transport errors are caught in `error_received()` and logged — listener continues running — v1.4
 - ✓ App logs a startup banner confirming UDP listener is bound when `UDP_ENABLED=true` — v1.4
 
+### Validated (v1.5)
+
+- ✓ `docs/deployment.md` documents all four UDP env vars (`UDP_ENABLED`, `UDP_PORT`, `UDP_BIND_HOST`, `UDP_OPERATOR`) with types, defaults, and descriptions — v1.5
+- ✓ `docs/deployment.md` includes a Docker Compose snippet showing port `2399:2399/udp` mapping and required env vars — v1.5
+- ✓ `docs/getting-started.md` Step 8 explains ADIF UDP datagrams are logged under `UDP_OPERATOR` callsign — v1.5
+- ✓ nc one-liner example for manual UDP testing is present with port 2399, -u/-w1 flags, all five required ADIF fields — v1.5
+- ✓ WSJT-X menu path documented with explicit note that binary-framed output is incompatible; ADIF file import workaround provided — v1.5
+- ✓ N1MM+ menu path documented with explicit note that XML output is incompatible; ADIF export/import workaround provided — v1.5
+- ✓ Log4OM direct ADIF UDP integration steps documented (Setup > Connections, port 2399) as the only compatible direct path — v1.5
+- ✓ Four UDP troubleshooting entries in `docs/troubleshooting.md` with verbatim log strings from `app/udp/server.py` — v1.5
+- ✓ Static site rebuilt with mkdocs-material 9.7.6; `/guide` now reflects all UDP documentation — v1.5
+
 ### Validated (v1.3)
 
 - ✓ Every QSO endpoint in Swagger shows fully typed response schema (QSOResponse with alias-aware fields) — v1.3
@@ -116,7 +128,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v1.4 UDP Interface (shipped 2026-04-06)
+**Version:** v1.5 Documentation Update (shipped 2026-04-08)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
@@ -138,7 +150,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - `app/callsign/prefixes.py` — pure-Python ITU prefix resolver: 313 Series Range entries, bisect-based longest-prefix-match, suffix stripping, ISO mapping (28 unit tests)
 - Country flag icons displayed in QSO log table rows — render-time `lookup_prefix()` enrichment in `_qso_to_view_dict()`, conditional `<img>` tag with tooltip, graceful no-flag fallback
 - Typed OpenAPI schema: all 16 REST endpoints annotated; HTMX/SSE routes excluded from `/docs`
-- MkDocs Material documentation site at `/guide`: deployment guide, operator walkthrough, admin guide, API reference, ADIF field reference, troubleshooting
+- MkDocs Material documentation site at `/guide`: deployment guide (incl. UDP env vars + Docker Compose snippet), operator walkthrough (incl. Step 8 UDP sending guide for nc/Log4OM/WSJT-X/N1MM+), admin guide, API reference, ADIF field reference, troubleshooting (incl. 4 UDP entries with verbatim log strings)
 - UDP listener (`app/udp/server.py`): `asyncio.DatagramProtocol` on configurable port (default 2399); `_handle_datagram` pipeline: parse_adi → validate → build_qso_dict(profile=user) → find_duplicate → QSO.insert; operator identity pinned to `UDP_OPERATOR` config (never from datagram); operator `User` document cached at startup; structured `disposition=accepted|rejected|duplicate` log tokens; Docker UDP port exposed
 
 **Known tech debt:**
@@ -196,4 +208,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | Structured `disposition=accepted|rejected|duplicate` log tokens | Operators need grep-able logs to diagnose UDP path in production | ✓ Good — `src=IP:PORT call=CALLSIGN disposition=` on every outcome branch |
 
 ---
-*Last updated: 2026-04-06 after v1.4 milestone*
+*Last updated: 2026-04-08 after v1.5 milestone*

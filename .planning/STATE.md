@@ -2,24 +2,24 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-06)
+See: .planning/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.5 Documentation Update — planning complete, ready to execute
+**Current focus:** v1.5 complete — planning next milestone
 
 ## Current Position
 
-Phase: 22
-Plan: 01 complete
-Status: Complete — 22-01 complete (4/4 v1.5 plans done, v1.5 milestone complete)
-Last activity: 2026-04-08 — 22-01 docs(22-01): rebuild static site with UDP documentation (v1.5)
+Phase: —
+Plan: —
+Status: v1.5 Documentation Update shipped — all 4 phases complete, milestone archived
+Last activity: 2026-04-08 — v1.5 milestone completed (Phases 19–22, 4 plans)
 
-Progress: [████████████████████] 100% (v1.5 — 4/4 plans complete)
+Progress: [████████████████████] 100% (v1.5 complete)
 
 ## Performance Metrics
 
 **Velocity (historical):**
-- Total plans completed: 40 (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8, v1.4: 4)
+- Total plans completed: 44 (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8, v1.4: 4, v1.5: 4)
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -31,20 +31,13 @@ Progress: [████████████████████] 100% (v
 | v1.2 | 11–12 | 2 |
 | v1.3 | 13–15 | 8 |
 | v1.4 | 16–18 | 4 |
-| v1.5 | 19–22 | 4/4 |
+| v1.5 | 19–22 | 4 |
 
 ## Accumulated Context
 
 ### Key Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
-
-- **19-01:** Port 2399 used throughout — requirements doc cited 2237 but config.py and docker-compose.yml both confirm 2399
-- **19-01:** UDP section placed after Bootstrap Admin Account, before Verification Steps — optional feature config flows naturally before verification
-- **20-01:** WSJT-X and N1MM+ documented with incompatibility notes and ADIF file import workarounds — neither sends raw ADIF text over UDP
-- **20-01:** Log4OM is the only logging program with direct ADIF UDP compatibility with ollog's listener
-- **21-01:** Section headings kept verbatim from plan action content; verify command discrepancy (grep -c "^## UDP" expected 4, only 2 headings match) documented but does not affect correctness
-- **22-01:** Installed mkdocs-material via pip3 with --break-system-packages due to PEP 668 on macOS; used python3 -m mkdocs (python not available on system)
 
 ### Known Tech Debt
 
@@ -58,10 +51,10 @@ None.
 
 ### Pending Todos
 
-- Run `/gsd:plan-phase 19` to start execution
+- Run `/gsd:new-milestone` to start next milestone
 
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Completed 22-01-PLAN.md (v1.5 milestone complete)
+Stopped at: v1.5 milestone archived and tagged
 Resume file: None
