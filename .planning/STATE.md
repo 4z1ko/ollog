@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Phase: 19
-Plan: —
-Status: Planning complete — phases 19–22 defined
-Last activity: 2026-04-08 — v1.5 milestone planning (requirements + roadmap)
+Plan: 01 complete
+Status: In progress — 19-01 complete (1/4 v1.5 plans done)
+Last activity: 2026-04-08 — 19-01 docs(deployment.md UDP configuration)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.5 in progress)
+Progress: [█░░░░░░░░░░░░░░░░░░░] 25% (v1.5 — 1/4 plans)
 
 ## Performance Metrics
 
@@ -31,13 +31,16 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v1.
 | v1.2 | 11–12 | 2 |
 | v1.3 | 13–15 | 8 |
 | v1.4 | 16–18 | 4 |
-| v1.5 | 19–22 | 0/4 |
+| v1.5 | 19–22 | 1/4 |
 
 ## Accumulated Context
 
 ### Key Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
+
+- **19-01:** Port 2399 used throughout — requirements doc cited 2237 but config.py and docker-compose.yml both confirm 2399
+- **19-01:** UDP section placed after Bootstrap Admin Account, before Verification Steps — optional feature config flows naturally before verification
 
 ### Known Tech Debt
 
@@ -56,5 +59,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: v1.5 planning complete — REQUIREMENTS.md and ROADMAP.md written
+Stopped at: Completed 19-01-PLAN.md
 Resume file: None
