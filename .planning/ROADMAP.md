@@ -97,6 +97,11 @@ Operators see new QSOs appear in the log table without a manual reload. The exis
 
 **Requirements:** LIVE-01, LIVE-02, LIVE-03, LIVE-04, LIVE-05
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 23-01-PLAN.md — Wire SSE auto-refresh to log table with guards and Live indicator
+
 **Success Criteria:**
 
 1. When a new QSO is inserted (via form, UDP, or API) and the operator is viewing page 1 with no filters and default sort, the log table row appears within seconds without any user action.
@@ -148,5 +153,5 @@ Operators see new QSOs appear in the log table without a manual reload. The exis
 | 20. Getting-Started Guide — Sending QSOs via UDP | v1.5 | 1/1 | ✓ Complete | 2026-04-08 |
 | 21. Troubleshooting Guide — UDP Issues | v1.5 | 1/1 | ✓ Complete | 2026-04-08 |
 | 22. Static Site Rebuild | v1.5 | 1/1 | ✓ Complete | 2026-04-08 |
-| 23. SSE-Triggered Log Table Reload | v1.6 | 0/? | ○ Pending | — |
+| 23. SSE-Triggered Log Table Reload | v1.6 | 0/1 | ○ Planned | — |
 | 24. Session Robustness | v1.6 | 0/? | ○ Pending | — |
