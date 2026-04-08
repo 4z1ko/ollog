@@ -1,46 +1,54 @@
-# Requirements: v1.5 Documentation Update
+# Requirements: ollog v1.6 Live Log Table
 
-## Milestone Goal
+**Defined:** 2026-04-08
+**Core Value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
 
-Update the MkDocs documentation site to cover the v1.4 UDP Interface: new environment variables, how operators send QSOs via UDP (nc, WSJT-X, N1MM+, Log4OM), and troubleshooting UDP-specific issues. Rebuild and commit the static site.
+## v1 Requirements
 
-## Scope
+### LIVE — Live Table Updates
 
-- `docs/deployment.md` — new UDP env vars + Docker Compose port mapping example
-- `docs/getting-started.md` — new "Sending QSOs via UDP" section with tool configs
-- `docs/troubleshooting.md` — new UDP troubleshooting section
-- `site/` — rebuilt static output from mkdocs build
+- [ ] **LIVE-01**: Operator's log view table auto-refreshes when a new QSO is inserted while viewing page 1 with no active filters
+- [ ] **LIVE-02**: Auto-refresh fires a re-fetch of `/log/view` (SSE-triggered via existing `/feed/station`) — operator QSO isolation preserved via JWT on every re-fetch
+- [ ] **LIVE-03**: Auto-refresh is suppressed when operator is on page 2+, has active filters, or non-default sort — no disruptive mid-browse refresh
+- [ ] **LIVE-04**: Auto-refresh is suppressed while an inline QSO edit row is open — unsaved edits are not lost
+- [ ] **LIVE-05**: A "Live" indicator is visible in the log view when auto-refresh is active
 
-## Requirements
+### SESSION — Session Robustness
 
-### Deployment Guide
+- [ ] **SESSION-01**: JWT session lifetime configurable via `JWT_EXPIRE_MINUTES` env var (default raised to 480 min) so overnight FT8 sessions don't hit auth expiry mid-session
 
-| ID | Requirement |
-|----|-------------|
-| DOC-01 | Add `UDP_ENABLED`, `UDP_PORT`, `UDP_BIND_HOST`, `UDP_OPERATOR` to the Environment Variables table with their types, defaults (`false` / `2237` / `127.0.0.1` / none), and descriptions |
-| DOC-02 | Add a Docker Compose example snippet showing how to enable UDP: set env vars and expose the UDP port mapping (`- "2237:2237/udp"`) |
+## Future Requirements
 
-### Operator Getting-Started Guide
+### LIVE — Extended Live Features
 
-| ID | Requirement |
-|----|-------------|
-| DOC-03 | Add a "Sending QSOs via UDP" section explaining the feature: ADIF datagrams sent to the configured UDP port are logged under the `UDP_OPERATOR` callsign |
-| DOC-04 | Include a `nc` one-liner example that sends a minimal ADIF datagram for manual testing |
-| DOC-05 | Include WSJT-X configuration steps: Settings → Reporting → UDP Server, set host/port to match deployment |
-| DOC-06 | Include N1MM+ configuration steps: Config → Configure Ports → UDP ADIF broadcast, set host/port |
-| DOC-07 | Include Log4OM configuration steps for sending ADIF messages to ollog over UDP |
+- **LIVE-F01**: Per-operator SSE endpoint (`/feed/log`) so only that operator's inserts trigger re-fetch (avoids unnecessary cross-operator refreshes)
+- **LIVE-F02**: Animated row highlight when new QSO appears (fade-in or brief highlight)
 
-### Troubleshooting Guide
+## Out of Scope
 
-| ID | Requirement |
-|----|-------------|
-| DOC-08 | Add troubleshooting entry: UDP socket not binding — causes (port in use, `UDP_BIND_HOST` mismatch with container network), fixes |
-| DOC-09 | Add troubleshooting entry: `UDP_OPERATOR` callsign not found — symptom (WARNING log), fix (ensure operator account exists and callsign matches exactly) |
-| DOC-10 | Add troubleshooting entry: QSOs arrive but don't appear in the log — causes (required ADIF field missing, duplicate detected within ±2 min), how to diagnose from logs |
-| DOC-11 | Add troubleshooting entry: No UDP activity in logs — cause (`UDP_ENABLED` not set or `false`), fix |
+| Feature | Reason |
+|---------|--------|
+| SSE row injection into log table (sse-swap on tbody) | Bypasses filters, breaks pagination counts, incompatible with paginated view |
+| Auto-refresh on page 2+ | Disruptive to browsing; user is reading history, not monitoring live |
+| Auto-refresh with active filters | Client cannot evaluate server-side filter predicates — injected rows may violate active filter |
+| Real-time QSO count update without re-fetch | Requires separate counter endpoint; re-fetch updates total naturally |
 
-### Static Site
+## Traceability
 
-| ID | Requirement |
-|----|-------------|
-| DOC-12 | Run `mkdocs build` and commit the updated `site/` output alongside the doc source changes |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| LIVE-01 | TBD | Pending |
+| LIVE-02 | TBD | Pending |
+| LIVE-03 | TBD | Pending |
+| LIVE-04 | TBD | Pending |
+| LIVE-05 | TBD | Pending |
+| SESSION-01 | TBD | Pending |
+
+**Coverage:**
+- v1 requirements: 6 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 6 ⚠️
+
+---
+*Requirements defined: 2026-04-08*
+*Last updated: 2026-04-08 after initial definition*
