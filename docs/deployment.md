@@ -49,7 +49,7 @@ This guide covers deploying ollog using Docker Compose. The stack includes the A
 | SECRET_KEY | Yes | (none) | JWT signing key. Set a strong random value. If changed, all existing tokens invalidate. |
 | MONGODB_URI | No | `mongodb://mongodb:27017/?replicaSet=rs0` | MongoDB connection string. The docker-compose.yml sets this to include `replicaSet=rs0`, which overrides the code default. |
 | MONGODB_DB | No | `ollog` | Database name |
-| JWT_EXPIRE_MINUTES | No | `60` | Token lifetime in minutes |
+| JWT_EXPIRE_MINUTES | No | `480` | Token lifetime in minutes (default covers an 8-hour session) |
 | ADMIN_USERNAME | No | (none) | Bootstrap admin username (one-time, first startup only) |
 | ADMIN_PASSWORD | No | (none) | Bootstrap admin password (one-time, first startup only) |
 | ADMIN_CALLSIGN | No | (none) | Bootstrap admin callsign (one-time, first startup only) |
