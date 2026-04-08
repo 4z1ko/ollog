@@ -142,6 +142,73 @@ The session cookie is set when you log in via the browser. This endpoint is inte
 
 ---
 
+## Step 8: Send QSOs via UDP
+
+ollog includes a UDP listener that accepts raw ADIF text datagrams. Each arriving QSO is logged under the **`UDP_OPERATOR`** callsign configured in your deployment environment — no authentication token is required by the sender.
+
+Before using this feature, confirm with your administrator that `UDP_ENABLED=true` and `UDP_OPERATOR` are set in the deployment environment. The listener binds to `UDP_BIND_HOST` on `UDP_PORT` (default `2399`). See the [Deployment guide](deployment.md) for configuration details.
+
+**Required ADIF fields:** Every datagram must contain `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`, and `MODE`. Datagrams missing any of these fields are discarded.
+
+### Testing with nc
+
+The fastest way to verify your UDP listener is working is to send a minimal ADIF datagram using `nc`:
+
+```bash
+echo -n '<CALL:6>DL1ABC<BAND:3>20m<MODE:3>FT8<QSO_DATE:8>20240415<TIME_ON:4>1430<EOR>' \
+  | nc -u -w1 127.0.0.1 2399
+```
+
+Replace `127.0.0.1` with the hostname of your ollog instance if it is remote. The `-u` flag selects UDP (not TCP) and `-w1` causes nc to exit after 1 second (required because UDP is connectionless). On Linux with GNU netcat, use `-q1` instead of `-w1`.
+
+After sending, check your log — a new QSO from `DL1ABC` should appear under the `UDP_OPERATOR` callsign.
+
+**Note on ADIF field format:** Each field tag is `<FIELDNAME:N>value` where `N` is the byte count of `value`. For ASCII callsigns, bands, modes, and dates, byte count equals character count. Getting the count wrong causes the parser to read truncated values.
+
+### Log4OM
+
+Log4OM 2 can broadcast QSOs as raw ADIF text over UDP, which is directly compatible with ollog's UDP listener.
+
+1. In Log4OM, go to **Setup > Connections**.
+2. In the right panel (Outbound/Broadcast connections), add a new entry:
+   - **Port:** `2399`
+   - **IP:** `127.0.0.1` (or the IP address of the machine running ollog)
+   - **Name:** `ollog` (or any label you prefer)
+3. Enable the **Broadcast** checkbox and confirm ADIF is selected as the message type.
+4. Click the green **+** button to save the connection.
+
+From this point, each QSO you save in Log4OM is broadcast to ollog over UDP. The exact field labels in Log4OM's UI vary by version — consult the Log4OM documentation if the steps above do not match your installed version.
+
+### WSJT-X
+
+WSJT-X's UDP output uses a **binary-framed protocol**, not raw ADIF text. It is not directly compatible with ollog's UDP listener.
+
+For reference, the UDP Server setting is located at **File > Settings (F2) > Reporting > UDP Server**. The default WSJT-X port is `2237`. Do not point this at ollog's port (`2399`) — the binary frames will not be parsed correctly.
+
+**To get WSJT-X QSOs into ollog:** Use the ADIF file import path from Step 5. WSJT-X writes a running log to `WSJTX_LOG.ADI` in its data directory. Periodically import this file:
+
+```bash
+curl -X POST http://localhost:8000/api/adif/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/WSJTX_LOG.ADI"
+```
+
+### N1MM+ (N1MM Logger Plus)
+
+N1MM+ broadcasts contact data as **XML**, not ADIF text. It is not directly compatible with ollog's UDP listener.
+
+For reference, the broadcast settings are at **Config > Config Ports, Mode Control, Audio, Other > Broadcast Data tab**. The default N1MM+ broadcast port is `12060`. Do not point this at ollog's port — the XML format will not be parsed as ADIF.
+
+**To get N1MM+ QSOs into ollog:** Export to ADIF from N1MM+ via **File > Export to ADIF**, then import using the Step 5 file import command:
+
+```bash
+curl -X POST http://localhost:8000/api/adif/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/your-log.adi"
+```
+
+---
+
 ## Next Steps
 
 - [API Reference](api-reference.md) — full endpoint documentation with all parameters and response schemas
