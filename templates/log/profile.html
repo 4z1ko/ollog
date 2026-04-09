@@ -1,84 +1,206 @@
-{% extends "base.html" %}
-{% block title %}ollog - Profile Settings{% endblock %}
+{% extends "base_app.html" %}
+{% block title %}ollog — Profile Settings{% endblock %}
+{% block active_page %}profile{% endblock %}
+
 {% block content %}
-<nav>
-  <h1>ollog</h1>
-  <div style="display:flex;gap:1rem;align-items:center;">
-    <span>Logged in as <strong>{{ callsign }}</strong></span>
-    <a href="/log/">Log QSO</a>
-    <a href="/log/view">Log View</a>
-    <a href="/log/import">Import</a>
-    <a href="/log/export">Export</a>
-    <a href="/log/profile">Profile</a>
-    <a href="/log/logout">Logout</a>
+<div class="max-w-3xl mx-auto space-y-6">
+
+  <!-- Page header -->
+  <div>
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Profile Settings</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+      Station and operator information stamped on logged QSOs
+    </p>
   </div>
-</nav>
 
-<div class="card">
-  <h2>Profile Settings</h2>
-  <form hx-post="/log/profile" hx-target="#profile-result" hx-swap="innerHTML">
+  <!-- Result target (HTMX swap) -->
+  <div id="profile-result"></div>
 
-    <label>
-      OPERATOR (your personal callsign)
-      <input type="text" value="{{ callsign }}" disabled style="width:120px; background:#eee;">
-      <small style="color:#666;">Derived from your login — cannot be changed here</small>
-    </label>
+  <!-- Profile form -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Operator Details</h2>
+    </div>
+    <div class="card-body">
+      <form hx-post="/log/profile" hx-target="#profile-result" hx-swap="innerHTML">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
-    <label>
-      STATION_CALLSIGN
-      <input type="text" name="station_callsign" value="{{ profile.station_callsign or '' }}" placeholder="Optional club/event call" style="width:150px">
-      <small style="color:#666;">Optional — use when operating under a different callsign (e.g., club or Field Day call)</small>
-    </label>
+          <!-- Operator callsign (read-only) -->
+          <div>
+            <label class="form-label">Operator Callsign</label>
+            <input type="text" value="{{ callsign }}" disabled
+                   class="form-input opacity-60 cursor-not-allowed font-mono">
+            <p class="form-hint">Derived from your login — cannot be changed here</p>
+          </div>
 
-    <label>
-      name
-      <input type="text" name="name" value="{{ profile.name or '' }}" placeholder="Your name" style="width:180px">
-    </label>
+          <!-- Station callsign -->
+          <div>
+            <label class="form-label">Station Callsign</label>
+            <input type="text" name="station_callsign"
+                   value="{{ profile.station_callsign or '' }}"
+                   placeholder="Optional club / event call"
+                   class="form-input font-mono">
+            <p class="form-hint">Use when operating under a different call (e.g. club or Field Day)</p>
+          </div>
 
-    <label>
-      email
-      <input type="text" name="email" value="{{ profile.email or '' }}" placeholder="email@example.com" style="width:220px">
-    </label>
+          <!-- Name -->
+          <div>
+            <label class="form-label">Name</label>
+            <input type="text" name="name"
+                   value="{{ profile.name or '' }}"
+                   placeholder="Your name"
+                   class="form-input">
+          </div>
 
-    <label>
-      qth
-      <input type="text" name="qth" value="{{ profile.qth or '' }}" placeholder="City" style="width:150px">
-    </label>
+          <!-- Email -->
+          <div>
+            <label class="form-label">Email</label>
+            <input type="text" name="email"
+                   value="{{ profile.email or '' }}"
+                   placeholder="email@example.com"
+                   class="form-input">
+          </div>
 
-    <label>
-      state
-      <input type="text" name="state" value="{{ profile.state or '' }}" placeholder="State" style="width:80px">
-    </label>
+          <!-- QTH -->
+          <div>
+            <label class="form-label">QTH (City)</label>
+            <input type="text" name="qth"
+                   value="{{ profile.qth or '' }}"
+                   placeholder="City"
+                   class="form-input">
+          </div>
 
-    <label>
-      country
-      <input type="text" name="country" value="{{ profile.country or '' }}" placeholder="Country" style="width:120px">
-    </label>
+          <!-- State -->
+          <div>
+            <label class="form-label">State / Province</label>
+            <input type="text" name="state"
+                   value="{{ profile.state or '' }}"
+                   placeholder="State"
+                   class="form-input">
+          </div>
 
-    <label>
-      my_gridsquare
-      <input type="text" name="my_gridsquare" value="{{ profile.my_gridsquare or '' }}" placeholder="FN31pr" style="width:90px">
-      <small style="color:#666;">4 or 6 character Maidenhead locator</small>
-    </label>
+          <!-- Country -->
+          <div>
+            <label class="form-label">Country</label>
+            <input type="text" name="country"
+                   value="{{ profile.country or '' }}"
+                   placeholder="Country"
+                   class="form-input">
+          </div>
 
-    <label>
-      my_rig
-      <input type="text" name="my_rig" value="{{ profile.my_rig or '' }}" placeholder="Rig description" style="width:180px">
-    </label>
+          <!-- Grid square -->
+          <div>
+            <label class="form-label">Grid Square</label>
+            <input type="text" name="my_gridsquare"
+                   value="{{ profile.my_gridsquare or '' }}"
+                   placeholder="FN31pr"
+                   class="form-input font-mono">
+            <p class="form-hint">4 or 6-character Maidenhead locator</p>
+          </div>
 
-    <label>
-      my_antenna
-      <input type="text" name="my_antenna" value="{{ profile.my_antenna or '' }}" placeholder="Antenna description" style="width:180px">
-    </label>
+          <!-- Rig -->
+          <div class="sm:col-span-2">
+            <label class="form-label">My Rig</label>
+            <input type="text" name="my_rig"
+                   value="{{ profile.my_rig or '' }}"
+                   placeholder="e.g. Icom IC-7300 100W"
+                   class="form-input">
+          </div>
 
-    <label>
-      tx_pwr
-      <input type="text" name="tx_pwr" value="{{ profile.tx_pwr if profile.tx_pwr is not none else '' }}" placeholder="Watts" style="width:80px">
-    </label>
+          <!-- Antenna -->
+          <div class="sm:col-span-2">
+            <label class="form-label">My Antenna</label>
+            <input type="text" name="my_antenna"
+                   value="{{ profile.my_antenna or '' }}"
+                   placeholder="e.g. G5RV dipole @ 40ft"
+                   class="form-input">
+          </div>
 
-    <button type="submit">Save Profile</button>
-  </form>
+          <!-- TX power -->
+          <div>
+            <label class="form-label">TX Power (Watts)</label>
+            <input type="text" name="tx_pwr"
+                   value="{{ profile.tx_pwr if profile.tx_pwr is not none else '' }}"
+                   placeholder="100"
+                   class="form-input">
+          </div>
+
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-800">
+          <button type="submit" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            Save Profile
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- API Tokens: creation form -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">API Tokens</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        Create tokens for REST API and UDP ADIF callers. Each token can be given a label and optional expiry.
+      </p>
+    </div>
+    <div class="card-body">
+      <form hx-post="/log/tokens/create"
+            hx-target="#token-result"
+            hx-swap="innerHTML">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+          <!-- Token name -->
+          <div>
+            <label class="form-label">Token Name</label>
+            <input type="text"
+                   name="name"
+                   required
+                   placeholder="e.g. my-logger"
+                   class="form-input font-mono">
+            <p class="form-hint">Alphanumeric, hyphens, underscores — 1 to 80 characters</p>
+          </div>
+
+          <!-- Expiry -->
+          <div>
+            <label class="form-label">Expires</label>
+            <input type="date"
+                   name="expires_at"
+                   class="form-input">
+            <p class="form-hint">Leave blank for a token that never expires</p>
+          </div>
+
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-800">
+          <button type="submit" class="btn-primary">
+            Create Token
+          </button>
+        </div>
+      </form>
+
+      <!-- Show-once token reveal banner (HTMX swap target) -->
+      <div id="token-result" class="mt-4"></div>
+    </div>
+  </div>
+
+  <!-- API Tokens: active token list (lazy-loaded) -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Active Tokens</h2>
+    </div>
+    <div class="card-body">
+      <div id="token-list"
+           hx-get="/log/tokens"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+        <p class="text-sm text-gray-500">Loading tokens...</p>
+      </div>
+    </div>
+  </div>
+
 </div>
-
-<div id="profile-result"></div>
 {% endblock %}
