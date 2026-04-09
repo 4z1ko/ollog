@@ -51,22 +51,22 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOK-01 | — | Pending |
-| TOK-02 | — | Pending |
-| TOK-03 | — | Pending |
-| TOK-04 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| UDP-01 | — | Pending |
-| UDP-02 | — | Pending |
-| UDP-03 | — | Pending |
+| TOK-01 | Phase 26 | Pending |
+| TOK-02 | Phase 26 | Pending |
+| TOK-03 | Phase 26 | Pending |
+| TOK-04 | Phase 26 | Pending |
+| API-01 | Phase 27 | Pending |
+| API-02 | Phase 27 | Pending |
+| API-03 | Phase 27 | Pending |
+| UDP-01 | Phase 28 | Pending |
+| UDP-02 | Phase 28 | Pending |
+| UDP-03 | Phase 28 | Pending |
 
 **Coverage:**
 - v1.7 requirements: 10 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10/10 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-09 after initial definition*
+*Last updated: 2026-04-09 after roadmap creation*
