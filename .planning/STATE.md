@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.7 API Token Auth — Phase 25: Token Model and Service Layer
+**Current focus:** v1.7 API Token Auth — Phase 26: Token CRUD API
 
 ## Current Position
 
-Phase: 25 of 28 (Token Model and Service Layer)
+Phase: 26 of 28 (Token CRUD API)
 Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-04-09 — Roadmap created for v1.7 (Phases 25–28)
+Status: Phase 25 complete — ready to plan Phase 26
+Last activity: 2026-04-09 — Phase 25 plan 01 executed (ApiToken model + service layer)
 
-Progress: [██████████████████░░░░░░░░░░░░] ~60% (24/~40 estimated plans)
+Progress: [███████████████████░░░░░░░░░░░] ~62% (25/~40 estimated plans)
 
 ## Performance Metrics
 
@@ -33,7 +33,7 @@ Progress: [██████████████████░░░░░
 | v1.4 | 16–18 | 4 |
 | v1.5 | 19–22 | 4 |
 | v1.6 | 23–24 | 2 |
-| v1.7 | 25–28 | TBD |
+| v1.7 | 25–28 | 1+ |
 
 ## Accumulated Context
 
@@ -47,6 +47,10 @@ Recent decisions locked by research:
 - Per-datagram in-memory cache for UDP token resolution (not startup-pin — startup-pin delivers nothing UDP_OPERATOR doesn't)
 - `X-API-Key` header (not `Authorization: Bearer`) — clean separation from JWT session auth
 - `APP_OLLOG_TOKEN` fixed ADIF field name (APP_ prefix per ADIF spec convention)
+
+Phase 25 execution decisions:
+- generate_api_token() returns tuple[str, str] so callers always have prefix without recomputing (Phase 25-01)
+- hashed_token field name used (consistent with User.hashed_password naming convention) (Phase 25-01)
 
 ### Critical Integration Risks (v1.7)
 
@@ -66,5 +70,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-09
-Stopped at: v1.7 roadmap written (ROADMAP.md, STATE.md, REQUIREMENTS.md traceability updated)
+Stopped at: Completed 025-01-PLAN.md (ApiToken model, service layer, test suite)
 Resume file: None
