@@ -66,6 +66,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ UDP listener transport errors are caught in `error_received()` and logged — listener continues running — v1.4
 - ✓ App logs a startup banner confirming UDP listener is bound when `UDP_ENABLED=true` — v1.4
 
+### Validated (v1.6)
+
+- ✓ Operator's log view table auto-refreshes when a new QSO is inserted while viewing page 1 with no active filters — v1.6
+- ✓ Auto-refresh fires a re-fetch of `/log/view` (SSE-triggered via `/feed/station`) — operator QSO isolation preserved via JWT on every re-fetch — v1.6
+- ✓ Auto-refresh suppressed on page 2+, active filters, or non-default sort (server-side `#auto-refresh-ok` sentinel) — v1.6
+- ✓ Auto-refresh suppressed while inline QSO edit row is open (`#log-table input` guard) — v1.6
+- ✓ LIVE/OFFLINE indicator badge in nav bar reflects SSE connection state — v1.6
+- ✓ JWT session lifetime configurable via `JWT_EXPIRE_MINUTES` env var; default raised to 480 min for overnight FT8 sessions — v1.6
+
 ### Validated (v1.5)
 
 - ✓ `docs/deployment.md` documents all four UDP env vars (`UDP_ENABLED`, `UDP_PORT`, `UDP_BIND_HOST`, `UDP_OPERATOR`) with types, defaults, and descriptions — v1.5
@@ -112,16 +121,6 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
 - Multiple station profiles per operator — deferred (v2)
 
-## Current Milestone: v1.6 Live Log Table
-
-**Goal:** Auto-refresh the QSO log view table so operators see new QSOs appear without a page reload.
-
-**Target features:**
-- Log table automatically detects and displays new QSOs as they are logged
-- Works for QSOs logged via any path: REST API, UI form, UDP listener
-- Operator-scoped: only shows the operator's own new QSOs
-- No full page reload required — new rows prepended/appended to existing table
-
 ## Context
 
 - **ADIF Spec:** https://adif.org/317/ADIF_317.htm — all QSO fields conform to ADIF 3.1.7 (MY_ANTENNA confirmed as correct field name per 3.1.6)
@@ -138,7 +137,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v1.5 Documentation Update (shipped 2026-04-08)
+**Version:** v1.6 Live Log Table (shipped 2026-04-08)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
@@ -162,6 +161,8 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Typed OpenAPI schema: all 16 REST endpoints annotated; HTMX/SSE routes excluded from `/docs`
 - MkDocs Material documentation site at `/guide`: deployment guide (incl. UDP env vars + Docker Compose snippet), operator walkthrough (incl. Step 8 UDP sending guide for nc/Log4OM/WSJT-X/N1MM+), admin guide, API reference, ADIF field reference, troubleshooting (incl. 4 UDP entries with verbatim log strings)
 - UDP listener (`app/udp/server.py`): `asyncio.DatagramProtocol` on configurable port (default 2399); `_handle_datagram` pipeline: parse_adi → validate → build_qso_dict(profile=user) → find_duplicate → QSO.insert; operator identity pinned to `UDP_OPERATOR` config (never from datagram); operator `User` document cached at startup; structured `disposition=accepted|rejected|duplicate` log tokens; Docker UDP port exposed
+- SSE-triggered live log table: `htmx:sseMessage` listener on `#log-table` fires `htmx.ajax('GET', '/log/view')` on `new_qso` events; server-side `#auto-refresh-ok` sentinel guards against refresh during pagination/filtering/sorting; `#log-table input` guard blocks refresh during inline edit; LIVE/OFFLINE indicator in nav bar
+- JWT session lifetime configurable via `JWT_EXPIRE_MINUTES` env var; default raised to 480 min (`app/config.py`)
 
 **Known tech debt:**
 - `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
@@ -217,5 +218,11 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | Merge parse_errors + no-records into single WARNING branch | Two separate WARNING paths produced double-logging for binary garbage input; criterion required exactly one | ✓ Good — `if parse_errors or not records:` single guard satisfies "exactly one WARNING" |
 | Structured `disposition=accepted|rejected|duplicate` log tokens | Operators need grep-able logs to diagnose UDP path in production | ✓ Good — `src=IP:PORT call=CALLSIGN disposition=` on every outcome branch |
 
+| `htmx:sseMessage` listener instead of `hx-trigger="sse:event [condition]"` | JS filter evaluation on SSE hx-trigger had only MEDIUM confidence from research (inferred from htmx source, not documented) | ✓ Good — event listener approach is fully reliable and equally concise |
+| SSE attributes on `#log-table` container (not inside `log_table.html` partial) | `#log-table` is the HTMX swap target — its innerHTML is replaced but the element persists; SSE attrs inside the partial would be destroyed on every pagination/filter/sort swap | ✓ Good — SSE connection survives all navigation |
+| Server-side `#auto-refresh-ok` hidden sentinel span | Client-side JS cannot evaluate server-side predicates (page number, active filters); server renders marker only at page 1 + default sort + no filters; client checks `getElementById` | ✓ Good — single source of truth; marker disappears atomically on any navigation |
+| `#log-table input` selector for edit-row guard | `qso_row_edit.html` renders `<tr>` with NO `.editing` class — the prior research assumption was wrong; input presence is the correct discriminator | ✓ Good — catches any open edit row without relying on a CSS class convention |
+| `jwt_expire_minutes` default raised 60 → 480 | Overnight FT8 sessions run 8+ hours; 60-min default would expire mid-SSE-connection, silently breaking live log table feature | ✓ Good — existing env var mechanism unchanged; operators can still override |
+
 ---
-*Last updated: 2026-04-08 after v1.5 milestone*
+*Last updated: 2026-04-08 after v1.6 milestone*

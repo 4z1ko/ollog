@@ -101,3 +101,20 @@
 
 ---
 
+
+## v1.6 Live Log Table (Shipped: 2026-04-08)
+
+**Phases:** 23–24 (2 phases) | **Plans:** 2 | **Timeline:** 1 day (2026-04-08)
+**Files changed:** 5 | **Lines:** +343 / -10
+
+**Key accomplishments:**
+- `htmx:sseMessage` listener on `#log-table` fires `htmx.ajax('GET', '/log/view')` on `new_qso` events — new QSOs appear in log table within seconds, no page reload required
+- Server-side `#auto-refresh-ok` sentinel span rendered only at page 1 + default sort + no filters — auto-refresh silently suppressed during pagination, filtering, and sorting
+- Client-side `#log-table input` guard blocks refresh while any inline edit row is open — unsaved edits are never destroyed
+- LIVE/OFFLINE indicator badge in nav bar wired to `htmx:sseOpen`/`htmx:sseError`/`htmx:sseClose` events reflecting live SSE connection state
+- `jwt_expire_minutes` default raised from 60 → 480 minutes in `app/config.py` — operators can run full 8-hour FT8 sessions without session expiry
+
+**Archive:** `.planning/milestones/v1.6-ROADMAP.md` | `.planning/milestones/v1.6-REQUIREMENTS.md`
+
+---
+
