@@ -9,12 +9,10 @@ See: .planning/PROJECT.md (updated 2026-04-08)
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: v1.6 Live Log Table shipped — all 2 phases complete, milestone archived
-Last activity: 2026-04-08 — v1.6 milestone completed (Phases 23–24, 2 plans)
-
-Progress: [████████████████████] 100% (v1.6 complete)
+Status: Defining requirements
+Last activity: 2026-04-09 — Milestone v1.7 started
 
 ## Performance Metrics
 
