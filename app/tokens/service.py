@@ -7,6 +7,7 @@ import hmac
 import hashlib
 import re
 import secrets
+from typing import Any
 
 from app.config import settings
 
@@ -55,3 +56,21 @@ def validate_token_name(name: str) -> str:
             "Token name must be 1-80 characters: alphanumeric, hyphens, underscores only"
         )
     return name
+
+
+def token_is_active(token: Any) -> bool:
+    """Return True if token is enabled and not expired.
+
+    Checks both enabled flag (set to False on revoke) and expires_at
+    (None means never expires). Used by Phase 27 X-API-Key auth dependency.
+
+    Accepts any object with .enabled (bool) and .expires_at (datetime | None)
+    attributes — uses duck typing to avoid circular imports at module load time.
+    """
+    from datetime import datetime, timezone
+
+    if not token.enabled:
+        return False
+    if token.expires_at is not None and token.expires_at <= datetime.now(tz=timezone.utc):
+        return False
+    return True

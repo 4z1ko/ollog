@@ -24,6 +24,7 @@ class ApiToken(Document):
         default_factory=lambda: datetime.now(tz=timezone.utc)
     )
     last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     enabled: bool = True
 
     class Settings:
