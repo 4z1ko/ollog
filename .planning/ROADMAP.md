@@ -140,7 +140,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 26-01: TBD
+- [ ] 026-01-PLAN.md — expires_at model patch, REST CRUD /api/tokens, HTMX profile UI, templates, and integration tests
 
 ---
 
