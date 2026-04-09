@@ -30,6 +30,8 @@ from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
 from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
+from app.tokens.models import ApiToken
+from app.tokens.service import generate_api_token, hash_api_token, validate_token_name
 
 templates = Jinja2Templates(directory="templates")
 
@@ -622,3 +624,111 @@ async def profile_update(
         "log/profile_result.html",
         {"error": None, "success": True},
     )
+
+
+# ---------------------------------------------------------------------------
+# API Token management UI (HTMX partials)
+# ---------------------------------------------------------------------------
+
+
+@ui_router.get("/tokens", response_class=HTMLResponse)
+async def tokens_list(
+    request: Request,
+    user: User = Depends(get_current_user_cookie),
+):
+    """Return the token list partial.
+
+    Loaded lazily via hx-trigger="load" on the profile page and refreshed
+    after token creation or revocation.  Always returns HTTP 200.
+    """
+    tokens = (
+        await ApiToken.find(
+            ApiToken.user_id == user.id,
+            ApiToken.enabled == True,  # noqa: E712
+        )
+        .sort(-ApiToken.created_at)
+        .to_list()
+    )
+    return templates.TemplateResponse(
+        request,
+        "log/tokens_list.html",
+        {"tokens": tokens},
+    )
+
+
+@ui_router.post("/tokens/create", response_class=HTMLResponse)
+async def tokens_create(
+    request: Request,
+    user: User = Depends(get_current_user_cookie),
+    name: Annotated[str, Form()] = "",
+    expires_at: Annotated[Optional[str], Form()] = None,
+):
+    """Handle the token creation form submission.
+
+    Always returns HTTP 200 — HTMX 2.x won't swap on 4xx.
+    On success: returns token_created.html with full_token (show-once banner).
+    On error: returns token_created.html with error message.
+    """
+    try:
+        validate_token_name(name)
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "log/token_created.html",
+            {"error": str(exc), "full_token": None},
+        )
+
+    expires_at_dt = None
+    if expires_at and expires_at.strip():
+        try:
+            expires_at_dt = datetime.strptime(expires_at.strip(), "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
+        except ValueError:
+            return templates.TemplateResponse(
+                request,
+                "log/token_created.html",
+                {"error": "Invalid date format: use YYYY-MM-DD", "full_token": None},
+            )
+
+    full_token, token_prefix = generate_api_token()
+    hashed_token = hash_api_token(full_token)
+
+    doc = ApiToken(
+        user_id=user.id,
+        name=name,
+        token_prefix=token_prefix,
+        hashed_token=hashed_token,
+        expires_at=expires_at_dt,
+    )
+    await doc.insert()
+
+    return templates.TemplateResponse(
+        request,
+        "log/token_created.html",
+        {"error": None, "full_token": full_token, "token_id": str(doc.id)},
+    )
+
+
+@ui_router.delete("/tokens/{token_id}", response_class=HTMLResponse)
+async def tokens_revoke(
+    request: Request,
+    token_id: str,
+    user: User = Depends(get_current_user_cookie),
+):
+    """Revoke a token via HTMX delete.
+
+    Returns empty 200 on success — hx-swap="outerHTML" removes the row from DOM.
+    Returns empty 200 on any error (silent no-op for stale rows).
+    """
+    try:
+        oid = PydanticObjectId(token_id)
+    except Exception:
+        return Response(content="", status_code=200)
+
+    token = await ApiToken.get(oid)
+    if token is None or token.user_id != user.id or not token.enabled:
+        return Response(content="", status_code=200)
+
+    await token.set({ApiToken.enabled: False})
+    return Response(content="", status_code=200)
