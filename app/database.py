@@ -4,6 +4,7 @@ from beanie import init_beanie
 from app.config import settings
 from app.qso.models import QSO
 from app.auth.models import User
+from app.tokens.models import ApiToken
 
 _client: AsyncMongoClient | None = None
 
@@ -16,6 +17,7 @@ async def init_db() -> None:
         document_models=[
             QSO,
             User,
+            ApiToken,
         ],
     )
 

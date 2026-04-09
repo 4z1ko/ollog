@@ -1,3 +1,4 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -5,6 +6,7 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://mongodb:27017"
     mongodb_db: str = "ollog"
     secret_key: str
+    api_token_secret: SecretStr
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
     admin_username: str | None = None
