@@ -1,239 +1,176 @@
-# Stack Research: Live QSO Auto-Refresh for Paginated Log Table
+# Stack Research: API Token Authentication
 
-**Domain:** HTMX-driven live table refresh — SSE-triggered re-fetch vs polling, pagination-aware
-**Researched:** 2026-04-08
-**Confidence:** HIGH for core HTMX attribute syntax (verified via official htmx.org docs); HIGH for htmx-ext-sse 2.2.4 patterns (verified via official extension page + GitHub source); MEDIUM for pagination conditional patterns (community-verified, consistent with docs); LOW for hx-include behavior during polling (official docs are silent; behavior inferred from HTMX request mechanics and community reports)
+**Domain:** Named API token auth — hashed storage, X-API-Key header validation, UDP ADIF datagram extraction
+**Researched:** 2026-04-09
+**Confidence:** HIGH for all core findings (verified against official FastAPI docs, pwdlib source, Python stdlib docs)
 
 ---
 
 ## Context: What Already Exists (Do Not Re-Research)
 
-Existing validated stack:
-- HTMX 2.0.4 loaded in `templates/base.html` from unpkg CDN
-- htmx-ext-sse 2.2.4 loaded in `templates/base.html` from jsDelivr CDN
-- SSE endpoint at `/feed/station` — FastAPI `EventSourceResponse`, asyncio.Queue `ConnectionManager`, MongoDB change stream (`watch_qsos()`)
-- `/log/view` endpoint: paginated, filterable, sortable — returns full page or HTMX partial based on `HX-Request` header
-- `#log-table` div in `templates/log/log.html` holds the `log_table.html` partial
-- Filter form (`#filter-form`) uses `hx-get="/log/view"` with `hx-target="#log-table"` and `hx-push-url="true"`
-- SSE already used for the station feed in `templates/log/form.html`: `hx-ext="sse"` + `sse-connect="/feed/station"` + `sse-swap="new_qso"` + `hx-swap="afterbegin"` on `<tbody id="station-feed">`
-- `watch_qsos()` in `app/feed/manager.py` broadcasts `event="new_qso"` SSE events on each QSO insert
+Existing validated stack (in `pyproject.toml`, locked at listed versions):
+
+| Component | Version | Role |
+|-----------|---------|------|
+| FastAPI | 0.135+ | Web framework, `APIKeyHeader` is in `fastapi.security` |
+| Beanie | 2.1+ | ODM — `Document` class hosts the User model |
+| pwdlib[argon2] | 0.3.0 | `PasswordHash.recommended()` — Argon2 via `hash()`/`verify()` |
+| PyJWT | 2.12+ | JWT session tokens (not involved in API token path) |
+| pymongo | 4.16+ | `IndexModel` for MongoDB indexes |
+| asyncio.DatagramProtocol | stdlib | UDP listener — `QSODatagramProtocol` in `app/udp/server.py` |
+| `app/adif/parser.py` | internal | `parse_adi()` — already preserves `APP_*` fields verbatim |
 
 ---
 
-## The Recommended Approach: SSE-Triggered Re-Fetch (Not Polling, Not Row Injection)
+## Answer: No New Libraries Required
 
-**Verdict: Use `hx-trigger="sse:new_qso"` on the `#log-table` container to fire an HTTP GET to `/log/view` when a new QSO arrives. Only fire when on page 1 with no active filters. No new dependencies.**
-
-Three approaches were evaluated. The recommendation follows from analyzing how the existing log table works:
-
-| Approach | How It Works | Verdict for This App |
-|----------|-------------|----------------------|
-| **Polling** (`hx-trigger="every Ns"`) | Element re-fetches `/log/view` on a timer | Viable but wasteful — fires even when nothing changed; parameter persistence requires URL-baking workaround |
-| **SSE direct row injection** (`sse-swap` on `tbody`) | SSE event content swapped directly into `<tbody>` `afterbegin` | Wrong for a paginated table — injects a raw row without enrichment (no flag lookup, no proper dict context), breaks page counts, works only on the station feed pattern (already done in `form.html`) |
-| **SSE-triggered re-fetch** (`hx-trigger="sse:new_qso"`) | SSE event fires an HTTP GET to re-render the full `log_table.html` partial | **Correct for this use case** — re-renders with full flag enrichment, accurate totals, no raw row injection, uses existing `/log/view` endpoint unchanged |
-
-The SSE-triggered re-fetch is the right approach because:
-1. The existing `ConnectionManager` already broadcasts `new_qso` events — no backend changes needed
-2. `/log/view` already returns an HTMX partial on `HX-Request` — no endpoint changes needed
-3. The re-rendered partial includes flag enrichment (`lookup_prefix()`) that raw SSE row injection cannot provide
-4. Pagination state (total count, page numbers) is always accurate after a re-fetch
-5. The conditional filter (only refresh on page 1, no active filters) is a single JS expression in the trigger
+All three capabilities (hashed storage, X-API-Key dependency, UDP extraction) are fully satisfied by existing dependencies plus Python stdlib. Zero new `pyproject.toml` additions.
 
 ---
 
-## Specific Question Answers
+## Recommended Stack Additions/Changes
 
-### Q1: HTMX `hx-trigger="every Ns"` polling — does hx-include work without user interaction?
+### (1) Named API Tokens Stored Hashed in MongoDB
 
-**Yes, hx-include re-reads the DOM on every poll cycle.** HTMX evaluates `hx-include` selectors at request time, capturing current form field values each time the poll fires. This is confirmed by HTMX's `hx-include` documentation: "values are captured at request time" and "evaluated from the element triggering the request."
+**Approach:** Add an embedded Pydantic `BaseModel` inside the existing `User` Document. Beanie supports `List[BaseModel]` fields natively — no separate collection needed.
 
-However, polling for this use case has a practical problem: form filter params must be embedded in the polling element's `hx-get` URL at render time, not via `hx-include`. The Django community confirmed this pattern (see Sources). When a user changes a filter, the polling div's `hx-get` URL does not automatically update to reflect new filter values — the URL was baked in at server-render time. Using `hx-include="#filter-form"` on a polling element would re-read the form values each cycle, but this is fragile: if the user is mid-edit on a filter field, a poll mid-keystroke would fire with half-typed values.
+**Token document shape:**
 
-**Polling is viable but the SSE-triggered re-fetch avoids all of this complexity.**
+```python
+from pydantic import BaseModel
+from datetime import datetime
 
-Polling conditional filter syntax (documented, HIGH confidence):
-```html
-<div hx-get="/log/view?page=1"
-     hx-trigger="every 10s [window.__logAutoRefresh]"
-     hx-target="#log-table"
-     hx-swap="innerHTML">
-</div>
+class ApiToken(BaseModel):
+    name: str                        # human-readable label, e.g. "n1mm-station1"
+    hashed_token: str                # Argon2 hash via pwdlib
+    created_at: datetime
+    enabled: bool = True
 ```
 
-Polling can be disabled from the server by responding with HTTP `286` — HTMX will stop the poll on that status code.
+**Added to `User` Document:**
 
-### Q2: htmx-ext-sse 2.2.4 `sse-swap` for inserting rows into an existing `tbody`
-
-**This works but is the wrong approach for the log table. Use it only for the station feed (already done).**
-
-The syntax for `sse-swap` direct row injection on a `tbody`:
-```html
-<div hx-ext="sse" sse-connect="/feed/station">
-  <tbody id="log-tbody" sse-swap="new_qso" hx-swap="afterbegin">
-  </tbody>
-</div>
+```python
+api_tokens: list[ApiToken] = []
 ```
 
-`sse-swap="new_qso"` listens for SSE events named `new_qso`. The event data (HTML) replaces or inserts into the target element using `hx-swap` positioning. `afterbegin` prepends new rows before existing rows (newest first). `beforeend` appends (oldest first).
+**Hashing:** Use the existing `PasswordHash` instance from `app/auth/service.py`. `password_hash.hash(plain_token)` accepts any `str`. `password_hash.verify(plain_token, stored_hash)` returns `bool`. Argon2 is appropriate here — API tokens are high-entropy secrets that must survive offline attacks if the DB is leaked; the performance cost is acceptable because token validation happens once per request, not in a tight loop. (HIGH confidence — pwdlib 0.3.0 `hash()`/`verify()` are generic string operations with no password-specific restrictions.)
 
-**Important caveats for the log table:**
+**Token generation:** `secrets.token_urlsafe(32)` — 256 bits of entropy, URL-safe base64, stdlib `secrets` module. No new library. Recommended by Python docs as the canonical way to generate security tokens. (HIGH confidence — official Python docs.)
 
-1. The SSE event data in `watch_qsos()` is rendered from `log/feed_row.html` — a simplified template with different field names (`call`, `band`, `mode`, `freq`, `operator`) vs the log table's `qso_row.html` (`qso.CALL`, `qso.BAND`, etc. with flag enrichment and action buttons). Injecting feed rows into the log table would produce malformed rows.
-
-2. `<tr>` elements cannot be parsed standalone by the browser's HTML parser outside a table context. HTMX 2.x handles this correctly for `hx-swap-oob` via `htmx.config.useTemplateFragments = true` (wrapping in `<template>` tags), but for `sse-swap` the extension receives the raw SSE event data as HTML and does a direct swap. If the target is already a `<tbody>`, direct `<tr>` injection via `sse-swap="afterbegin"` works correctly in practice because the browser parser sees the `<tbody>` context.
-
-3. The station feed (`form.html`) already uses this pattern correctly — `<tbody id="station-feed" sse-swap="new_qso" hx-swap="afterbegin">` works because it is a display-only feed using `feed_row.html`, not the full `qso_row.html`.
-
-**Do not replicate the station feed pattern into `log_table.html`.** Use the SSE-triggered re-fetch instead.
-
-### Q3: Which approach handles pagination gracefully?
-
-**SSE-triggered re-fetch is the only approach that handles pagination gracefully when the guard condition is applied.**
-
-| Approach | Page 2 behavior | Page 1 behavior | Filter-active behavior |
-|----------|----------------|-----------------|------------------------|
-| Polling | Refreshes page 2 to page 2 (if URL is baked correctly); disorienting | Refreshes correctly | Refreshes with filter applied |
-| SSE row injection | Prepends a row regardless of page — shows QSOs that shouldn't be visible on current view | Adds a row not yet counted in pagination | Breaks filter semantics (shows unfiltered rows in filtered view) |
-| SSE re-fetch (recommended) | **Conditional guard prevents firing at all on page > 1** | Re-fetches page 1, accurate counts | **Conditional guard prevents firing when filters active** |
-
-The correct behavior for a live log table:
-- **On page 1, no filters, default sort:** auto-refresh when a new QSO arrives
-- **On page > 1 or with active filters:** do not auto-refresh (user is navigating/investigating; disrupting this with a reset to page 1 is worse than missing live updates)
-
-### Q4: "Only refresh when on default view" — the conditional guard pattern
-
-**Use a JS expression filter on `hx-trigger` that reads hidden inputs or data attributes rendered server-side.**
-
-The HTMX polling conditional filter syntax is confirmed as working (HIGH confidence — official docs):
-```
-hx-trigger="sse:new_qso [<javascript expression>]"
-```
-
-The JS expression is evaluated in the global scope when the trigger fires. It can reference any DOM query.
-
-**Pattern for "only on default view":**
-
-Server renders a hidden marker in `log_table.html` or `log.html` when the view is at defaults:
-```html
-<!-- rendered by server only when page=1, no filters, sort=-qso_date_utc -->
-<span id="auto-refresh-ok" hidden></span>
-```
-
-HTMX trigger on the log table container:
-```html
-<div id="log-table"
-     hx-ext="sse"
-     sse-connect="/feed/station"
-     hx-get="/log/view"
-     hx-trigger="sse:new_qso [!!document.getElementById('auto-refresh-ok')]"
-     hx-target="#log-table"
-     hx-swap="innerHTML">
-  {% include "log/log_table.html" %}
-</div>
-```
-
-When the server renders `log_table.html` with page=1 and no filters, it includes the `#auto-refresh-ok` marker. When filters are active or page > 1, the marker is absent. The JS expression `!!document.getElementById('auto-refresh-ok')` returns `false` when the marker is absent, suppressing the re-fetch.
-
-**Alternative without a hidden marker:** Read page and filter state from URL params or existing hidden form inputs. But a server-rendered marker is simpler and removes JS logic from the conditional expression.
+**Index:** Add a sparse unique index on `api_tokens.name` per user if duplicate-name prevention is enforced at DB level, using `IndexModel` with dot-notation path. This is standard pymongo syntax already used in the project. Whether to enforce at DB or app layer is an architecture decision; app-layer check is simpler and sufficient for this use case.
 
 ---
 
-## Implementation Summary
+### (2) X-API-Key Header Validation as a FastAPI Dependency
 
-### No New Dependencies
+**Approach:** Use `fastapi.security.APIKeyHeader` — built into FastAPI, already in the dependency tree.
 
-All capability is available in the existing stack:
-- HTMX 2.0.4: `hx-trigger="sse:new_qso [condition]"` — built-in
-- htmx-ext-sse 2.2.4: `hx-ext="sse"` + `sse-connect` — already loaded
-- `/feed/station` SSE endpoint: already exists, already broadcasting `new_qso`
-- `/log/view` partial response: already exists (returns `log_table.html` on `HX-Request`)
+**Import (no new install):**
 
-### Required Template Changes
-
-1. **`templates/log/log.html`** — move `hx-ext="sse"` and `sse-connect` to the `#log-table` container div; add `hx-get`, `hx-trigger`, `hx-target`, `hx-swap` attributes for the re-fetch
-2. **`templates/log/log_table.html`** — add server-conditional `<span id="auto-refresh-ok" hidden>` when rendering at defaults (page=1, no filters, sort=-qso_date_utc)
-
-### Required Backend Changes
-
-None. The existing `/feed/station` SSE endpoint and `/log/view` endpoint are fully reusable.
-
-### Attribute Syntax Reference
-
-**On `#log-table` div in `log.html`:**
-```html
-<div id="log-table"
-     hx-ext="sse"
-     sse-connect="/feed/station"
-     hx-get="/log/view"
-     hx-trigger="sse:new_qso [!!document.getElementById('auto-refresh-ok')]"
-     hx-target="#log-table"
-     hx-swap="innerHTML">
+```python
+from fastapi.security import APIKeyHeader
 ```
 
-**In `log_table.html` (server-conditional):**
-```html
-{% if page == 1 and not filters.call and not filters.band and not filters.mode and not filters.date_from and not filters.date_to and sort == '-qso_date_utc' %}
-<span id="auto-refresh-ok" hidden></span>
-{% endif %}
+**Usage:**
+
+```python
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+async def get_current_user_api_key(
+    api_key: str = Depends(api_key_header),
+) -> User:
+    # Iterate user's api_tokens, verify with pwdlib
+    ...
 ```
 
-**Key attribute notes for HTMX 2.0.4 (HIGH confidence):**
-- `hx-trigger="sse:<event-name>"` is the documented SSE trigger syntax for htmx-ext-sse 2.2.4
-- The `[condition]` filter after the trigger name is standard HTMX conditional filter syntax — same as `every Ns [condition]`
-- `hx-swap="innerHTML"` on `#log-table` replaces the partial content, preserving the container div (which holds the SSE connection)
-- `hx-ext="sse"` and `sse-connect` on `#log-table` establishes one SSE connection for the log view page; the station feed on `form.html` has its own separate SSE connection
+**`auto_error=True`** (default): FastAPI returns HTTP 403 automatically when the header is absent. Use this for endpoints that require API key auth.
+
+**`auto_error=False`**: Header missing returns `None` instead of raising. Use this for dual-auth endpoints (accept either JWT Bearer OR X-API-Key — check whichever is present).
+
+**Timing attack protection:** When comparing tokens (before Argon2 verification, e.g. checking if the token format is valid), use `secrets.compare_digest()` from the stdlib `secrets` module. For the Argon2 `verify()` call itself, pwdlib already handles constant-time comparison internally.
+
+**HIGH confidence** — `APIKeyHeader` is documented in FastAPI reference docs at https://fastapi.tiangolo.com/reference/security/. The `name` parameter sets the OpenAPI security scheme header name. The dependency yields a `str` containing the raw header value.
 
 ---
 
-## Alternative: hx-trigger with Named SSE Event (Clarification on Two Modes)
+### (3) Token Extraction from ADIF APP_ Fields in the UDP Path
 
-htmx-ext-sse 2.2.4 supports two distinct modes — important to understand both:
+**Approach:** Zero new code needed in `app/adif/parser.py`. The existing `parse_adi()` function already preserves `APP_*` fields verbatim (line 98: `current_record[field_name] = value` — `field_name` is uppercased, no filtering). A datagram containing `<APP_OLLOG_TOKEN:43>abc...xyz` will produce `record["APP_OLLOG_TOKEN"] = "abc...xyz"` in the parsed dict.
 
-| Mode | Attribute pattern | What happens |
-|------|------------------|-------------|
-| **Direct content swap** | `sse-swap="new_qso"` + `hx-swap="afterbegin"` | SSE event data (HTML) is directly inserted into the DOM. No HTTP request fired. Used for station feed. |
-| **SSE-triggered HTTP request** | `hx-trigger="sse:new_qso"` + `hx-get="/log/view"` | SSE event fires an HTMX HTTP GET. Response replaces target. Used for log table re-fetch. |
+**ADIF field naming:** `APP_OLLOG_TOKEN` follows the ADIF spec convention `APP_[PROGRAMID]_[FIELDNAME]` (confirmed in ADIF 2.2.6+ spec: applications use their PROGRAMID as the middle component to avoid naming collisions). PROGRAMID `OLLOG` is the natural choice.
 
-These two modes are mutually exclusive on the same element. The log table needs the second mode (HTTP request re-fetch). The station feed uses the first mode (direct injection). Both can share the same SSE connection if they are nested under the same `hx-ext="sse"` parent, but for simplicity the log view page should have its own `sse-connect` on `#log-table`.
+**Extraction in `_handle_datagram()`:**
+
+```python
+token_value = record.get("APP_OLLOG_TOKEN")
+```
+
+No parser changes. The UDP handler already has `record` available before the `build_qso_dict()` call. Token lookup against the DB is the only new code.
 
 ---
 
-## What NOT to Use
+## What NOT to Add
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `sse-swap="new_qso"` on `<tbody>` in `log_table.html` | Injects raw `feed_row.html` content (wrong template, no flags, no action buttons) directly into the paginated log table | `hx-trigger="sse:new_qso"` triggering a full re-fetch |
-| Polling (`hx-trigger="every 10s"`) | Fires even when no new QSOs exist; filter param persistence requires URL-baking at render time; wasteful for a table that can already receive event-driven signals | SSE-triggered re-fetch using the existing `new_qso` event |
-| JavaScript WebSocket or EventSource client code | No JS needed — htmx-ext-sse 2.2.4 is already loaded and handles the SSE connection declaratively | `hx-ext="sse"` + `sse-connect` attributes |
-| A new SSE endpoint for the log view | `/feed/station` already broadcasts `new_qso` events; no reason to create a second endpoint that broadcasts the same signal | Reuse `/feed/station` — the SSE event is just a trigger signal, not the data payload |
-| Auto-refresh on page > 1 or with active filters | Resetting user to page 1 mid-navigation is disorienting and likely unwanted | Conditional guard via `[!!document.getElementById('auto-refresh-ok')]` |
+| `itsdangerous` or `authlib` | Overkill — full OAuth/signing frameworks for a simple token hash | `secrets.token_urlsafe(32)` + pwdlib `hash()` |
+| A separate `api_tokens` MongoDB collection | Adds a join-equivalent lookup on every request; tokens belong to a user and there are few per user | Embed `ApiToken` as a list inside `User` |
+| `hmac.compare_digest` directly on the raw token | Bypasses Argon2's purpose — raw comparison is only safe for fixed-length equal-entropy tokens; Argon2 protects stored tokens if DB leaks | pwdlib `verify()` which uses Argon2 internally with constant-time comparison |
+| BCRYPT for token hashing | Lower memory-hardness than Argon2id; less resistant to GPU cracking | Argon2 via `pwdlib[argon2]` (already installed) |
+| Separate FastAPI security middleware | Middleware runs on every request; dependency injection is the FastAPI-idiomatic pattern and applies only to routes that need it | `Depends(api_key_header)` on specific routers |
+
+---
+
+## Integration Points with Existing Code
+
+| Existing Component | How API Token Auth Connects |
+|-------------------|----------------------------|
+| `app/auth/models.py` — `User` Document | Add `api_tokens: list[ApiToken] = []` field; `ApiToken` is a `pydantic.BaseModel` (not a `Document`) |
+| `app/auth/service.py` — `password_hash` instance | Reuse `password_hash.hash()` and `password_hash.verify()` for token hash/verify; same Argon2 instance |
+| `app/auth/dependencies.py` | Add `get_current_user_api_key()` alongside existing `get_current_user()` and `get_current_user_cookie()` |
+| `app/udp/server.py` — `_handle_datagram()` | Extract `record.get("APP_OLLOG_TOKEN")` before `build_qso_dict()`; resolve token to User; pass user to `build_qso_dict()` |
+| `app/adif/parser.py` — `parse_adi()` | No changes needed — `APP_*` fields already preserved |
+
+---
+
+## Installation
+
+No new dependencies. All capabilities are in the existing stack:
+
+```bash
+# Nothing to install — all required libraries already in pyproject.toml:
+# fastapi[standard]>=0.135.0  →  APIKeyHeader in fastapi.security
+# pwdlib[argon2]>=0.3.0       →  PasswordHash.hash() / verify()
+# beanie>=2.1.0               →  List[BaseModel] embedding in Document
+# pymongo>=4.16.0             →  IndexModel for any new indexes
+# Python stdlib               →  secrets.token_urlsafe(), secrets.compare_digest()
+```
 
 ---
 
 ## Version Compatibility
 
-| Component | Version | Confirmed Compatible |
-|-----------|---------|---------------------|
-| htmx | 2.0.4 | YES — `hx-trigger="sse:<name>"` syntax confirmed in official docs for htmx 2.x |
-| htmx-ext-sse | 2.2.4 | YES — both `sse-swap` (direct) and `hx-trigger="sse:"` (HTTP request) modes supported |
-| FastAPI | 0.135+ | YES — `EventSourceResponse` is built into `fastapi.sse` since FastAPI 0.115 |
-| Python | 3.14 | YES — no Python-version-specific concerns; all async patterns are stdlib |
+| Package | Version in Lock | API Token Auth Usage | Notes |
+|---------|----------------|---------------------|-------|
+| fastapi | 0.135+ | `APIKeyHeader`, `Depends` | `APIKeyHeader` stable since FastAPI 0.63; no breaking changes |
+| pwdlib[argon2] | 0.3.0 | `PasswordHash.hash(str)` / `verify(str, str)` | Generic string input; no password-specific restrictions |
+| beanie | 2.1+ | `List[BaseModel]` in `Document` | Pydantic v2 model embedding fully supported |
+| pymongo | 4.16+ | `IndexModel` with dot-notation path | Standard MongoDB behavior for embedded field indexing |
+| Python stdlib | 3.12+ | `secrets.token_urlsafe(32)`, `secrets.compare_digest()` | Available since Python 3.6 |
 
 ---
 
 ## Sources
 
-- [HTMX hx-trigger Attribute (official docs, htmx.org)](https://htmx.org/attributes/hx-trigger/) — `every Ns` syntax, conditional filter `[expression]` after trigger name, `every Ns [condition]` confirmed pattern. HIGH confidence.
-- [HTMX hx-include Attribute (official docs, htmx.org)](https://htmx.org/attributes/hx-include/) — "values captured at request time", selector types. HIGH confidence (behavior during polling: MEDIUM, docs silent on this specific question).
-- [HTMX hx-swap Attribute (official docs, htmx.org)](https://htmx.org/attributes/hx-swap/) — `afterbegin`, `beforeend`, `innerHTML` swap modes confirmed. HIGH confidence.
-- [htmx-ext-sse Extension (official docs, htmx.org)](https://htmx.org/extensions/sse/) — `sse-connect`, `sse-swap`, `hx-trigger="sse:<name>"` syntax, two-mode clarification. HIGH confidence.
-- [htmx-ext-sse source (GitHub, bigskysoftware/htmx)](https://github.com/bigskysoftware/htmx/blob/master/www/content/extensions/sse.md) — extension documentation including `sse-swap` vs `hx-trigger sse:` distinction. HIGH confidence.
-- [Django Forum: Polling table with active filters](https://forum.djangoproject.com/t/how-can-i-implement-polling-the-table-and-keep-the-filter-applied-to-it-django-filter-htmx/18465) — confirms URL-baking approach for polling with filters; `hx-include` not sufficient for polling filter persistence. MEDIUM confidence (community source verified against HTMX docs).
-- [HTMX issue #1198: hx-swap-oob with table row fragments](https://github.com/bigskysoftware/htmx/issues/1198) — `<tr>` DOM parsing constraints, `htmx.config.useTemplateFragments` for OOB swaps. MEDIUM confidence.
-- [Real-time Notification Streaming using SSE and HTMX (Medium)](https://medium.com/@soverignchriss/real-time-notification-streaming-using-sse-and-htmx-32798b5b2247) — confirms `hx-swap="afterbegin"` on SSE container for prepend. MEDIUM confidence (community tutorial, consistent with docs).
-- Existing codebase (`templates/log/form.html`, `app/feed/router.py`, `app/feed/manager.py`, `app/qso/ui_router.py`) — direct inspection of working SSE implementation and `/log/view` endpoint. HIGH confidence.
+- [FastAPI Security Reference — APIKeyHeader](https://fastapi.tiangolo.com/reference/security/) — constructor signature (`name`, `auto_error`), import path, dependency yield type (`str`). HIGH confidence.
+- [pwdlib 0.3.0 on PyPI](https://pypi.org/project/pwdlib/) — version confirmed in `uv.lock` (upload-time 2025-10-25). HIGH confidence.
+- [pwdlib Guide — frankie567.github.io](https://frankie567.github.io/pwdlib/guide/) — `hash(str)` / `verify(str, str)` signatures confirmed. HIGH confidence.
+- [Python docs — secrets module](https://docs.python.org/3/library/secrets.html) — `token_urlsafe(32)` recommendation (32 bytes = 256 bits), `compare_digest()` for constant-time comparison. HIGH confidence.
+- [ADIF 2.2.6 Specification — APP_ field format](https://www.adif.org/adif226.htm) — `APP_[PROGRAMID]_[FIELDNAME]` convention confirmed. HIGH confidence.
+- [Beanie — Defining a Document](https://beanie-odm.dev/tutorial/defining-a-document/) — `List[BaseModel]` embedding in `Document` confirmed. HIGH confidence.
+- Existing codebase (`app/auth/service.py`, `app/auth/models.py`, `app/auth/dependencies.py`, `app/adif/parser.py`, `app/udp/server.py`) — direct inspection confirming reuse points and `APP_*` field handling. HIGH confidence.
 
 ---
 
-*Stack research for: Live QSO auto-refresh for paginated log table milestone (ollog)*
-*Researched: 2026-04-08*
+*Stack research for: API Token Authentication milestone (ollog)*
+*Researched: 2026-04-09*

@@ -1,252 +1,173 @@
 # Pitfalls Research
 
-**Domain:** Live auto-refresh on a paginated, filterable HTMX table (ham radio QSO log)
-**Researched:** 2026-04-08
-**Confidence:** HIGH (codebase read directly; HTMX/SSE behavior verified against official docs and spec)
+**Domain:** Adding named API token auth (X-API-Key) alongside existing JWT Bearer + cookie auth in a FastAPI ham radio logging app
+**Researched:** 2026-04-09
+**Confidence:** HIGH (codebase read directly; FastAPI auth internals verified against official issues and GitHub discussions; hashing guidance verified against OWASP and pwdlib docs)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: SSE push rows ignore active filters — wrong-operator or wrong-filter QSOs appear
+### Pitfall 1: Using Argon2 (pwdlib) to hash API tokens — per-request latency kills the auth path
 
 **What goes wrong:**
-`watch_qsos` in `app/feed/manager.py` broadcasts every insert to all connected SSE clients via `manager.broadcast(html)`. There is no operator scoping. If the log view subscribes to the station feed, any QSO logged by any operator (or via UDP for a different operator) is prepended into every user's log table regardless of whose QSOs are displayed.
-
-Additionally, `sse-swap="new_qso" hx-swap="afterbegin"` prepends raw HTML rows without checking the active filter state. A row for band=80M will be prepended even if the user is currently filtered to band=20M.
+The app already uses `pwdlib[argon2]` via `PasswordHash.recommended()` for passwords. It is tempting to call `password_hash.hash(token)` for API tokens too, since the function is already imported and working. Argon2 with recommended parameters (64 MB memory, 3 iterations) takes 200–500 ms per hash. Every authenticated API request must verify the token — this means 200–500 ms of CPU-bound blocking added to every call that uses X-API-Key. Under concurrent load this also starves the asyncio event loop because `password_hash.verify()` is a synchronous CPU-intensive call run on the thread.
 
 **Why it happens:**
-The existing `/feed/station` endpoint is designed for a shared all-operators display (the QSO entry form). It intentionally shows every operator. Reusing it for a per-operator log view is the path of least resistance but violates operator isolation, which is a core system invariant enforced everywhere else (JWT → callsign → DB query).
+The project already imports `hash_password` / `verify_password` from `app/auth/service.py`. Reusing them for tokens is the path of least resistance. Argon2 is correct for passwords because its cost is intentional (attacker must be slow). API tokens are long random strings — the entropy is already high, so the compute cost provides no security benefit over HMAC-SHA256.
 
 **How to avoid:**
-Create a separate per-operator SSE endpoint (e.g., `/feed/my-qsos`) that only emits events for the authenticated operator's callsign. The server checks `doc.get("_operator") == callsign` before putting to a client queue. The `get_current_operator_callsign_cookie` dependency already handles the auth; the filter is a single `if` statement in the broadcast loop.
-
-For the filter mismatch: do not use `sse-swap afterbegin` to inject individual rows. Use SSE as a trigger for a full table reload (`hx-get="/log/view"` with current filter params). The server re-renders the filtered, sorted page — a new row that does not match the active filter simply does not appear.
+Store a prefix (first 8 chars of the plaintext, e.g., `ollog_`) for fast DB lookup, plus a HMAC-SHA256 digest of the full token. Verification is: `hmac.compare_digest(hmac.new(key, token, sha256).hexdigest(), stored_hash)`. The lookup is instant (index on prefix), the verify is microseconds, and `hmac.compare_digest` is constant-time. The HMAC key is a secret stored in settings (separate from `SECRET_KEY` to allow independent rotation). Do not use Argon2 for API tokens.
 
 **Warning signs:**
-- QSOs from other operators appear in your filtered log view
-- A filtered-to-80M view shows a 20M QSO after a UDP insert
-- Row count in "Showing X–Y of N" does not match visible rows
+- P95 latency on any endpoint using `X-API-Key` jumps to 400+ ms
+- `top` shows Python worker pegged at 100% CPU on authenticated requests
+- Profiler shows `argon2_cffi.core.hash_secret_raw` dominant on token-auth paths
 
-**Phase to address:** First plan of the live-refresh milestone — before any SSE wiring in the log view template
-
-**Severity:** BLOCKING — breaks operator isolation, the most fundamental system invariant
+**Phase to address:** Token model + hashing design plan — before any code is written for the token document or verification dependency
 
 ---
 
-### Pitfall 2: Polling with hx-trigger="every Ns" loses active filter params
+### Pitfall 2: Storing the full plaintext token in MongoDB (or logging it)
 
 **What goes wrong:**
-If the log table refreshes via `hx-get="/log/view" hx-trigger="every 10s"`, the GET request only includes params that are embedded in the URL or gathered via `hx-include`. Without `hx-include` pointing at the filter form, the poll fires with a bare `/log/view` — returning the unfiltered page-1 view and overwriting the user's current filtered or paginated state.
-
-The current `log.html` renders the table inside `<div id="log-table">`. A polling trigger on that div has no natural access to the filter form values in `#filter-form`.
+The token plaintext must be shown exactly once at creation and never again. If the full token is stored in the database (even "temporarily"), a MongoDB dump, backup leak, or read-only DB credential compromise exposes every token in cleartext. Equally dangerous: logging the token value anywhere in `_handle_datagram`, the token creation endpoint response body, or error messages.
 
 **Why it happens:**
-Polling fires from the element carrying `hx-trigger="every Ns"` and collects params only from itself and any `hx-include` selectors. No `hx-include` means the URL built is `/log/view` with no page, sort, call, band, mode, date_from, date_to.
+"Show it once" UX requires returning it from the POST /auth/tokens endpoint. It is easy to accidentally also persist the plaintext to the `ApiToken` document during construction, or to log `token_value` in a debug statement that stays in production.
 
 **How to avoid:**
-Add `hx-include="#filter-form"` to the polling element. Also include a hidden `<input name="page">` that tracks the current page number, or accept that polling always resets to page 1 (which is correct behavior if the goal is "new rows arrive at the top").
+Generate plaintext token → return it in the HTTP response body → hash it → persist only the hash + prefix. The plaintext must never touch MongoDB. Add a `NO_LOG_TOKEN` comment at the generation site. In the UI, render the token value in the response and show a clear "You will not see this again" banner. Do not store it in the DOM as a data attribute or in a hidden field that could appear in server-side template logs.
 
 **Warning signs:**
-- Polling request in browser DevTools shows `/log/view` with no query params
-- User is on page 3 with a filter, polling sends them back to page 1 unfiltered
+- The `ApiToken` Beanie document has a field named `token` or `plain_token` of type `str`
+- Any log line contains a string that matches the token format regex (`ollog_[A-Za-z0-9]{32}`)
+- The POST /auth/tokens response is stored in browser history or a `hx-swap` target that re-renders on navigation (HTMX OOB swap issue)
 
-**Phase to address:** Polling implementation plan (if polling is chosen over SSE)
-
-**Severity:** BLOCKING for correctness; non-blocking for app stability
+**Phase to address:** Token model design plan — the document schema must explicitly exclude a plaintext field; add a linter/grep check in tests
 
 ---
 
-### Pitfall 3: Polling element destroyed by filter submit or pagination — interval resets
+### Pitfall 3: `get_current_user` dependency silently breaks when API key auth is added — wrong 401/403 status codes returned
 
 **What goes wrong:**
-If the polling trigger lives on `<div id="log-table">` or any element inside it, and the filter form submit replaces `#log-table` via `hx-target="#log-table" hx-swap="innerHTML"`, the polling element is destroyed and re-created. The new element starts a fresh polling interval. This causes:
-- A gap where no polling is active between the submit and when the new content settles
-- An interval reset (submit at second 8 of a 10s cycle → next poll is 10s later, not 2s later)
+`get_current_user` in `app/auth/dependencies.py` uses `OAuth2PasswordBearer(tokenUrl="/auth/token")`. When a request arrives with `X-API-Key` but no `Authorization: Bearer` header, `OAuth2PasswordBearer` fires first (it runs before any API key check in a stacked dependency). With default `auto_error=True`, it immediately returns 403 Forbidden ("Not authenticated") — not 401 — and the API key is never inspected. The caller receives an opaque 403 that gives no indication the X-API-Key path exists.
+
+FastAPI's `OAuth2PasswordBearer` returns 403 (not 401) when the header is absent. This is a documented FastAPI behavior (issues #2026, #10177) that surprises implementors expecting 401.
 
 **Why it happens:**
-HTMX attaches polling timers to DOM elements. When an element is swapped out its timer is not transferred to the replacement. The replacement has to set up its own timer from scratch.
+The natural extension — "add API key check to the existing dependency" — fails because `OAuth2PasswordBearer` raises before the API key branch can run. FastAPI's dependency resolution calls sub-dependencies eagerly.
 
 **How to avoid:**
-Place the polling trigger on an element **outside** the swap target — e.g., a `<span id="log-poll-trigger">` outside `#log-table`, with `hx-target="#log-table"` and `hx-include="#filter-form"`. This element survives filter form submits and pagination clicks.
+Create a new unified dependency `get_current_user_or_token` that:
+1. Uses `OAuth2PasswordBearer(auto_error=False)` — returns `None` when no Bearer header, no error raised
+2. Uses `APIKeyHeader(name="X-API-Key", auto_error=False)` — returns `None` when no header
+3. Tries Bearer first, then API key, raises 401 (not 403) if both are absent
 
-Alternatively, use SSE-triggered reload (see Pitfall 1 prevention), which avoids this problem entirely — the SSE anchor lives outside the table and is never destroyed by inner swaps.
+Keep the existing `get_current_user` (Bearer-only) unchanged for cookie routes. The new dependency replaces it only on REST API endpoints that should accept both methods. Never put `auto_error=True` schemes in a combined fallback chain.
 
 **Warning signs:**
-- After a filter submit, polling pauses noticeably longer than the configured interval
-- DevTools shows two rapid poll requests immediately after a filter submit
+- curl with only `-H "X-API-Key: ollog_..."` receives `403 Forbidden` instead of `200 OK`
+- `/docs` Swagger UI shows only Bearer lock icon; no API key field visible in "Authorize"
+- Existing `test_auth.py` tests start failing with unexpected 403s after the dependency change
 
-**Phase to address:** Same plan as Pitfall 2
-
-**Severity:** Non-blocking (polling resumes, just delayed) but creates a perceptible UX gap
+**Phase to address:** Auth dependency refactor plan — this is the highest-risk integration point; existing tests must pass before and after the change
 
 ---
 
-### Pitfall 4: SSE parent element destroyed by pagination swap — connection silently drops
+### Pitfall 4: UDP listener uses a startup-pinned `User` object — new API token assigned to the operator is never seen
 
 **What goes wrong:**
-If the `hx-ext="sse"` element is placed inside `#log-table`, then every pagination click (`hx-target="#log-table" hx-swap="innerHTML"`) destroys the SSE parent element.
-
-When the parent element is replaced, htmx-ext-sse 2.2.4 dispatches `htmx:sseClose` with `detail.type="nodeReplaced"` and terminates the `EventSource`. The browser does **not** auto-reconnect because the element no longer exists. The feed goes silent until the user reloads the page.
-
-**Why it happens:**
-SSE connections are scoped to their host element in htmx-ext-sse. The extension explicitly monitors for DOM replacement and closes gracefully. Placing `hx-ext="sse"` inside a swap target is structurally incorrect.
-
-**How to avoid:**
-The `hx-ext="sse"` anchor must be outside `#log-table`. Pattern:
-```html
-<div id="sse-anchor" hx-ext="sse" sse-connect="/feed/my-qsos">
-  <div id="log-table" ...>
-    {% include "log/log_table.html" %}
-  </div>
-</div>
-```
-The `sse-swap` target points to an element inside `#log-table` by id. The outer `#sse-anchor` survives all inner swaps.
-
-**Warning signs:**
-- DevTools Network tab shows the EventSource connection closing on every pagination click
-- No new rows appear after the first page navigation even with active QSO inserts
-
-**Phase to address:** Log view template design plan — structural decision must be made before writing any template code
-
-**Severity:** BLOCKING — live refresh completely stops after first pagination click
-
----
-
-### Pitfall 5: Double-display when QSO is submitted via the web form
-
-**What goes wrong:**
-If `sse-swap afterbegin` is used to inject individual rows directly into `tbody`, a QSO submitted via the form at `/log/` will appear twice:
-1. Immediately via SSE row injection into the top of the table
-2. Again in its sorted position when the next full table reload runs
-
-The SSE-injected row and the reload-rendered row are both present in the DOM simultaneously.
-
-**Why it happens:**
-Two update pathways insert the same data into the DOM: the SSE push (immediate row prepend) and the full-page reload (sorted server-rendered list). They are not coordinated.
-
-**How to avoid:**
-Do not use `sse-swap afterbegin` for individual row injection into the paginated table. Instead, use SSE as a signal only: emit an event with no (or minimal) data and have the log table listen with `hx-trigger="sse:new_qso"` to fire a full `hx-get="/log/view"` reload. The reload returns the entire correct sorted, filtered, paginated table — one source of truth, no duplication.
-
-Note: the form (`/log/`) and the log view (`/log/view`) are separate pages in the current design. If they remain separate, there is no cross-page duplication risk. The risk only exists if both are combined onto a single page with the same DOM.
-
-**Warning signs:**
-- Same callsign row appears twice — once at the top (SSE-injected) and once in the sorted position
-- Duplicate rows share the same `id` attribute value from the QSO ObjectId
-
-**Phase to address:** SSE event payload design plan — row-inject vs reload-trigger decision
-
-**Severity:** Non-blocking for correctness (no data lost) but creates visible duplication that erodes operator trust
-
----
-
-### Pitfall 6: Stale "Showing X–Y of N" total count after SSE row injection
-
-**What goes wrong:**
-If a row is injected via SSE `afterbegin`, the pagination footer ("Showing 1–50 of 847") is not updated. The server-rendered count from the last GET is stale. After 5 new QSOs via SSE, the count still reads "847" when the real total is "852". The table also visually shows 51+ rows while the footer says "1–50."
-
-**Why it happens:**
-SSE `afterbegin` injects HTML fragments directly into the DOM without a server round-trip. The `total`, `page`, and `total_pages` values embedded in `log_table.html` are frozen at the time of the last full GET.
-
-**How to avoid:**
-Same as Pitfall 5 prevention. A full table reload returns freshly-calculated `total`, `page`, `total_pages` from the server. The pagination footer is automatically correct after every refresh because it is part of the same `log_table.html` partial that gets replaced.
-
-**Warning signs:**
-- "Showing 1–50 of 847" says 847 but the table visually has 52 rows
-- "Page 1 of 17" indicator does not update after new QSOs arrive
-
-**Phase to address:** Same plan as Pitfall 5
-
-**Severity:** Non-blocking but creates data integrity appearance issues; operators will distrust the count
-
----
-
-### Pitfall 7: MongoDB change stream reconnect drops inserts during the gap
-
-**What goes wrong:**
-`watch_qsos` in `app/feed/manager.py` catches `PyMongoError`, logs a warning, and restarts `collection.watch()` after a 1-second sleep. The new `watch()` call opens a fresh stream from the current oplog position — it does not resume from where it left off. Any `insert` events that occurred during the gap (between the error and the reconnect) are permanently missed.
-
-In a high-activity scenario (FT8 overnight, UDP batch ingestion), the oplog can advance significantly during a 1-second gap. These inserts never reach SSE clients.
-
-**Why it happens:**
-MongoDB change streams support resumption via `resume_after` (using the `_id` resume token from the last received change event). The current code discards this token on error and opens a fresh stream. This is the simplest implementation but silently loses events during reconnects.
-
-**How to avoid:**
-Store the last seen resume token. On reconnect, pass `resume_after=last_token` to `collection.watch()`. If the token has expired from the oplog, fall back to a fresh stream and log a clear warning that events were missed.
-
+In `app/main.py` lifespan, the UDP listener is started once:
 ```python
-last_token = None
-while True:
-    try:
-        kwargs = {"resume_after": last_token} if last_token else {}
-        async with await collection.watch(pipeline, full_document="updateLookup", **kwargs) as stream:
-            async for change in stream:
-                last_token = change["_id"]
-                ...
-    except PyMongoError as e:
-        logger.warning("Change stream error, reconnecting: %s", e)
-        await asyncio.sleep(1)
+udp_user = await UserModel.find_one({"callsign": udp_op})
+udp_transport, _ = await start_udp_listener(..., user=udp_user)
 ```
+The `User` object (and the derived operator callsign) are captured at startup and passed into `QSODatagramProtocol.__init__`. They are held in `self._user` and `self._operator` for the process lifetime. If the feature being added includes a concept of "token-scoped operator" (where an API token can be associated with a user different from `UDP_OPERATOR`), the UDP path will never use it — it always uses the startup snapshot.
+
+More concretely: if the UDP ingestion path is later modified to resolve the operator from an incoming token header (a reasonable future extension), the `_handle_datagram` function receives the stale startup operator, not the request-time resolved one.
+
+**Why it happens:**
+The current design is intentionally simple: UDP has no auth, no per-datagram identity, operator is config-pinned. Adding token auth to REST endpoints does not change this — but the implementation phase may accidentally try to "unify" auth paths between UDP and HTTP, creating confusion.
+
+**How to avoid:**
+Keep UDP operator resolution exactly as-is. The new API token feature is for REST endpoints only. Add an explicit comment in `_handle_datagram` and `start_udp_listener` that the operator/user are startup-pinned and are not affected by token auth. Do not add `X-API-Key` processing to the UDP path. If future UDP-per-token auth is needed, it requires a protocol-level change (not a dependency injection change).
 
 **Warning signs:**
-- Log view misses bursts of UDP-ingested QSOs that arrived during a brief MongoDB restart
-- `PyMongoError` appears in logs followed by a visible gap in the live feed
+- A plan or code review mentions "make UDP listener use the token auth dependency"
+- `_handle_datagram` receives an `api_key` or `token` parameter
+- UDP integration tests start importing anything from a new `app/auth/tokens` module
 
-**Phase to address:** Change stream hardening plan (standalone plan or part of the SSE infrastructure plan)
-
-**Severity:** Non-blocking for data correctness (DB has all data) but HIGH for UX fidelity during UDP batch operations or container restarts
+**Phase to address:** UDP compatibility verification plan — add a regression test that UDP inserts still work with `UDP_OPERATOR` config unchanged after the token feature is added
 
 ---
 
-### Pitfall 8: JWT cookie expires during long-lived SSE connection — partial session failure
+### Pitfall 5: ADIF `APP_` field round-trip broken by case normalization or truncation
 
 **What goes wrong:**
-`jwt_expire_minutes: int = 60` is the default. The SSE endpoint authenticates via `get_current_operator_callsign_cookie` at **connection time only**. Once the `EventSource` is established, the server holds the connection open with no re-authentication. After 60 minutes the JWT has expired, but the SSE stream continues — no 401 is sent because HTTP response headers were already committed.
+The ADIF parser in `app/adif/parser.py` normalizes all field names to UPPERCASE: `field_name = parts[0].upper()`. This means `APP_ollog_source` becomes `APP_OLLOG_SOURCE`. The serializer in `app/adif/serializer.py` outputs keys as-is from the dict. On import, a field named `APP_OLLOG_SOURCE` is stored in MongoDB `model_extra` as `APP_OLLOG_SOURCE`. On export, it is emitted as `<APP_OLLOG_SOURCE:N>value`.
 
-The problem surfaces on the next regular HTMX request (filter, pagination, QSO submit) which re-runs the auth dependency. That request gets a 401, the app exception handler fires, and the user is redirected to `/log/login`. The operator is logged out mid-session while the SSE feed was still delivering rows.
+This is correct per the ADIF spec (field names are case-insensitive). The pitfall is if the new token feature adds an `APP_OLLOG_TOKEN_NAME` or similar field to QSOs stamped via API token, and a downstream logger (e.g., WSJT-X, N1MM) reads that field as `APP_Ollog_Token_Name` — on re-import the field becomes `APP_OLLOG_TOKEN_NAME` and matches correctly.
+
+The actual danger: if someone hand-crafts an ADIF file with mixed-case APP_ fields, expecting them to survive round-trip as mixed-case (like `APP_MyApp_foo`), they will be uppercased. This is a known behavior (parser line 72: `field_name = parts[0].upper()`), not a bug, but it can surprise operators who use the exported file with case-sensitive downstream tools.
+
+A secondary risk: the ADIF 3.1.7 spec allows APP_ field names of arbitrary length. If an API token name (e.g., the user-supplied label) is injected as part of an APP_ field name (e.g., `APP_OLLOG_{TOKEN_NAME}`), a very long token name can create an oversized field name. The spec does not specify a max field name length, but MongoDB field names have a 16 MB document limit (not a per-key limit). However, downstream ADIF parsers may truncate or reject oversized field names.
 
 **Why it happens:**
-FastAPI dependency injection validates the cookie once at request start. A long-held streaming response does not re-validate mid-stream. The mismatch between "SSE still open" and "all other requests now fail" creates a confusing partial-session state.
+The temptation is to stamp QSOs logged via API token with the token's name for audit trail purposes, e.g., `APP_OLLOG_SOURCE=my-rig-token`. If the token name contains special chars (spaces, colons, angle brackets) and is embedded in a field name, the resulting ADIF is invalid.
 
 **How to avoid:**
-Increase `jwt_expire_minutes` to cover a typical operating session (480 minutes / 8 hours recommended). This is a single config change with no code impact. The env var `JWT_EXPIRE_MINUTES` is already supported by pydantic-settings.
-
-A more robust approach: add a periodic SSE heartbeat event that the client uses to verify session health. On receiving a heartbeat, fire `hx-get="/log/ping"` (lightweight 200/401 endpoint); on 401, redirect to login. This is significantly more complex and unnecessary if the simple config fix is applied.
+If stamping a token source field, use a fixed field name like `APP_OLLOG_SOURCE` with the token name as the value, not as part of the field name. Validate token names at creation to alphanumeric + hyphen/underscore only, max 32 chars. Keep the round-trip rule: field names always uppercase, values preserved verbatim.
 
 **Warning signs:**
-- Operator reports "it stopped working after an hour" — SSE shows new rows but clicking any link redirects to login
-- 401 appears on HTMX filter/pagination requests in DevTools while the SSE EventSource remains open in the Network tab
+- Any code that does `f"APP_OLLOG_{token_name}"` as a field name key
+- Token name validation missing from the POST /auth/tokens request schema
+- Test that imports a token-stamped ADIF file and checks field names
 
-**Phase to address:** Session management review (config note in the auto-refresh implementation plan; not a separate phase unless heartbeat approach is chosen)
-
-**Severity:** Non-blocking (no data lost; user just has to re-login) but HIGH for UX — unexpected session loss during active logging is jarring
+**Phase to address:** Token model design plan (validation rules) + ADIF stamping plan if token-source stamping is in scope
 
 ---
 
-### Pitfall 9: Auto-refresh overwrites open inline edit row — unsaved data silently lost
+### Pitfall 6: CSRF on token creation and revocation endpoints — cookie auth + state-changing POST
 
 **What goes wrong:**
-The log view supports inline editing: clicking Edit on a row swaps it to an editable form via HTMX. If auto-refresh fires while the edit row is open, the refresh replaces `#log-table` with a server-rendered table containing the original unedited row. The user's partially-filled edit form is silently destroyed with no warning.
+The existing cookie auth uses `HttpOnly` cookies. The token management UI (create token, revoke token) will use the same `get_current_user_cookie` dependency. A POST to `/auth/tokens` (create) or `DELETE /auth/tokens/{id}` (revoke) from a malicious site works if:
+- The browser sends the `access_token` cookie automatically (CSRF)
+- The `SameSite` attribute is not set to `Strict` or `Lax` on the cookie
 
-Polling and row-level edit requests are on different HTMX elements with no shared sync group. By default, HTMX 2.x drops a new trigger on an element if a request is already in-flight **on that same element** — but a polling trigger on `#log-table` and an edit action on `<tr id="qso-...">` are different elements and do not block each other.
+The app currently sets the cookie in `app/auth/router.py` (the cookie login flow in the UI router). If `SameSite` is not explicitly set, the default in modern browsers is `Lax`, which blocks cross-site POSTs but allows top-level navigation GETs. `SameSite=Lax` does protect POST endpoints from CSRF in modern browsers. However, `SameSite=None` (required for cross-origin embedding) would not.
 
 **Why it happens:**
-The `hx-target="#log-table"` on the polling/SSE trigger overwrites the entire table including any edit row variant currently in the DOM. There is no mechanism to detect "user is actively editing" before firing the refresh.
+The token management endpoints are the first endpoints in this app that are both cookie-authenticated AND perform sensitive state changes (create/revoke credentials). Previous cookie routes (log view, admin UI) are read-mostly and do not create security-sensitive resources. The new endpoints raise the stakes.
 
 **How to avoid:**
-Add a CSS class `.editing` to the table (or a data attribute) when any inline edit row is open. Condition the auto-refresh trigger to not fire while editing is active:
-- For polling: `hx-trigger="every 10s [!document.querySelector('#log-table .editing')]"`
-- For SSE reload: `hx-trigger="sse:new_qso [!document.querySelector('#log-table .editing')]"`
-
-Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it drops the refresh if any request targeting `#log-table` is in-flight. This covers the save action but not the pre-save idle time when the edit form is just open.
+Verify that the existing cookie is set with at minimum `SameSite=Lax`. Check the `set_cookie` call in the UI login router. For the token creation endpoint, add a `Referer` header check or a CSRF double-submit cookie if `SameSite` is not confirmed as `Strict`. Use HTMX for the UI and add `hx-headers='{"X-Requested-With": "XMLHttpRequest"}'` to the form — then verify this header server-side as a lightweight CSRF guard (not a substitute for SameSite, but defense-in-depth). Token revocation (DELETE) is safe from form-based CSRF since HTML forms cannot send DELETE — use DELETE not POST for revocation.
 
 **Warning signs:**
-- Inline edit form disappears mid-typing (auto-refresh fires during the edit)
-- User clicks Save and the row is already back to the original view-mode version
+- The login `set_cookie` call in the UI router does not include `samesite="lax"` or `samesite="strict"`
+- Token create/revoke are both POST endpoints (DELETE is safer for revocation)
+- No CSRF check of any kind on the token creation form
 
-**Phase to address:** Auto-refresh implementation plan — must explicitly account for the existing inline edit feature
+**Phase to address:** Token management UI plan — audit the login cookie attributes before building the create/revoke forms
 
-**Severity:** BLOCKING for usability — causes silent data loss (unsaved edits) on every auto-refresh that fires during an edit session
+---
+
+### Pitfall 7: Timing attack via prefix lookup short-circuit — attacker can enumerate valid prefixes
+
+**What goes wrong:**
+The recommended token lookup pattern is: query MongoDB for `{"prefix": token[:8], "owner": ...}`, then verify the full hash. If no document is found for a given prefix, the response returns immediately (fast path). If a document is found, hash verification takes microseconds more. An attacker sending many tokens with the same first 8 chars can distinguish "prefix matched" from "prefix not found" by response timing — enabling a prefix enumeration attack.
+
+**Why it happens:**
+This is a subtle but real timing oracle. The "fast return on not found" is the natural code path. The gap is small (a MongoDB round-trip vs. a round-trip + hash verify) but measurable over many samples.
+
+**How to avoid:**
+After the prefix lookup, always run the hash verification path, even when no document was found — verify against a dummy hash. Use `hmac.compare_digest(candidate_hash, dummy_hash)` on the not-found branch to waste equivalent time. Alternatively, accept the theoretical risk: prefix enumeration only leaks "a token starting with X exists," not the token itself. At 8 chars of the character space, the risk is minimal for a single-operator app. Document the decision.
+
+**Warning signs:**
+- Token lookup code has an early `return None` on "not found" before any hash operation
+- No dummy verification on the not-found branch
+
+**Phase to address:** Token verification dependency plan — the dummy-verify pattern is a one-line addition, low cost, high security signal
 
 ---
 
@@ -254,11 +175,12 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Reuse `/feed/station` (all-operators feed) for log view | No new endpoint | Breaks operator isolation — all operators' QSOs appear in every user's view | Never |
-| `sse-swap afterbegin` for individual row injection | Rows appear instantly | Stale pagination counts; duplicate rows; filter bypass | Never for paginated+filtered table |
-| Place SSE anchor inside `#log-table` | Simpler single-div HTML | SSE connection drops on every pagination click | Never |
-| Skip resume token on change stream reconnect | Simpler code (~5 lines saved) | Missed inserts during reconnect gap | Acceptable for MVP if gap is logged as a warning |
-| Keep jwt_expire_minutes=60 | Secure default | Session loss mid-SSE stream confuses active operators | Increase to 480 for operator sessions |
+| Reuse `password_hash.verify()` (Argon2) for token verification | Zero new code | 200–500 ms added to every API-key-authenticated request; event loop starvation | Never |
+| Store token plaintext in DB "for admin convenience" | Easy token recovery | One DB dump exposes all tokens; breaks the "show once" security guarantee | Never |
+| Use `auto_error=True` on `OAuth2PasswordBearer` in the combined auth dependency | No extra code | API key requests get 403 before the key is ever checked | Never |
+| Make UDP path also accept API tokens | "Unified auth" aesthetic | UDP is a bare datagram with no headers; token auth is meaningless on this path; breaks the startup-pinned operator invariant | Never |
+| Token name with no length/charset validation | Simpler create endpoint | Long or special-char token names break ADIF field stamping and Jinja2 rendering | Never in the token create schema |
+| POST for token revocation instead of DELETE | Simpler HTML form | POST revocation is CSRF-vulnerable from forms; DELETE cannot be triggered by a plain HTML form | Acceptable only if HTMX handles revocation (not a plain HTML form) |
 
 ---
 
@@ -266,12 +188,12 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| htmx-ext-sse 2.2.4 + pagination | Placing `hx-ext="sse"` inside the swap target `#log-table` | SSE anchor must be outside `#log-table`; it must survive inner swaps |
-| htmx-ext-sse 2.2.4 + operator scoping | Broadcasting all inserts to all SSE clients | Per-operator endpoint or server-side `_operator` check before broadcast |
-| Browser EventSource + 401 response | Expecting EventSource to retry after cookie refresh | Per WHATWG spec, 401 permanently fails the connection with no retry — feed freezes silently |
-| MongoDB change stream + reconnect | Fresh `watch()` without `resume_after` | Store `change["_id"]` as resume token; pass to next `watch()` call |
-| Polling + inline edit rows | Polling overwrites open edit form | Condition trigger with `[!document.querySelector('.editing')]` |
-| Polling + filter form submit | Poll fires without filter params | `hx-include="#filter-form"` required on the polling element |
+| `OAuth2PasswordBearer` + `APIKeyHeader` stacked | Using `auto_error=True` on Bearer scheme in a combined dependency | Set `auto_error=False` on both; try Bearer first, fall back to API key, raise 401 (not 403) if both absent |
+| Beanie `ApiToken` document + plaintext | Accidentally including a `plain_token: str` field in the Pydantic model | Document schema must have no plaintext field; hash + prefix only; add a test that inspects the stored document |
+| HTMX form + token creation response | HTMX `hx-swap="innerHTML"` retains the response in DOM history; the token value in the response is re-renderable | Use `hx-swap="outerHTML"` with a "token shown" confirmation state that replaces the creation form; never leave the raw token value in a stable DOM node |
+| `pwdlib` Argon2 + API token path | `verify_password(token, stored_hash)` is called on the hot auth path | Use `hmac.compare_digest(hmac_sha256(token), stored_hash)` for tokens; reserve Argon2 for password verification only |
+| MongoDB `model_extra` + ADIF APP_ fields | Adding a token-stamped APP_ field with a dynamic key name from token label | Use fixed field name `APP_OLLOG_SOURCE`, token label as value; never use token label as part of the key name |
+| Cookie `SameSite` + token create form | Not setting `samesite` on the `set_cookie` call | Explicitly set `samesite="lax"` (or `"strict"`) in the login response that sets `access_token` cookie |
 
 ---
 
@@ -279,10 +201,9 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Full table re-render on every SSE event from any source | DB query + Jinja2 render on every FT8 QSO insert | Filter: only trigger reload on the operator's own inserts | FT8 overnight: 240 renders/hour per connected client |
-| `afterbegin` row injection + full reload on same event | Double render per insert | Pick one strategy — SSE as trigger for reload only | Any non-trivial insert rate |
-| Polling at 5s with page_size=200 | 200 × `_qso_to_view_dict` per 5s per client | Use 15–30s intervals; SSE-triggered reload is more efficient | Noticeable in contest logging with multiple operators |
-| Unbounded `asyncio.Queue` in ConnectionManager | Memory growth with slow SSE clients | Consider `asyncio.Queue(maxsize=50)` with discard-on-full | Dozens of concurrent operators |
+| Argon2 on every token verify | P95 latency >400 ms on all API-key endpoints | HMAC-SHA256 with prefix-indexed lookup | Any non-trivial request rate; immediately apparent in load tests |
+| No index on token prefix field | Full collection scan on every API request | `IndexModel([("prefix", ASCENDING), ("owner_id", ASCENDING)], unique=True)` in `ApiToken.Settings` | Breaks as soon as there are more than ~100 tokens |
+| Synchronous `hmac` call without `run_in_executor` | Blocks asyncio loop for CPU-bound verify (minor for HMAC, severe for Argon2) | HMAC is fast enough to call inline; only move to executor if using Argon2 (don't) | Argon2: immediately; HMAC: never a real issue |
 
 ---
 
@@ -290,9 +211,12 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Reusing all-operators SSE feed for per-operator log view | Operator A sees Operator B's callsigns and contacts | Filter before broadcast: `_operator == callsign` in `watch_qsos` |
-| Including `callsign` as URL param in polling/SSE reload URL | URL manipulation lets user request another operator's data | Already protected: `/log/view` uses `callsign = Depends(get_current_operator_callsign_cookie)` — callsign always from JWT. Maintain this invariant in auto-refresh URLs; never add `?callsign=` param |
-| SSE stays alive after account disable | Disabled operator continues receiving live feed | Accept the gap: next reconnect attempt hits 401 (per WHATWG spec, no retry after 401) |
+| Storing token plaintext in DB | Full token exposure on any DB read (backup, dump, misconfigured replica) | Hash + prefix only; no plaintext field in `ApiToken` document |
+| Logging token value in debug/info lines | Token in log files, aggregators, or error trackers | `NO_LOG_TOKEN` comment at generation; grep test that ensures no token value in log output |
+| Returning token value in any endpoint other than the creation response | Token retrievable after creation (violates show-once contract) | GET /auth/tokens lists tokens by name + prefix only; never returns hash or reconstructed value |
+| 403 (Forbidden) instead of 401 (Unauthorized) on missing API key | Client cannot distinguish "wrong key" from "not authorized to this resource" | `auto_error=False` + manual raise `HTTPException(401)` in combined dependency |
+| Token with no expiry and no last-used tracking | Stolen token valid indefinitely; no audit trail | Add `expires_at: Optional[datetime]` and `last_used_at: Optional[datetime]` to `ApiToken`; update `last_used_at` on each verify (background task to avoid latency) |
+| Token creation endpoint reachable without CSRF guard | Cross-site form can create tokens on behalf of logged-in operator | Verify `SameSite=Lax` on auth cookie; use `DELETE` not `POST` for revocation |
 
 ---
 
@@ -300,23 +224,26 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Full table reload resets scroll position | User reading rows 45–50 gets snapped to top | Add `show:no-change` to `hx-swap` modifier — verify this is supported in HTMX 2.0.4 |
-| Auto-refresh fires while user has text selected (copying a callsign) | Text selection cleared on DOM replacement | Check `document.getSelection().toString()` in trigger condition, or use morphing swap (idiomorph extension) |
-| No visual indication that auto-refresh is active | User unsure if table is live | Add a small "Live" indicator that toggles on `htmx:sseOpen` / `htmx:sseClose` events |
-| Auto-refresh fires during inline edit | Edit form destroyed without warning (see Pitfall 9) | Disable refresh while `.editing` class is present in table |
-| 60-minute cookie expiry forces re-login with no warning | Operator loses context mid-session | Show a session-expiry warning banner using a JS timer seeded from the JWT `exp` claim |
+| No "copy to clipboard" button on token creation page | Operator manually selects and copies; risk of partial selection or accidental navigation away | Render `<button onclick="navigator.clipboard.writeText(...)">Copy</button>` next to the token value in the creation response fragment |
+| HTMX swap retains token in DOM after "copy" | Operator leaves page open; token value visible in page source | After copy, swap the token display fragment with "Token copied — this value is no longer shown" confirmation state |
+| Token list shows truncated hash instead of prefix | Operator cannot identify which token is "rig-api" vs "logbook-sync" by prefix alone | Store a human-readable `name` (label) on the `ApiToken` document; list shows `name` + first 8 chars of plaintext prefix only |
+| Revoke button requires a confirmation step but none is shown | Operator accidentally revokes production token | HTMX confirm dialog or two-step (confirm → DELETE) before revocation |
+| No indication of which auth scheme was used in `/auth/me` | API consumers cannot debug whether their key was accepted as Bearer or X-API-Key | Return `auth_method: "bearer" | "api_key"` in the `/auth/me` response when the combined dependency is active |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Operator isolation in SSE:** With two logged-in operators, confirm operator A's QSOs do NOT appear in operator B's log view after a QSO insert
-- [ ] **Filter params on refresh:** After setting a band filter, auto-refresh respects that filter — DevTools shows `band=20M` in the reload GET query string
-- [ ] **SSE survives pagination:** After clicking "Next" to page 2, the SSE EventSource is still open — DevTools Network tab shows the connection is not closed
-- [ ] **Edit row survives polling cycle:** Open an inline edit row, wait for one polling interval — verify the edit form is still present and untouched
-- [ ] **Resume token on reconnect:** Restart the MongoDB container briefly — verify `watch_qsos` reconnects and subsequent inserts still appear in the feed
-- [ ] **Cookie expiry behavior:** With `jwt_expire_minutes=1` in test, verify the app handles expiry gracefully (no silent SSE freeze; clear redirect or warning on next navigation)
-- [ ] **Pagination count accuracy:** After auto-refresh delivers a new QSO, verify "Showing X–Y of N" reflects the updated total, not the stale count from before the insert
+- [ ] **Token hashing:** Verify that the `ApiToken` Beanie document has no `plain_token` or `token` string field — grep the model for any field storing the raw token value
+- [ ] **HMAC not Argon2:** Verify that `password_hash.verify()` is NOT called anywhere in the token verification dependency — grep for `verify_password` in any new token auth code
+- [ ] **Combined dependency 401 not 403:** `curl -X GET /api/qsos/ -H "X-API-Key: wrong"` returns 401, not 403; `curl` with no auth header returns 401, not 403
+- [ ] **UDP regression:** After deploying token feature, UDP inserts still work with `UDP_OPERATOR` set — verify `test_udp_pipeline.py` passes unchanged
+- [ ] **ADIF round-trip:** Token-stamped QSOs export and re-import cleanly — no APP_ field name issues; `test_adif_roundtrip.py` covers a token-stamped record
+- [ ] **Token shown once:** After the creation POST, refreshing the page does not re-show the token — the HTMX response is not cached and re-swappable
+- [ ] **Index on prefix:** `db.api_tokens.getIndexes()` shows a unique index on `(prefix, owner_id)` — not just on `prefix` alone (different operators could theoretically share a prefix)
+- [ ] **SameSite on auth cookie:** Inspect the `Set-Cookie` response header on `/auth/ui/login` — confirm `SameSite=Lax` or `SameSite=Strict` is present
+- [ ] **Token list no hashes:** GET /auth/tokens response body contains `name` and `prefix` fields only — no `hash`, `token_hash`, or reconstructable value
+- [ ] **Operator isolation:** A token owned by operator W1AW cannot authenticate requests that modify operator KD9XYZ's QSOs — operator callsign comes from the resolved `ApiToken.owner` document, never from request body
 
 ---
 
@@ -324,12 +251,13 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Wrong-operator rows in log view (P1) | HIGH | New per-operator SSE endpoint + broadcast filter + template change; DB data unaffected |
-| SSE drops on pagination (P4) | LOW | Move SSE anchor element outside `#log-table` in one template file |
-| Stale pagination count (P6) | LOW | Switch from row-injection SSE to reload-trigger SSE; event name change only |
-| Edit row overwritten by refresh (P9) | MEDIUM | Add `.editing` state + conditional trigger; 2–3 template changes |
-| Change stream gap on reconnect (P7) | LOW | Add resume token tracking to `watch_qsos`; ~10 lines of Python |
-| Cookie expiry session loss (P8) | LOW | Increase `jwt_expire_minutes` in config or `.env`; no code change |
+| Argon2 used for tokens (P1) | HIGH — all tokens must be re-issued | Migrate: add HMAC hash field to documents, re-hash on next use (verify Argon2 first, then store HMAC hash, remove Argon2 hash), deprecate Argon2 field; invalidate all tokens after migration deadline |
+| Plaintext stored in DB (P2) | CRITICAL — treat as full breach | Rotate all tokens immediately; audit DB access logs; notify affected operators; redesign schema |
+| Wrong 403 on missing key (P3) | LOW | Change `auto_error` setting and re-raise with 401 in the dependency; one-line fix, redeploy |
+| UDP regression (P4) | LOW | Revert any changes to `_handle_datagram` or `start_udp_listener`; UDP path should be untouched |
+| ADIF APP_ field name broken (P5) | MEDIUM | Fix token name validation at creation; migrate existing malformed documents with a one-off script |
+| CSRF on create/revoke (P6) | MEDIUM | Add `SameSite` to cookie; convert revocation to DELETE; deploy |
+| Token prefix timing oracle (P7) | LOW | Add dummy-verify on not-found branch; no data migration needed |
 
 ---
 
@@ -337,29 +265,29 @@ Alternatively, use `hx-sync="#log-table:drop"` on the auto-refresh element so it
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Wrong-operator SSE broadcast (P1) | SSE endpoint design plan — before any log view wiring | Two-operator test: confirm isolation |
-| Filter params lost on poll (P2) | Polling implementation plan — `hx-include` in first template PR | DevTools: check GET query string on poll |
-| Polling resets after filter submit (P3) | Polling implementation plan — trigger placement decision | Observe timing gap after filter submit |
-| SSE anchor inside swap target (P4) | Log view template design plan — structural decision before writing any HTML | DevTools: confirm EventSource survives page nav |
-| Double-display after form submit (P5) | SSE event strategy plan — row-inject vs reload-trigger | Submit QSO, count table rows, check for duplicates |
-| Stale pagination count (P6) | Same plan as P5 | Check footer count vs visible rows after SSE event |
-| Change stream gap on reconnect (P7) | Change stream hardening plan | MongoDB container restart test |
-| JWT expiry mid-SSE (P8) | Config review in auto-refresh plan | `jwt_expire_minutes=1` expiry test |
-| Edit row destroyed by refresh (P9) | Auto-refresh + inline-edit integration plan — explicit test case | Open edit row, wait one refresh cycle |
+| Argon2 for token hash (P1) | Token model + hashing design plan | No call to `verify_password` in token auth code; HMAC verify confirmed by unit test |
+| Plaintext in DB (P2) | Token model design plan | Inspect inserted `ApiToken` document in MongoDB; no plaintext field present |
+| Wrong 403 / bad combined dependency (P3) | Auth dependency refactor plan | `curl` tests: no-auth → 401, bad key → 401, good key → 200; existing JWT tests still pass |
+| UDP regression (P4) | UDP compatibility verification plan | `test_udp_pipeline.py` passes unchanged post-deploy |
+| ADIF APP_ field issues (P5) | Token name validation plan + ADIF stamping plan | Round-trip test with token-stamped record; token name charset validated at create |
+| CSRF on token create/revoke (P6) | Token management UI plan | Cookie `Set-Cookie` header has `SameSite=Lax`; revocation uses DELETE |
+| Prefix timing oracle (P7) | Token verification dependency plan | Dummy-verify present on not-found branch; code review gate |
 
 ---
 
 ## Sources
 
-- HTMX 2.0.4 docs, hx-trigger polling: https://htmx.org/attributes/hx-trigger/
-- HTMX 2.0.4 docs, hx-sync: https://htmx.org/attributes/hx-sync/
-- htmx-ext-sse 2.2.4 docs: https://htmx.org/extensions/sse/
-- htmx-ext-sse GitHub source (nodeReplaced / sseClose event): https://github.com/bigskysoftware/htmx/blob/master/www/content/extensions/sse.md
-- htmx-ext-sse error handling issue #134: https://github.com/bigskysoftware/htmx-extensions/issues/134
-- WHATWG SSE spec, EventSource failure on non-200: https://html.spec.whatwg.org/multipage/server-sent-events.html
-- MongoDB change streams, resume tokens: https://www.mongodb.com/docs/manual/changestreams/
-- Codebase direct reading: `app/feed/manager.py`, `app/feed/router.py`, `app/qso/ui_router.py`, `templates/log/log.html`, `templates/log/log_table.html`, `templates/log/form.html`, `app/config.py`, `app/auth/dependencies.py`, `app/main.py`
+- FastAPI `OAuth2PasswordBearer` returns 403 not 401 (confirmed bug): https://github.com/fastapi/fastapi/issues/10177 and https://github.com/fastapi/fastapi/issues/2026
+- FastAPI multiple auth schemes discussion: https://github.com/fastapi/fastapi/discussions/9076 and https://github.com/fastapi/fastapi/discussions/9601
+- FastAPI `auto_error=False` for optional auth: https://fastapi.tiangolo.com/reference/security/
+- HMAC-SHA256 vs Argon2 for API tokens: https://mojoauth.com/compare-hashing-algorithms/hmac-sha256-vs-argon2 — HMAC appropriate for tokens, Argon2 appropriate for passwords
+- OWASP password storage (hash algorithm guidance): https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+- OWASP REST Security (token in header not URL): https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html
+- ADIF 3.1.7 specification (APP_ field naming, case insensitivity): https://adif.org/317/ADIF_317.htm
+- ADIF 3.1.5 annotated (most recent stable spec): https://adif.org/315/ADIF_315_annotated.htm
+- pwdlib PyPI (Argon2 recommended parameters): https://pypi.org/project/pwdlib/
+- Codebase direct reading: `app/auth/dependencies.py`, `app/auth/service.py`, `app/auth/models.py`, `app/auth/router.py`, `app/udp/server.py`, `app/adif/parser.py`, `app/adif/serializer.py`, `app/qso/service.py`, `app/qso/models.py`, `app/config.py`, `app/main.py`
 
 ---
-*Pitfalls research for: live auto-refresh on paginated filterable HTMX QSO log table*
-*Researched: 2026-04-08*
+*Pitfalls research for: adding named API token auth (X-API-Key) alongside JWT Bearer + cookie auth in a FastAPI ham radio logging app*
+*Researched: 2026-04-09*
