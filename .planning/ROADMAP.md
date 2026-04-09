@@ -120,10 +120,10 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
   3. `hash_api_token()` and `verify_api_token()` use HMAC-SHA256 (not Argon2); `verify_api_token()` is constant-time via `hmac.compare_digest`
   4. `api_token_secret` is loaded from `Settings` as a `SecretStr` separate from `SECRET_KEY`
   5. Token name validation rejects names outside alphanumeric + hyphen/underscore, 1–80 chars
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 25-01: TBD
+- [ ] 025-01-PLAN.md — ApiToken model, HMAC-SHA256 service helpers, config, and tests
 
 ---
 
@@ -137,7 +137,7 @@ Plans:
   2. After closing or dismissing the creation banner, the plaintext token cannot be recovered — revisiting the profile page shows only the token prefix, label, creation date, and expiry
   3. The active token list displays label, creation date, expiry (or "Never"), and the first 8 characters of the token for identification
   4. Operator can revoke any individual token; the token immediately stops being accepted for authentication on subsequent requests
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 26-01: TBD
@@ -154,7 +154,7 @@ Plans:
   2. The operator identity resolved from an API key is identical to the identity resolved from a JWT for the same operator — no cross-operator data access is possible
   3. A request with a missing, invalid, or expired credential (both JWT and API key absent or wrong) returns HTTP 401 — never HTTP 403
   4. Admin and profile endpoints continue to require JWT; they do not accept `X-API-Key` authentication
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 27-01: TBD
@@ -171,7 +171,7 @@ Plans:
   2. A UDP datagram containing an invalid or revoked `APP_OLLOG_TOKEN` is rejected with a structured log line; it does not fall through silently to `UDP_OPERATOR`
   3. A UDP datagram without `APP_OLLOG_TOKEN` is processed exactly as before using `UDP_OPERATOR` — existing behavior is unchanged
   4. The in-memory token cache is loaded at startup and refreshed when any token is created or revoked; no MongoDB round-trip occurs per datagram
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 28-01: TBD
