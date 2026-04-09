@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.6 Live Log Table — Phase 23: SSE-Triggered Log Table Reload
+**Current focus:** v1.6 Live Log Table — Phase 24: Session Robustness
 
 ## Current Position
 
-Phase: 23 — SSE-Triggered Log Table Reload
+Phase: 24 — Session Robustness
 Plan: 01
 Status: Complete
-Last activity: 2026-04-08 — 23-01 all tasks complete, human verification approved
+Last activity: 2026-04-08 — 24-01 complete, JWT session lifetime raised to 480 minutes
 
-Progress: [██░░░░░░░░░░░░░░░░░░] 20% (v1.6 in progress — Phase 23 Plan 01 complete)
+Progress: [██░░░░░░░░░░░░░░░░░░] 20% (v1.6 in progress — Phase 24 Plan 01 complete)
 
 ## Performance Metrics
 
@@ -32,6 +32,7 @@ Progress: [██░░░░░░░░░░░░░░░░░░] 20% (v1
 | v1.3 | 13–15 | 8 |
 | v1.4 | 16–18 | 4 |
 | v1.5 | 19–22 | 4 |
+| v1.6 (in progress) | 23–24 | 2 |
 
 ## Accumulated Context
 
@@ -48,6 +49,10 @@ Full decision log in PROJECT.md Key Decisions table.
 - Use `htmx:sseMessage` JS listener instead of `hx-trigger="sse:new_qso [condition]"` — JS filter evaluation in htmx SSE triggers had only medium confidence from research; the listener approach is fully reliable
 - Place `hx-ext="sse"` and `sse-connect` on `#log-table` container (not inside the partial) — attributes survive every htmx innerHTML swap
 - Server-side truth via hidden span: server renders `#auto-refresh-ok` only at page 1 + default sort + no filters; client only needs `getElementById` to check
+
+### Key Decisions (v1.6 Phase 24)
+
+- Raised `jwt_expire_minutes` default from 60 to 480 — covers full 8-hour FT8 session without operator action
 
 ### Known Tech Debt
 
@@ -66,5 +71,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Phase 23 Plan 01 complete — all tasks done, human verification approved
+Stopped at: Phase 24 Plan 01 complete — JWT session lifetime raised to 480 minutes
 Resume file: None
