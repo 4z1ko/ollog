@@ -174,7 +174,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 28-01: TBD
+- [ ] 028-01-PLAN.md — UDPTokenCache singleton, _handle_datagram APP_OLLOG_TOKEN branch, notify_refresh() wiring, tests
 
 ---
 
@@ -209,4 +209,4 @@ Plans:
 | 25. Token Model and Service Layer | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 26. Token CRUD API and Profile UI | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 27. X-API-Key REST Authentication | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
-| 28. UDP APP_OLLOG_TOKEN Support | v1.7 | 0/TBD | Not started | - |
+| 28. UDP APP_OLLOG_TOKEN Support | v1.7 | 0/1 | Not started | - |
