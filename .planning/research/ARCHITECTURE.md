@@ -1,516 +1,509 @@
-# Architecture Research
+# Architecture Research: ollog v1.8
 
-**Domain:** Named API Token Auth — FastAPI/Beanie/MongoDB integration
-**Researched:** 2026-04-09
-**Confidence:** HIGH (based on direct codebase inspection of all relevant files)
-
----
-
-## Context: Existing Architecture
-
-Relevant components inspected:
-
-- `app/auth/models.py` — `User` Beanie Document, `users` collection, Argon2 hashed passwords via pwdlib, embedded profile fields (callsign, station_callsign, gridsquare, etc.)
-- `app/auth/service.py` — `hash_password()` and `verify_password()` using `pwdlib.PasswordHash.recommended()` (Argon2)
-- `app/auth/dependencies.py` — `get_current_user` (JWT Bearer via `OAuth2PasswordBearer`), `get_current_user_cookie` (HttpOnly cookie), `get_current_operator_callsign`, `get_current_operator_callsign_cookie`, `require_admin`, `require_admin_cookie`
-- `app/config.py` — `Settings` with `udp_operator: str | None = None`, `udp_enabled: bool`
-- `app/main.py` — lifespan resolves `UDP_OPERATOR` to `(udp_op, udp_user)` at startup, passes to `start_udp_listener()`
-- `app/udp/server.py` — `_handle_datagram(data, addr, operator, user)` accepts `operator: str | None` and `user: User | None`; `QSODatagramProtocol` caches them at construction
-- `app/qso/router.py` — all endpoints use `get_current_user` or `get_current_operator_callsign` via `Depends()`
-- `app/database.py` — `init_beanie(document_models=[QSO, User])`
+**Domain:** Admin container split, backup module, MkDocs rewrite
+**Researched:** 2026-04-10
+**Confidence:** HIGH (direct codebase inspection of all relevant files)
 
 ---
 
-## System Overview
+## Summary
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                           HTTP Clients                               │
-│  ┌─────────────────┐  ┌───────────────────────┐  ┌────────────────┐ │
-│  │  Browser (UI)   │  │  REST API Client       │  │ UDP Datagram   │ │
-│  │  Cookie JWT     │  │  Authorization: Bearer │  │ (ADIF sender)  │ │
-│  │                 │  │  — OR —                │  │ (no per-packet │ │
-│  │                 │  │  X-API-Key: ollog_...  │  │  auth header)  │ │
-│  └────────┬────────┘  └────────────┬───────────┘  └───────┬────────┘ │
-└───────────┼────────────────────────┼─────────────────────┼──────────┘
-            │                        │                      │
-┌───────────▼────────────────────────▼──────────────────────▼──────────┐
-│                         Auth Layer (app/auth/)                        │
-│  ┌─────────────────────────────────────────────────────────────────┐ │
-│  │  Existing                                                        │ │
-│  │  get_current_user_cookie        get_current_user (JWT Bearer)   │ │
-│  │  get_current_operator_callsign_cookie                           │ │
-│  │                   get_current_operator_callsign                 │ │
-│  │                                                                  │ │
-│  │  New (this milestone)                                            │ │
-│  │  get_current_user_api_key  (X-API-Key header)                   │ │
-│  │  get_current_operator_callsign_api_key                          │ │
-│  └──────────────────────────────┬──────────────────────────────────┘ │
-└─────────────────────────────────┼────────────────────────────────────┘
-                                  │
-┌─────────────────────────────────▼────────────────────────────────────┐
-│                      MongoDB (Beanie Documents)                       │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
-│  │  users           │  │  qsos            │  │  api_tokens (new)│   │
-│  │  (User)          │  │  (QSO)           │  │  (ApiToken)      │   │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘   │
-└──────────────────────────────────────────────────────────────────────┘
-```
+Three new capabilities land in v1.8. Each is architecturally independent and introduces
+no circular dependencies with existing modules:
+
+1. **Admin container** — a second Docker Compose service that runs the *same image* but
+   exposes only admin routes. Cleanest approach: an `app/admin_main.py` entry point that
+   builds a restricted FastAPI app object, selected by the service's `command:` override
+   in `docker-compose.yml`. No env var app-mode branching inside `main.py`.
+
+2. **Backup module** — a standalone CLI module at `app/backup/` (package, not a single
+   file) that connects to MongoDB independently of FastAPI and uploads a dump to S3.
+   Invoked via `python -m app.backup`. The existing named volume `mongo-data` is
+   confirmed present and relevant.
+
+3. **Docs rewrite** — MkDocs Material is already wired up (`mkdocs.yml` exists, `site/`
+   is built and mounted at `/guide` in `main.py`). The rewrite is a content-only task
+   with no structural changes needed to the serve path.
 
 ---
 
-## Question 1: Separate `ApiToken` Collection vs. Embedded in `User`
+## Section 1: Existing Route Map
 
-**Recommendation: Separate `api_tokens` collection.**
+Understanding the full route surface is prerequisite to defining what the admin container
+should (and should not) expose.
 
-### Why not embedded
+### Route prefixes in `app/main.py`
 
-An embedded `api_tokens: list[...]` array on `User` means:
+| Router | Prefix | Auth type | Audience |
+|--------|--------|-----------|----------|
+| `auth.router` | `/auth` | None / Bearer JWT | Everyone |
+| `admin.router` | `/admin/users` | Bearer JWT + `require_admin` | Admin only |
+| `admin.ui_router` | `/admin/ui` | Cookie JWT + `require_admin_cookie` | Admin browser |
+| `qso.router` | `/api/qsos` | Bearer JWT or API key | Operators |
+| `qso.ui_router` | `/log` | Cookie JWT | Operators browser |
+| `adif.router` | `/api/adif` | Bearer JWT | Operators |
+| `feed.router` | `/feed` | Cookie JWT | Operators browser |
+| `profile.router` | `/api/profile` | Bearer JWT | Operators |
+| `tokens.router` | `/api/tokens` | Bearer JWT | Operators |
+| Static `site/` | `/guide` | None | Public |
+| Static `static/` | `/static` | None | Public |
+| `GET /health` | `/health` | None | Monitoring |
+| `GET /api/whoami` | `/api/whoami` | Bearer JWT | Debug |
 
-- Every `User.find_one()` in the existing auth path loads the full token list into memory, even on JWT-only requests where tokens are irrelevant.
-- Token lookup by prefix requires MongoDB `$elemMatch` on an array field — more complex than a top-level `find_one`.
-- A unique index on `users.api_tokens.token_prefix` is a compound array path index — valid, but harder to reason about and document.
-- Revocation requires `$pull` with a nested filter. A top-level `await token.delete()` is simpler and less error-prone.
-- Listing a user's tokens requires loading the full User document and slicing the array rather than a targeted `find({"user_id": user_id})`.
+### Admin container scope
 
-### `ApiToken` Document
+The admin container should expose only the routes needed for admin management work:
 
-```python
-import secrets
-from datetime import datetime, timezone
-from typing import Optional
+- `/auth` — login (to acquire a JWT before hitting admin endpoints)
+- `/admin/users` — REST account management
+- `/admin/ui` — browser-based admin panel
+- `/health` — container health check
+- `/static` — CSS/JS assets required by admin UI templates
 
-import pymongo
-from pymongo import IndexModel
-from beanie import Document
-from pydantic import ConfigDict
-from bson import ObjectId
-from beanie.odm.fields import PydanticObjectId
-
-
-class ApiToken(Document):
-    """Named API token. Plaintext shown once at creation; only hash stored."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    name: str                          # human-readable label, e.g. "n1mm-logger"
-    token_prefix: str                  # first 8 chars of plaintext after "ollog_"; stored clear for lookup narrowing
-    hashed_token: str                  # Argon2 hash of full plaintext token
-    user_id: PydanticObjectId          # FK → users._id
-    created_at: datetime
-    last_used_at: Optional[datetime] = None
-    enabled: bool = True
-
-    class Settings:
-        name = "api_tokens"
-        indexes = [
-            IndexModel(
-                [("user_id", pymongo.ASCENDING)],
-                name="user_id_idx",
-            ),
-            IndexModel(
-                [("token_prefix", pymongo.ASCENDING)],
-                name="token_prefix_idx",
-            ),
-        ]
-```
-
-### Token fields rationale
-
-| Field | Why |
-|-------|-----|
-| `name` | Lets users identify which token belongs to which client (n1mm, fldigi, script, etc.) |
-| `token_prefix` | First 8 chars of the plaintext stored in clear; used to narrow the Argon2 verify target to one document rather than scanning all tokens |
-| `hashed_token` | Argon2 hash of the full `ollog_<32chars>` plaintext — reuses `hash_password()` from `app/auth/service.py` |
-| `user_id` | Foreign key to `users._id`; enables listing and revoking tokens per user |
-| `created_at` | Audit and display |
-| `last_used_at` | Optional; updated on successful verification; useful for identifying stale tokens |
-| `enabled` | Soft-revocation without deletion; hard delete is also supported |
-
-### Token format and generation
-
-```python
-import secrets
-
-def generate_api_token() -> str:
-    """Return a new plaintext API token. Call once; do not store the return value."""
-    return "ollog_" + secrets.token_urlsafe(24)  # 32 URL-safe base64 chars
-
-def token_prefix_from_plaintext(plaintext: str) -> str:
-    """Extract the 8-char prefix used for DB lookup narrowing."""
-    # plaintext = "ollog_<32chars>"; prefix is chars 6–14
-    return plaintext[6:14]
-```
-
-`secrets.token_urlsafe(24)` produces 32 characters. The `ollog_` prefix makes tokens recognisable in config files and enables log redaction rules. Total length: 38 characters.
-
-### Hashing strategy
-
-Reuse `hash_password()` from `app/auth/service.py` directly — it is `pwdlib.PasswordHash.recommended()` which selects Argon2. No new crypto surface. Token verification:
-
-```python
-# In auth/dependencies.py — new api key dep
-prefix = token_prefix_from_plaintext(raw_key)
-candidates = await ApiToken.find(
-    {"token_prefix": prefix, "enabled": True}
-).to_list()
-for candidate in candidates:
-    if verify_password(raw_key, candidate.hashed_token):
-        # update last_used_at, resolve User, return
-        ...
-```
-
-In normal operation the `token_prefix` index returns exactly one candidate; Argon2 verify runs once. The prefix is not a secret — it narrows the candidate set but cannot authenticate on its own.
+Routes the admin container explicitly must NOT expose:
+- `/api/qsos`, `/log`, `/api/adif`, `/feed` — operator logging surface
+- `/api/tokens`, `/api/profile` — operator self-service; not relevant to admin workflows
+- `/guide` — documentation; no need on port 8001
 
 ---
 
-## Question 2: FastAPI Dependency Integration — X-API-Key Without Breaking JWT Deps
+## Section 2: Admin Container — Approach Decision
 
-**Recommendation: Add new parallel dependency functions. Do not modify existing deps.**
+Three approaches considered:
 
-### Why not modify existing deps
-
-`get_current_user` and `get_current_operator_callsign` are imported and used directly across `qso/router.py`, `admin/router.py`, `profile/router.py`, `main.py`, and others. Modifying their signatures or adding fallback logic introduces regression risk across all callsites. The existing JWT path must remain unchanged.
-
-### New dependencies to add in `app/auth/dependencies.py`
+### Approach A: `APP_MODE` env var inside `main.py` (NOT recommended)
 
 ```python
-from fastapi.security import APIKeyHeader
-from fastapi import Security
+# app/main.py — branching version
+import os
+mode = os.getenv("APP_MODE", "operator")
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+app = FastAPI(...)
+app.include_router(auth_router)
+if mode == "admin":
+    app.include_router(admin_router)
+    app.include_router(ui_router)
+else:
+    app.include_router(qso_router)
+    ...
+```
+
+**Problem:** `main.py` becomes a conditional mess. Every future router addition needs to
+decide which mode it belongs to. Lifespan also starts the UDP listener and change-stream
+watcher — both unnecessary for the admin container. Branching lifespan logic compounds
+the problem.
+
+### Approach B: Two separate `main.py` entry points with a shared app factory (recommended)
+
+Create `app/admin_main.py` as a minimal FastAPI application that imports only the admin
+routers. `app/main.py` stays exactly as it is.
+
+```python
+# app/admin_main.py
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
+from app.database import init_db, close_db
+from app.config import settings
+from app.admin.router import router as admin_router
+from app.admin.ui_router import ui_router
+from app.auth.router import router as auth_router
 
 
-async def get_current_user_api_key(
-    api_key: str | None = Security(api_key_header),
-) -> User:
-    """FastAPI dependency: resolve X-API-Key header to a User.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    # No UDP listener, no change-stream watcher
+    yield
+    await close_db()
 
-    Raises 401 if header is missing, token not found, or disabled.
-    Updates last_used_at on the ApiToken document on success.
-    """
-    if api_key is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-API-Key header required",
-        )
-    from app.auth.models import ApiToken
-    prefix = api_key[6:14]  # chars after "ollog_"
-    candidates = await ApiToken.find(
-        {"token_prefix": prefix, "enabled": True}
-    ).to_list()
-    for candidate in candidates:
-        if verify_password(api_key, candidate.hashed_token):
-            user = await User.get(candidate.user_id)
-            if user is None or not user.enabled:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                    detail="Could not validate credentials")
-            await candidate.update(
-                {"$set": {"last_used_at": datetime.now(tz=timezone.utc)}}
-            )
-            return user
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+
+app = FastAPI(title="ollog-admin", version="0.1.0", lifespan=lifespan)
+
+app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(ui_router, include_in_schema=False)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.exception_handler(HTTPException)
+async def ui_auth_redirect(request: Request, exc: HTTPException):
+    path = request.url.path
+    if path.startswith("/admin/ui/") and exc.status_code in (401, 403):
+        return RedirectResponse(url="/admin/ui/login", status_code=302)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
     )
 
 
-async def get_current_operator_callsign_api_key(
-    user: User = Depends(get_current_user_api_key),
-) -> str:
-    """API key version of callsign injection for REST endpoints."""
-    return user.callsign
-```
-
-### Opt-in per route — no global middleware
-
-Do not use a middleware or override all existing deps. Wire the new dep only into routes you explicitly want to open to API key auth. For the initial milestone, that means `POST /api/qsos/` and the token CRUD endpoints themselves.
-
-For routes where both JWT Bearer and API key should work:
-
-```python
-async def _try_bearer(
-    token: str | None = Depends(OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)),
-) -> User | None:
-    if token is None:
-        return None
+@app.get("/health")
+async def health():
+    from app.database import get_client
+    client = get_client()
+    if client is None:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "error"})
     try:
-        payload = decode_access_token(token)
-        username = payload.get("sub")
-        if username is None:
-            return None
-        user = await User.find_one({"username": username})
-        return user if (user and user.enabled) else None
-    except InvalidTokenError:
-        return None
-
-
-async def get_operator_any_auth(
-    bearer_user: User | None = Depends(_try_bearer),
-    api_key_user: User | None = Depends(_try_get_user_api_key_optional),
-) -> str:
-    user = bearer_user or api_key_user
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Could not validate credentials",
-                            headers={"WWW-Authenticate": "Bearer"})
-    return user.callsign
+        await client.admin.command("ping")
+        return {"status": "ok", "mongodb": "connected"}
+    except Exception:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "error"})
 ```
 
-For the initial milestone, adding `get_current_operator_callsign_api_key` to `POST /api/qsos/` (alongside the existing `get_current_user` dep, or replacing it with the union) is sufficient to unblock N1MM+ and similar clients. The token CRUD endpoints themselves use `get_current_user` (JWT only) so users must be logged in via the browser to manage their tokens.
+**Why this is correct:**
+- `main.py` is untouched — no regression risk to the operator service.
+- `admin_main.py` is small, readable, and self-documenting.
+- Lifespan is minimal — no wasted UDP socket or change-stream task.
+- The `_bootstrap_admin()` call is not needed in `admin_main.py` because the admin user
+  is bootstrapped by the operator service at startup. If the operator service is not
+  running, the admin account bootstrap would not have run anyway. (Both services share
+  the same MongoDB; the bootstrap is idempotent so it can optionally be included.)
+- `init_db()` and `close_db()` are the same functions — both services share
+  `app/database.py` without modification.
+
+### Approach C: Docker `command:` override to a different Python file
+
+```yaml
+admin:
+  build: .
+  command: ["uvicorn", "app.admin_main:app", "--host", "0.0.0.0", "--port", "8001"]
+```
+
+This is actually the *same* as Approach B — it requires `app/admin_main.py` to exist.
+"Approach C" is how you wire Approach B into Docker Compose, not a separate strategy.
+
+### Docker Compose changes
+
+```yaml
+# docker-compose.yml additions
+
+  admin:
+    build: .
+    command: ["uvicorn", "app.admin_main:app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - SECRET_KEY=dev-secret-change-in-production
+      - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
+      - MONGODB_DB=ollog
+```
+
+The `admin` service uses an identical `env_file:` and environment block. Both services
+share the same image, same database, same JWT secret — a token issued on port 8000 is
+valid on port 8001 and vice versa. This is correct: an admin who logs in on the operator
+UI should be able to use the same session on the admin UI.
+
+**Image build note:** The `Dockerfile` `COPY` section does not include `docs/` or
+`mkdocs.yml` — only `app/`, `templates/`, `static/`, `site/`. The admin image needs
+`static/` (for template assets) but not `site/`. This is already handled correctly.
 
 ---
 
-## Question 3: UDP `_handle_datagram` — Where to Check `APP_OLLOG_TOKEN`
+## Section 3: Backup Module — Package vs. Single File
 
-**Recommendation: Resolve at lifespan startup in `main.py`, not inside `_handle_datagram`.**
+### Decision: `app/backup/` package (not `app/backup.py`)
 
-### Why not per-datagram
+Rationale:
 
-`_handle_datagram` is a hot path. Every UDP packet dispatches an `asyncio.create_task` to this function. Adding a DB query plus Argon2 verification per datagram would:
+A backup operation involves at minimum three distinct concerns:
+1. `__main__.py` — CLI entry point and argument parsing
+2. MongoDB dump logic — connecting to Motor/PyMongo, running `mongodump` or
+   streaming a collection export
+3. S3 upload logic — boto3/aiobotocore calls, retry, presigned URL or direct put
 
-- Add ~100–200ms of latency per datagram (Argon2 cost)
-- Introduce DB failure modes to a path that currently never touches the database for identity resolution
-- Create head-of-line blocking if a burst of datagrams arrives simultaneously
+Putting all three in a single `app/backup.py` creates a file that will grow past
+200 lines immediately and has no natural seam for tests or future features (e.g. restore,
+backup verification, rotation policy). A package with clear module boundaries is better:
 
-The existing architecture is explicit: `QSODatagramProtocol.__init__` accepts `operator` and `user` at construction time, and `_handle_datagram` receives them as arguments. This is by design. Token resolution should follow the same pattern.
+```
+app/backup/
+    __init__.py        # public API if needed; may be empty
+    __main__.py        # entry point: python -m app.backup [args]
+    dump.py            # MongoDB dump: mongodump subprocess or Motor streaming
+    upload.py          # S3 upload via boto3
+    config.py          # backup-specific settings (S3 bucket, prefix, schedule)
+    scheduler.py       # APScheduler or simple asyncio.sleep loop for scheduled runs
+```
 
-`_handle_datagram` itself does not change.
+`python -m app.backup` dispatches to `app/backup/__main__.py`. This is standard Python
+packaging convention and works with the existing project layout.
 
-### Changes in `main.py` lifespan
+### MongoDB connection in backup
 
-Add `app_ollog_token: str | None = None` to `Settings` in `config.py`, then extend the UDP startup block:
+The backup module must connect to MongoDB *independently* of the FastAPI app. It cannot
+import `app.database` and call `init_db()` because that function also calls `init_beanie`
+which requires the full model tree. For a dump, raw PyMongo is preferable:
 
 ```python
-# In lifespan, replacing the current UDP startup block:
-if settings.udp_enabled:
-    from app.auth.models import User as UserModel, ApiToken
-    from app.auth.service import verify_password, token_prefix_from_plaintext
-    from app.udp.server import start_udp_listener
+# app/backup/dump.py
+from pymongo import MongoClient
 
-    udp_user: UserModel | None = None
-    udp_op: str | None = None
-
-    if settings.app_ollog_token:
-        # Token-based identity takes precedence over UDP_OPERATOR
-        raw = settings.app_ollog_token
-        prefix = token_prefix_from_plaintext(raw)
-        candidates = await ApiToken.find(
-            {"token_prefix": prefix, "enabled": True}
-        ).to_list()
-        for candidate in candidates:
-            if verify_password(raw, candidate.hashed_token):
-                udp_user = await UserModel.get(candidate.user_id)
-                if udp_user and udp_user.enabled:
-                    udp_op = udp_user.callsign
-                    logger.info(
-                        "UDP identity resolved via APP_OLLOG_TOKEN: %s", udp_op
-                    )
-                    await candidate.update(
-                        {"$set": {"last_used_at": datetime.now(tz=timezone.utc)}}
-                    )
-                break
-        if udp_op is None:
-            logger.warning(
-                "APP_OLLOG_TOKEN set but could not resolve to a valid user — "
-                "falling back to UDP_OPERATOR"
-            )
-
-    if udp_op is None and settings.udp_operator:
-        # Existing behaviour: callsign-pinned identity
-        udp_op = settings.udp_operator.upper()
-        udp_user = await UserModel.find_one({"callsign": udp_op})
-        if udp_user is None:
-            logger.warning(
-                "UDP_OPERATOR callsign %r not found in DB — profile stamping disabled",
-                udp_op,
-            )
-
-    udp_transport, _ = await start_udp_listener(
-        settings.udp_bind_host,
-        settings.udp_port,
-        operator=udp_op,
-        user=udp_user,
-    )
+def dump_collection(uri: str, db_name: str, collection: str) -> bytes:
+    """Stream all documents from a collection as NDJSON bytes."""
+    import json
+    client = MongoClient(uri)
+    db = client[db_name]
+    lines = []
+    for doc in db[collection].find():
+        doc["_id"] = str(doc["_id"])
+        lines.append(json.dumps(doc))
+    client.close()
+    return b"\n".join(line.encode() for line in lines)
 ```
 
-Priority order: `APP_OLLOG_TOKEN` → `UDP_OPERATOR` → `None` (datagrams discarded, existing behaviour).
+Alternative: call `mongodump` as a subprocess and capture stdout (BSON). This is more
+faithful for restore purposes but requires `mongodump` to be present in the image. The
+Dockerfile base is `python:3.12-slim` which does not include MongoDB tools. Either:
+- Add `RUN apt-get install -y mongodb-database-tools` to Dockerfile, or
+- Use the pure-Python NDJSON approach and skip `mongodump` entirely.
+
+For v1.8, the pure-Python approach is recommended: no Dockerfile changes, no binary
+dependency. The output format (NDJSON per collection) is sufficient for point-in-time
+restore and is human-readable.
+
+### S3 upload
+
+Use `boto3` (synchronous) in the backup CLI — it does not need to be async since the CLI
+is not a FastAPI endpoint. `boto3` is simpler and better documented than `aiobotocore`
+for a CLI use case:
+
+```python
+# app/backup/upload.py
+import boto3
+from datetime import datetime, timezone
+
+def upload_to_s3(data: bytes, bucket: str, key_prefix: str, filename: str) -> str:
+    """Upload bytes to S3. Returns the S3 object key."""
+    s3 = boto3.client("s3")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    key = f"{key_prefix}/{timestamp}-{filename}"
+    s3.put_object(Bucket=bucket, Key=key, Body=data)
+    return key
+```
+
+S3 credentials come from environment variables (`AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`) — the standard boto3 credential chain.
+No custom credential handling needed.
+
+### Scheduled runs
+
+If v1.8 requires scheduled backups (e.g. nightly), two options:
+
+**Option A: Docker Compose `cron` service** — add a `backup` service with
+`restart: always` that loops with `sleep`:
+
+```yaml
+  backup:
+    build: .
+    command: >
+      sh -c "while true; do python -m app.backup; sleep 86400; done"
+    env_file: .env
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
+      - BACKUP_S3_BUCKET=my-ollog-backups
+```
+
+**Option B: APScheduler inside `app/backup/scheduler.py`** — a long-running Python
+process that fires the backup job on a cron schedule.
+
+Option A is simpler and requires no additional dependencies. Recommended for v1.8.
+
+### Named volume and backup path
+
+From `docker-compose.yml`:
+
+```yaml
+volumes:
+  mongo-data:
+```
+
+The `mongodb` service mounts `mongo-data:/data/db`. This is a Docker named volume, not a
+bind mount. It cannot be accessed directly from the host filesystem path. Implications:
+
+- A `mongodump`-based backup would need the backup service to share the same volume
+  mount (`mongo-data:/data/db:ro`) — messy and fragile.
+- The pure-Python NDJSON approach (connecting to `mongodb:27017` via network) sidesteps
+  this entirely. The backup service connects to MongoDB the same way the API service does.
+- **Confirmed: there is no bind-mount path to worry about.** The backup module uses the
+  `MONGODB_URI` environment variable, not a filesystem path.
 
 ---
 
-## New vs. Modified Components
+## Section 4: MkDocs — Current State and What Changes
 
-| Component | Status | Nature of change |
-|-----------|--------|-----------------|
-| `app/auth/models.py` | Modified | Add `ApiToken` Beanie Document |
-| `app/auth/service.py` | Unchanged | `hash_password` / `verify_password` reused as-is; add `generate_api_token()` and `token_prefix_from_plaintext()` helper functions (pure, no deps) |
-| `app/auth/dependencies.py` | Modified | Add `get_current_user_api_key`, `get_current_operator_callsign_api_key`; optionally add `_try_bearer` + `get_operator_any_auth` union dep |
-| `app/auth/router.py` | Modified | Add `POST /auth/tokens`, `GET /auth/tokens`, `DELETE /auth/tokens/{id}` behind JWT auth |
-| `app/config.py` | Modified | Add `app_ollog_token: str | None = None` |
-| `app/database.py` | Modified | Add `ApiToken` to `init_beanie` `document_models` list |
-| `app/main.py` | Modified | Extend lifespan UDP block for `APP_OLLOG_TOKEN` resolution |
-| `app/udp/server.py` | Unchanged | `_handle_datagram`, `QSODatagramProtocol`, `start_udp_listener` all unchanged |
-| `app/qso/router.py` | Optionally modified | Swap or supplement `get_current_user` dep on `POST /api/qsos/` to accept API key |
+### What already exists
+
+```
+mkdocs.yml          # config: Material theme, slate/indigo, 7-page nav
+docs/               # source markdown
+    index.md
+    deployment.md
+    getting-started.md
+    admin-guide.md
+    api-reference.md
+    adif-field-reference.md
+    troubleshooting.md
+site/               # built HTML (committed to repo, served by FastAPI)
+```
+
+`app/main.py` line 151:
+```python
+app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
+```
+
+The docs are served at `/guide` by the operator service. MkDocs Material is already
+configured with the correct theme (`slate` scheme, `indigo` primary). This is a
+content-rewrite task, not an infrastructure task.
+
+### What v1.8 changes
+
+The "docs rewrite" means updating the content of `docs/*.md` files and rebuilding
+`site/`. No changes needed to:
+- `mkdocs.yml` (unless new pages are added to `nav:`)
+- `app/main.py` (mount point stays at `/guide`)
+- `Dockerfile` (already `COPY site/ site/`)
+- `docker-compose.yml` (no new service)
+
+If new pages are added (e.g. a backup guide or API token guide), add them to the `nav:`
+in `mkdocs.yml` and create the corresponding `docs/*.md` files. Rebuild with
+`mkdocs build` before committing the updated `site/`.
+
+The admin container (`admin_main.py`) does not mount `/guide` — documentation is only
+relevant on the operator-facing port 8000.
+
+### Build workflow
+
+```bash
+# From project root, with mkdocs-material installed:
+mkdocs build          # outputs to site/
+# Then commit site/ alongside docs/ changes
+```
+
+The `site/` directory is committed to the repository (as it is today) so Docker image
+builds do not require `mkdocs` to be present in the image. This is the correct pattern
+for this project.
 
 ---
 
-## Recommended Build Order
+## Section 5: Shared Infrastructure — What Both Services Use
 
-The quality gate requires that UDP changes depend on token lookup working first.
-
-| Step | Component | Why this order |
-|------|-----------|----------------|
-| 1 | `ApiToken` model in `auth/models.py` + `database.py` registration | No other step can query tokens until the collection exists and Beanie knows about it |
-| 2 | `generate_api_token()` + `token_prefix_from_plaintext()` in `auth/service.py` | Pure functions; testable in isolation; required by steps 3 and 4 |
-| 3 | Token CRUD in `auth/router.py` (`POST`, `GET`, `DELETE /auth/tokens`) | Allows manual creation and verification of the full token lifecycle before wiring into auth deps or UDP |
-| 4 | `get_current_user_api_key` in `auth/dependencies.py` | Depends on steps 1–2; uses `verify_password` already in service.py |
-| 5 | Opt-in to REST routes in `qso/router.py` | Depends on step 4; surgical `Depends()` change per route |
-| 6 | `app_ollog_token` in `config.py` + lifespan block in `main.py` | Depends on steps 1–2 for `ApiToken.find()` and `token_prefix_from_plaintext()`; `_handle_datagram` untouched |
-
-Steps 1–3 can be delivered and tested end-to-end (token creation, listing, deletion via JWT auth) before any existing endpoint is modified. Steps 4–6 are independent branches that can proceed in parallel once step 2 is complete.
+| Component | Used by operator | Used by admin | Notes |
+|-----------|-----------------|---------------|-------|
+| `app/config.py` | Yes | Yes | Both read from same `.env` |
+| `app/database.py` | Yes | Yes | `init_db()` / `close_db()` |
+| `app/auth/` | Yes | Yes | Models, deps, router, service |
+| `app/admin/router.py` | Yes | Yes | Admin user CRUD |
+| `app/admin/ui_router.py` | Yes | Yes | Admin browser UI |
+| `app/qso/` | Yes | No | Operator-only |
+| `app/adif/` | Yes | No | Operator-only |
+| `app/feed/` | Yes | No | Operator-only |
+| `app/profile/` | Yes | No | Operator-only |
+| `app/tokens/` | Yes | No | Operator-only |
+| `app/udp/` | Yes (if enabled) | No | Operator-only |
+| `app/backup/` | No | No | CLI-only, invoked by backup service |
+| `templates/` | Yes | Yes | Admin UI templates are in `templates/admin/` |
+| `static/` | Yes | Yes | CSS/JS for both UIs |
+| `site/` | Yes | No | Only operator service mounts /guide |
 
 ---
 
-## Data Flow
-
-### Token Creation
+## Section 6: Component Boundaries Diagram
 
 ```
-POST /auth/tokens
-  Authorization: Bearer <jwt>
-  {"name": "n1mm-logger"}
-        |
-        ▼
-get_current_user → current_user verified
-        |
-        ▼
-generate_api_token() → "ollog_<32chars>"
-token_prefix = plaintext[6:14]
-hashed = hash_password(plaintext)   # Argon2
-        |
-        ▼
-ApiToken(name, token_prefix, hashed_token, user_id=current_user.id,
-         created_at=now).insert()
-        |
-        ▼
-{"token": "ollog_<32chars>", "id": "...", "name": "n1mm-logger"}
-  # plaintext returned ONCE — not stored, not re-fetchable
-```
-
-### API Key Request Auth
-
-```
-POST /api/qsos/
-  X-API-Key: ollog_<32chars>
-        |
-        ▼
-get_current_user_api_key dependency
-        |
-        ▼
-prefix = key[6:14]
-ApiToken.find({"token_prefix": prefix, "enabled": True})
-  → usually 0 or 1 result
-        |
-        ▼
-verify_password(raw_key, candidate.hashed_token)  # Argon2 ~100ms
-        |
-        ▼  (match)
-User.get(candidate.user_id) → return user
-candidate.last_used_at = now  (fire-and-forget update)
-        |
-        ▼
-build_qso_dict(record, user.callsign, profile=user)
-QSO.insert()
-```
-
-### UDP Token Resolution (startup only)
-
-```
-lifespan startup
-        |
-        ▼
-APP_OLLOG_TOKEN set?
-  YES → prefix = token[6:14]
-        ApiToken.find(prefix, enabled=True) → Argon2 verify → User.get()
-        udp_op = user.callsign, udp_user = user
-  NO  → UDP_OPERATOR set?
-          YES → User.find_one(callsign)  [existing behaviour]
-          NO  → udp_op = None
-        |
-        ▼
-start_udp_listener(host, port, operator=udp_op, user=udp_user)
-        |
-        ▼
-QSODatagramProtocol stores (operator, user) for process lifetime
-  — _handle_datagram unchanged —
+Docker Compose
+│
+├── mongodb (mongo:7, named volume mongo-data)
+│   └── Collections: qsos, users, api_tokens
+│
+├── api (port 8000) → uvicorn app.main:app
+│   Routes: /auth /admin/users /admin/ui /api/qsos /log
+│           /api/adif /feed /api/profile /api/tokens
+│           /guide /static /health
+│   Lifespan: init_db, _bootstrap_admin, watch_qsos, udp_listener
+│
+├── admin (port 8001) → uvicorn app.admin_main:app
+│   Routes: /auth /admin/users /admin/ui /static /health
+│   Lifespan: init_db only (no UDP, no change stream)
+│
+└── backup (no port) → python -m app.backup
+    Connects to: MONGODB_URI (direct PyMongo)
+    Writes to: AWS S3 via boto3
+    Trigger: schedule (sleep loop) or one-shot
 ```
 
 ---
 
-## Anti-Patterns
+## Section 7: Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Embedding Tokens in `User`
+### Anti-Pattern 1: `APP_MODE` env var branching in `main.py`
 
-**What people do:** Add `api_tokens: list[ApiToken] = []` as a subdocument array on the `User` document.
+**What goes wrong:** `main.py` accumulates conditional logic. Every new router and every
+lifespan concern needs a mode check. Tests need to set `APP_MODE` before importing.
 
-**Why it's wrong:** Every `User.find_one()` loads the full token array. Token lookup by prefix requires `$elemMatch`. Revocation requires `$pull` with nested filter. Adding a user's second token requires `$push`. All operations are more complex than equivalent top-level document ops.
+**Do this instead:** Separate entry point `app/admin_main.py`. Keep `main.py` clean.
 
-**Do this instead:** Separate `api_tokens` collection with a `user_id` index.
+### Anti-Pattern 2: `app/backup.py` as a single file
 
-### Anti-Pattern 2: Per-Datagram Token Lookup
+**What goes wrong:** Dump logic, S3 upload, CLI parsing, and scheduling all live in one
+file. It grows past 300 lines with no seam for tests. Future features (restore, rotation)
+have nowhere to live.
 
-**What people do:** Check `APP_OLLOG_TOKEN` inside `_handle_datagram`, doing a DB query + Argon2 verify on every UDP packet.
+**Do this instead:** `app/backup/` package with `__main__.py`, `dump.py`, `upload.py`,
+`config.py`.
 
-**Why it's wrong:** Argon2 is ~100ms. A burst of datagrams queues behind serial verifications. DB failure modes enter the hot path. The existing design explicitly resolves identity once at startup.
+### Anti-Pattern 3: Sharing the `site/` mount on the admin container
 
-**Do this instead:** Resolve the token during `lifespan` startup, cache `(operator, user)` on `QSODatagramProtocol`. Same pattern as `UDP_OPERATOR` today.
+**What goes wrong:** The admin container serves docs at `/guide`. This doubles the
+surface area where documentation is accessible and adds a `StaticFiles` mount that serves
+no purpose for admin workflows.
 
-### Anti-Pattern 3: Modifying Existing JWT Dependencies
+**Do this instead:** `admin_main.py` does not mount `/guide`. Docs are operator-facing
+only.
 
-**What people do:** Add `X-API-Key` fallback logic directly into `get_current_user` or `get_current_operator_callsign`.
+### Anti-Pattern 4: Using `mongodump` subprocess without the binary in the image
 
-**Why it's wrong:** These deps are used across every authenticated route. Adding a second auth path touches all callsites and conflates two distinct mechanisms in a single function.
+**What goes wrong:** `python:3.12-slim` does not include `mongodb-database-tools`.
+`mongodump` fails with `FileNotFoundError`. Adding it requires a multi-stage build or
+apt install, which bloats the image used for both the API and admin services.
 
-**Do this instead:** New parallel dep functions. Existing routes unchanged. New routes opt in explicitly.
+**Do this instead:** Use Motor or PyMongo to stream documents as NDJSON. No binary
+dependency. No Dockerfile change.
 
-### Anti-Pattern 4: Storing Plaintext Tokens
+### Anti-Pattern 5: `admin_main.py` imports from `main.py`
 
-**What people do:** Store the full token plaintext for "show again" convenience.
+**What goes wrong:** `main.py` creates the `app` FastAPI object at module import time.
+Importing from `main.py` in `admin_main.py` starts the full operator lifespan.
 
-**Why it's wrong:** If `api_tokens` is exfiltrated, all tokens are immediately usable. The one-time display pattern is standard (GitHub, Stripe, etc.).
-
-**Do this instead:** Store only the Argon2 hash and the clear-text prefix. Return plaintext in the creation response and never again.
-
-### Anti-Pattern 5: Full Token Scan for Verification
-
-**What people do:** On every API key request, load all tokens for the user and Argon2-verify each one to find a match.
-
-**Why it's wrong:** With N tokens per user, N Argon2 operations at ~100ms each means N*100ms latency. Even with 5 tokens that is 500ms worst-case.
-
-**Do this instead:** Use the `token_prefix` index to narrow to one candidate, then verify that one. Prefix lookup is O(1) index read; verification is one Argon2 call.
-
----
-
-## Integration Points: Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| `auth/dependencies.py` → `auth/models.py` (ApiToken) | Beanie `find()` | Same pattern as existing `User.find_one()` |
-| `auth/dependencies.py` → `auth/service.py` | `verify_password()` call | No new surface; existing Argon2 function |
-| `main.py` lifespan → `auth/models.py` (ApiToken) | Beanie `find()` | Added to existing UDP startup block |
-| `auth/router.py` → `auth/service.py` | `generate_api_token()`, `token_prefix_from_plaintext()`, `hash_password()` | Token CRUD uses same service module as user password management |
-| `qso/router.py` → `auth/dependencies.py` | `Depends(get_current_operator_callsign_api_key)` | Opt-in per route |
+**Do this instead:** `admin_main.py` imports directly from `app.admin.router`,
+`app.auth.router`, etc. Never imports from `app.main`.
 
 ---
 
 ## Sources
 
-- Direct codebase inspection: `app/auth/models.py`, `app/auth/dependencies.py`, `app/auth/service.py`, `app/udp/server.py`, `app/main.py`, `app/config.py`, `app/database.py`, `app/qso/router.py` (HIGH confidence — live codebase)
-- FastAPI `APIKeyHeader` security utility: `fastapi.security.APIKeyHeader` — standard FastAPI pattern for header-based API keys (HIGH confidence — stable FastAPI API)
-- Argon2 prefix-narrowing pattern: industry standard for API key design; prefix stored clear for lookup, hash stored for verification — used by GitHub personal access tokens, Stripe API keys, and others (HIGH confidence — widely documented pattern)
-- `secrets.token_urlsafe` for cryptographic token generation: Python stdlib, appropriate for secrets (HIGH confidence)
+- Direct codebase inspection: `docker-compose.yml`, `Dockerfile`, `app/main.py`,
+  `app/config.py`, `app/database.py`, `app/admin/router.py`, `app/admin/ui_router.py`,
+  `app/qso/router.py`, `app/qso/ui_router.py`, `app/auth/router.py`, `app/adif/router.py`,
+  `app/feed/router.py`, `app/profile/router.py`, `app/tokens/router.py`,
+  `app/udp/server.py`, `mkdocs.yml`, `docs/index.md` (HIGH confidence — live codebase)
+- FastAPI `StaticFiles` mount ordering: `main.py` line 151 comment notes it is
+  load-bearing — confirmed pattern (HIGH confidence)
+- Docker Compose named volume vs. bind mount: `docker-compose.yml` `volumes:` section
+  shows `mongo-data:` (named, not bind-mounted) — directly observed (HIGH confidence)
+- `python -m package` entry point convention: Python stdlib `__main__.py` pattern
+  (HIGH confidence)
+- boto3 credential chain: standard AWS SDK pattern, no project-specific validation needed
+  (MEDIUM confidence — standard but not verified against current project deps)
 
 ---
 
-*Architecture research for: named API token auth integration — ollog FastAPI/Beanie/MongoDB*
-*Researched: 2026-04-09*
+*Architecture research for: ollog v1.8 — admin container, backup module, docs rewrite*
+*Researched: 2026-04-10*

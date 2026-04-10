@@ -1,264 +1,133 @@
-# Project Research Summary
+# Research Summary: ollog v1.8
 
-**Project:** ollog — Named API Token Auth (v1.7)
-**Domain:** API token authentication — REST X-API-Key + UDP ADIF APP_ field identity resolution
-**Researched:** 2026-04-09
-**Confidence:** HIGH (all four files grounded in direct codebase inspection and official docs)
+**Project:** ollog v1.8
+**Domain:** FastAPI + Beanie (MongoDB) + HTMX ham radio QSO logging app
+**Researched:** 2026-04-10
+**Confidence:** HIGH (admin container, backup approach, docs tooling all grounded in live codebase inspection and official docs)
 
 ---
 
 ## Executive Summary
 
-ollog v1.7 adds named API tokens to a FastAPI + Beanie + MongoDB ham radio logging app that already has JWT Bearer (REST) and HTTP-only cookie (browser UI) auth. The core driver is overnight FT8 sessions: JWT tokens expire after 480 minutes with no automated refresh path in tools like N1MM+ or WSJT-X; named tokens with optional expiry (defaulting to never) solve this permanently. The feature has three interlocking parts that must ship together: a token management UI in the operator profile page, X-API-Key header validation on QSO REST endpoints, and APP_OLLOG_TOKEN field extraction from UDP ADIF datagrams to resolve operator identity per datagram.
+v1.8 adds three independent capabilities to an already-working FastAPI + Beanie + HTMX stack: a dedicated admin container, a database backup CLI, and a comprehensive docs rewrite. Each capability is architecturally isolated — they share the same image and database but do not entangle each other's code paths. The recommended implementation strategy is to build all three as sequential phases with low coupling risk since there are no cross-feature dependencies.
 
-The recommended implementation requires zero new libraries. FastAPI's built-in `APIKeyHeader`, Python's `secrets` and `hmac` stdlib modules, Beanie's Document class, and the existing `pymongo` index tooling cover all needs. The data model question (embed tokens in `User` vs. separate collection) and the hashing algorithm choice (Argon2 vs. HMAC-SHA256) are the two decisions that must be resolved before a single line of token code is written — both have clear right answers that differ from what one of the research agents recommended. The UDP path has an architectural constraint (startup-pinned operator) that the milestone goal partially conflicts with; the correct resolution is also documented below.
+The two most consequential decisions for this milestone are already resolved by research. First, the admin container must use a distinct cookie name (`admin_token`, not `access_token`) because RFC 6265 excludes port from cookie scope — both containers running on `localhost` at ports 8000 and 8001 share the same cookie jar, making name collision a guaranteed silent auth bug, not a theoretical edge case. Second, the backup module cannot call `mongodump` via subprocess because `python:3.12-slim` does not include MongoDB Database Tools, and adding them bloats the image shared with the API and admin services; instead, the backup should use pure-Python PyMongo/BSON export (EJSON format via `bson.json_util.dumps()`), which requires no Dockerfile changes and is adequate for point-in-time restore of any realistic ham log dataset.
 
-The main integration risk is the FastAPI `OAuth2PasswordBearer`/`APIKeyHeader` stacking behavior: `OAuth2PasswordBearer` with `auto_error=True` returns HTTP 403 (not 401) before an API key can be inspected. The combined auth dependency must use `auto_error=False` on both schemes. This is a documented FastAPI quirk (GitHub issues #2026 and #10177) with a known fix. All other pitfalls are either low-risk or have straightforward preventions at the schema or dependency layer.
-
----
-
-## Key Findings
-
-### Recommended Stack
-
-No new dependencies are required. All capabilities are satisfied by the existing lock file.
-
-**Core technologies:**
-
-- `fastapi[standard] 0.135+`: `APIKeyHeader` in `fastapi.security`; `Depends`/`Security` injection — already installed
-- `Python stdlib hmac + hashlib`: HMAC-SHA256 for token hashing — use this, NOT pwdlib Argon2 (see Decision 1)
-- `Python stdlib secrets`: `secrets.token_urlsafe(32)` for token generation (256-bit entropy, URL-safe base64) — already available
-- `beanie 2.1+`: `ApiToken` as a separate Beanie `Document` (see Decision 2) — already installed
-- `pymongo 4.16+`: `IndexModel` for token prefix + user_id composite index — already installed
-- `pwdlib[argon2] 0.3.0`: retained for password hashing only — do not use for token verification
-
-`secrets.token_urlsafe(32)` is the canonical Python token generator. An `ollog_` prefix on every token makes tokens self-identifying in config files and enables secret-scanning tool detection (GitHub, GitLab scanners recognize the prefix). The full token string (38 chars including prefix) is what the operator copies; only the HMAC-SHA256 digest and the first 8 chars (prefix for lookup narrowing) are stored in MongoDB.
-
-See `.planning/research/STACK.md` for full integration point mapping.
-
-### Expected Features
-
-**Must have — table stakes (v1.7):**
-- Create token: required name (1-80 chars, alphanumeric + hyphen/underscore), optional expiry date defaulting to never
-- Show token plaintext exactly once at creation with a copy button; "will not be shown again" warning required
-- List tokens: name, created date, expiry or "Never", last 4 chars hint, last used date, Revoke action
-- Revoke individual token: immediate effect; soft-delete (`enabled=False`) preferred to preserve audit trail
-- `X-API-Key: ollog_<token>` accepted on all QSO REST endpoints alongside existing JWT Bearer
-- `APP_OLLOG_TOKEN` ADIF field in UDP datagrams resolves operator identity per datagram; `UDP_OPERATOR` remains valid fallback
-- Reject datagram with invalid `APP_OLLOG_TOKEN` present — do not silently fall through to `UDP_OPERATOR`
-- Structured log tokens for UDP auth outcomes matching existing `disposition=accepted|rejected` convention
-
-**Should have — differentiators:**
-- `last_used_at` timestamp updated on every successful authentication (low cost, high audit value)
-- `ollog_` token prefix for recognizability and secret scanning compatibility
-- Token count limit of 20 per operator with a clear 422 error message
-- 8-char plaintext prefix stored for lookup narrowing — avoids N-verify scan problem
-- Inline copy button using `navigator.clipboard.writeText()` at creation
-- Clipboard copy confirmation ("Token copied — this value is no longer shown") replacing the plaintext display
-
-**Defer to v2+:**
-- Token scopes/permissions — no meaningful read vs. write distinction in a single-operator logbook
-- Admin token management across operators — disable operator account as current workaround for compromised tokens
-- Token usage audit log — `last_used_at` covers 95% of the need; full log requires separate storage design
-- Token rotation (regenerate same name, new secret) — revoke + create is equivalent for personal tokens
-
-See `.planning/research/FEATURES.md` for full feature dependency graph and MVP checklist.
-
-### Architecture Approach
-
-The architecture adds one new Beanie Document (`ApiToken`), two new FastAPI dependency functions, one new token CRUD router, and extensions to the lifespan UDP startup block. No existing components are modified beyond additive opt-in. The QSO router opts individual routes into the new dependency; existing JWT-only routes are untouched.
-
-**Major components:**
-
-1. `app/auth/models.py` — `ApiToken` Beanie Document (separate collection); fields: `name`, `token_prefix` (8 chars, plaintext), `hashed_token` (HMAC-SHA256 digest), `user_id` (FK to `users._id`), `created_at`, `last_used_at`, `enabled`; composite index on `(token_prefix, user_id)`; registered in `app/database.py`
-2. `app/auth/service.py` — add `generate_api_token()` and `token_prefix_from_plaintext()` pure helpers; add `hash_api_token()` and `verify_api_token()` using `hmac`/`hashlib`; existing `hash_password`/`verify_password` (Argon2) remain for password use only
-3. `app/auth/dependencies.py` — add `get_current_user_api_key` and `get_current_operator_callsign_api_key`; add `get_operator_any_auth` union dependency (Bearer first, API key fallback) for routes accepting both
-4. `app/auth/router.py` — add `POST /auth/tokens`, `GET /auth/tokens`, `DELETE /auth/tokens/{id}` (JWT auth only — operators manage tokens via browser)
-5. `app/config.py` — add `api_token_secret: SecretStr` for HMAC key; separate from `SECRET_KEY` for independent rotation
-6. `app/main.py` lifespan — load enabled `ApiToken` documents into in-memory cache at startup; extend UDP block to resolve `APP_OLLOG_TOKEN` from cache; `_handle_datagram` itself is unchanged
-
-**Validated build order (from ARCHITECTURE.md):**
-1. `ApiToken` model + DB registration (no other step works without this)
-2. `generate_api_token()`, `token_prefix_from_plaintext()`, `hash_api_token()`, `verify_api_token()` helpers (pure, testable in isolation)
-3. Token CRUD router (POST/GET/DELETE, testable end-to-end before touching auth deps)
-4. `get_current_user_api_key` dependency
-5. Opt-in on QSO REST routes
-6. Config + lifespan cache + UDP block extension
-
-Steps 1-3 can be delivered and smoke-tested before any existing endpoint is modified.
-
-See `.planning/research/ARCHITECTURE.md` for full data flow diagrams and anti-pattern catalogue.
-
-### Critical Pitfalls
-
-1. **Wrong HTTP 403 on missing API key** — `OAuth2PasswordBearer(auto_error=True)` fires before `APIKeyHeader` can run and returns 403 (not 401). Prevention: `auto_error=False` on both schemes in the combined dependency; raise `HTTPException(401)` manually. Highest-integration-risk issue; existing tests must pass before and after the change.
-
-2. **Argon2 used for token verification** — 200-500ms per verify added to every API-key request; event loop starvation under concurrent load. Prevention: use HMAC-SHA256 for tokens, Argon2 only for passwords. Recovery from this mistake requires re-issuing all tokens.
-
-3. **Plaintext token stored in DB or logged** — accidental `plain_token` field on the model, or a debug `logger.info(token)` call, constitutes full credential exposure. Prevention: schema has no plaintext field; add a grep test asserting no token-format string appears in log output.
-
-4. **CSRF on token create/revoke forms** — cookie-authenticated state-changing endpoints. Prevention: verify `SameSite=Lax` on the `access_token` cookie; use `DELETE` (not `POST`) for revocation — HTML forms cannot trigger DELETE.
-
-5. **ADIF APP_ field name injection** — if a token label is used as part of a field name (`APP_OLLOG_{token_name}`), special chars produce invalid ADIF. Prevention: validate token names to alphanumeric + hyphen/underscore, max 32 chars at creation; if stamping source info use fixed field name `APP_OLLOG_SOURCE` with the label as the value.
-
-See `.planning/research/PITFALLS.md` for full pitfall-to-phase mapping, recovery strategies, and a "Looks Done But Isn't" checklist.
+The docs rewrite is low-risk: MkDocs Material is already installed, `site/` is already mounted at `/guide`, and the work is content-only. The only sharp edge is the decision on whether to embed interactive API reference — if so, `mkdocs-swagger-ui-tag` (static assets, no CDN) is the only viable plugin for an app served from FastAPI StaticFiles, and it requires exporting `openapi.json` as a pre-build step.
 
 ---
 
-## Decisions Required Before Planning
+## v1.8 Feature Areas
 
-Three cross-file conflicts emerged from synthesis. Each has a clear recommended answer, but the decision must be recorded explicitly before phase plans are written.
+### Admin Container
 
----
+**Recommended approach:** Create `app/admin_main.py` as a standalone FastAPI entry point that imports only the admin and auth routers. Keep `app/main.py` completely unchanged. Wire the Docker Compose `admin` service to use `command: ["uvicorn", "app.admin_main:app", "--host", "0.0.0.0", "--port", "8001"]` and gate the service behind `profiles: [admin]` so it is opt-in and does not start by default.
 
-### Decision 1 — TOKEN HASHING ALGORITHM (UNRESOLVED — DECIDE BEFORE PHASE 1)
+The admin container's lifespan should call `init_db()` and `close_db()` only — no UDP listener, no change-stream watcher. Both containers share the same `.env`, the same `SECRET_KEY`, and the same MongoDB instance, so a JWT issued on port 8000 is valid on port 8001 (this is intentional: an admin logged into the operator UI should not have to re-authenticate).
 
-**Conflict:**
-STACK.md recommends reusing `pwdlib` Argon2 (`hash_password` / `verify_password`) for token hashing, arguing that API tokens are high-entropy secrets that must survive offline attacks if the DB leaks.
+**Key constraints:**
+- Admin cookie must be named `admin_token`. The admin login handler sets `response.set_cookie(key="admin_token", ...)` and the admin auth dependency reads `Cookie(alias="admin_token")`. The operator-side `access_token` cookie remains unchanged.
+- `admin_main.py` must never import from `app.main` — doing so would instantiate the operator `FastAPI` app object and start its lifespan.
+- `init_beanie()` must be called with the full `document_models=[QSO, User, ApiToken]` list even in the admin app, to avoid `CollectionWasNotInitialized` errors on any shared code path.
 
-PITFALLS.md says do NOT use Argon2 for token hashing. Argon2 with recommended parameters takes 200-500ms per operation. Every X-API-Key request must verify a token — this adds 200-500ms to every such request and starves the asyncio event loop under concurrent load. Recovery from this mistake requires re-issuing all tokens (there is no migration path that does not break existing tokens).
-
-**Recommended resolution: Use HMAC-SHA256, not Argon2, for API token storage and verification.**
-
-Rationale: Argon2 is the right choice for passwords because passwords have low entropy and must be slow to crack offline. API tokens generated with `secrets.token_urlsafe(32)` have 256 bits of entropy — the brute-force search space is infeasible regardless of hash speed, so the intentional slowness of Argon2 provides zero additional security benefit. HMAC-SHA256 with a secret key (stored in `Settings.api_token_secret`, separate from `SECRET_KEY`) is constant-time via `hmac.compare_digest`, takes microseconds to verify, and is the appropriate algorithm for this use case. OWASP explicitly documents this distinction.
-
-**Implementation pattern:**
-```python
-import hmac, hashlib
-
-def hash_api_token(raw_token: str, secret: str) -> str:
-    return hmac.new(secret.encode(), raw_token.encode(), hashlib.sha256).hexdigest()
-
-def verify_api_token(raw_token: str, stored_hash: str, secret: str) -> bool:
-    return hmac.compare_digest(hash_api_token(raw_token, secret), stored_hash)
-```
-
-The `password_hash.verify()` function from `app/auth/service.py` must NOT appear anywhere in token verification code. Add a grep assertion in tests.
+**Critical pitfalls to avoid:**
+- Cookie name collision between port 8000 and 8001 (CRITICAL — RFC 6265, guaranteed browser behavior).
+- `admin_main.py` importing from `app.main` and triggering operator lifespan startup.
+- `SECRET_KEY=dev-secret-change-in-production` hardcoded in `docker-compose.yml` environment block — remove it; force the value to come from `.env` so the Pydantic required-field guard actually fires.
 
 ---
 
-### Decision 2 — API TOKEN DATA MODEL: EMBEDDED VS. SEPARATE COLLECTION (UNRESOLVED — DECIDE BEFORE PHASE 1)
+### Database Backup
 
-**Conflict:**
-STACK.md recommends embedding `ApiToken` as a `pydantic.BaseModel` list inside the `User` Document (`api_tokens: list[ApiToken] = []`). Rationale: Beanie supports this natively, tokens belong to a user, there are few per user, and no separate collection lookup is needed.
+**Recommended approach:** Implement `app/backup/` as a Python package (not a single file) with `__main__.py`, `dump.py`, `upload.py`, and `scheduler.py`. Invoke via `python -m app.backup`. Use pure-Python PyMongo/BSON export (not `mongodump` subprocess). Use `aioboto3>=13,<16` for async S3 uploads when the scheduler runs inside a FastAPI lifespan context; use synchronous `boto3` if the CLI is invoked standalone. Schedule via APScheduler 3.x (`AsyncIOScheduler` + `CronTrigger.from_crontab()`) — pin to `<4` to avoid the incompatible v4 alpha.
 
-ARCHITECTURE.md recommends a separate `api_tokens` collection (`ApiToken` as a Beanie `Document` with a `user_id` FK). Rationale: embedding loads the full token list on every `User.find_one()` even on JWT-only requests; lookup by prefix requires MongoDB `$elemMatch`; revocation requires `$pull` with a nested filter; a unique index on an embedded array path is harder to reason about; all operations are simpler as top-level document ops.
+Backup volume persistence requires explicit action: declare a named volume (`backups:/app/backups`) or bind mount (`./backups:/app/backups`) in `docker-compose.yml`. Without this, every backup file is discarded on container restart. The backup module must read its output path from a `BACKUP_DIR` env var (default `/app/backups`), never a relative path.
 
-**Recommended resolution: Use a separate `api_tokens` collection.**
+The `BACKUP_SCHEDULE` env var must default to `None` in `app/config.py` and the scheduler must not start when the value is absent — follow the existing `udp_enabled` guard pattern. This prevents startup crashes on deployments that do not need scheduled backups.
 
-Rationale: The existing auth path calls `User.find_one()` on every JWT-authenticated request. Embedding tokens in `User` causes the token list to be deserialized on every request even when tokens are completely irrelevant — cost grows with token count over time. A separate collection with a `user_id` index makes all token operations (list, lookup by prefix, revoke) straightforward. Top-level document revocation is `await token.set({ApiToken.enabled: False})` vs. a nested `$pull` on the User document. The ARCHITECTURE.md rationale is the stronger argument; the STACK.md "convenience" argument does not outweigh the performance and maintainability costs at this access pattern.
+**Key constraints:**
+- `mongodump` is NOT available in `python:3.12-slim`. Do not add `subprocess.run(["mongodump", ...])` without first resolving the Dockerfile question.
+- `./backups/` inside a container is ephemeral. A named volume or bind mount is mandatory.
+- Track the backup asyncio task in the lifespan `yield` block (cancel + await on shutdown), following the existing change-stream watcher pattern in `app/main.py` lines 94-98.
 
-The `ApiToken` Beanie Document fields (from ARCHITECTURE.md, updated with Decision 1 hash choice):
-- `name: str` — human-readable label (validated: alphanumeric + hyphen/underscore, 1-80 chars)
-- `token_prefix: str` — first 8 chars of plaintext after `ollog_`; stored clear for lookup narrowing
-- `hashed_token: str` — HMAC-SHA256 digest (not Argon2)
-- `user_id: PydanticObjectId` — FK to `users._id`
-- `created_at: datetime`
-- `expires_at: Optional[datetime] = None`
-- `last_used_at: Optional[datetime] = None`
-- `enabled: bool = True`
-- Indexes: `user_id` ascending; composite `(token_prefix, user_id)` ascending
+**Critical pitfalls to avoid:**
+- `mongodump` binary absent from the image (CRITICAL — `FileNotFoundError` at runtime, potentially silent).
+- Backup files written to ephemeral container layer with no volume mount (CRITICAL — files discarded on restart).
+- `asyncio.create_task()` backup loop not tracked by lifespan — orphaned mid-backup on shutdown.
+- S3 multipart upload parts orphaned on interrupt — configure `AbortIncompleteMultipartUploads` (1 day) lifecycle rule on the S3 bucket as a one-time operational step.
 
 ---
 
-### Decision 3 — UDP APP_OLLOG_TOKEN: STARTUP PIN VS. PER-DATAGRAM RESOLUTION (UNRESOLVED — DECIDE BEFORE PHASE 5)
+### Docs Rewrite
 
-**Conflict:**
-ARCHITECTURE.md recommends resolving `APP_OLLOG_TOKEN` once at startup (in the lifespan block), exactly like `UDP_OPERATOR`. The resolved `(operator, user)` tuple is cached on `QSODatagramProtocol` for the process lifetime. Rationale: `_handle_datagram` is a hot path; per-datagram DB lookup + hash verify would add 100-200ms and introduce DB failure modes.
+**Recommended approach:** Content-only rewrite of `docs/*.md` files followed by `mkdocs build` to regenerate `site/`. No new infrastructure, no new MkDocs plugins required unless interactive API reference is in scope. If API reference embedding is added, use `mkdocs-swagger-ui-tag` (static assets bundled) — not `mkdocs-render-swagger-plugin` (CDN-dependent, breaks on private hamnet deployments).
 
-PITFALLS.md warns that the UDP path is startup-pinned by design and that adding any per-datagram token resolution breaks this architectural invariant. Pitfall 4 explicitly states the new feature should be REST-only and `_handle_datagram` should be left untouched.
+Run `mkdocs serve` outside Docker in the dev virtualenv. The production path is `mkdocs build` then commit `site/` then Docker image picks it up via existing `COPY site/ site/`.
 
-The milestone goal (per FEATURES.md) requires `APP_OLLOG_TOKEN` to resolve operator identity per datagram — enabling multi-operator UDP setups where different operators' logging software sends datagrams on the same UDP listener session.
+**Key constraints:**
+- `html=True` on the `StaticFiles(directory="site", html=True)` mount in `app/main.py` is load-bearing. MkDocs Material with `use_directory_urls: true` generates `page/index.html` paths; removing `html=True` causes all non-root pages to 404. Add an explicit comment at that line before the rewrite ships.
+- If API reference pages are added, the `openapi.json` schema must be exported before `mkdocs build` runs: `python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > docs/openapi.json`. This works because `init_db()` is lifespan-scoped and the app is importable without a running database.
+- Do not activate both `navigation.indexes` and `navigation.sections` in `mkdocs.yml` simultaneously — documented incompatibility in Material issue #3070.
 
-**The core tension:** Startup-pin satisfies only single-operator UDP, which `UDP_OPERATOR` already handles. The value of `APP_OLLOG_TOKEN` in datagrams is specifically for multi-operator scenarios where different datagrams within a session come from different operators. Startup-pin for `APP_OLLOG_TOKEN` delivers no new capability.
-
-**Recommended resolution: Per-datagram in-memory cache lookup in `_handle_datagram`.**
-
-This approach eliminates the DB round-trip concern while delivering the per-datagram capability:
-
-1. At startup (lifespan), load all enabled `ApiToken` documents into an in-memory dict: `{token_prefix: [(hashed_token, user_id)]}`. Pass the cache reference into `QSODatagramProtocol.__init__` alongside `operator` and `user`.
-2. In `_handle_datagram`, extract `record.get("APP_OLLOG_TOKEN")`. If present, compute its 8-char prefix, look up candidates in the in-memory dict, HMAC-verify against the stored digest (microseconds with HMAC-SHA256, per Decision 1), resolve `user_id` to a `User` object (cached separately at startup or fetched once on first use).
-3. Priority: `APP_OLLOG_TOKEN` in datagram (valid) → datagram token user. `APP_OLLOG_TOKEN` in datagram (invalid) → reject, do not fall through. `APP_OLLOG_TOKEN` absent → fall through to startup-pinned `UDP_OPERATOR` user.
-4. Cache invalidation: token create/revoke via browser triggers a cache refresh. For a self-hosted app with at most 20 tokens, a full reload on any token mutation is acceptable. A short TTL (60 seconds) is the fallback if the signal path is complex.
-
-**Note:** The ARCHITECTURE.md lifespan code pattern (resolving `APP_OLLOG_TOKEN` env var at startup) is still useful for a single-operator operator who wants to configure their token via environment variable rather than per-datagram. This is a separate use case from the per-datagram field. Phase 5 planning must decide whether the env-var form is needed or whether the per-datagram ADIF field form alone is sufficient.
-
-**Open design question for Phase 5 planning:** How does a token create/revoke HTTP request (ASGI app) notify the long-running `QSODatagramProtocol` (asyncio transport) to refresh its in-memory cache? Options include an `asyncio.Event`, a shared `asyncio.Lock`-protected dict reference, or TTL-based refresh. This is the only unresolved technical design question in the milestone.
+**Critical pitfalls to avoid:**
+- Removing `html=True` from the StaticFiles mount (HIGH — all docs pages 404 immediately).
+- Using `mkdocs-render-swagger-plugin` (CDN-dependent, fails offline/hamnet).
+- Forgetting to export `openapi.json` before `mkdocs build` if API reference pages are included.
 
 ---
 
-## Implications for Roadmap
+## Technology Decisions
 
-Based on research and the feature dependency graph from FEATURES.md, the natural phase structure is:
-
-### Phase 1: Token Data Model and Service Layer
-
-**Rationale:** Every subsequent phase depends on the `ApiToken` collection existing in MongoDB and Beanie knowing about it. This is the foundation with no dependencies of its own.
-
-**Delivers:** `ApiToken` Beanie Document registered in `database.py`; `generate_api_token()`, `token_prefix_from_plaintext()`, `hash_api_token()`, `verify_api_token()` service helpers; `api_token_secret` in Settings; token name validation (charset + length) at Pydantic model level.
-
-**Must have resolved:** Decision 1 (hashing algorithm) and Decision 2 (data model) before writing any code in this phase.
-
-**Avoids pitfalls:** Plaintext in DB (P2) — schema has no plaintext field; ADIF token name injection (P5) — name validation enforced at model creation.
-
-**Research flag:** Standard patterns. No deeper research needed. Beanie Document creation and HMAC stdlib usage are both well-documented.
-
----
-
-### Phase 2: Token CRUD API (JWT-Authenticated)
-
-**Rationale:** With the model in place, the full token lifecycle (create, list, delete) can be built and tested end-to-end before touching any existing auth paths. This is the safest possible build order.
-
-**Delivers:** `POST /auth/tokens` (returns plaintext once), `GET /auth/tokens` (returns name + prefix + metadata, never hash), `DELETE /auth/tokens/{id}` — all behind existing JWT auth.
-
-**Avoids pitfalls:** Token returned in wrong response field (P2 variant) — GET response schema must be covered by test; CSRF on revocation (P6) — `DELETE` verb, not `POST`.
-
-**Research flag:** Standard patterns. FastAPI routing and Beanie CRUD are well-documented.
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Admin container entry point | `app/admin_main.py` (separate file) | Keeps `app/main.py` untouched; minimal lifespan; no conditional branching; clean separation |
+| Admin container wiring | Docker Compose `profiles: [admin]` + `command:` override | Opt-in service; one Dockerfile; no second build context |
+| Admin cookie name | `admin_token` (not `access_token`) | RFC 6265 excludes port from cookie scope; cookie name is the only reliable isolation mechanism between ports 8000 and 8001 on the same hostname |
+| MongoDB export method | Pure-Python PyMongo + `bson.json_util.dumps()` (EJSON) | No Dockerfile changes; no `mongodump` binary dependency; adequate for restore; EJSON re-importable via `mongoimport` |
+| Cron scheduler | APScheduler 3.x (`AsyncIOScheduler` + `CronTrigger.from_crontab()`) | Stable; native asyncio; plugs into existing lifespan pattern; `<4` pin avoids alpha API redesign |
+| Async S3 upload | `aioboto3>=13,<16` | Drop-in async boto3; `upload_fileobj()` natively async; avoids blocking event loop; explicit upper bound for stability |
+| S3 credentials | Standard boto3 credential chain (env vars) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` — no custom credential handling needed |
+| Backup volume | Named volume or bind mount (explicit in compose) | Container writable layers are ephemeral; `./backups/` without a volume declaration loses files on restart |
+| Backup package layout | `app/backup/` package with `__main__.py`, `dump.py`, `upload.py`, `scheduler.py` | `python -m app.backup` entry point; clear module boundaries; room for restore/rotation in future |
+| Docs tooling | MkDocs Material (already installed, content-only rewrite) | No new stack additions; `mkdocs build` → `site/` → committed to repo → served by FastAPI StaticFiles at `/guide` |
+| API reference plugin (if used) | `mkdocs-swagger-ui-tag` | Static assets bundled; no CDN dependency; works offline and on hamnet |
+| APScheduler version ceiling | `apscheduler>=3.10,<4` | APScheduler 4.x is alpha with a fully redesigned API; `<4` ceiling prevents accidental upgrade |
 
 ---
 
-### Phase 3: Token Management UI (Profile Page)
+## Phase Ordering Recommendation
 
-**Rationale:** Operators need a way to create and manage tokens before any API clients can use them. The UI depends on Phase 2 endpoints.
+The three v1.8 capabilities have no code-level dependencies on each other. The following order is recommended based on risk profile and value delivery:
 
-**Delivers:** Token creation form in `/log/profile` (name input, optional expiry); show-once plaintext banner with copy button; token listing table (name, created, expires, last-used, 4-char hint, Revoke); HTMX-powered revoke (DELETE).
+**Phase 1 — Admin Container**
+Build `app/admin_main.py`, update `docker-compose.yml` with `profiles: [admin]`, rename the admin cookie to `admin_token`, remove the hardcoded `SECRET_KEY` default from compose. This is the highest-risk capability (cookie collision is a silent security bug) and the most architecturally self-contained. Delivering it first validates the two-container compose setup before backup complexity is added.
 
-**Avoids pitfalls:** HTMX swap caching the token value (P2 variant) — `hx-swap="outerHTML"` replaces the creation form with a confirmation state after copy; CSRF on cookie-auth forms (P6) — verify `SameSite=Lax` on auth cookie before building forms; use `DELETE` for revocation.
+**Phase 2 — Database Backup**
+Build `app/backup/` package, add PyMongo EJSON export, add aioboto3 S3 upload, wire APScheduler into the operator app's lifespan (gated by `BACKUP_SCHEDULE`), add named volume to compose. Add new deps to `pyproject.toml` (`apscheduler>=3.10,<4`, `aioboto3>=13,<16`). This phase has the most moving parts (scheduler, S3, volume config) and benefits from admin container already being validated in compose.
 
-**Research flag:** Shallow research recommended on HTMX one-time-display pattern — specifically, preventing the token plaintext from being re-renderable via browser back/forward or HTMX swap history. Not a blocker but the `hx-swap` strategy must be planned carefully.
+**Phase 3 — Docs Rewrite**
+Rewrite all `docs/*.md` files covering v1.0–v1.8 features. Update `mkdocs.yml` nav. Add load-bearing comment to the `html=True` StaticFiles mount. Run `mkdocs build`, commit `site/`. Lowest risk; pure content work; best done last so it can document the admin container and backup features shipped in phases 1 and 2.
 
----
-
-### Phase 4: X-API-Key REST Authentication
-
-**Rationale:** With tokens creatable and the service layer proven, the REST auth dependency can be added. This is the highest-integration-risk phase because it touches the existing dependency chain.
-
-**Delivers:** `get_current_user_api_key` and `get_current_operator_callsign_api_key` in `app/auth/dependencies.py`; opt-in `Depends()` on QSO REST endpoints; `last_used_at` update on successful auth (background task or fire-and-forget to avoid latency); `get_operator_any_auth` union dep for routes accepting both JWT and API key.
-
-**Avoids pitfalls:** Wrong 403 (P3, critical) — `auto_error=False` on both schemes; manual `HTTPException(401)` raise; prefix timing oracle (P7) — dummy-verify on not-found branch.
-
-**Research flag:** Needs careful review of FastAPI dependency resolution order before writing the combined dependency. The `auto_error=False` pattern is documented but the two-scheme composition is non-trivial. A spike or targeted research session before planning Phase 4 is recommended.
+**Research flags:**
+- Phase 1 (Admin Container): No further research needed. Architecture is fully specified (`admin_main.py`, `profiles: [admin]`, `admin_token` cookie). All patterns are standard FastAPI.
+- Phase 2 (Backup): The pure-Python vs `mongodump` subprocess question is resolved (pure-Python recommended), but the exact EJSON field mapping for restore should be validated during implementation. S3 upload atomicity and lifecycle rule are operational, not code concerns.
+- Phase 3 (Docs): No research needed. Whether to include interactive API reference is an open question (see below) but does not block rewrite of prose content.
 
 ---
 
-### Phase 5: UDP APP_OLLOG_TOKEN Support
+## Open Questions
 
-**Rationale:** UDP is the last piece. It depends on the token model (Phase 1) and the in-memory cache design (Decision 3). It does not depend on the REST auth phases (3-4) and can proceed in parallel once Phase 1 is complete — but the cache invalidation signal path design should be resolved before Phase 2 token CRUD is finalized, since token create/revoke must trigger cache refresh.
+The following questions need a decision before or during planning. None blocks starting Phase 1.
 
-**Delivers:** In-memory token cache loaded at startup; per-datagram `APP_OLLOG_TOKEN` extraction and resolution in `_handle_datagram` (cache lookup, HMAC verify); `UDP_OPERATOR` preserved as fallback; invalid token present → reject (no silent fallthrough); structured log lines for UDP token auth outcomes (`auth=token|udp_operator`, `reason=invalid_token`); `/guide` UDP section updated with `nc` example showing `APP_OLLOG_TOKEN`.
+1. **Interactive API reference in docs:** Should `/guide` include an embedded Swagger UI page? If yes, `mkdocs-swagger-ui-tag` must be added to dev dependencies and a `docs/openapi.json` export step added to the build workflow. If no, docs remain prose-only. Decision needed before Phase 3 planning.
 
-**Avoids pitfalls:** UDP regression (P4) — `test_udp_pipeline.py` must pass unchanged post-deploy; per-datagram DB round trip (Decision 3) — use in-memory cache; startup invariant confusion — document explicitly in code that `_handle_datagram` uses cache, not DB.
+2. **Backup schedule default in compose:** Should `docker-compose.yml` include a commented-out example `BACKUP_SCHEDULE` env var (e.g., `# BACKUP_SCHEDULE=0 2 * * *`) to guide operators? Or should all backup config be documented only in the guide? Affects compose template and docs simultaneously.
 
-**Research flag:** Needs a spike on asyncio shared state between ASGI app and UDP protocol (cache invalidation signal path). The ASGI app and the `asyncio.DatagramProtocol` run in the same event loop but are not in the same call stack. A shared `asyncio.Lock`-protected dict or an `asyncio.Event`-based reload signal are the candidate approaches. This is the one unresolved technical design question in the milestone.
+3. **Bind mount vs named volume for backups:** Named volume (`backups:/app/backups`) is managed by Docker and survives restarts but is not directly accessible from the host filesystem without `docker cp`. Bind mount (`./backups:/app/backups`) is host-visible and easier for operators to verify backup files exist. For a self-hosted ham radio app, bind mount is arguably better UX. Decision needed before Phase 2 planning.
 
----
+4. **Admin bootstrap in `admin_main.py` lifespan:** The operator service's lifespan calls `_bootstrap_admin()` at startup (idempotent). The admin container's minimal lifespan omits this call. This is safe as long as the operator service has run at least once. Clarify whether the admin container should also call `_bootstrap_admin()` (defensive, idempotent, negligible cost) or rely on operator service having already run it.
 
-### Phase Ordering Rationale
-
-- Phases 1-2 are pure foundation work with zero regression risk to existing behavior. Always build first.
-- Phase 3 (UI) and Phase 4 (REST auth) can proceed in parallel after Phase 2 is complete.
-- Phase 5 (UDP) can begin design after Phase 1 but the cache invalidation signal path should be resolved before Phase 2 token CRUD is finalized (since CRUD endpoints must trigger cache refresh).
-- The "Looks Done But Isn't" checklist in PITFALLS.md should be treated as a mandatory acceptance gate for Phase 4 and Phase 5.
+5. **`mongodump` vs pure-Python EJSON:** Research recommends pure-Python for simplicity, but pure-Python EJSON export does not produce a `mongorestore`-compatible binary archive (it produces NDJSON importable via `mongoimport`). If the restore path must use `mongorestore` (not `mongoimport`), the Dockerfile `apt-get install mongodb-database-tools` path is required. Confirm the acceptable restore method before Phase 2.
 
 ---
 
@@ -266,53 +135,48 @@ Based on research and the feature dependency graph from FEATURES.md, the natural
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Zero new dependencies confirmed by direct codebase inspection; all APIs verified against official docs; hashing algorithm conflict resolved by OWASP guidance |
-| Features | HIGH | Pattern validated against GitHub PAT, Stripe, GitLab, Cloudflare docs; ham radio ADIF convention confirmed from spec; APP_OLLOG_TOKEN per-datagram is novel but sound |
-| Architecture | HIGH | Based on direct codebase read of all relevant files; separate-collection recommendation is well-reasoned; build order is validated |
-| Pitfalls | HIGH | FastAPI 403 bug confirmed in official GitHub issues; HMAC vs. Argon2 guidance confirmed by OWASP; CSRF pattern well-established |
+| Admin container architecture | HIGH | Directly grounded in live codebase inspection of all router files, `docker-compose.yml`, and `app/main.py`. Approach decision (separate entry point) is unambiguous. |
+| Cookie collision pitfall | HIGH | RFC 6265 Section 5.1.3 + Firefox Bugzilla #469287 confirm real-world behavior. Prevention (rename cookie) is unambiguous. |
+| Backup: pure-Python export | HIGH | `python:3.12-slim` confirmed without MongoDB Database Tools. PyMongo + `bson.json_util` is standard. Volume ephemerality confirmed by compose inspection. |
+| Backup: APScheduler 3.x | HIGH | Official docs confirm `AsyncIOScheduler` + `CronTrigger.from_crontab()`. `<4` ceiling confirmed by APScheduler 4 alpha status on PyPI. |
+| Backup: aioboto3 | MEDIUM-HIGH | API confirmed in docs and PyPI. `>=13,<16` pin is conservative. `upload_fileobj` async pattern confirmed in library source. |
+| Docs: MkDocs Material | HIGH | Live `mkdocs.yml` + `site/` inspection. `html=True` load-bearing status confirmed by reading `main.py` line 151 and MkDocs `use_directory_urls` docs. |
+| Docs: swagger plugin choice | MEDIUM | `mkdocs-swagger-ui-tag` confirmed static. CDN issue with render-swagger confirmed. Interaction with this project's specific MkDocs version not directly tested. |
 
-**Overall confidence: HIGH**
+**Overall confidence:** HIGH
 
-### Gaps to Address
-
-- **Cache invalidation signal path (UDP):** How does a token create/revoke HTTP request notify the long-running `QSODatagramProtocol` to refresh its in-memory token cache? Candidate approaches: asyncio shared dict with `asyncio.Lock`, `asyncio.Event`-based reload signal, TTL-based refresh. Address with a spike before Phase 5 planning — or before Phase 2 if the Phase 2 token CRUD implementation needs to emit the refresh signal.
-
-- **Combined auth dependency composition (REST):** The exact FastAPI dependency composition for routes that accept both JWT Bearer and X-API-Key needs a code spike before Phase 4 planning. The `auto_error=False` pattern is documented; the two-scheme fallback chain is not a simple copy-paste. Existing test suite must remain green throughout.
-
-- **`APP_OLLOG_TOKEN` as env var vs. as ADIF datagram field:** The Architecture research conflated two use cases. Decide in Phase 5 planning: (a) only support per-datagram ADIF field, (b) support both ADIF field and env var as alternatives, or (c) env var only with startup-pin (delivers no new capability over UDP_OPERATOR). Recommendation is (a) or (b).
-
-- **HTMX one-time display pattern (UI):** The specific `hx-swap` strategy to prevent the token plaintext from being re-renderable after creation (browser back/forward, HTMX history) needs to be designed in Phase 3 planning. Not a blocker but requires deliberate attention.
-
-- **QSO endpoint enumeration for API key auth:** The exact set of QSO routes that should accept both JWT and API key (vs. JWT-only) must be enumerated in Phase 4 planning. FEATURES.md says "all QSO endpoints" but admin and profile routes should remain JWT-only (token management itself is JWT-only by design).
+**Gaps to address during implementation:**
+- EJSON restore fidelity vs `mongorestore` binary format — confirm acceptable restore method before writing `dump.py`.
+- `admin_main.py` bootstrap call decision — confirm before writing admin lifespan.
+- Interactive API reference decision — confirm before Phase 3 planning to avoid mid-docs-rewrite plugin integration work.
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- FastAPI Security Reference — `APIKeyHeader`, `auto_error`, import path: https://fastapi.tiangolo.com/reference/security/
-- FastAPI GitHub issues #2026 and #10177 — `OAuth2PasswordBearer` returns 403 not 401 on missing header
-- FastAPI GitHub discussions #9076, #9601 — multiple auth schemes composition
-- OWASP Password Storage Cheat Sheet — HMAC for tokens, Argon2 for passwords: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
-- OWASP REST Security Cheat Sheet — token in header not URL: https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html
-- ADIF 2.2.6 / 3.1.7 specification — `APP_{PROGRAMID}_{FIELDNAME}` field naming convention
-- GitHub Personal Access Tokens documentation — creation flow, show-once, metadata display
-- GitLab Token Management Guide — last-used metadata, token listing UI
-- Atlassian: Track API token usage — last-used pattern
-- Auth0 Token Best Practices — expiry, long-running sessions
-- pwdlib 0.3.0 PyPI + guide — `hash()` / `verify()` signatures; Argon2 parameters
-- Python stdlib docs — `secrets.token_urlsafe`, `secrets.compare_digest`, `hmac.new`, `hashlib.sha256`
-- Beanie ODM documentation — `Document` class, `List[BaseModel]` embedding, `Settings` indexes
-- Direct codebase inspection: `app/auth/models.py`, `app/auth/service.py`, `app/auth/dependencies.py`, `app/auth/router.py`, `app/udp/server.py`, `app/adif/parser.py`, `app/adif/serializer.py`, `app/config.py`, `app/main.py`, `app/database.py`, `app/qso/router.py`
+### Primary (HIGH confidence — official docs and live codebase)
+- RFC 6265 Section 5.1.3 — cookie port exclusion (rfc-editor.org/rfc/rfc6265)
+- Firefox Bugzilla #469287 — real-world cookie port-sharing confirmation
+- APScheduler 3.x User Guide + CronTrigger docs — scheduler integration pattern
+- APScheduler 4.0 Migration Guide — alpha status and API redesign confirmation
+- Docker Compose profiles documentation — `profiles:` semantics
+- FastAPI Bigger Applications docs — `include_router` and app factory patterns
+- MongoDB Database Tools installation docs — `mongodump` package requirements
+- Docker Hub python:3.12-slim layer manifest — confirmed absence of mongodb-database-tools
+- AWS S3 PutObject atomicity guarantee + multipart upload docs
+- MkDocs Material `use_directory_urls` documentation
+- Live codebase inspection: `docker-compose.yml`, `Dockerfile`, `app/main.py`, `app/config.py`, `app/database.py`, `app/admin/router.py`, `app/admin/ui_router.py`, `mkdocs.yml`
 
 ### Secondary (MEDIUM confidence)
-- QSL Buddy Bridge — analogous token-in-bridge-config pattern for ham radio UDP (not per-datagram; closest ham radio precedent)
-- freeCodeCamp: Building Secure API Keys — prefix pattern, show-once, hashing
-- seamapi/prefixed-api-key — prefix + short-token identification pattern
-- X-API-Key header convention (Stoplight, AWS API Gateway, Google Cloud docs) — header over query param
-- HMAC-SHA256 vs Argon2 for API tokens: https://mojoauth.com/compare-hashing-algorithms/hmac-sha256-vs-argon2
+- aioboto3 PyPI + usage docs — version pinning and `upload_fileobj` async pattern
+- mkdocs-swagger-ui-tag GitHub (blueswen) — static asset bundling confirmed
+- Beanie initialization docs — module-level state pattern (global init risk)
+- MkDocs Material issue #3070 — `navigation.indexes` + `navigation.sections` incompatibility
+
+### Tertiary (LOW confidence)
+- Docker Compose v5.0.1 WSL2 `COMPOSE_PROFILES` env var edge case — single issue report, resolution status unclear; use `--profile` CLI flag for production deployments as a safe alternative
 
 ---
 
-*Research completed: 2026-04-09*
+*Research completed: 2026-04-10*
 *Ready for roadmap: yes*

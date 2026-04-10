@@ -291,3 +291,523 @@ Named API tokens with no expiry are the right primitive for overnight FT8 sessio
 
 *Feature research for: ollog v1.7 — Named API Token Auth (token UI, X-API-Key REST, APP_OLLOG_TOKEN UDP)*
 *Researched: 2026-04-09*
+
+---
+---
+
+# Feature & UX Research: ollog v1.8
+
+**Domain:** Ham radio logging — FastAPI + Beanie (MongoDB) + HTMX
+**Researched:** 2026-04-10
+**Scope:** Admin container isolation, database backup UX, docs rewrite
+**Overall confidence:** HIGH (codebase inspected directly; standard patterns verified)
+
+---
+
+## Summary
+
+Three feature areas are in scope for v1.8. The patterns for each are well-established. The
+admin isolation is a Docker Compose service split, not a code rewrite — the existing
+`app/admin/` routers already exist and only need a separate entry-point file and
+compose service. The backup UX maps directly to the `lifespan + asyncio.create_task`
+pattern already used in `app/main.py` for the change-stream watcher. The docs rewrite
+is a nav structure problem: the current flat seven-item MkDocs nav should become a
+section-grouped structure using `navigation.tabs` and `navigation.sections`.
+
+Key decisions to make early:
+
+1. S3 failure strategy: log-and-continue with one boto3 retry (standard) — do not abort the backup process.
+2. Admin `/health`: each container must expose its own `/health` — Docker Compose depends_on needs a health check on the container it is waiting for.
+3. API docs in MkDocs: manual hand-authored markdown is the correct choice given the small, stable endpoint surface and the need to embed usage examples.
+
+---
+
+## Section 1: Admin Container Isolation
+
+### Architecture decision: two separate Docker services, not one container with two Uvicorn processes
+
+The correct design is two Docker Compose services, each running a single Uvicorn
+process on its own port. Running two Uvicorn instances in one container with `&` to
+background one (`uvicorn admin:app & uvicorn main:app`) is fragile — process
+supervision is lost, a crash in one silently leaves the other running, and Docker
+health checks can only target one port per container.
+
+The existing codebase already has `app/admin/router.py` (API) and
+`app/admin/ui_router.py` (HTMX). The split requires:
+
+1. A new `app/admin_main.py` entry point that includes only the admin routers and
+   `app/auth/router.py` (the `/auth` login endpoint). It does NOT include `qso/`,
+   `profile/`, `feed/`, `adif/`, `tokens/` routers.
+2. The existing `app/main.py` (operator app) drops `admin_router` and `ui_router`
+   includes when the admin container is active. Controlled with an env var
+   (`ADMIN_CONTAINER=true`) or by making a second Dockerfile target.
+3. `docker-compose.yml` gains an `admin` service: same image (same codebase), different
+   `command:` override (`uvicorn app.admin_main:app --host 0.0.0.0 --port 8001`),
+   different port mapping (`8001:8001`).
+
+### Health check: each container must have its own `/health`
+
+Docker Compose `depends_on: condition: service_healthy` requires the healthcheck to
+run inside the container being waited on — it cannot probe a different container's
+port. Therefore:
+
+- The operator app (`app/main.py`) keeps its existing `GET /health` on port 8000.
+  This health check is already present and pings MongoDB.
+- The admin app (`app/admin_main.py`) must also expose a `GET /health` endpoint on
+  port 8001. It shares the same MongoDB connection so the health check body is
+  identical. It cannot reuse the operator container's `/health`.
+
+The admin health endpoint can live directly in `admin_main.py` rather than in a
+router — it is an operational endpoint, not part of the admin feature surface.
+
+**Confidence:** HIGH. The existing `app/main.py` health check and the Docker Compose
+`service_healthy` pattern are both directly inspectable in the codebase and official
+Docker Compose docs.
+
+### Docker Compose service pattern
+
+```yaml
+services:
+  mongodb:
+    # unchanged
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+      - "2399:2399/udp"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    env_file: .env
+
+  admin:
+    build: .
+    command: ["uvicorn", "app.admin_main:app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      api:
+        condition: service_healthy   # optional — ensures operator app is up first
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    env_file: .env
+```
+
+`start_period` matters: Beanie's `init_beanie()` and the MongoDB replica set handshake
+take a few seconds, so failures during that window should not count toward health check
+retries. 15 seconds is conservative and safe given the existing MongoDB healthcheck in
+the project already uses `start_period: 0s` with 30 retries.
+
+`curl` must be present in the Docker image. If the Dockerfile does not install it,
+add `RUN apt-get install -y --no-install-recommends curl` or use a Python script
+health probe (`CMD python -c "import urllib.request; urllib.request.urlopen(...)"`)
+which requires no additional package.
+
+### Operator app: conditional admin route inclusion
+
+**Recommended approach — Strategy B (separate entry point, no shared flag):**
+
+`app/main.py` never includes admin routers. A standalone `app/admin_main.py` includes
+only admin + auth routers. The two containers are genuinely independent. No env var
+flag is required; there is no risk of accidentally exposing admin routes on the
+operator container.
+
+**Backward compatibility for single-container deployments:**
+
+Operators who do not run the admin container will need to either use `app/main.py`
+with admin routes re-included, or accept that admin routes are only available on
+port 8001. The cleanest backward-compatible option is to provide a Strategy A
+fallback: `app/main.py` includes admin routes unless `ADMIN_CONTAINER=true`.
+
+This avoids breaking single-container deployments. Document the migration path in
+the deployment guide.
+
+---
+
+## Section 2: Database Backup UX
+
+### 2a. Environment variable naming conventions (S3 + schedule)
+
+**Standard AWS SDK vars — use these, do not invent alternatives:**
+
+| Variable | Purpose | Notes |
+|----------|---------|-------|
+| `AWS_ACCESS_KEY_ID` | AWS IAM key ID | Standard boto3/AWS SDK env var, auto-detected by boto3 without any configuration |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret | Standard boto3/AWS SDK env var, auto-detected |
+| `AWS_DEFAULT_REGION` | S3 bucket region | Canonical name (`AWS_REGION` also works but `AWS_DEFAULT_REGION` is official) |
+| `S3_BUCKET` | Target bucket name | Not an AWS standard — project-specific. `S3_BUCKET` is the most common convention in open-source backup scripts (mongodump-s3 PyPI, halvves/mongodb-backup-s3, slim-mongodump-s3, etc.) |
+| `S3_PREFIX` | Object key prefix | Optional, e.g. `ollog/backups/`. `S3_PREFIX` is the standard project-level name across multiple implementations |
+| `BACKUP_SCHEDULE` | Cron expression | Project-specific; `"0 2 * * *"` style string |
+
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are picked up automatically by boto3's
+credential chain without explicit configuration. Do not add them to pydantic `Settings`
+— boto3 handles them directly, and adding them to Settings requires `SecretStr`
+handling and complicates `.env` files without benefit.
+
+**Confidence:** HIGH for `AWS_*` vars (boto3 official docs). MEDIUM for `S3_BUCKET`
+and `S3_PREFIX` (de-facto convention from multiple implementations, not an AWS
+standard).
+
+### 2b. Python in-process cron pattern for FastAPI lifespan
+
+The project already uses the correct pattern in `app/main.py`:
+
+```python
+watcher_task = asyncio.create_task(
+    watch_qsos(collection, feed_manager, _templates)
+)
+```
+
+The scheduled backup follows the same structure.
+
+**Option A: asyncio while-True with croniter (no heavy dependency) — RECOMMENDED**
+
+```python
+import asyncio
+from datetime import datetime, timezone
+import croniter as croniter_lib
+
+async def run_backup_loop(cron_expr: str):
+    it = croniter_lib.croniter(cron_expr, datetime.now(tz=timezone.utc))
+    while True:
+        next_run = it.get_next(datetime)
+        delay = (next_run - datetime.now(tz=timezone.utc)).total_seconds()
+        await asyncio.sleep(max(delay, 0))
+        await run_backup()
+```
+
+`croniter` is a lightweight, pure-Python cron expression parser (no C extension, well
+maintained, widely used). The `while True` task is started with `asyncio.create_task()`
+in lifespan and cancelled on shutdown — identical to the `watcher_task` pattern already
+in `app/main.py`.
+
+**Option B: APScheduler 3.x AsyncIOScheduler**
+
+APScheduler's `AsyncIOScheduler` with `CronTrigger` is the other common option and
+handles DST transitions and missed-fire policies. For a single backup job it is
+over-engineered. APScheduler 4.x (async-first rewrite) exists but has a different API
+and significantly less community documentation as of early 2026. Avoid APScheduler 4.x
+for now.
+
+**Recommendation: Option A.** The project already uses the lifespan + asyncio pattern.
+`croniter` is a focused addition. APScheduler is appropriate if scheduling needs expand
+beyond a single backup job in a future milestone.
+
+Lifespan integration in `app/admin_main.py` (or `app/main.py` if admin container is not separate):
+
+```python
+backup_task = None
+if settings.backup_schedule and settings.s3_bucket:
+    from app.backup.scheduler import run_backup_loop
+    backup_task = asyncio.create_task(run_backup_loop(settings.backup_schedule))
+
+yield
+
+if backup_task is not None:
+    backup_task.cancel()
+    try:
+        await backup_task
+    except asyncio.CancelledError:
+        pass
+```
+
+**Where the backup task runs:**
+
+The backup job belongs in the admin container. The admin container owns operational
+tasks. The operator container serves users. Keeping the backup task in the admin
+lifespan means the operator container is unaffected if backup configuration is absent
+or an S3 upload is slow.
+
+If the admin container is not deployed, the CLI path (`python -m app.backup`) and
+host cron are sufficient.
+
+**Confidence:** HIGH for the lifespan + asyncio pattern (directly inspectable in
+`app/main.py`). MEDIUM for `croniter` recommendation (widely used, not in FastAPI
+official docs).
+
+### 2c. S3 upload failure strategy
+
+**Recommendation: one set of boto3 retries (3 attempts), then log ERROR and continue. Do not abort.**
+
+Rationale:
+- The local backup file already exists on disk. The `mongodump` step succeeded.
+- The scheduled job must not raise an exception that kills the asyncio task and makes
+  the container appear unhealthy.
+- boto3's `standard` retry mode already retries transient S3 errors (throttling,
+  5xx responses) with exponential backoff up to `max_attempts` total calls. Setting
+  `max_attempts=3` and `mode="standard"` in a `botocore.config.Config` object covers
+  transient failures without manual retry logic.
+- After boto3 retries are exhausted, log at `ERROR` level with the exception message
+  and continue. The next scheduled run will attempt upload again.
+- Do NOT delete the local backup file if the S3 upload fails. Retain it for manual
+  recovery.
+
+```python
+import boto3
+from botocore.config import Config
+import logging
+
+logger = logging.getLogger(__name__)
+
+def upload_to_s3(local_path: str, bucket: str, key: str) -> bool:
+    """Upload a backup file to S3. Returns True on success, False on failure."""
+    config = Config(retries={"max_attempts": 3, "mode": "standard"})
+    s3 = boto3.client("s3", config=config)
+    try:
+        s3.upload_file(local_path, bucket, key)
+        logger.info("Backup uploaded to s3://%s/%s", bucket, key)
+        return True
+    except Exception as exc:
+        logger.error("S3 upload failed for %s: %s", local_path, exc)
+        return False
+```
+
+The caller checks the return value for logging but does not re-raise. The local file
+is retained regardless.
+
+**Exit code for `python -m app.backup`:**
+- Exit `0` if `mongodump` succeeded (even if S3 upload failed — the backup exists).
+- Exit `1` only if `mongodump` itself failed (no backup created).
+
+This makes the CLI safe to call from host cron without false alarms on transient S3
+failures.
+
+**Confidence:** HIGH for the boto3 retry approach (official boto3 docs). MEDIUM for
+the log-and-continue strategy (community best practice, no official backup-specific
+guidance found).
+
+### 2d. Should backup be triggerable from the admin UI?
+
+**Yes in principle, but defer to a follow-on plan item. CLI path is sufficient for v1.8.**
+
+A "Run backup now" button in the admin UI is valuable (pre-migration safety net,
+manual testing). Implementation in HTMX is straightforward: `POST /admin/backup/run`
+returns an HTMX partial with result (filename, size, upload status).
+
+The admin UI currently has no backup section, and building the UI adds scope. The
+`python -m app.backup` CLI path satisfies v1.8. Flag the admin UI trigger as a
+follow-on feature for a future milestone.
+
+### 2e. Backup CLI UX
+
+**Expected output:**
+
+```
+$ python -m app.backup
+2026-04-10 02:00:01 [INFO] Starting backup: ollog database
+2026-04-10 02:00:04 [INFO] mongodump complete: ./backups/2026-04-10T020001.gz (14.2 MB)
+2026-04-10 02:00:06 [INFO] Backup uploaded to s3://my-bucket/ollog/2026-04-10T020001.gz
+```
+
+On S3 failure:
+
+```
+2026-04-10 02:00:06 [ERROR] S3 upload failed: ConnectionError — backup retained locally at ./backups/2026-04-10T020001.gz
+```
+
+On `mongodump` failure:
+
+```
+2026-04-10 02:00:02 [ERROR] mongodump failed: ... (exit code 1)
+```
+
+Exit 1 in this case.
+
+### 2f. Settings additions to `app/config.py`
+
+```python
+# Backup (v1.8)
+backup_schedule: str | None = None      # BACKUP_SCHEDULE cron expression "0 2 * * *"
+s3_bucket: str | None = None            # S3_BUCKET
+s3_prefix: str = "ollog/"              # S3_PREFIX (default key prefix)
+# Do NOT add AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY to Settings.
+# boto3's credential chain reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+# and AWS_DEFAULT_REGION from the environment automatically.
+```
+
+---
+
+## Section 3: MkDocs Docs Rewrite
+
+### 3a. Nav structure for the target sections
+
+**Current nav (flat, 7 items):**
+
+```yaml
+nav:
+  - Home: index.md
+  - Deployment: deployment.md
+  - Getting Started: getting-started.md
+  - Admin Guide: admin-guide.md
+  - API Reference: api-reference.md
+  - ADIF Field Reference: adif-field-reference.md
+  - Troubleshooting: troubleshooting.md
+```
+
+**Recommended nav for v1.8 (section-grouped, 2-level depth):**
+
+```yaml
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Install & First QSO: getting-started.md
+    - Deployment: deployment.md
+  - Admin Guide:
+    - Managing Operators: admin-guide.md
+    - API Tokens: admin-tokens.md
+    - Backup: admin-backup.md
+  - Operator Guide:
+    - UDP Interface: udp.md
+  - API Reference:
+    - All Endpoints: api-reference.md
+    - Token API: api-tokens.md
+  - Reference:
+    - ADIF Field Reference: adif-field-reference.md
+  - Troubleshooting: troubleshooting.md
+```
+
+Keep section depth at two levels. Three levels is hard to navigate in the sidebar.
+MkDocs Material warns against over-nesting in its own docs.
+
+**Theme features to enable in `mkdocs.yml`:**
+
+```yaml
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+  features:
+    - navigation.sections    # render section titles as groups in sidebar
+    - navigation.tabs        # top-level sections become header tabs
+    - navigation.top         # back-to-top button
+    - navigation.footer      # prev/next page links at page bottom
+```
+
+`navigation.tabs`: when enabled, top-level nav sections (`Getting Started`, `Admin
+Guide`, etc.) appear as tabs in the header. Works well when there are 4+ top-level
+sections and the docs are the primary reference interface. For ollog served at `/guide`,
+tabs add visual clarity and make the admin/operator divide obvious.
+
+`navigation.sections` + `navigation.tabs` together: top-level sections become header
+tabs; sub-sections become expandable groups in the left sidebar. This is the standard
+Material for MkDocs pattern for multi-area project documentation (confirmed in
+Material docs GitHub discussions #7376 and #2173).
+
+**Confidence:** HIGH. Material for MkDocs official setup page documents these features
+directly. The existing `mkdocs.yml` already uses the Material theme.
+
+### 3b. How to document the REST API
+
+**Recommendation: manual hand-authored markdown. Not mkdocstrings. Not an OpenAPI plugin.**
+
+| Approach | Assessment | Confidence |
+|----------|-----------|------------|
+| **Manual markdown** | Best fit. ~15 stable endpoints, prose examples, curl snippets more useful to ham radio operators than auto-generated class docs. Existing `api-reference.md` is already well-structured manual markdown. | HIGH |
+| **mkdocstrings** | Designed for Python library API reference (classes, methods). Produces awkward results for FastAPI route functions — generates parameter tables from Python signatures, not HTTP request/response shapes. Wrong tool for REST API docs. | HIGH (wrong tool) |
+| **Neoteroi mkdocs-plugins (OAD)** | Renders OpenAPI 3.x specs as styled pages inside MkDocs. FastAPI exposes `/openapi.json`. Output has known styling issues with Material dark theme (reported in squidfunk/mkdocs-material discussion #7778). Requires the running app at build time or a static spec file. For a small, hand-maintained API surface this adds build complexity for marginal benefit. | MEDIUM |
+
+The existing Swagger UI at `http://localhost:8000/docs` (FastAPI auto-generated) is
+already available for interactive exploration. The MkDocs guide's purpose is
+human-readable reference with context and examples, not interactive testing.
+
+For the API reference pages, use Material admonitions to highlight authentication
+requirements (`!!! note "Authentication required"`) and common error responses.
+
+**Confidence:** HIGH for manual markdown recommendation based on endpoint count and
+audience. MEDIUM for the Neoteroi plugin assessment (limited direct testing evidence
+with this specific theme configuration).
+
+### 3c. Section-by-section content scope for v1.8
+
+| Section | File | Status | Key changes |
+|---------|------|--------|-------------|
+| Getting Started / Install & First QSO | `getting-started.md` | Existing | Accuracy review; no major changes |
+| Getting Started / Deployment | `deployment.md` | Existing, rewrite | Add: admin container setup, new env vars (`BACKUP_SCHEDULE`, `S3_BUCKET`, `S3_PREFIX`), admin container `depends_on` health check example |
+| Admin Guide / Managing Operators | `admin-guide.md` | Existing, update | Update login URL to port 8001 when admin container is deployed; add token revocation section |
+| Admin Guide / API Tokens | `admin-tokens.md` | New | Token creation, listing, revocation via UI; `X-API-Key` header usage examples for N1MM+ and Log4OM |
+| Admin Guide / Backup | `admin-backup.md` | New | CLI backup usage; S3 setup (env vars); scheduled backup configuration; failure behavior |
+| Operator Guide / UDP Interface | `udp.md` | New | UDP ADIF listener; `UDP_OPERATOR` and `APP_OLLOG_TOKEN`; WSJT-X and N1MM+ setup; `nc` test one-liner |
+| API Reference / All Endpoints | `api-reference.md` | Existing, expand | Add admin endpoints, token endpoints; update auth section for `X-API-Key` |
+| API Reference / Token API | `api-tokens.md` | New | Full token CRUD reference with request/response examples |
+| Reference / ADIF Field Reference | `adif-field-reference.md` | Existing | Unchanged |
+| Troubleshooting | `troubleshooting.md` | Existing, expand | Add: admin container port conflicts, S3 credential errors, backup failures, `curl` missing in health check |
+
+New files to create: `admin-tokens.md`, `admin-backup.md`, `udp.md`, `api-tokens.md`.
+Existing files needing substantive rewrite: `deployment.md`, `api-reference.md`,
+`admin-guide.md`.
+
+### 3d. Docs build and serving
+
+The existing pattern (`app.mount("/guide", StaticFiles(directory="site", html=True))`)
+is correct and unchanged. MkDocs is built at Docker image build time (`mkdocs build`);
+the `site/` directory is baked into the image. No runtime MkDocs dependency. The v1.8
+docs changes only affect content files under `docs/` and `mkdocs.yml` — no build
+pipeline changes required.
+
+---
+
+## Section 4: Cross-Cutting UX Decisions
+
+### Admin UI login URL when admin container is isolated
+
+- Operator login: `http://host:8000/log/login` (unchanged)
+- Admin login: moves to `http://host:8001/admin/ui/login`
+
+The admin login page currently accessible at port 8000 should either be removed from
+the operator app (clean) or redirect to port 8001 (safer for bookmarks). A 302
+redirect from `http://host:8000/admin/ui/login` to `http://host:8001/admin/ui/login`
+handles the transition without 404 confusion.
+
+### Backward compatibility for single-container deployments
+
+Operators who do not run the admin container should have an uninterrupted experience.
+The env var gate (`ADMIN_CONTAINER=true`) in `app/main.py` is the cleanest mechanism:
+
+- `ADMIN_CONTAINER` absent or `false` (default): `app/main.py` includes admin routers
+  on port 8000 as today.
+- `ADMIN_CONTAINER=true`: `app/main.py` drops admin routers; admin service on 8001
+  serves them.
+
+This is a non-breaking default.
+
+---
+
+## Sources (v1.8 research)
+
+- FastAPI lifespan events: https://fastapi.tiangolo.com/advanced/events/
+- FastAPI sub-applications / mounting: https://fastapi.tiangolo.com/advanced/sub-applications/
+- Docker Compose startup order and depends_on: https://docs.docker.com/compose/how-tos/startup-order/
+- Docker Compose service definition reference: https://docs.docker.com/reference/compose-file/services/
+- boto3 retry configuration: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html
+- AWS retry behavior: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
+- MkDocs Material navigation setup: https://squidfunk.github.io/mkdocs-material/setup/setting-up-navigation/
+- MkDocs Material OpenAPI discussion: https://github.com/squidfunk/mkdocs-material/discussions/7778
+- MkDocs Material nav tabs + sections discussion: https://github.com/squidfunk/mkdocs-material/discussions/7376
+- mkdocstrings overview: https://mkdocstrings.github.io/
+- Neoteroi OpenAPI docs plugin: https://www.neoteroi.dev/mkdocs-plugins/web/oad/
+- APScheduler 3.x user guide: https://apscheduler.readthedocs.io/en/3.x/userguide.html
+- Schedule tasks with FastAPI (Sentry): https://sentry.io/answers/schedule-tasks-with-fastapi/
+- mongodump-s3 PyPI (env var conventions reference): https://pypi.org/project/mongodump-s3/
+- halvves/mongodb-backup-s3 (S3_BUCKET convention): https://github.com/halvves/mongodb-backup-s3
+- Direct codebase inspection: `app/main.py`, `app/config.py`, `app/admin/router.py`,
+  `app/admin/ui_router.py`, `docker-compose.yml`, `mkdocs.yml`, `docs/deployment.md`
+  (HIGH confidence — live codebase, 2026-04-10)
+
+---
+
+*Feature & UX research for: ollog v1.8 — Admin container isolation, backup UX, docs rewrite*
+*Researched: 2026-04-10*

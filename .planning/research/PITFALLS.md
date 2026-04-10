@@ -1,293 +1,466 @@
-# Pitfalls Research
+# Domain Pitfalls — ollog v1.8
 
-**Domain:** Adding named API token auth (X-API-Key) alongside existing JWT Bearer + cookie auth in a FastAPI ham radio logging app
-**Researched:** 2026-04-09
-**Confidence:** HIGH (codebase read directly; FastAPI auth internals verified against official issues and GitHub discussions; hashing guidance verified against OWASP and pwdlib docs)
-
----
-
-## Critical Pitfalls
-
-### Pitfall 1: Using Argon2 (pwdlib) to hash API tokens — per-request latency kills the auth path
-
-**What goes wrong:**
-The app already uses `pwdlib[argon2]` via `PasswordHash.recommended()` for passwords. It is tempting to call `password_hash.hash(token)` for API tokens too, since the function is already imported and working. Argon2 with recommended parameters (64 MB memory, 3 iterations) takes 200–500 ms per hash. Every authenticated API request must verify the token — this means 200–500 ms of CPU-bound blocking added to every call that uses X-API-Key. Under concurrent load this also starves the asyncio event loop because `password_hash.verify()` is a synchronous CPU-intensive call run on the thread.
-
-**Why it happens:**
-The project already imports `hash_password` / `verify_password` from `app/auth/service.py`. Reusing them for tokens is the path of least resistance. Argon2 is correct for passwords because its cost is intentional (attacker must be slow). API tokens are long random strings — the entropy is already high, so the compute cost provides no security benefit over HMAC-SHA256.
-
-**How to avoid:**
-Store a prefix (first 8 chars of the plaintext, e.g., `ollog_`) for fast DB lookup, plus a HMAC-SHA256 digest of the full token. Verification is: `hmac.compare_digest(hmac.new(key, token, sha256).hexdigest(), stored_hash)`. The lookup is instant (index on prefix), the verify is microseconds, and `hmac.compare_digest` is constant-time. The HMAC key is a secret stored in settings (separate from `SECRET_KEY` to allow independent rotation). Do not use Argon2 for API tokens.
-
-**Warning signs:**
-- P95 latency on any endpoint using `X-API-Key` jumps to 400+ ms
-- `top` shows Python worker pegged at 100% CPU on authenticated requests
-- Profiler shows `argon2_cffi.core.hash_secret_raw` dominant on token-auth paths
-
-**Phase to address:** Token model + hashing design plan — before any code is written for the token document or verification dependency
+**Domain:** FastAPI + Beanie/MongoDB admin isolation, database backup, MkDocs docs rewrite
+**Researched:** 2026-04-10
+**Scope:** Three new capabilities: admin container, mongodump backup, MkDocs /guide rewrite
 
 ---
 
-### Pitfall 2: Storing the full plaintext token in MongoDB (or logging it)
+## Summary
 
-**What goes wrong:**
-The token plaintext must be shown exactly once at creation and never again. If the full token is stored in the database (even "temporarily"), a MongoDB dump, backup leak, or read-only DB credential compromise exposes every token in cleartext. Equally dangerous: logging the token value anywhere in `_handle_datagram`, the token creation endpoint response body, or error messages.
+Three distinct risk profiles converge in v1.8. The admin container adds a second long-running
+process that shares state (cookies, JWT, Beanie, templates, static files) with the main app.
+The backup module introduces a shell dependency (mongodump binary) that does not exist in the
+base image, and a volume problem that will silently discard backups on container restart. The
+docs rewrite is the lowest-risk area but has two sharp edges: plugin compatibility for API
+reference embedding and `use_directory_urls: true` relying on `html=True` in the StaticFiles
+mount.
 
-**Why it happens:**
-"Show it once" UX requires returning it from the POST /auth/tokens endpoint. It is easy to accidentally also persist the plaintext to the `ApiToken` document during construction, or to log `token_value` in a debug statement that stays in production.
-
-**How to avoid:**
-Generate plaintext token → return it in the HTTP response body → hash it → persist only the hash + prefix. The plaintext must never touch MongoDB. Add a `NO_LOG_TOKEN` comment at the generation site. In the UI, render the token value in the response and show a clear "You will not see this again" banner. Do not store it in the DOM as a data attribute or in a hidden field that could appear in server-side template logs.
-
-**Warning signs:**
-- The `ApiToken` Beanie document has a field named `token` or `plain_token` of type `str`
-- Any log line contains a string that matches the token format regex (`ollog_[A-Za-z0-9]{32}`)
-- The POST /auth/tokens response is stored in browser history or a `hx-swap` target that re-renders on navigation (HTMX OOB swap issue)
-
-**Phase to address:** Token model design plan — the document schema must explicitly exclude a plaintext field; add a linter/grep check in tests
+Critical issues to resolve before building: (1) mongodump binary absent from python:3.12-slim,
+(2) cookie name collision between port 8000 and 8001 when both run on the same hostname, and
+(3) the `./backups/` path inside the container is ephemeral unless a volume is declared.
 
 ---
 
-### Pitfall 3: `get_current_user` dependency silently breaks when API key auth is added — wrong 401/403 status codes returned
+## 1. Admin Container Isolation
 
-**What goes wrong:**
-`get_current_user` in `app/auth/dependencies.py` uses `OAuth2PasswordBearer(tokenUrl="/auth/token")`. When a request arrives with `X-API-Key` but no `Authorization: Bearer` header, `OAuth2PasswordBearer` fires first (it runs before any API key check in a stacked dependency). With default `auto_error=True`, it immediately returns 403 Forbidden ("Not authenticated") — not 401 — and the API key is never inspected. The caller receives an opaque 403 that gives no indication the X-API-Key path exists.
+### 1.1 Cookie Cross-Port Contamination (CRITICAL)
 
-FastAPI's `OAuth2PasswordBearer` returns 403 (not 401) when the header is absent. This is a documented FastAPI behavior (issues #2026, #10177) that surprises implementors expecting 401.
+**What goes wrong:** RFC 6265 Section 5.1.3 explicitly excludes port from cookie scope. Browsers
+send cookies matching the domain and path regardless of port number. If both the main app
+(port 8000) and the admin app (port 8001) set a cookie named `access_token` on the same domain
+(e.g., `localhost` or `ollog.example.com`), each app receives the other app's cookie on every
+request.
 
-**Why it happens:**
-The natural extension — "add API key check to the existing dependency" — fails because `OAuth2PasswordBearer` raises before the API key branch can run. FastAPI's dependency resolution calls sub-dependencies eagerly.
+**Why it happens:** The current `app/admin/ui_router.py` sets
+`response.set_cookie(key="access_token", ...)` without a `path` attribute, so the cookie is
+scoped to `/`. A cookie set at `localhost:8000/admin/ui/login` is sent back to `localhost:8001/`
+and vice versa — browsers do not distinguish ports when deciding which cookies to send.
 
-**How to avoid:**
-Create a new unified dependency `get_current_user_or_token` that:
-1. Uses `OAuth2PasswordBearer(auto_error=False)` — returns `None` when no Bearer header, no error raised
-2. Uses `APIKeyHeader(name="X-API-Key", auto_error=False)` — returns `None` when no header
-3. Tries Bearer first, then API key, raises 401 (not 403) if both are absent
+**Consequences:**
+- An operator logged into the main app at port 8000 will have their `access_token` cookie silently
+  sent to the admin app at port 8001, potentially authenticating them as the wrong session.
+- When an admin logs into port 8001, the new `access_token` overwrites whatever was set on port
+  8000, logging the operator out of the main UI.
+- This is not theoretical. It is guaranteed default browser behavior under RFC 6265.
 
-Keep the existing `get_current_user` (Bearer-only) unchanged for cookie routes. The new dependency replaces it only on REST API endpoints that should accept both methods. Never put `auto_error=True` schemes in a combined fallback chain.
+**Prevention:** Use distinct cookie names per app, not distinct ports. The admin app must set a
+cookie named `admin_token` (or any name that does not collide with `access_token`). The
+`get_current_user_cookie` dependency in `app/auth/dependencies.py` reads
+`Cookie(default=None)` using the parameter name `access_token` as the alias. The admin app's
+equivalent dependency must read `Cookie(alias="admin_token")`. Both cookies will still be
+transmitted to both ports, but each dependency ignores the wrong-named cookie.
 
-**Warning signs:**
-- curl with only `-H "X-API-Key: ollog_..."` receives `403 Forbidden` instead of `200 OK`
-- `/docs` Swagger UI shows only Bearer lock icon; no API key field visible in "Authorize"
-- Existing `test_auth.py` tests start failing with unexpected 403s after the dependency change
+**Alternative (secondary hardening):** Set `path="/admin"` on the admin cookie so the browser
+only sends it with requests whose path starts with `/admin`. Only safe if the admin app never
+serves anything outside `/admin`.
 
-**Phase to address:** Auth dependency refactor plan — this is the highest-risk integration point; existing tests must pass before and after the change
+**Detection:** During local dev with both containers running, print `request.cookies` at the top
+of each login handler and verify no cross-contamination.
+
+**Confidence:** HIGH — RFC 6265 Section 5.1.3 (rfc-editor.org/rfc/rfc6265); Firefox Bugzilla
+#469287 confirms real-world port-sharing behavior; w3tutorials.net/blog/are-http-cookies-port-specific/.
 
 ---
 
-### Pitfall 4: UDP listener uses a startup-pinned `User` object — new API token assigned to the operator is never seen
+### 1.2 Beanie Global Initialization State (MODERATE — low risk under Docker Compose)
 
-**What goes wrong:**
-In `app/main.py` lifespan, the UDP listener is started once:
-```python
-udp_user = await UserModel.find_one({"callsign": udp_op})
-udp_transport, _ = await start_udp_listener(..., user=udp_user)
+**What goes wrong:** `init_beanie()` stores model registry state at the module level inside
+Beanie's internal `Settings` class. If two FastAPI apps sharing the same codebase both call
+`init_beanie()` in the same OS process, the second call silently replaces the first call's
+model registry.
+
+**Current risk level:** Under Docker Compose each container is a separate Python interpreter.
+The two calls to `init_beanie` in two separate containers cannot interfere. This pitfall is
+latent — it activates only if the admin app is ever run in-process (e.g., via `app.mount()`).
+
+**Consequence if activated:** Any document model omitted from the second `init_beanie()` call
+becomes non-functional (queries raise `CollectionWasNotInitialized`). An admin app that
+incorrectly calls `init_beanie(document_models=[User, ApiToken])` omitting `QSO` would break
+QSO queries for any shared code path.
+
+**Prevention:** Always call `init_beanie` with the full `document_models=[QSO, User, ApiToken]`
+list in both apps, even if the admin app never queries QSO. Cost is negligible (index validation
+at startup). Document this constraint in a comment next to the admin app's lifespan.
+
+**Confidence:** MEDIUM — Beanie initialization docs at beanie-odm.dev/tutorial/initialization/;
+module-level state pattern confirmed by Beanie source inspection.
+
+---
+
+### 1.3 Jinja2Templates Directory — No Conflict (INFORMATIONAL)
+
+**What goes wrong:** Multiple `Jinja2Templates(directory="templates")` instantiations in the
+same process (one in `app/main.py`, one in `app/admin/ui_router.py`) concern some developers.
+
+**Reality:** `Jinja2Templates` creates an independent Jinja2 `Environment` per instance. There
+is no global Jinja2 state. Two instances pointed at the same directory read the same files
+independently — correct and intended behavior for a shared codebase. This is not a pitfall.
+
+**Actual risk:** The `templates/` directory is baked into the image via `COPY templates/ templates/`.
+If a future admin-specific Dockerfile omits certain templates, template-not-found errors surface
+at request time, not startup. Keep a single Dockerfile; use the `command:` override in Docker
+Compose to differentiate the entry point (`uvicorn app.main:app` vs `uvicorn app.admin_main:app`),
+not separate build contexts.
+
+**Confidence:** HIGH — Jinja2 Environment is instance-scoped; FastAPI templates documentation.
+
+---
+
+### 1.4 JWT Secret Shared Between Containers (LOW)
+
+**What goes wrong:** Both containers read `SECRET_KEY` from the same `.env`. A token minted by
+the main app is accepted by the admin app — this is the intended design. The risk is operational.
+
+**Risk:** If `SECRET_KEY` is rotated and only one container is restarted, the two containers
+temporarily hold different secrets. Tokens minted by the restarted container are rejected by the
+non-restarted one, producing silent 401 errors.
+
+**Secondary risk (code inspection):** `docker-compose.yml` line 29 hardcodes
+`SECRET_KEY=dev-secret-change-in-production` in the `environment` block. If `.env` is absent,
+`pydantic-settings` uses this insecure fallback for both containers. `app/config.py` declares
+`secret_key: str` with no default — but the docker-compose environment override supplies one,
+bypassing the Pydantic required-field guard. Remove the docker-compose default and force
+operators to set `SECRET_KEY` explicitly in `.env`.
+
+**Prevention:** (1) Always restart both containers atomically: `docker compose up -d --force-recreate`.
+(2) Remove the `SECRET_KEY=dev-secret-change-in-production` line from `docker-compose.yml`.
+Document the atomic restart requirement in the deployment guide.
+
+**Confidence:** HIGH — code inspection of `docker-compose.yml` lines 28-30 and `app/config.py`.
+
+---
+
+### 1.5 CORS Between Port 8000 and 8001 (LOW — conditional)
+
+**What goes wrong:** Ports define different origins for CORS purposes (unlike cookies). If any
+HTMX partial or JS `fetch()` call in the admin UI at port 8001 targets the main API at port 8000,
+the browser blocks it as a cross-origin request. The main app has no `CORSMiddleware` configured.
+
+**When this bites:** Only if the admin container makes cross-port API calls. If the admin app
+is fully self-contained (all its fetch targets are on port 8001), CORS is a non-issue.
+
+**Prevention:** Keep all admin UI requests on the same origin (port 8001 calls port 8001 only).
+If cross-port calls are ever added, configure `CORSMiddleware` with an explicit `allow_origins`
+list — never `["*"]` with `allow_credentials=True` (FastAPI rejects this combination).
+
+**Confidence:** HIGH — FastAPI CORS docs (fastapi.tiangolo.com/tutorial/cors/); browser
+same-origin policy specification.
+
+---
+
+## 2. Database Backup
+
+### 2.1 mongodump Binary Absent from python:3.12-slim (CRITICAL)
+
+**What goes wrong:** `python:3.12-slim` (Debian Bookworm minimal) does not include `mongodump`.
+It is part of `mongodb-database-tools`, a separate package acquired only from MongoDB's apt
+repository. Any `subprocess.run(["mongodump", ...])` call inside the container raises
+`FileNotFoundError` at runtime.
+
+**Why it happens:** The Dockerfile installs only `pip install .`. `mongodump` is not a Python
+package and is not acquired via pip.
+
+**Consequences:** Backup module silently fails or crashes on first invocation. If the exception
+is swallowed, no error is logged and no backup is created.
+
+**Prevention options:**
+
+Option A — Install `mongodb-database-tools` in the Dockerfile (adds ~40 MB):
+```dockerfile
+RUN apt-get update && apt-get install -y gnupg curl && \
+    curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
+      gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor && \
+    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] \
+      https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main" \
+      | tee /etc/apt/sources.list.d/mongodb-org-8.0.list && \
+    apt-get update && apt-get install -y mongodb-database-tools && \
+    rm -rf /var/lib/apt/lists/*
 ```
-The `User` object (and the derived operator callsign) are captured at startup and passed into `QSODatagramProtocol.__init__`. They are held in `self._user` and `self._operator` for the process lifetime. If the feature being added includes a concept of "token-scoped operator" (where an API token can be associated with a user different from `UDP_OPERATOR`), the UDP path will never use it — it always uses the startup snapshot.
+The MongoDB apt repo for Bookworm amd64 now includes `mongodb-database-tools` as of MongoDB 8.0.
 
-More concretely: if the UDP ingestion path is later modified to resolve the operator from an incoming token header (a reasonable future extension), the `_handle_datagram` function receives the stale startup operator, not the request-time resolved one.
+Option B — Pure-Python export using PyMongo (no binary dependency, recommended):
+Iterate each collection with `motor.AsyncIOMotorCollection.find({})` and serialize with
+`bson.json_util.dumps()` (EJSON format). No binary required. Output is re-importable with
+`mongoimport`. Adequate for typical ham log databases (< 100K QSOs). Does not preserve BSON
+types beyond what EJSON supports — suitable for disaster recovery, not byte-for-byte BSON replay.
 
-**Why it happens:**
-The current design is intentionally simple: UDP has no auth, no per-datagram identity, operator is config-pinned. Adding token auth to REST endpoints does not change this — but the implementation phase may accidentally try to "unify" auth paths between UDP and HTTP, creating confusion.
+**Recommendation:** Option B. It avoids image bloat and the MongoDB apt key management ceremony.
+If exact BSON fidelity is ever required, document Option A as the upgrade path.
 
-**How to avoid:**
-Keep UDP operator resolution exactly as-is. The new API token feature is for REST endpoints only. Add an explicit comment in `_handle_datagram` and `start_udp_listener` that the operator/user are startup-pinned and are not affected by token auth. Do not add `X-API-Key` processing to the UDP path. If future UDP-per-token auth is needed, it requires a protocol-level change (not a dependency injection change).
-
-**Warning signs:**
-- A plan or code review mentions "make UDP listener use the token auth dependency"
-- `_handle_datagram` receives an `api_key` or `token` parameter
-- UDP integration tests start importing anything from a new `app/auth/tokens` module
-
-**Phase to address:** UDP compatibility verification plan — add a regression test that UDP inserts still work with `UDP_OPERATOR` config unchanged after the token feature is added
+**Confidence:** HIGH — Docker Hub layer manifest for python:3.12-slim confirms no mongodb-database-tools;
+MongoDB database tools installation docs (mongodb.com/docs/database-tools/installation/).
 
 ---
 
-### Pitfall 5: ADIF `APP_` field round-trip broken by case normalization or truncation
+### 2.2 Backup Volume Ephemerality (CRITICAL)
 
-**What goes wrong:**
-The ADIF parser in `app/adif/parser.py` normalizes all field names to UPPERCASE: `field_name = parts[0].upper()`. This means `APP_ollog_source` becomes `APP_OLLOG_SOURCE`. The serializer in `app/adif/serializer.py` outputs keys as-is from the dict. On import, a field named `APP_OLLOG_SOURCE` is stored in MongoDB `model_extra` as `APP_OLLOG_SOURCE`. On export, it is emitted as `<APP_OLLOG_SOURCE:N>value`.
+**What goes wrong:** If `python -m app.backup` writes to `./backups/` inside the container and
+that path is not a mounted volume, all backup files are discarded on container restart. Docker
+container writable layers are ephemeral.
 
-This is correct per the ADIF spec (field names are case-insensitive). The pitfall is if the new token feature adds an `APP_OLLOG_TOKEN_NAME` or similar field to QSOs stamped via API token, and a downstream logger (e.g., WSJT-X, N1MM) reads that field as `APP_Ollog_Token_Name` — on re-import the field becomes `APP_OLLOG_TOKEN_NAME` and matches correctly.
+**Why it happens:** The current `docker-compose.yml` declares only the `mongo-data` named volume.
+No `backups` volume is declared. Any `./backups/` or `/app/backups/` path inside the `api`
+container is ephemeral container-layer storage.
 
-The actual danger: if someone hand-crafts an ADIF file with mixed-case APP_ fields, expecting them to survive round-trip as mixed-case (like `APP_MyApp_foo`), they will be uppercased. This is a known behavior (parser line 72: `field_name = parts[0].upper()`), not a bug, but it can surprise operators who use the exported file with case-sensitive downstream tools.
+**Consequences:** A backup written before a successful S3 upload is fine. But if S3 upload fails
+after the local file is written and then the container restarts before retry, the file is gone
+with no recovery path.
 
-A secondary risk: the ADIF 3.1.7 spec allows APP_ field names of arbitrary length. If an API token name (e.g., the user-supplied label) is injected as part of an APP_ field name (e.g., `APP_OLLOG_{TOKEN_NAME}`), a very long token name can create an oversized field name. The spec does not specify a max field name length, but MongoDB field names have a 16 MB document limit (not a per-key limit). However, downstream ADIF parsers may truncate or reject oversized field names.
+**Prevention:**
+1. Add a named volume or bind mount to `docker-compose.yml`:
+   ```yaml
+   # Named volume (survives restarts, managed by Docker)
+   - backups:/app/backups
 
-**Why it happens:**
-The temptation is to stamp QSOs logged via API token with the token's name for audit trail purposes, e.g., `APP_OLLOG_SOURCE=my-rig-token`. If the token name contains special chars (spaces, colons, angle brackets) and is embedded in a field name, the resulting ADIF is invalid.
+   # OR bind mount (host path visible to ops)
+   - ./backups:/app/backups
+   ```
+2. The backup module must read its output path from an env var (`BACKUP_DIR`, defaulting to
+   `/app/backups`) — never a relative `./backups/` path.
+3. After a confirmed S3 upload, delete the local file to prevent unbounded disk growth.
 
-**How to avoid:**
-If stamping a token source field, use a fixed field name like `APP_OLLOG_SOURCE` with the token name as the value, not as part of the field name. Validate token names at creation to alphanumeric + hyphen/underscore only, max 32 chars. Keep the round-trip rule: field names always uppercase, values preserved verbatim.
-
-**Warning signs:**
-- Any code that does `f"APP_OLLOG_{token_name}"` as a field name key
-- Token name validation missing from the POST /auth/tokens request schema
-- Test that imports a token-stamped ADIF file and checks field names
-
-**Phase to address:** Token model design plan (validation rules) + ADIF stamping plan if token-source stamping is in scope
-
----
-
-### Pitfall 6: CSRF on token creation and revocation endpoints — cookie auth + state-changing POST
-
-**What goes wrong:**
-The existing cookie auth uses `HttpOnly` cookies. The token management UI (create token, revoke token) will use the same `get_current_user_cookie` dependency. A POST to `/auth/tokens` (create) or `DELETE /auth/tokens/{id}` (revoke) from a malicious site works if:
-- The browser sends the `access_token` cookie automatically (CSRF)
-- The `SameSite` attribute is not set to `Strict` or `Lax` on the cookie
-
-The app currently sets the cookie in `app/auth/router.py` (the cookie login flow in the UI router). If `SameSite` is not explicitly set, the default in modern browsers is `Lax`, which blocks cross-site POSTs but allows top-level navigation GETs. `SameSite=Lax` does protect POST endpoints from CSRF in modern browsers. However, `SameSite=None` (required for cross-origin embedding) would not.
-
-**Why it happens:**
-The token management endpoints are the first endpoints in this app that are both cookie-authenticated AND perform sensitive state changes (create/revoke credentials). Previous cookie routes (log view, admin UI) are read-mostly and do not create security-sensitive resources. The new endpoints raise the stakes.
-
-**How to avoid:**
-Verify that the existing cookie is set with at minimum `SameSite=Lax`. Check the `set_cookie` call in the UI login router. For the token creation endpoint, add a `Referer` header check or a CSRF double-submit cookie if `SameSite` is not confirmed as `Strict`. Use HTMX for the UI and add `hx-headers='{"X-Requested-With": "XMLHttpRequest"}'` to the form — then verify this header server-side as a lightweight CSRF guard (not a substitute for SameSite, but defense-in-depth). Token revocation (DELETE) is safe from form-based CSRF since HTML forms cannot send DELETE — use DELETE not POST for revocation.
-
-**Warning signs:**
-- The login `set_cookie` call in the UI router does not include `samesite="lax"` or `samesite="strict"`
-- Token create/revoke are both POST endpoints (DELETE is safer for revocation)
-- No CSRF check of any kind on the token creation form
-
-**Phase to address:** Token management UI plan — audit the login cookie attributes before building the create/revoke forms
+**Confidence:** HIGH — Docker Compose volume documentation; code inspection of docker-compose.yml.
 
 ---
 
-### Pitfall 7: Timing attack via prefix lookup short-circuit — attacker can enumerate valid prefixes
+### 2.3 S3 Upload Atomicity and Interrupted Uploads (MODERATE)
 
-**What goes wrong:**
-The recommended token lookup pattern is: query MongoDB for `{"prefix": token[:8], "owner": ...}`, then verify the full hash. If no document is found for a given prefix, the response returns immediately (fast path). If a document is found, hash verification takes microseconds more. An attacker sending many tokens with the same first 8 chars can distinguish "prefix matched" from "prefix not found" by response timing — enabling a prefix enumeration attack.
+**What goes wrong:** `boto3.upload_file()` is not atomic from the caller's perspective. For files
+above 8 MB it uses multipart upload (multiple HTTP requests via `TransferConfig`). If the Python
+process is killed mid-upload, in-progress parts are orphaned in S3: invisible as completed
+objects but charged at standard storage rates. They accumulate silently.
 
-**Why it happens:**
-This is a subtle but real timing oracle. The "fast return on not found" is the natural code path. The gap is small (a MongoDB round-trip vs. a round-trip + hash verify) but measurable over many samples.
+**What S3 does guarantee:** `PutObject` (single-part upload) is fully atomic on S3's side — no
+partial objects are ever committed. For compressed EJSON exports of a typical ham log, staying
+under 8 MB avoids multipart entirely.
 
-**How to avoid:**
-After the prefix lookup, always run the hash verification path, even when no document was found — verify against a dummy hash. Use `hmac.compare_digest(candidate_hash, dummy_hash)` on the not-found branch to waste equivalent time. Alternatively, accept the theoretical risk: prefix enumeration only leaks "a token starting with X exists," not the token itself. At 8 chars of the character space, the risk is minimal for a single-operator app. Document the decision.
+**Consequences of interrupted multipart:**
+- No corrupt object in the bucket (correct behavior)
+- Orphaned parts accumulate, incurring storage charges
+- No automatic cleanup unless a bucket lifecycle rule is configured
 
-**Warning signs:**
-- Token lookup code has an early `return None` on "not found" before any hash operation
-- No dummy verification on the not-found branch
+**Prevention:**
+1. Configure a bucket lifecycle rule: `AbortIncompleteMultipartUploads` after 1 day. One-time S3
+   console setting, not code.
+2. Write the backup to a local temp file first, verify it is non-zero and has a valid gzip header,
+   then upload. Never stream directly from the backup generator to S3.
+3. Log the S3 ETag returned by boto3 after upload for auditability.
+4. Use `upload_file` with a `Callback` parameter so interrupted uploads appear in logs.
 
-**Phase to address:** Token verification dependency plan — the dummy-verify pattern is a one-line addition, low cost, high security signal
-
----
-
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Reuse `password_hash.verify()` (Argon2) for token verification | Zero new code | 200–500 ms added to every API-key-authenticated request; event loop starvation | Never |
-| Store token plaintext in DB "for admin convenience" | Easy token recovery | One DB dump exposes all tokens; breaks the "show once" security guarantee | Never |
-| Use `auto_error=True` on `OAuth2PasswordBearer` in the combined auth dependency | No extra code | API key requests get 403 before the key is ever checked | Never |
-| Make UDP path also accept API tokens | "Unified auth" aesthetic | UDP is a bare datagram with no headers; token auth is meaningless on this path; breaks the startup-pinned operator invariant | Never |
-| Token name with no length/charset validation | Simpler create endpoint | Long or special-char token names break ADIF field stamping and Jinja2 rendering | Never in the token create schema |
-| POST for token revocation instead of DELETE | Simpler HTML form | POST revocation is CSRF-vulnerable from forms; DELETE cannot be triggered by a plain HTML form | Acceptable only if HTMX handles revocation (not a plain HTML form) |
+**Confidence:** HIGH — AWS S3 PutObject atomicity guarantee (docs.aws.amazon.com/AmazonS3);
+boto3 abort_multipart_upload docs.
 
 ---
 
-## Integration Gotchas
+### 2.4 Cron Expression Parsing Library (MODERATE)
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| `OAuth2PasswordBearer` + `APIKeyHeader` stacked | Using `auto_error=True` on Bearer scheme in a combined dependency | Set `auto_error=False` on both; try Bearer first, fall back to API key, raise 401 (not 403) if both absent |
-| Beanie `ApiToken` document + plaintext | Accidentally including a `plain_token: str` field in the Pydantic model | Document schema must have no plaintext field; hash + prefix only; add a test that inspects the stored document |
-| HTMX form + token creation response | HTMX `hx-swap="innerHTML"` retains the response in DOM history; the token value in the response is re-renderable | Use `hx-swap="outerHTML"` with a "token shown" confirmation state that replaces the creation form; never leave the raw token value in a stable DOM node |
-| `pwdlib` Argon2 + API token path | `verify_password(token, stored_hash)` is called on the hot auth path | Use `hmac.compare_digest(hmac_sha256(token), stored_hash)` for tokens; reserve Argon2 for password verification only |
-| MongoDB `model_extra` + ADIF APP_ fields | Adding a token-stamped APP_ field with a dynamic key name from token label | Use fixed field name `APP_OLLOG_SOURCE`, token label as value; never use token label as part of the key name |
-| Cookie `SameSite` + token create form | Not setting `samesite` on the `set_cookie` call | Explicitly set `samesite="lax"` (or `"strict"`) in the login response that sets `access_token` cookie |
+**What goes wrong:** Python's stdlib has no cron expression parser. `BACKUP_SCHEDULE` requires
+one. The ecosystem has shifted: `aiocron` (a common async cron wrapper) migrated from `croniter`
+to `cronsim` in December 2024. `cronsim` has stricter validation for some edge-case expressions
+(day-of-week/day-of-month interactions, `@yearly`/`@reboot` macros).
 
----
+**Prevention:**
+- For a simple scheduler loop, use `croniter` directly (now maintained under pallets-eco). It
+  has a stable API and does not require asyncio integration.
+- Pattern: `asyncio.create_task(_backup_loop())` where `_backup_loop` uses `croniter` to compute
+  `next_run = iter.get_next(datetime)`, then `await asyncio.sleep((next_run - now).total_seconds())`.
+- Do not use `aiocron` as the scheduling layer if you rely on non-standard cron macros — test
+  the specific `BACKUP_SCHEDULE` value against `cronsim` before shipping.
+- Pin whichever library is chosen to a specific minor version in `pyproject.toml`.
 
-## Performance Traps
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Argon2 on every token verify | P95 latency >400 ms on all API-key endpoints | HMAC-SHA256 with prefix-indexed lookup | Any non-trivial request rate; immediately apparent in load tests |
-| No index on token prefix field | Full collection scan on every API request | `IndexModel([("prefix", ASCENDING), ("owner_id", ASCENDING)], unique=True)` in `ApiToken.Settings` | Breaks as soon as there are more than ~100 tokens |
-| Synchronous `hmac` call without `run_in_executor` | Blocks asyncio loop for CPU-bound verify (minor for HMAC, severe for Argon2) | HMAC is fast enough to call inline; only move to executor if using Argon2 (don't) | Argon2: immediately; HMAC: never a real issue |
+**Confidence:** MEDIUM — aiocron GitHub repo confirms cronsim migration (Dec 2024);
+pallets-eco/croniter PyPI confirms active maintenance.
 
 ---
 
-## Security Mistakes
+### 2.5 asyncio.create_task Shutdown Handling (MODERATE)
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Storing token plaintext in DB | Full token exposure on any DB read (backup, dump, misconfigured replica) | Hash + prefix only; no plaintext field in `ApiToken` document |
-| Logging token value in debug/info lines | Token in log files, aggregators, or error trackers | `NO_LOG_TOKEN` comment at generation; grep test that ensures no token value in log output |
-| Returning token value in any endpoint other than the creation response | Token retrievable after creation (violates show-once contract) | GET /auth/tokens lists tokens by name + prefix only; never returns hash or reconstructed value |
-| 403 (Forbidden) instead of 401 (Unauthorized) on missing API key | Client cannot distinguish "wrong key" from "not authorized to this resource" | `auto_error=False` + manual raise `HTTPException(401)` in combined dependency |
-| Token with no expiry and no last-used tracking | Stolen token valid indefinitely; no audit trail | Add `expires_at: Optional[datetime]` and `last_used_at: Optional[datetime]` to `ApiToken`; update `last_used_at` on each verify (background task to avoid latency) |
-| Token creation endpoint reachable without CSRF guard | Cross-site form can create tokens on behalf of logged-in operator | Verify `SameSite=Lax` on auth cookie; use `DELETE` not `POST` for revocation |
+**What goes wrong:** A backup cron loop created with `asyncio.create_task()` is cancelled during
+uvicorn shutdown. If the task is mid-backup when the signal arrives, the local gzip file and any
+S3 upload in progress are abandoned in an indeterminate state.
 
----
+**Why it happens:** The existing lifespan in `app/main.py` already demonstrates the correct
+shutdown pattern for the change-stream watcher (lines 94-98: cancel + `await` with
+`CancelledError` handling). A backup task created outside the lifespan (e.g., inside the backup
+module's own startup function) is not tracked by lifespan and will not be waited for during
+shutdown.
 
-## UX Pitfalls
+**Consequences:** Corrupt local `.gz` files; incomplete multipart S3 uploads; silent data loss
+if the temp file cleanup `finally` block runs during cancellation before S3 confirms the upload.
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No "copy to clipboard" button on token creation page | Operator manually selects and copies; risk of partial selection or accidental navigation away | Render `<button onclick="navigator.clipboard.writeText(...)">Copy</button>` next to the token value in the creation response fragment |
-| HTMX swap retains token in DOM after "copy" | Operator leaves page open; token value visible in page source | After copy, swap the token display fragment with "Token copied — this value is no longer shown" confirmation state |
-| Token list shows truncated hash instead of prefix | Operator cannot identify which token is "rig-api" vs "logbook-sync" by prefix alone | Store a human-readable `name` (label) on the `ApiToken` document; list shows `name` + first 8 chars of plaintext prefix only |
-| Revoke button requires a confirmation step but none is shown | Operator accidentally revokes production token | HTMX confirm dialog or two-step (confirm → DELETE) before revocation |
-| No indication of which auth scheme was used in `/auth/me` | API consumers cannot debug whether their key was accepted as Bearer or X-API-Key | Return `auth_method: "bearer" | "api_key"` in the `/auth/me` response when the combined dependency is active |
+**Prevention:**
+1. Track the backup task in the lifespan `yield` block, following the existing watcher pattern:
+   ```python
+   backup_task = asyncio.create_task(_backup_loop())
+   yield
+   backup_task.cancel()
+   try:
+       await backup_task
+   except asyncio.CancelledError:
+       pass
+   ```
+2. Use a `try/finally` inside `_backup_loop` to delete the local temp file on `CancelledError`.
+3. Accept that a backup in progress at shutdown time is abandoned. Do not attempt S3 upload after
+   receiving `CancelledError` — the S3 client connection state is undefined at that point.
 
----
-
-## "Looks Done But Isn't" Checklist
-
-- [ ] **Token hashing:** Verify that the `ApiToken` Beanie document has no `plain_token` or `token` string field — grep the model for any field storing the raw token value
-- [ ] **HMAC not Argon2:** Verify that `password_hash.verify()` is NOT called anywhere in the token verification dependency — grep for `verify_password` in any new token auth code
-- [ ] **Combined dependency 401 not 403:** `curl -X GET /api/qsos/ -H "X-API-Key: wrong"` returns 401, not 403; `curl` with no auth header returns 401, not 403
-- [ ] **UDP regression:** After deploying token feature, UDP inserts still work with `UDP_OPERATOR` set — verify `test_udp_pipeline.py` passes unchanged
-- [ ] **ADIF round-trip:** Token-stamped QSOs export and re-import cleanly — no APP_ field name issues; `test_adif_roundtrip.py` covers a token-stamped record
-- [ ] **Token shown once:** After the creation POST, refreshing the page does not re-show the token — the HTMX response is not cached and re-swappable
-- [ ] **Index on prefix:** `db.api_tokens.getIndexes()` shows a unique index on `(prefix, owner_id)` — not just on `prefix` alone (different operators could theoretically share a prefix)
-- [ ] **SameSite on auth cookie:** Inspect the `Set-Cookie` response header on `/auth/ui/login` — confirm `SameSite=Lax` or `SameSite=Strict` is present
-- [ ] **Token list no hashes:** GET /auth/tokens response body contains `name` and `prefix` fields only — no `hash`, `token_hash`, or reconstructable value
-- [ ] **Operator isolation:** A token owned by operator W1AW cannot authenticate requests that modify operator KD9XYZ's QSOs — operator callsign comes from the resolved `ApiToken.owner` document, never from request body
+**Confidence:** HIGH — Python asyncio documentation; code inspection of `app/main.py` lines
+48-99 (existing watcher and UDP shutdown pattern).
 
 ---
 
-## Recovery Strategies
+### 2.6 BACKUP_SCHEDULE Absent Crashes Startup (LOW)
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Argon2 used for tokens (P1) | HIGH — all tokens must be re-issued | Migrate: add HMAC hash field to documents, re-hash on next use (verify Argon2 first, then store HMAC hash, remove Argon2 hash), deprecate Argon2 field; invalidate all tokens after migration deadline |
-| Plaintext stored in DB (P2) | CRITICAL — treat as full breach | Rotate all tokens immediately; audit DB access logs; notify affected operators; redesign schema |
-| Wrong 403 on missing key (P3) | LOW | Change `auto_error` setting and re-raise with 401 in the dependency; one-line fix, redeploy |
-| UDP regression (P4) | LOW | Revert any changes to `_handle_datagram` or `start_udp_listener`; UDP path should be untouched |
-| ADIF APP_ field name broken (P5) | MEDIUM | Fix token name validation at creation; migrate existing malformed documents with a one-off script |
-| CSRF on create/revoke (P6) | MEDIUM | Add `SameSite` to cookie; convert revocation to DELETE; deploy |
-| Token prefix timing oracle (P7) | LOW | Add dummy-verify on not-found branch; no data migration needed |
+**What goes wrong:** If `BACKUP_SCHEDULE` is not set in the environment and the backup loop
+unconditionally tries to parse `None` as a cron expression, startup raises a `TypeError` before
+the app begins serving requests.
+
+**Prevention:** Follow the existing `udp_enabled` guard pattern from `app/config.py`:
+```python
+backup_schedule: str | None = None  # None = disabled, backup loop does not start
+```
+In lifespan, start the backup task only when `settings.backup_schedule is not None`. This makes
+backup opt-in with zero startup cost when not configured.
+
+**Confidence:** HIGH — code inspection of `app/config.py` lines 17-18 (udp_enabled pattern).
 
 ---
 
-## Pitfall-to-Phase Mapping
+## 3. MkDocs Docs Rewrite
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Argon2 for token hash (P1) | Token model + hashing design plan | No call to `verify_password` in token auth code; HMAC verify confirmed by unit test |
-| Plaintext in DB (P2) | Token model design plan | Inspect inserted `ApiToken` document in MongoDB; no plaintext field present |
-| Wrong 403 / bad combined dependency (P3) | Auth dependency refactor plan | `curl` tests: no-auth → 401, bad key → 401, good key → 200; existing JWT tests still pass |
-| UDP regression (P4) | UDP compatibility verification plan | `test_udp_pipeline.py` passes unchanged post-deploy |
-| ADIF APP_ field issues (P5) | Token name validation plan + ADIF stamping plan | Round-trip test with token-stamped record; token name charset validated at create |
-| CSRF on token create/revoke (P6) | Token management UI plan | Cookie `Set-Cookie` header has `SameSite=Lax`; revocation uses DELETE |
-| Prefix timing oracle (P7) | Token verification dependency plan | Dummy-verify present on not-found branch; code review gate |
+### 3.1 html=True on StaticFiles Mount Is Load-Bearing (HIGH)
+
+**What goes wrong:** MkDocs Material with `use_directory_urls: true` (current setting in
+`mkdocs.yml`) generates `getting-started/index.html` instead of `getting-started.html`. The
+`site/` directory is mounted via `StaticFiles(directory="site", html=True)` at `/guide`. The
+`html=True` parameter enables directory-index resolution — a request to `/guide/getting-started`
+is served as `/guide/getting-started/index.html`. Without `html=True`, all non-root pages
+return 404.
+
+**Current state:** `app/main.py` line 151 correctly sets `html=True`. This will continue to work
+after the rewrite as long as `html=True` is not removed.
+
+**Risk:** The parameter is not obviously necessary; a developer reading the mount line cold would
+not know it is load-bearing and might remove it during a cleanup pass.
+
+**Prevention:** Add a comment at the mount line:
+```python
+# html=True is load-bearing: use_directory_urls=true in mkdocs.yml generates
+# page/index.html paths; html=True enables directory index resolution in StaticFiles.
+app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
+```
+
+**Confidence:** HIGH — code inspection of `main.py` line 151 and `mkdocs.yml`; MkDocs
+`use_directory_urls` documentation.
+
+---
+
+### 3.2 API Reference Embedding — Plugin and Schema Export (MODERATE)
+
+**What goes wrong:** Embedding the FastAPI OpenAPI spec in a MkDocs page requires a plugin not
+currently in `pyproject.toml`. Two plugins exist:
+
+- `mkdocs-swagger-ui-tag` (blueswen/mkdocs-swagger-ui-tag) — bundles Swagger UI assets
+  statically. Works when `site/` is served offline via FastAPI's StaticFiles with no CDN access.
+- `mkdocs-render-swagger-plugin` (bharel/mkdocs-render-swagger-plugin) — injects a CDN
+  `<script>` tag pointing to unpkg.com. Breaks on private networks with no internet access.
+
+**Use `mkdocs-swagger-ui-tag`.** The `mkdocs-render-swagger-plugin` CDN dependency is incompatible
+with the project's deployment model (served from FastAPI StaticFiles, potentially on a private
+hamnet).
+
+**Schema export requirement:** Both plugins require an OpenAPI JSON file at build time. FastAPI
+serves its schema at `/openapi.json` (live), but `mkdocs build` is a static process. The schema
+file must be exported to `docs/openapi.json` before building:
+```bash
+python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > docs/openapi.json
+```
+This requires the app to be importable without a running database. Currently safe: `init_db()` is
+called only inside the lifespan context manager, not at module import time.
+
+**Prevention:**
+1. Add `mkdocs-swagger-ui-tag` to `[dependency-groups] dev` in `pyproject.toml`.
+2. Add the schema export command as a pre-build step (Makefile, justfile, or CI).
+3. Add `docs/openapi.json` to `.gitignore` — it is a build artifact, not source.
+
+**Confidence:** MEDIUM — mkdocs-swagger-ui-tag GitHub (blueswen/mkdocs-swagger-ui-tag); code
+inspection confirming `init_db` is lifespan-scoped, safe to import without DB.
+
+---
+
+### 3.3 Nav Structure and Search Indexing (LOW)
+
+**What goes wrong:** Deeply nested nav sections increase click depth without improving search
+recall. The `navigation.indexes` and `navigation.sections` features in Material have a documented
+incompatibility (mkdocs-material issue #3070): section index pages are not rendered correctly in
+certain Material versions when both features are active simultaneously.
+
+**Current state:** `mkdocs.yml` uses a flat 7-page nav with no nested sections or Material
+feature flags. The rewrite may introduce sections.
+
+**Prevention:**
+- Keep nav at 2 levels maximum: top-level sections with individual pages beneath.
+- Do not activate both `navigation.indexes` and `navigation.sections` in `mkdocs.yml` features.
+- Do not create section folders with only one page — promote single-page sections to top level.
+
+**Confidence:** MEDIUM — mkdocs-material navigation docs (squidfunk.github.io/mkdocs-material);
+GitHub issue #3070.
+
+---
+
+### 3.4 mkdocs serve in Docker Not Required (LOW)
+
+**What goes wrong:** `mkdocs serve` inside Docker binds to `127.0.0.1:8000` by default,
+unreachable from the host. Requires `--dev-addr 0.0.0.0:PORT` to work inside a container.
+
+**Why this is low risk:** The project serves the built `site/` via FastAPI StaticFiles. `mkdocs serve`
+is a dev tool only. The production build path is `mkdocs build` then `COPY site/ site/` then FastAPI
+serves `/guide`. Running `mkdocs serve` in Docker is never required.
+
+**Prevention:** Run `mkdocs serve` outside Docker in the dev virtual env. Document this in the
+deployment guide so developers do not waste time trying to run it inside a container.
+
+**Confidence:** HIGH — MkDocs `--dev-addr` documentation; Dockerfile inspection.
+
+---
+
+## 4. Phase-Specific Warning Summary
+
+| Phase Topic | Pitfall | Severity | Mitigation |
+|---|---|---|---|
+| Admin container | `access_token` cookie collides between port 8000 and 8001 | CRITICAL | Rename admin cookie to `admin_token` |
+| Admin container | Beanie double-init if ever merged to single process | LOW (Docker) | Always pass full `document_models` list |
+| Admin container | `SECRET_KEY` docker-compose default bypasses Pydantic guard | MODERATE | Remove hardcoded dev default from docker-compose.yml |
+| Admin container | CORS blocks cross-port JS fetch calls | LOW (conditional) | Keep admin UI requests on same origin (port 8001 only) |
+| Backup module | `mongodump` absent from python:3.12-slim | CRITICAL | Use pure-Python PyMongo export OR apt-install database-tools |
+| Backup module | `./backups/` path ephemeral in container | CRITICAL | Declare named volume or bind mount in docker-compose.yml |
+| Backup module | S3 multipart upload leaves orphaned parts on interrupt | MODERATE | S3 lifecycle AbortIncompleteMultipartUploads rule (1 day) |
+| Backup module | asyncio backup task not cancelled cleanly at shutdown | MODERATE | Track task in lifespan; cancel + await on shutdown |
+| Backup module | `BACKUP_SCHEDULE` absent crashes startup | LOW | `backup_schedule: str \| None = None` default in config |
+| Docs rewrite | `html=True` removed from StaticFiles mount | HIGH | Add load-bearing comment at mount line in main.py |
+| Docs rewrite | CDN-dependent swagger plugin breaks offline serving | MODERATE | Use mkdocs-swagger-ui-tag (static assets), not render-swagger-plugin |
+| Docs rewrite | OpenAPI schema not exported before `mkdocs build` | MODERATE | Add pre-build `python -c "... app.openapi()"` export step |
+| Docs rewrite | `navigation.indexes` + `navigation.sections` conflict | LOW | Do not activate both simultaneously in mkdocs.yml features |
 
 ---
 
 ## Sources
 
-- FastAPI `OAuth2PasswordBearer` returns 403 not 401 (confirmed bug): https://github.com/fastapi/fastapi/issues/10177 and https://github.com/fastapi/fastapi/issues/2026
-- FastAPI multiple auth schemes discussion: https://github.com/fastapi/fastapi/discussions/9076 and https://github.com/fastapi/fastapi/discussions/9601
-- FastAPI `auto_error=False` for optional auth: https://fastapi.tiangolo.com/reference/security/
-- HMAC-SHA256 vs Argon2 for API tokens: https://mojoauth.com/compare-hashing-algorithms/hmac-sha256-vs-argon2 — HMAC appropriate for tokens, Argon2 appropriate for passwords
-- OWASP password storage (hash algorithm guidance): https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
-- OWASP REST Security (token in header not URL): https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html
-- ADIF 3.1.7 specification (APP_ field naming, case insensitivity): https://adif.org/317/ADIF_317.htm
-- ADIF 3.1.5 annotated (most recent stable spec): https://adif.org/315/ADIF_315_annotated.htm
-- pwdlib PyPI (Argon2 recommended parameters): https://pypi.org/project/pwdlib/
-- Codebase direct reading: `app/auth/dependencies.py`, `app/auth/service.py`, `app/auth/models.py`, `app/auth/router.py`, `app/udp/server.py`, `app/adif/parser.py`, `app/adif/serializer.py`, `app/qso/service.py`, `app/qso/models.py`, `app/config.py`, `app/main.py`
-
----
-*Pitfalls research for: adding named API token auth (X-API-Key) alongside JWT Bearer + cookie auth in a FastAPI ham radio logging app*
-*Researched: 2026-04-09*
+- RFC 6265 Section 5.1.3 (cookies exclude port from scope): https://www.rfc-editor.org/rfc/rfc6265
+- Firefox Bugzilla #469287 (cookie port-sharing real-world): https://bugzilla.mozilla.org/show_bug.cgi?id=469287
+- Cookie port-sharing analysis: https://www.w3tutorials.net/blog/are-http-cookies-port-specific/
+- FastAPI CORS documentation: https://fastapi.tiangolo.com/tutorial/cors/
+- Beanie initialization documentation: https://beanie-odm.dev/tutorial/initialization/
+- MongoDB Database Tools installation (Bookworm): https://www.mongodb.com/docs/database-tools/installation/
+- mongodump compatibility documentation: https://www.mongodb.com/docs/database-tools/mongodump/mongodump-compatibility-and-installation/
+- Docker Hub python:3.12-slim layer manifest: https://hub.docker.com/layers/library/python/3.12-slim/images/sha256-ac212230555ffb7ec17c214fb4cf036ced11b30b5b460994376b0725c7f6c151
+- AWS S3 multipart upload overview: https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
+- AWS S3 AbortIncompleteMultipartUploads lifecycle: https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html
+- boto3 abort_multipart_upload: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/abort_multipart_upload.html
+- aiocron (cronsim migration Dec 2024): https://github.com/gawel/aiocron
+- croniter (pallets-eco, active): https://github.com/pallets-eco/croniter
+- Python asyncio task cancellation: https://docs.python.org/3/library/asyncio-task.html
+- mkdocs-swagger-ui-tag (static assets, recommended): https://github.com/blueswen/mkdocs-swagger-ui-tag
+- mkdocs-render-swagger-plugin (CDN-dependent, avoid): https://github.com/bharel/mkdocs-render-swagger-plugin
+- MkDocs Material navigation setup: https://squidfunk.github.io/mkdocs-material/setup/setting-up-navigation/
+- navigation.indexes + navigation.sections incompatibility: https://github.com/squidfunk/mkdocs-material/issues/3070
