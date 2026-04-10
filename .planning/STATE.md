@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.8 Admin Isolation, Backup & Docs — Phase 29 Plan 01 complete
+**Current focus:** v1.8 Admin Isolation, Backup & Docs — Phase 30 Plan 01 complete
 
 ## Current Position
 
-Phase: 29 — Admin Container Isolation (plan 01 complete)
+Phase: 30 — Database Backup CLI and Scheduler (plan 01 complete)
 Plan: 01 complete
-Status: Admin container isolation implemented; ready for Phase 30
-Last activity: 2026-04-10 — 029-01 executed (bootstrap extraction, admin_main.py, docker-compose profile)
+Status: Backup CLI, APScheduler cron integration, and S3 upload implemented; ready for Phase 31
+Last activity: 2026-04-10 — 030-01 executed (app/backup package, lifespan wiring, docker-compose bind mount)
 
-Progress: [█████████████████████░░░░░░░░░] ~70% (28/31 planned phases, 1 plan of phase 29 done)
+Progress: [██████████████████████░░░░░░░░] ~73% (29/31 planned phases, 1 plan of phase 30 done)
 
 ## Performance Metrics
 
@@ -34,7 +34,7 @@ Progress: [█████████████████████░░
 | v1.5 | 19–22 | 4 |
 | v1.6 | 23–24 | 2 |
 | v1.7 | 25–28 | 4 |
-| v1.8 | 29–31 | 3 (planned, 1 done) |
+| v1.8 | 29–31 | 3 (planned, 2 done) |
 
 ## Accumulated Context
 
@@ -86,5 +86,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-10
-Stopped at: Completed 029-01-PLAN.md — admin container isolation implemented
+Stopped at: Completed 030-01-PLAN.md — database backup CLI and scheduler implemented
 Resume file: None
