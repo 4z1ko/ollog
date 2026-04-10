@@ -64,6 +64,21 @@ async def _handle_datagram(
 
         record = records[0]
 
+        _APP_TOKEN_FIELD = "APP_OLLOG_TOKEN"
+        token_value = record.pop(_APP_TOKEN_FIELD, None)   # consume — must not reach QSO doc
+        if token_value is not None:
+            from app.udp.token_cache import token_cache
+            resolved_user = await token_cache.resolve(token_value)
+            if resolved_user is None:
+                logger.warning(
+                    "UDP datagram src=%s:%s disposition=rejected reason=invalid-token",
+                    addr[0], addr[1],
+                )
+                return
+            # Override operator and user — both must come from resolved_user
+            operator = resolved_user.callsign
+            user = resolved_user
+
         missing = _REQUIRED_FIELDS - set(record)
         if missing:
             logger.warning(

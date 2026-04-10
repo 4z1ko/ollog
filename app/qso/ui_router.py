@@ -702,6 +702,8 @@ async def tokens_create(
         expires_at=expires_at_dt,
     )
     await doc.insert()
+    from app.udp.token_cache import token_cache
+    token_cache.notify_refresh()
 
     return templates.TemplateResponse(
         request,
@@ -731,4 +733,6 @@ async def tokens_revoke(
         return Response(content="", status_code=200)
 
     await token.set({ApiToken.enabled: False})
+    from app.udp.token_cache import token_cache
+    token_cache.notify_refresh()
     return Response(content="", status_code=200)

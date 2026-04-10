@@ -84,6 +84,8 @@ async def create_token(
         expires_at=expires_at_dt,
     )
     await doc.insert()
+    from app.udp.token_cache import token_cache
+    token_cache.notify_refresh()
 
     return TokenCreateResponse(
         id=str(doc.id),
@@ -158,4 +160,6 @@ async def revoke_token(
         )
 
     await token.set({ApiToken.enabled: False})
+    from app.udp.token_cache import token_cache
+    token_cache.notify_refresh()
     return Response(status_code=204)
