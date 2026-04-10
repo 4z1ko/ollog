@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 
 ## Current Position
 
-Phase: 26 of 28 (Token CRUD API) — COMPLETE
-Plan: 1 of 1 in Phase 26 — COMPLETE
-Status: Phase 26 plan 01 complete — REST token CRUD + Profile UI + tests delivered
-Last activity: 2026-04-09 — Phase 26 plan 01 executed (Token CRUD API, Profile UI, 9 integration tests)
+Phase: 27 of 28 (X-API-Key Auth Dependency) — COMPLETE
+Plan: 1 of 1 in Phase 27 — COMPLETE
+Status: Phase 27 plan 01 complete — X-API-Key dual-auth on 5 QSO endpoints + 12 integration tests delivered
+Last activity: 2026-04-10 — Phase 27 plan 01 executed (X-API-Key auth, dual-auth deps, operator isolation audit update)
 
-Progress: [███████████████████░░░░░░░░░░░] ~62% (25/~40 estimated plans)
+Progress: [████████████████████░░░░░░░░░░] ~65% (26/~40 estimated plans)
 
 ## Performance Metrics
 
@@ -57,6 +57,12 @@ Phase 26 execution decisions:
 - token_is_active() uses Any duck typing to avoid circular import from service.py to models.py (Phase 26-01)
 - Integration tests use directConnection=true to bypass replica set hostname resolution in test environment (Phase 26-01)
 
+Phase 27 execution decisions:
+- auto_error=False on both optional schemes (OAuth2PasswordBearer + APIKeyHeader) prevents premature 403 before both auth paths can run (Phase 27-01)
+- JWT path tried first in get_current_user_jwt_or_apikey to preserve existing session-caller behaviour with no performance regression (Phase 27-01)
+- get_current_user_cookie added to CALLSIGN_DEPS audit set — POST /log/qsos uses full User dep with callsign extracted in function body, not via callsign-only wrapper (Phase 27-01)
+- token_is_active() normalises timezone-naive MongoDB datetimes to UTC before comparison — avoids TypeError crash on expired token checks (Phase 27-01)
+
 ### Critical Integration Risks (v1.7)
 
 - Phase 27: `OAuth2PasswordBearer(auto_error=True)` returns HTTP 403 before `APIKeyHeader` can run — must use `auto_error=False` on both schemes; raise HTTP 401 manually
@@ -74,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-09
-Stopped at: Completed 026-01-PLAN.md (Token CRUD API, Profile UI, integration tests)
+Last session: 2026-04-10
+Stopped at: Completed 027-01-PLAN.md (X-API-Key dual-auth on QSO endpoints, 12 integration tests)
 Resume file: None
