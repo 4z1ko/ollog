@@ -72,7 +72,7 @@ async def login_submit(
 
     response = RedirectResponse(url="/admin/ui/users", status_code=302)
     response.set_cookie(
-        key="access_token",
+        key="admin_token",
         value=token,
         httponly=True,
         samesite="lax",
@@ -84,7 +84,7 @@ async def login_submit(
 async def logout():
     """Clear the auth cookie and redirect to the login page."""
     response = RedirectResponse(url="/admin/ui/login", status_code=302)
-    response.delete_cookie(key="access_token")
+    response.delete_cookie(key="admin_token")
     return response
 
 

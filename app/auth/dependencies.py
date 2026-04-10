@@ -108,8 +108,42 @@ async def get_current_operator_callsign_cookie(
     return user.callsign
 
 
+async def get_current_admin_cookie(
+    admin_token: str | None = Cookie(default=None),
+) -> User:
+    """FastAPI dependency: decode JWT from HttpOnly admin_token cookie.
+
+    Used by admin UI routes served by the admin container (port 8001).
+    Raises 401 if the cookie is missing, invalid, expired, or the user
+    is not found / disabled.
+    """
+    if admin_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+    try:
+        payload = decode_access_token(admin_token)
+        username: str | None = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except InvalidTokenError:
+        raise credentials_exception
+
+    user = await User.find_one({"username": username})
+    if user is None or not user.enabled:
+        raise credentials_exception
+
+    return user
+
+
 async def require_admin_cookie(
-    user: User = Depends(get_current_user_cookie),
+    user: User = Depends(get_current_admin_cookie),
 ) -> User:
     """FastAPI dependency: require cookie-authenticated user to have role='admin'.
 
