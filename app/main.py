@@ -78,16 +78,6 @@ from app.auth.dependencies import get_current_operator_callsign  # noqa: E402
 
 app.include_router(auth_router)
 
-# Admin router
-from app.admin.router import router as admin_router  # noqa: E402
-
-app.include_router(admin_router)
-
-# Admin UI router (browser-based, cookie auth, Jinja2 templates)
-from app.admin.ui_router import ui_router  # noqa: E402
-
-app.include_router(ui_router, include_in_schema=False)
-
 # QSO REST API router
 from app.qso.router import router as qso_router  # noqa: E402
 
@@ -127,13 +117,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.exception_handler(HTTPException)
 async def ui_auth_redirect(request: Request, exc: HTTPException):
-    """Redirect 401/403 errors from /admin/ui/* or /log/* to the appropriate login page.
+    """Redirect 401/403 errors from /log/* to the operator login page.
 
     All other HTTP exceptions return JSON as normal.
     """
     path = request.url.path
-    if path.startswith("/admin/ui/") and exc.status_code in (401, 403):
-        return RedirectResponse(url="/admin/ui/login", status_code=302)
     if path.startswith("/log/") and exc.status_code in (401, 403):
         return RedirectResponse(url="/log/login", status_code=302)
     return JSONResponse(
