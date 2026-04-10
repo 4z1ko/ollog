@@ -107,6 +107,16 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
 
 ---
 
+### v1.8 Admin Isolation, Backup & Docs
+
+**Milestone Goal:** The admin console runs as an independent Docker service on port 8001 (admin-only routes, stoppable without affecting the operator app), operators can create local point-in-time backups via CLI and schedule automated S3 uploads via a cron env var, and `/guide` is fully rewritten to cover all features from v1.0–v1.8.
+
+- [ ] **Phase 29: Admin Container Isolation** — `app/admin_main.py` standalone entry point, `admin_token` cookie, `profiles: [admin]` compose service on port 8001, `SECRET_KEY` default removed; covers ADM-01–07
+- [ ] **Phase 30: Database Backup CLI and Scheduler** — `app/backup/` package with PyMongo EJSON export, APScheduler 3.x cron scheduler, aioboto3 S3 upload, bind mount and lifespan wiring; covers BAK-01–08
+- [ ] **Phase 31: Comprehensive Docs Rewrite** — full `docs/*.md` rewrite covering v1.0–v1.8, 2-level nav, `mkdocs-swagger-ui-tag` interactive API reference, `html=True` load-bearing comment, `mkdocs build` zero-warning rebuild; covers DOC-01–08
+
+---
+
 ## Phase Details
 
 ### Phase 25: Token Model and Service Layer
@@ -178,6 +188,82 @@ Plans:
 
 ---
 
+### Phase 29: Admin Container Isolation
+
+**Goal:** Admin routes (`/admin/*`, `/auth`, `/health`) run as a separate Docker Compose service on port 8001, startable and stoppable independently without affecting the operator app on port 8000.
+**Depends on:** Phase 28 (v1.7 complete)
+**Requirements:** ADM-01, ADM-02, ADM-03, ADM-04, ADM-05, ADM-06, ADM-07
+**Architecture decisions:**
+  - Entry point is `app/admin_main.py` (standalone FastAPI app — NOT `app/main.py` with a mode flag); `admin_main.py` must never import from `app.main`
+  - Admin cookie renamed to `admin_token`; operator `access_token` cookie is untouched (RFC 6265 port exclusion means both containers share the same cookie jar on `localhost`)
+  - Admin lifespan calls `init_db()` and `_bootstrap_admin()` only — no UDP listener, no SSE change-stream watcher
+  - `init_beanie()` called with full `document_models=[QSO, User, ApiToken]` list to prevent `CollectionWasNotInitialized` on any shared code path
+  - `SECRET_KEY=dev-secret-change-in-production` default removed from `docker-compose.yml`; value must come from `.env` so Pydantic required-field validation fires if absent
+**Success Criteria** (what must be TRUE):
+  1. Running `docker compose --profile admin up` starts both `app` (port 8000) and `admin` (port 8001) services; running `docker compose up` starts only `app` — the admin service does not appear
+  2. The admin container serves `/admin/*` and `/auth` and returns HTTP 200 on `/health`; a request to `/log/` or `/api/` on port 8001 returns HTTP 404
+  3. Stopping the admin container (`docker compose --profile admin stop admin`) does not affect the operator app — QSO logging on port 8000 continues uninterrupted
+  4. An admin who logs in on port 8001 uses cookie `admin_token`; the operator app's `access_token` cookie is untouched and continues to function on port 8000
+  5. Starting the operator or admin service without `SECRET_KEY` in `.env` fails at startup with a Pydantic validation error — the hardcoded default is no longer present in `docker-compose.yml`
+**Plans:** 1 plan
+
+Plans:
+- [ ] 029-01-PLAN.md — admin_main.py entry point, admin_token cookie rename, docker-compose.yml admin service + profiles, SECRET_KEY default removal
+
+---
+
+### Phase 30: Database Backup CLI and Scheduler
+
+**Goal:** `python -m app.backup` produces a gzip EJSON export of all MongoDB collections to `./backups/<timestamp>.gz`, with optional scheduled S3 upload via `BACKUP_SCHEDULE` cron env var — and backup files survive container restarts via bind mount.
+**Depends on:** Phase 29
+**Requirements:** BAK-01, BAK-02, BAK-03, BAK-04, BAK-05, BAK-06, BAK-07, BAK-08
+**Architecture decisions:**
+  - Package layout: `app/backup/__main__.py`, `dump.py`, `upload.py`, `scheduler.py`
+  - Export method: pure-Python PyMongo + `bson.json_util.dumps()` EJSON (no `mongodump` subprocess — not available in `python:3.12-slim`)
+  - Volume: bind mount `./backups:/app/backups` in `docker-compose.yml` (host-visible, survives restarts)
+  - Scheduler: APScheduler 3.x `AsyncIOScheduler` + `CronTrigger.from_crontab()`; pinned `apscheduler>=3.10,<4`
+  - S3 upload: `aioboto3>=13,<16` for async path inside lifespan; standard boto3 credential chain (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`)
+  - Output path: `BACKUP_DIR` env var (default `/app/backups`); no hardcoded relative paths
+  - Scheduler guard: `BACKUP_SCHEDULE` defaults to `None`; scheduler does not start when absent (mirrors `udp_enabled` pattern)
+  - Lifespan: backup asyncio task tracked in `yield` block, cancelled and awaited on shutdown (mirrors change-stream watcher pattern)
+**Success Criteria** (what must be TRUE):
+  1. Running `python -m app.backup` outside the container produces a file at `./backups/<timestamp>.gz`; `gunzip` and inspection show NDJSON with EJSON-encoded BSON types; stdout confirms success with the output path
+  2. The `.gz` file persists after `docker compose restart` — it is present on the host filesystem at `./backups/<timestamp>.gz` without `docker cp`
+  3. When `BACKUP_SCHEDULE=0 2 * * *` is set, the operator app logs a scheduler start message at startup; a backup file appears in `./backups/` at the scheduled time without manual invocation
+  4. When `BACKUP_SCHEDULE` is not set, the operator app starts normally with no scheduler log lines and no APScheduler import errors
+  5. When all four S3 env vars are set, each backup (CLI or scheduled) is uploaded to the configured S3 bucket after local write; an S3 upload failure logs at ERROR level, leaves the local `.gz` intact, and exits with code 0
+**Plans:** 1 plan
+
+Plans:
+- [ ] 030-01-PLAN.md — app/backup/ package, PyMongo EJSON dump, aioboto3 S3 upload, APScheduler lifespan wiring, bind mount, pyproject.toml deps
+
+---
+
+### Phase 31: Comprehensive Docs Rewrite
+
+**Goal:** `/guide` covers all features from v1.0–v1.8 with a 2-level grouped nav structure and an embedded interactive API reference — and `mkdocs build` completes with zero warnings.
+**Depends on:** Phase 30
+**Requirements:** DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06, DOC-07, DOC-08
+**Architecture decisions:**
+  - Plugin: `mkdocs-swagger-ui-tag` (static assets bundled — no CDN dependency; works offline and on hamnet); NOT `mkdocs-render-swagger-plugin`
+  - `openapi.json` export: `python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > docs/openapi.json` as a pre-build step (importable without a running database because `init_db()` is lifespan-scoped)
+  - `html=True` on `StaticFiles(directory="site", html=True)` in `app/main.py` is load-bearing for MkDocs `use_directory_urls: true`; annotate with an explicit comment before shipping
+  - Nav: 2-level grouped sections — Getting Started, Operator Guide, Admin Guide, API Reference, Reference, Troubleshooting
+  - Do not activate both `navigation.indexes` and `navigation.sections` in `mkdocs.yml` simultaneously (documented MkDocs Material incompatibility, issue #3070)
+  - Built `site/` committed to the repository; served by existing FastAPI `StaticFiles` mount at `/guide`
+**Success Criteria** (what must be TRUE):
+  1. Every feature shipped in v1.0–v1.8 is reachable from `/guide` in at most two nav clicks — no milestone's features are absent from the site
+  2. The nav renders as a 2-level grouped structure matching the defined sections (Getting Started, Operator Guide, Admin Guide, API Reference, Reference, Troubleshooting); no flat single-level nav remains
+  3. The API Reference page at `/guide/api-reference/` embeds a functional Swagger UI with no CDN requests — all assets are served from `/guide` static files
+  4. Admin container setup (port 8001, `--profile admin` flag, `admin_token` cookie) and backup CLI (`python -m app.backup`, `BACKUP_SCHEDULE`, S3 env vars) are each documented in the Admin Guide section
+  5. `mkdocs build` exits with zero warnings; the rebuilt `site/` is committed and the `/guide` route in the running app serves the updated content
+**Plans:** 1 plan
+
+Plans:
+- [ ] 031-01-PLAN.md — docs/*.md rewrite, mkdocs.yml nav restructure, mkdocs-swagger-ui-tag integration, openapi.json export, html=True comment, mkdocs build
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -210,3 +296,6 @@ Plans:
 | 26. Token CRUD API and Profile UI | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 27. X-API-Key REST Authentication | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 28. UDP APP_OLLOG_TOKEN Support | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
+| 29. Admin Container Isolation | v1.8 | 0/1 | ⬜ Planned | — |
+| 30. Database Backup CLI and Scheduler | v1.8 | 0/1 | ⬜ Planned | — |
+| 31. Comprehensive Docs Rewrite | v1.8 | 0/1 | ⬜ Planned | — |
