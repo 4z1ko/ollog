@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     udp_bind_host: str = "127.0.0.1"
     udp_operator: str | None = None
 
+    # Backup (v1.8)
+    backup_dir: str = "/app/backups"
+    backup_schedule: str | None = None
+    backup_s3_bucket: str | None = None
+    backup_s3_prefix: str = "backups/"
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

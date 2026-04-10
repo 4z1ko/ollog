@@ -25,11 +25,14 @@ services:
       mongodb:
         condition: service_healthy
     env_file: .env
+    volumes:
+      - ./backups:/app/backups
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
       - MONGODB_DB=ollog
       # UDP_BIND_HOST=0.0.0.0 required inside Docker (default 127.0.0.1 blocks host access)
       # UDP_ENABLED=false by default — set to true and configure UDP_OPERATOR to activate
+      # BACKUP_SCHEDULE=0 2 * * *  # Uncomment to enable nightly 02:00 UTC backups
 
   admin:
     build: .
