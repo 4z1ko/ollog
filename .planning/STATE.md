@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.8 Admin Isolation, Backup & Docs — roadmap created, Phase 29 is next
+**Current focus:** v1.8 Admin Isolation, Backup & Docs — Phase 29 Plan 01 complete
 
 ## Current Position
 
-Phase: 29 — Admin Container Isolation (not started)
-Plan: —
-Status: Roadmap created; ready to plan Phase 29
-Last activity: 2026-04-10 — v1.8 roadmap created (Phases 29–31 defined)
+Phase: 29 — Admin Container Isolation (plan 01 complete)
+Plan: 01 complete
+Status: Admin container isolation implemented; ready for Phase 30
+Last activity: 2026-04-10 — 029-01 executed (bootstrap extraction, admin_main.py, docker-compose profile)
 
-Progress: [█████████████████████░░░░░░░░░] ~70% (28/31 planned phases)
+Progress: [█████████████████████░░░░░░░░░] ~70% (28/31 planned phases, 1 plan of phase 29 done)
 
 ## Performance Metrics
 
 **Velocity (historical):**
-- Total plans completed: 46+ (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8, v1.4: 4, v1.5: 4, v1.6: 2, v1.7: 4)
+- Total plans completed: 47 (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8, v1.4: 4, v1.5: 4, v1.6: 2, v1.7: 4, v1.8: 1)
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -34,7 +34,7 @@ Progress: [█████████████████████░░
 | v1.5 | 19–22 | 4 |
 | v1.6 | 23–24 | 2 |
 | v1.7 | 25–28 | 4 |
-| v1.8 | 29–31 | 3 (planned) |
+| v1.8 | 29–31 | 3 (planned, 1 done) |
 
 ## Accumulated Context
 
@@ -86,5 +86,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-10
-Stopped at: v1.8 roadmap created; Phase 29 (Admin Container Isolation) is next
+Stopped at: Completed 029-01-PLAN.md — admin container isolation implemented
 Resume file: None
