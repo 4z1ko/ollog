@@ -157,7 +157,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 27-01: TBD
+- [ ] 027-01-PLAN.md — dual-auth dependencies (JWT + X-API-Key), QSO router Depends() swap, isolation audit update, integration tests
 
 ---
 
@@ -208,5 +208,5 @@ Plans:
 | 24. Session Robustness | v1.6 | 1/1 | ✓ Complete | 2026-04-08 |
 | 25. Token Model and Service Layer | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 26. Token CRUD API and Profile UI | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
-| 27. X-API-Key REST Authentication | v1.7 | 0/TBD | Not started | - |
+| 27. X-API-Key REST Authentication | v1.7 | 0/1 | In progress | - |
 | 28. UDP APP_OLLOG_TOKEN Support | v1.7 | 0/TBD | Not started | - |
