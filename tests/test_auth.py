@@ -320,17 +320,17 @@ async def test_admin_bootstrap(auth_db):
     os.environ["ADMIN_CALLSIGN"] = "K0ADM"
 
     try:
-        from app import main as main_module
+        from app.auth import bootstrap as bootstrap_module
         from importlib import reload
         import app.config as config_module
         reload(config_module)
         from app.config import Settings
         patched_settings = Settings()
         # Temporarily replace settings used by _bootstrap_admin
-        original_settings = main_module._bootstrap_admin.__globals__.get("settings")
-        main_module._bootstrap_admin.__globals__["settings"] = patched_settings
+        original_settings = bootstrap_module._bootstrap_admin.__globals__.get("settings")
+        bootstrap_module._bootstrap_admin.__globals__["settings"] = patched_settings
 
-        await main_module._bootstrap_admin()
+        await bootstrap_module._bootstrap_admin()
 
         admin = await User.find_one({"username": "bootstrapadmin"})
         assert admin is not None
@@ -340,7 +340,7 @@ async def test_admin_bootstrap(auth_db):
         for key in ("ADMIN_USERNAME", "ADMIN_PASSWORD", "ADMIN_CALLSIGN"):
             os.environ.pop(key, None)
         if original_settings is not None:
-            main_module._bootstrap_admin.__globals__["settings"] = original_settings
+            bootstrap_module._bootstrap_admin.__globals__["settings"] = original_settings
 
 
 # ---------------------------------------------------------------------------
