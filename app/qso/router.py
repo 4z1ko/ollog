@@ -12,7 +12,10 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.auth.dependencies import get_current_operator_callsign, get_current_user
+from app.auth.dependencies import (
+    get_current_operator_callsign_jwt_or_apikey,
+    get_current_user_jwt_or_apikey,
+)
 from app.auth.models import User
 from app.qso.models import QSO
 from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
@@ -111,7 +114,7 @@ def _qso_to_dict(qso: QSO) -> dict:
 async def create_qso(
     body: QSOCreateRequest,
     force: bool = Query(False, description="Override duplicate detection and force insert"),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_jwt_or_apikey),
 ) -> dict:
     """Create a new QSO for the authenticated operator.
 
@@ -162,7 +165,7 @@ async def list_qsos(
     date_from: Optional[str] = Query(None, description="YYYYMMDD"),
     date_to: Optional[str] = Query(None, description="YYYYMMDD"),
     sort: str = Query("-qso_date_utc"),
-    operator: str = Depends(get_current_operator_callsign),
+    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
 ) -> dict:
     """List the authenticated operator's active QSOs with pagination and optional filters."""
     from datetime import timezone as tz
@@ -197,7 +200,7 @@ async def list_qsos(
 @router.get("/{qso_id}", status_code=status.HTTP_200_OK, response_model=QSOResponse)
 async def get_qso(
     qso_id: str,
-    operator: str = Depends(get_current_operator_callsign),
+    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
 ) -> dict:
     """Fetch a single QSO by ID. Returns 404 if not found, not owned, or soft-deleted."""
     try:
@@ -215,7 +218,7 @@ async def get_qso(
 async def patch_qso(
     qso_id: str,
     body: Dict[str, Any],
-    operator: str = Depends(get_current_operator_callsign),
+    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
 ) -> dict:
     """Partially update a QSO using raw $set for ADIF field compatibility.
 
@@ -259,7 +262,7 @@ async def patch_qso(
 @router.delete("/{qso_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_qso(
     qso_id: str,
-    operator: str = Depends(get_current_operator_callsign),
+    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
 ) -> None:
     """Soft-delete a QSO by ID.
 

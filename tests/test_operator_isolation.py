@@ -21,6 +21,9 @@ from pymongo import AsyncMongoClient
 from app.auth.dependencies import (
     get_current_operator_callsign,
     get_current_operator_callsign_cookie,
+    get_current_operator_callsign_jwt_or_apikey,
+    get_current_user_cookie,
+    get_current_user_jwt_or_apikey,
 )
 from app.main import app
 from app.qso.models import QSO
@@ -33,6 +36,11 @@ from app.qso.service import find_duplicate, get_qso_page
 CALLSIGN_DEPS = {
     "get_current_operator_callsign",
     "get_current_operator_callsign_cookie",
+    "get_current_operator_callsign_jwt_or_apikey",
+    "get_current_user_jwt_or_apikey",
+    # User-returning deps used by endpoints that derive callsign from user.callsign
+    # in the function body rather than via a thin callsign-only wrapper dep.
+    "get_current_user_cookie",
 }
 
 QSO_PATH_PREFIXES = (

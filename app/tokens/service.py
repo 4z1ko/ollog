@@ -71,6 +71,12 @@ def token_is_active(token: Any) -> bool:
 
     if not token.enabled:
         return False
-    if token.expires_at is not None and token.expires_at <= datetime.now(tz=timezone.utc):
-        return False
+    if token.expires_at is not None:
+        expires = token.expires_at
+        # MongoDB may return timezone-naive datetimes stored as UTC; normalise to
+        # aware UTC before comparison to avoid TypeError on Python 3.12+.
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires <= datetime.now(tz=timezone.utc):
+            return False
     return True
