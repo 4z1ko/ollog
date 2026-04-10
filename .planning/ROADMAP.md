@@ -112,7 +112,7 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
 **Milestone Goal:** The admin console runs as an independent Docker service on port 8001 (admin-only routes, stoppable without affecting the operator app), operators can create local point-in-time backups via CLI and schedule automated S3 uploads via a cron env var, and `/guide` is fully rewritten to cover all features from v1.0–v1.8.
 
 - [x] **Phase 29: Admin Container Isolation** — `app/admin_main.py` standalone entry point, `admin_token` cookie, `profiles: [admin]` compose service on port 8001, `SECRET_KEY` default removed; covers ADM-01–07
-- [ ] **Phase 30: Database Backup CLI and Scheduler** — `app/backup/` package with PyMongo EJSON export, APScheduler 3.x cron scheduler, aioboto3 S3 upload, bind mount and lifespan wiring; covers BAK-01–08
+- [x] **Phase 30: Database Backup CLI and Scheduler** — `app/backup/` package with PyMongo EJSON export, APScheduler 3.x cron scheduler, aioboto3 S3 upload, bind mount and lifespan wiring; covers BAK-01–08
 - [ ] **Phase 31: Comprehensive Docs Rewrite** — full `docs/*.md` rewrite covering v1.0–v1.8, 2-level nav, `mkdocs-swagger-ui-tag` interactive API reference, `html=True` load-bearing comment, `mkdocs build` zero-warning rebuild; covers DOC-01–08
 
 ---
@@ -297,5 +297,5 @@ Plans:
 | 27. X-API-Key REST Authentication | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 28. UDP APP_OLLOG_TOKEN Support | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 29. Admin Container Isolation | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
-| 30. Database Backup CLI and Scheduler | v1.8 | 0/1 | ⬜ Planned | — |
+| 30. Database Backup CLI and Scheduler | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 31. Comprehensive Docs Rewrite | v1.8 | 0/1 | ⬜ Planned | — |
