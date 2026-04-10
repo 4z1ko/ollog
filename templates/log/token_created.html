@@ -12,7 +12,8 @@
     <button type="button" class="btn-sm"
             hx-get="/log/tokens"
             hx-target="#token-list"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            onclick="document.getElementById('token-result').innerHTML=''">
       I've copied it — close
     </button>
   </div>
