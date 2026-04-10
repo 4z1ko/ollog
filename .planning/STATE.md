@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.7 API Token Auth — Phase 27: X-API-Key Auth Dependency
+**Current focus:** v1.7 API Token Auth — Phase 28: UDP APP_OLLOG_TOKEN Support — COMPLETE
 
 ## Current Position
 
-Phase: 27 of 28 (X-API-Key Auth Dependency) — COMPLETE
-Plan: 1 of 1 in Phase 27 — COMPLETE
-Status: Phase 27 plan 01 complete — X-API-Key dual-auth on 5 QSO endpoints + 12 integration tests delivered
-Last activity: 2026-04-10 — Phase 27 plan 01 executed (X-API-Key auth, dual-auth deps, operator isolation audit update)
+Phase: 28 of 28 (UDP APP_OLLOG_TOKEN Support) — COMPLETE
+Plan: 1 of 1 in Phase 28 — COMPLETE
+Status: Phase 28 plan 01 complete — UDPTokenCache + APP_OLLOG_TOKEN resolution + 5 tests delivered; v1.7 complete
+Last activity: 2026-04-10 — Phase 28 plan 01 executed (UDP token cache, per-datagram operator resolution, cache invalidation)
 
-Progress: [████████████████████░░░░░░░░░░] ~65% (26/~40 estimated plans)
+Progress: [█████████████████████░░░░░░░░░] ~67% (27/~40 estimated plans)
 
 ## Performance Metrics
 
@@ -63,6 +63,13 @@ Phase 27 execution decisions:
 - get_current_user_cookie added to CALLSIGN_DEPS audit set — POST /log/qsos uses full User dep with callsign extracted in function body, not via callsign-only wrapper (Phase 27-01)
 - token_is_active() normalises timezone-naive MongoDB datetimes to UTC before comparison — avoids TypeError crash on expired token checks (Phase 27-01)
 
+Phase 28 execution decisions:
+- asyncio.Lock used (not threading.Lock) — single-threaded asyncio app (Phase 28-01)
+- Cache key is stored hashed_token from ApiToken; hash_api_token(raw) computed at resolve time — no redundant hashing during load (Phase 28-01)
+- notify_refresh() is synchronous and sets _dirty=True only; reload deferred to next resolve() — lazy cache invalidation (Phase 28-01)
+- APP_OLLOG_TOKEN present + invalid = hard reject, no fallthrough to UDP_OPERATOR (security requirement) (Phase 28-01)
+- Both operator AND user overridden together from resolved_user — prevents operator/user mismatch pitfall (Phase 28-01)
+
 ### Critical Integration Risks (v1.7)
 
 - Phase 27: `OAuth2PasswordBearer(auto_error=True)` returns HTTP 403 before `APIKeyHeader` can run — must use `auto_error=False` on both schemes; raise HTTP 401 manually
@@ -81,5 +88,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-10
-Stopped at: Completed 027-01-PLAN.md (X-API-Key dual-auth on QSO endpoints, 12 integration tests)
+Stopped at: Completed 028-01-PLAN.md (UDPTokenCache, APP_OLLOG_TOKEN branch, 5 token tests — v1.7 complete)
 Resume file: None
