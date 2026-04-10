@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.7 API Token Auth — Phase 26: Token CRUD API
+**Current focus:** v1.7 API Token Auth — Phase 27: X-API-Key Auth Dependency
 
 ## Current Position
 
-Phase: 26 of 28 (Token CRUD API)
-Plan: 0 of TBD in current phase
-Status: Phase 25 complete — ready to plan Phase 26
-Last activity: 2026-04-09 — Phase 25 plan 01 executed (ApiToken model + service layer)
+Phase: 26 of 28 (Token CRUD API) — COMPLETE
+Plan: 1 of 1 in Phase 26 — COMPLETE
+Status: Phase 26 plan 01 complete — REST token CRUD + Profile UI + tests delivered
+Last activity: 2026-04-09 — Phase 26 plan 01 executed (Token CRUD API, Profile UI, 9 integration tests)
 
 Progress: [███████████████████░░░░░░░░░░░] ~62% (25/~40 estimated plans)
 
@@ -33,7 +33,7 @@ Progress: [███████████████████░░░░
 | v1.4 | 16–18 | 4 |
 | v1.5 | 19–22 | 4 |
 | v1.6 | 23–24 | 2 |
-| v1.7 | 25–28 | 1+ |
+| v1.7 | 25–28 | 2+ |
 
 ## Accumulated Context
 
@@ -51,6 +51,11 @@ Recent decisions locked by research:
 Phase 25 execution decisions:
 - generate_api_token() returns tuple[str, str] so callers always have prefix without recomputing (Phase 25-01)
 - hashed_token field name used (consistent with User.hashed_password naming convention) (Phase 25-01)
+
+Phase 26 execution decisions:
+- HTMX UI routes always return HTTP 200 with error state in partial body — HTMX 2.x convention (Phase 26-01)
+- token_is_active() uses Any duck typing to avoid circular import from service.py to models.py (Phase 26-01)
+- Integration tests use directConnection=true to bypass replica set hostname resolution in test environment (Phase 26-01)
 
 ### Critical Integration Risks (v1.7)
 
@@ -70,5 +75,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-09
-Stopped at: Completed 025-01-PLAN.md (ApiToken model, service layer, test suite)
+Stopped at: Completed 026-01-PLAN.md (Token CRUD API, Profile UI, integration tests)
 Resume file: None
