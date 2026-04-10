@@ -135,19 +135,19 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
-## Current Milestone: v1.7 API Token Auth
+## Current Milestone: v1.8 Admin Isolation, Backup & Docs
 
-**Goal:** Operators can create named API tokens from Profile Settings and use them to authenticate REST API calls (X-API-Key header) and identify themselves in UDP ADIF datagrams (APP_OLLOG_TOKEN field).
+**Goal:** The admin console runs as an independent Docker service on port 8001 (admin-only routes, stoppable without affecting the operator app), operators and admins can create local mongodump backups via CLI and schedule automated uploads to AWS S3 via cron env var, and the /guide documentation site is fully rewritten to comprehensively cover all features from v1.0–1.8.
 
 **Target features:**
-- Token management UI in Profile Settings: create named tokens with optional expiry, view list, revoke individually
-- REST API: X-API-Key header accepted on all QSO endpoints as alternative to JWT Bearer
-- UDP: APP_OLLOG_TOKEN ADIF field resolves operator identity; UDP_OPERATOR remains optional fallback
-- Tokens stored hashed (Argon2); plaintext shown once at creation
+- Admin container: separate Docker Compose service (shared codebase), port 8001, admin-only routes (/admin/*, /auth), stoppable independently
+- CLI backup: `python -m app.backup` → mongodump .gz to ./backups/<timestamp>.gz
+- S3 backup: BACKUP_SCHEDULE cron env var + S3 credentials; automated upload on schedule
+- Docs rewrite: comprehensive /guide covering deployment (admin container, backup, token auth), getting-started, API reference (all endpoints incl. token API), admin guide, troubleshooting
 
 ## Current State
 
-**Version:** v1.7 API Token Auth (in progress)
+**Version:** v1.8 Admin Isolation, Backup & Docs (in progress)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
@@ -235,4 +235,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | `jwt_expire_minutes` default raised 60 → 480 | Overnight FT8 sessions run 8+ hours; 60-min default would expire mid-SSE-connection, silently breaking live log table feature | ✓ Good — existing env var mechanism unchanged; operators can still override |
 
 ---
-*Last updated: 2026-04-09 after v1.7 milestone start*
+*Last updated: 2026-04-09 after v1.8 milestone start*
