@@ -102,7 +102,7 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
 
 - [x] **Phase 25: Token Model and Service Layer** — `ApiToken` Beanie document, HMAC-SHA256 helpers, `api_token_secret` config; foundation for all subsequent token phases
 - [x] **Phase 26: Token CRUD API and Profile UI** — REST endpoints for token lifecycle (create/list/revoke) behind JWT, HTMX token section in Profile Settings with show-once plaintext banner; covers TOK-01–04
-- [ ] **Phase 27: X-API-Key REST Authentication** — combined JWT + API-key dependency with `auto_error=False`, opt-in on all QSO endpoints; covers API-01–03
+- [x] **Phase 27: X-API-Key REST Authentication** — combined JWT + API-key dependency with `auto_error=False`, opt-in on all QSO endpoints; covers API-01–03
 - [ ] **Phase 28: UDP APP_OLLOG_TOKEN Support** — per-datagram in-memory HMAC cache, `APP_OLLOG_TOKEN` field resolution in `_handle_datagram`, `UDP_OPERATOR` fallback preserved; covers UDP-01–03
 
 ---
@@ -208,5 +208,5 @@ Plans:
 | 24. Session Robustness | v1.6 | 1/1 | ✓ Complete | 2026-04-08 |
 | 25. Token Model and Service Layer | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 26. Token CRUD API and Profile UI | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
-| 27. X-API-Key REST Authentication | v1.7 | 0/1 | In progress | - |
+| 27. X-API-Key REST Authentication | v1.7 | 1/1 | ✓ Complete | 2026-04-09 |
 | 28. UDP APP_OLLOG_TOKEN Support | v1.7 | 0/TBD | Not started | - |
