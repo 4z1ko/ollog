@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block body %}
+
+{# Capture active page identifier from child templates #}
+{% set ap %}{% block active_page %}{% endblock %}{% endset %}
+{% set ap = ap | trim %}
+
+<div class="flex h-screen overflow-hidden bg-slate-50 dark:bg-gray-950">
+
+  <!-- ── Mobile overlay ───────────────────────────────────────── -->
+  <div id="sidebar-overlay"
+       class="fixed inset-0 bg-black/60 z-20 hidden md:hidden"
+       onclick="closeSidebar()"></div>
+
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside id="sidebar"
+         class="fixed inset-y-0 left-0 z-30 w-64 bg-sidebar flex flex-col
+                -translate-x-full transition-transform duration-200 ease-in-out
+                md:relative md:translate-x-0 md:flex-shrink-0">
+
+    <!-- Logo -->
+    <div class="flex items-center gap-3 h-16 px-5 border-b border-sidebar-border flex-shrink-0">
+      <div class="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+        </svg>
+      </div>
+      <div>
+        <span class="text-white font-bold text-base tracking-tight leading-none">ollog</span>
+        <p class="text-sidebar-text text-xs mt-0.5">Amateur Radio Log</p>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      {% block sidebar_nav %}
+      <!-- Log QSO -->
+      <a href="/log/"
+         class="nav-item {{ 'nav-item-active' if ap == 'form' else '' }}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+        </svg>
+        Log QSO
+      </a>
+
+      <!-- Log View -->
+      <a href="/log/view"
+         class="nav-item {{ 'nav-item-active' if ap == 'view' else '' }}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+        </svg>
+        Log View
+      </a>
+
+      <!-- Import -->
+      <a href="/log/import"
+         class="nav-item {{ 'nav-item-active' if ap == 'import' else '' }}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+        </svg>
+        Import
+      </a>
+
+      <!-- Export -->
+      <a href="/log/export"
+         class="nav-item {{ 'nav-item-active' if ap == 'export' else '' }}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Export
+      </a>
+
+      <!-- Profile -->
+      <a href="/log/profile"
+         class="nav-item {{ 'nav-item-active' if ap == 'profile' else '' }}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+        Profile
+      </a>
+      {% endblock %}
+    </nav>
+
+    <!-- Bottom: user info + controls -->
+    <div class="border-t border-sidebar-border p-3 space-y-1 flex-shrink-0">
+
+      <!-- User info -->
+      {% block sidebar_user %}
+      <div class="flex items-center gap-3 px-3 py-2">
+        <div class="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
+          <span class="text-white text-xs font-bold">{{ callsign[0] if callsign else '?' }}</span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-white text-sm font-semibold truncate">{{ callsign }}</p>
+          <p class="text-sidebar-text text-xs">Operator</p>
+        </div>
+      </div>
+      {% endblock %}
+
+      <!-- Logout -->
+      {% block sidebar_logout %}
+      <a href="/log/logout"
+         class="nav-item">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+        </svg>
+        Logout
+      </a>
+      {% endblock %}
+
+      <!-- Dark mode toggle -->
+      <button onclick="toggleTheme()" id="theme-btn"
+              class="nav-item w-full text-left">
+        <svg id="icon-moon" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+        </svg>
+        <svg id="icon-sun" class="w-5 h-5 flex-shrink-0 hidden" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+        </svg>
+        <span id="theme-label">Dark mode</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main content wrapper ──────────────────────────────────── -->
+  <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+    <!-- Mobile top bar -->
+    <div class="md:hidden flex items-center h-14 px-4 gap-3 bg-sidebar border-b border-sidebar-border flex-shrink-0">
+      <button onclick="toggleSidebar()"
+              class="text-sidebar-text hover:text-white transition-colors p-1">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 bg-indigo-500 rounded flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+          </svg>
+        </div>
+        <span class="text-white font-semibold text-sm">ollog</span>
+      </div>
+    </div>
+
+    <!-- Page content -->
+    <main class="flex-1 overflow-y-auto bg-slate-50 dark:bg-gray-950 p-6">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+</div>
+
+<script>
+  function toggleSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
+  }
+  function closeSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+  }
+  function toggleTheme() {
+    var isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    updateThemeIcons(isDark);
+  }
+  function updateThemeIcons(isDark) {
+    var moon = document.getElementById('icon-moon');
+    var sun = document.getElementById('icon-sun');
+    var label = document.getElementById('theme-label');
+    if (!moon || !sun || !label) return;
+    if (isDark) {
+      moon.classList.add('hidden');
+      sun.classList.remove('hidden');
+      label.textContent = 'Light mode';
+    } else {
+      moon.classList.remove('hidden');
+      sun.classList.add('hidden');
+      label.textContent = 'Dark mode';
+    }
+  }
+  // Initialise icon state after DOM is ready
+  document.addEventListener('DOMContentLoaded', function () {
+    updateThemeIcons(document.documentElement.classList.contains('dark'));
+  });
+  // Sync theme icons after any HTMX partial swap, in case the swap
+  // replaced the theme button markup (THEM-05).
+  document.body.addEventListener('htmx:afterSettle', function () {
+    updateThemeIcons(document.documentElement.classList.contains('dark'));
+  });
+</script>
+
+{% endblock %}

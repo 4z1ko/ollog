@@ -1,0 +1,15 @@
+{
+  "name": "ollog-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify",
+    "watch": "tailwindcss -i ./static/css/input.css -o ./static/css/output.css --watch",
+    "verify": "npm run build && grep -q 'color-scheme' static/css/output.css && grep -q 'dark' static/css/output.css && echo 'Verify OK: dark classes and color-scheme present' || (echo 'ERROR: dark classes or color-scheme missing from output.css' && exit 1)"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17"
+  }
+}
