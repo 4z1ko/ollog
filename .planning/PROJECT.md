@@ -135,15 +135,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
-## Current Milestone: v1.8 Admin Isolation, Backup & Docs
+## Current Milestone: v1.9 Admin & Login UI Redesign
 
-**Goal:** The admin console runs as an independent Docker service on port 8001 (admin-only routes, stoppable without affecting the operator app), operators and admins can create local mongodump backups via CLI and schedule automated uploads to AWS S3 via cron env var, and the /guide documentation site is fully rewritten to comprehensively cover all features from v1.0–1.8.
+**Goal:** Redesign the admin console and login page with an Apple-like UI aesthetic (clean typography, generous whitespace, refined controls), properly-sized and resolution-appropriate icons, and a dark/light mode with a persistent toggle at the bottom of the screen.
 
 **Target features:**
-- Admin container: separate Docker Compose service (shared codebase), port 8001, admin-only routes (/admin/*, /auth), stoppable independently
-- CLI backup: `python -m app.backup` → mongodump .gz to ./backups/<timestamp>.gz
-- S3 backup: BACKUP_SCHEDULE cron env var + S3 credentials; automated upload on schedule
-- Docs rewrite: comprehensive /guide covering deployment (admin container, backup, token auth), getting-started, API reference (all endpoints incl. token API), admin guide, troubleshooting
+- Apple-inspired UI: clean sans-serif typography, card-based layouts, subtle shadows, smooth transitions for admin console and login page
+- Icons: correct sizing and rendering sharpness for browser display (no blurry/oversized icons)
+- Dark mode: full dark color scheme for admin console and login page
+- Light mode: clean light color scheme (current default baseline)
+- Mode toggle: persistent dark/light toggle pinned at bottom of screen, preference saved across sessions
 
 ## Current State
 
@@ -235,4 +236,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | `jwt_expire_minutes` default raised 60 → 480 | Overnight FT8 sessions run 8+ hours; 60-min default would expire mid-SSE-connection, silently breaking live log table feature | ✓ Good — existing env var mechanism unchanged; operators can still override |
 
 ---
-*Last updated: 2026-04-09 after v1.8 milestone start*
+*Last updated: 2026-04-11 after v1.9 milestone start*

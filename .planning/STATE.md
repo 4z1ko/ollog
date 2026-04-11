@@ -2,19 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-09)
+See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.8 Admin Isolation, Backup & Docs — Phase 30 Plan 01 complete
+**Current focus:** v1.9 Admin & Login UI Redesign
 
 ## Current Position
 
-Phase: 31 — Comprehensive Docs Rewrite (plan 01 complete)
-Plan: 01 complete
-Status: Full docs rewrite complete — 25 pages across 6 sections, embedded Swagger UI, v1.8 content; v1.8 milestone complete
-Last activity: 2026-04-11 — 031-01 executed (mkdocs.yml 2-level nav, swagger-ui-tag, admin-container.md, backup.md, api-tokens.md, mkdocs build --strict exit 0)
-
-Progress: [██████████████████████████████] ~100% (31/31 planned phases complete, v1.8 milestone done)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-11 — Milestone v1.9 started
 
 ## Performance Metrics
 
