@@ -131,6 +131,9 @@ from app.tokens.router import router as token_router  # noqa: E402
 app.include_router(token_router)
 
 # Documentation site (served before /static — mount order is load-bearing in FastAPI)
+# html=True is load-bearing: MkDocs use_directory_urls:true generates subdirectory
+# index.html files (e.g. site/admin-guide/index.html). Without html=True, FastAPI
+# returns 404 for clean URLs like /guide/admin-guide/ — DO NOT remove this flag.
 app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
 
 # Static files
