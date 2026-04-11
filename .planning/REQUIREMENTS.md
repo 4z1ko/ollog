@@ -1,102 +1,91 @@
-# Requirements: v1.8 Admin Isolation, Backup & Docs
+# Requirements: ollog
 
-**Milestone:** v1.8
-**Goal:** The admin console runs as an independent Docker service on port 8001 (admin-only routes, stoppable without affecting the operator app), operators and admins can create local point-in-time backups via CLI and schedule automated uploads to AWS S3 via a cron env var, and the /guide documentation site is fully rewritten to comprehensively cover all features from v1.0–v1.8.
+**Defined:** 2026-04-11
+**Core Value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
 
----
+## v1.9 Requirements
 
-## ADMIN Requirements (ADM)
+### Theme System
 
-**ADM-01** — A new Docker Compose service (`admin`) uses the same image as the operator service but runs `app/admin_main.py` on port 8001, gated behind `profiles: [admin]` so it does not start by default.
+- [ ] **THEM-01**: Toggle button fixed at bottom of sidebar nav (admin + operator), showing sun/moon icon for current mode
+- [ ] **THEM-02**: Selected theme persists across page loads via localStorage
+- [ ] **THEM-03**: Page loads without theme flash — FOUC-prevention inline script preserved and annotated as load-bearing
+- [ ] **THEM-04**: Browser native controls (scrollbars, form inputs) respect active theme via `color-scheme` meta tag
+- [ ] **THEM-05**: Theme icon stays correct after HTMX partial swaps (`htmx:afterSettle` handler)
+- [ ] **THEM-06**: Theme transitions animate on user-initiated toggle only — no color-fade animation on page load
 
-**ADM-02** — The admin container exposes only admin routes (`/admin/*`, `/auth`) and its own `/health` endpoint; it does not serve operator routes (`/log/*`, `/api/*`).
+### Design Tokens
 
-**ADM-03** — The admin container's FastAPI lifespan calls `init_db()` and `_bootstrap_admin()` only — no UDP listener, no SSE change-stream watcher.
+- [ ] **DSGN-01**: Apple background colors applied (canvas: `#f2f2f7`/`#0f0f0f`, card surface: white/`#1c1c1e`)
+- [ ] **DSGN-02**: System font stack (`-apple-system, BlinkMacSystemFont`) applied globally, CDN font link removed
+- [ ] **DSGN-03**: Card shadows use two-layer depth in light mode, removed in dark mode
+- [ ] **DSGN-04**: Status badges use rectangular shape (`rounded-md`) instead of pill (`rounded-full`)
+- [ ] **DSGN-05**: Section headers use sentence-case `font-semibold` typography, no uppercase letter-spacing
+- [ ] **DSGN-06**: Nav/card icons sized at `w-6 h-6` (24px, 1:1 Heroicons viewBox); secondary button icons at `w-4 h-4`
 
-**ADM-04** — The admin container uses cookie name `admin_token` (not `access_token`) to prevent cookie collision with the operator container on the same hostname (RFC 6265 port exclusion).
+### Admin Console
 
-**ADM-05** — A JWT issued by the operator container is accepted by the admin container (same `SECRET_KEY`); users do not need to re-authenticate when switching between containers.
+- [ ] **ADMN-01**: Admin operator management table (`users.html`, `users_table.html`) redesigned with Apple card container and refined tokens
+- [ ] **ADMN-02**: Admin sidebar uses Apple dark surface (`#1c1c1e`), generous padding, properly-spaced nav items
+- [ ] **ADMN-03**: Operator action buttons (enable/disable/reset) have `aria-label` attributes and correctly-sized icons
 
-**ADM-06** — The hardcoded `SECRET_KEY=dev-secret-change-in-production` default is removed from `docker-compose.yml`; the value must be provided via `.env` (existing Pydantic required-field validation fires if absent).
+### Login Pages
 
-**ADM-07** — The operator container (`app/main.py`, port 8000) is completely unchanged by this work; adding the admin service does not break or modify any existing operator behavior.
+- [ ] **LOGN-01**: Admin login card redesigned with Apple glassmorphism (`backdrop-blur-md`, `shadow-2xl`, ring border)
+- [ ] **LOGN-02**: Operator login card redesigned with the same Apple glass card pattern
+- [ ] **LOGN-03**: Glass card renders correctly in Safari (explicit `-webkit-backdrop-filter` with fixed pixel values)
 
----
+### Operator Log Views
 
-## BACKUP Requirements (BAK)
+- [ ] **OPER-01**: Operator log view (`log.html`, `log_table.html`) uses Apple component tokens
+- [ ] **OPER-02**: Operator QSO form (`form.html`) uses Apple form input and button styles
+- [ ] **OPER-03**: Operator import page (`import.html`) uses Apple card and button styles
 
-**BAK-01** — `python -m app.backup` produces a point-in-time EJSON export of all MongoDB collections to `./backups/<timestamp>.gz` (NDJSON, gzip-compressed, importable via `mongoimport`); confirmation is printed to stdout on success.
+## Future Requirements
 
-**BAK-02** — The backup module uses pure-Python PyMongo + `bson.json_util.dumps()` for export — no `mongodump` subprocess (not available in `python:3.12-slim`).
+*(None defined yet for v2.0)*
 
-**BAK-03** — `docker-compose.yml` declares a bind mount (`./backups:/app/backups`) so backup files survive container restarts and are directly accessible on the host filesystem.
+## Out of Scope
 
-**BAK-04** — When `BACKUP_SCHEDULE` env var is set (cron string, e.g. `0 2 * * *`), the operator app starts an APScheduler 3.x `AsyncIOScheduler` background task that runs the backup on schedule; when `BACKUP_SCHEDULE` is absent, no scheduler starts (mirrors the `udp_enabled` guard pattern).
-
-**BAK-05** — When `S3_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` are all set, each backup (scheduled or CLI) uploads the `.gz` file to S3 after successful local write; S3 upload failures are logged at ERROR level, do not delete the local file, and do not cause a non-zero exit code.
-
-**BAK-06** — `docker-compose.yml` includes a commented-out `# BACKUP_SCHEDULE=0 2 * * *` example in the operator service env block.
-
-**BAK-07** — The backup asyncio task is tracked in the lifespan `yield` block and cancelled + awaited on shutdown (mirrors the change-stream watcher pattern in `app/main.py`).
-
-**BAK-08** — The `BACKUP_DIR` env var (default `/app/backups`) controls the output path; the module never uses a hardcoded relative path.
-
----
-
-## DOCS Requirements (DOC)
-
-**DOC-01** — The `/guide` site is fully rewritten to cover all features from v1.0–v1.8; no feature shipped in a previous milestone is left undocumented.
-
-**DOC-02** — The MkDocs nav is restructured into a 2-level grouped layout with sections: Getting Started, Operator Guide, Admin Guide, API Reference, Reference, Troubleshooting.
-
-**DOC-03** — An interactive API reference page is embedded using `mkdocs-swagger-ui-tag` (static assets, no CDN dependency); `openapi.json` is exported from the running app as a pre-build step.
-
-**DOC-04** — The admin container setup (port 8001, profiles flag, admin_token cookie) is documented in the Admin Guide section.
-
-**DOC-05** — The backup CLI and S3 scheduled backup setup are documented in the Admin Guide section.
-
-**DOC-06** — The API token feature (v1.7) is documented: creation, listing, revocation, usage with `X-API-Key` header and UDP `APP_OLLOG_TOKEN` field.
-
-**DOC-07** — The `html=True` argument on the `StaticFiles` mount in `app/main.py` is annotated with a comment explaining it is load-bearing for MkDocs `use_directory_urls: true` behavior.
-
-**DOC-08** — `mkdocs build` succeeds with zero warnings after the rewrite; the rebuilt `site/` is committed to the repository.
-
----
-
-## Non-Goals (v1.8)
-
-- Admin UI feature additions (no new admin pages beyond what already exists)
-- Backup restore automation (restore path is manual `mongoimport` — no automated restore CLI)
-- Incremental/differential backups (point-in-time full export only)
-- Multi-region S3 replication
-- MkDocs versioning (`mike` plugin)
-
----
+| Feature | Reason |
+|---------|--------|
+| Three-state toggle (light/dark/system) | Two-state with prefers-color-scheme fallback on first visit is sufficient for an admin tool |
+| Alpine.js / Flowbite / daisyUI | Heavy component library — pure Tailwind CSS + vanilla JS is sufficient |
+| Tailwind v4 upgrade | Breaking changes to darkMode config syntax; out of scope for a visual polish milestone |
+| iOS-native gestures or interactions | Web app — standard browser interaction model only |
+| Animation libraries (Framer Motion, GSAP) | CSS transitions are sufficient; no JS animation library needed |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADM-01 | Phase 29 | Pending |
-| ADM-02 | Phase 29 | Pending |
-| ADM-03 | Phase 29 | Pending |
-| ADM-04 | Phase 29 | Pending |
-| ADM-05 | Phase 29 | Pending |
-| ADM-06 | Phase 29 | Pending |
-| ADM-07 | Phase 29 | Pending |
-| BAK-01 | Phase 30 | Pending |
-| BAK-02 | Phase 30 | Pending |
-| BAK-03 | Phase 30 | Pending |
-| BAK-04 | Phase 30 | Pending |
-| BAK-05 | Phase 30 | Pending |
-| BAK-06 | Phase 30 | Pending |
-| BAK-07 | Phase 30 | Pending |
-| BAK-08 | Phase 30 | Pending |
-| DOC-01 | Phase 31 | Pending |
-| DOC-02 | Phase 31 | Pending |
-| DOC-03 | Phase 31 | Pending |
-| DOC-04 | Phase 31 | Pending |
-| DOC-05 | Phase 31 | Pending |
-| DOC-06 | Phase 31 | Pending |
-| DOC-07 | Phase 31 | Pending |
-| DOC-08 | Phase 31 | Pending |
+| THEM-01 | Phase 32 | Pending |
+| THEM-02 | Phase 32 | Pending |
+| THEM-03 | Phase 32 | Pending |
+| THEM-04 | Phase 32 | Pending |
+| THEM-05 | Phase 32 | Pending |
+| THEM-06 | Phase 32 | Pending |
+| DSGN-01 | Phase 33 | Pending |
+| DSGN-02 | Phase 33 | Pending |
+| DSGN-03 | Phase 33 | Pending |
+| DSGN-04 | Phase 33 | Pending |
+| DSGN-05 | Phase 33 | Pending |
+| DSGN-06 | Phase 33 | Pending |
+| ADMN-01 | Phase 34 | Pending |
+| ADMN-02 | Phase 34 | Pending |
+| ADMN-03 | Phase 34 | Pending |
+| LOGN-01 | Phase 35 | Pending |
+| LOGN-02 | Phase 35 | Pending |
+| LOGN-03 | Phase 35 | Pending |
+| OPER-01 | Phase 36 | Pending |
+| OPER-02 | Phase 36 | Pending |
+| OPER-03 | Phase 36 | Pending |
+
+**Coverage:**
+- v1.9 requirements: 21 total
+- Mapped to phases: 21
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-04-11*
+*Last updated: 2026-04-11 after initial definition*
