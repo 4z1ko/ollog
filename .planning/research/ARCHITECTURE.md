@@ -1,509 +1,529 @@
-# Architecture Research: ollog v1.8
+# Architecture Research: Apple-like UI Redesign + Dark/Light Mode
 
-**Domain:** Admin container split, backup module, MkDocs rewrite
-**Researched:** 2026-04-10
-**Confidence:** HIGH (direct codebase inspection of all relevant files)
+**Domain:** Frontend theming and visual redesign — Tailwind CSS v3 + HTMX + Jinja2
+**Researched:** 2026-04-11
+**Confidence:** HIGH (direct codebase inspection + verified against Tailwind v3 docs and HTMX behavior)
 
 ---
 
 ## Summary
 
-Three new capabilities land in v1.8. Each is architecturally independent and introduces
-no circular dependencies with existing modules:
+This milestone adds an Apple-like visual redesign and a persistent dark/light mode toggle to
+an existing FastAPI + HTMX + Jinja2 + Tailwind CSS v3 application. The existing architecture
+already has the key mechanical foundations in place:
 
-1. **Admin container** — a second Docker Compose service that runs the *same image* but
-   exposes only admin routes. Cleanest approach: an `app/admin_main.py` entry point that
-   builds a restricted FastAPI app object, selected by the service's `command:` override
-   in `docker-compose.yml`. No env var app-mode branching inside `main.py`.
+- `tailwind.config.js` already has `darkMode: 'class'` set.
+- `templates/base.html` already has a FOUC-prevention inline script in `<head>`.
+- `static/css/input.css` already uses `@layer components` for shared component classes.
+- HTMX swaps `innerHTML` of specific containers — the `dark` class lives on `<html>`, not
+  inside any swapped element, so it survives all HTMX swaps automatically.
 
-2. **Backup module** — a standalone CLI module at `app/backup/` (package, not a single
-   file) that connects to MongoDB independently of FastAPI and uploads a dump to S3.
-   Invoked via `python -m app.backup`. The existing named volume `mongo-data` is
-   confirmed present and relevant.
-
-3. **Docs rewrite** — MkDocs Material is already wired up (`mkdocs.yml` exists, `site/`
-   is built and mounted at `/guide` in `main.py`). The rewrite is a content-only task
-   with no structural changes needed to the serve path.
-
----
-
-## Section 1: Existing Route Map
-
-Understanding the full route surface is prerequisite to defining what the admin container
-should (and should not) expose.
-
-### Route prefixes in `app/main.py`
-
-| Router | Prefix | Auth type | Audience |
-|--------|--------|-----------|----------|
-| `auth.router` | `/auth` | None / Bearer JWT | Everyone |
-| `admin.router` | `/admin/users` | Bearer JWT + `require_admin` | Admin only |
-| `admin.ui_router` | `/admin/ui` | Cookie JWT + `require_admin_cookie` | Admin browser |
-| `qso.router` | `/api/qsos` | Bearer JWT or API key | Operators |
-| `qso.ui_router` | `/log` | Cookie JWT | Operators browser |
-| `adif.router` | `/api/adif` | Bearer JWT | Operators |
-| `feed.router` | `/feed` | Cookie JWT | Operators browser |
-| `profile.router` | `/api/profile` | Bearer JWT | Operators |
-| `tokens.router` | `/api/tokens` | Bearer JWT | Operators |
-| Static `site/` | `/guide` | None | Public |
-| Static `static/` | `/static` | None | Public |
-| `GET /health` | `/health` | None | Monitoring |
-| `GET /api/whoami` | `/api/whoami` | Bearer JWT | Debug |
-
-### Admin container scope
-
-The admin container should expose only the routes needed for admin management work:
-
-- `/auth` — login (to acquire a JWT before hitting admin endpoints)
-- `/admin/users` — REST account management
-- `/admin/ui` — browser-based admin panel
-- `/health` — container health check
-- `/static` — CSS/JS assets required by admin UI templates
-
-Routes the admin container explicitly must NOT expose:
-- `/api/qsos`, `/log`, `/api/adif`, `/feed` — operator logging surface
-- `/api/tokens`, `/api/profile` — operator self-service; not relevant to admin workflows
-- `/guide` — documentation; no need on port 8001
+This means the infrastructure work is small. The bulk of the milestone is:
+1. Extending the design token system (CSS variables + Tailwind config extensions).
+2. Refining component classes in `input.css` to match an Apple-like aesthetic.
+3. Updating template markup to use refined component classes and Apple-inspired layout.
+4. Ensuring the theme toggle JS is complete and correct in `base_app.html`.
 
 ---
 
-## Section 2: Admin Container — Approach Decision
-
-Three approaches considered:
-
-### Approach A: `APP_MODE` env var inside `main.py` (NOT recommended)
-
-```python
-# app/main.py — branching version
-import os
-mode = os.getenv("APP_MODE", "operator")
-
-app = FastAPI(...)
-app.include_router(auth_router)
-if mode == "admin":
-    app.include_router(admin_router)
-    app.include_router(ui_router)
-else:
-    app.include_router(qso_router)
-    ...
-```
-
-**Problem:** `main.py` becomes a conditional mess. Every future router addition needs to
-decide which mode it belongs to. Lifespan also starts the UDP listener and change-stream
-watcher — both unnecessary for the admin container. Branching lifespan logic compounds
-the problem.
-
-### Approach B: Two separate `main.py` entry points with a shared app factory (recommended)
-
-Create `app/admin_main.py` as a minimal FastAPI application that imports only the admin
-routers. `app/main.py` stays exactly as it is.
-
-```python
-# app/admin_main.py
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
-
-from app.database import init_db, close_db
-from app.config import settings
-from app.admin.router import router as admin_router
-from app.admin.ui_router import ui_router
-from app.auth.router import router as auth_router
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    # No UDP listener, no change-stream watcher
-    yield
-    await close_db()
-
-
-app = FastAPI(title="ollog-admin", version="0.1.0", lifespan=lifespan)
-
-app.include_router(auth_router)
-app.include_router(admin_router)
-app.include_router(ui_router, include_in_schema=False)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.exception_handler(HTTPException)
-async def ui_auth_redirect(request: Request, exc: HTTPException):
-    path = request.url.path
-    if path.startswith("/admin/ui/") and exc.status_code in (401, 403):
-        return RedirectResponse(url="/admin/ui/login", status_code=302)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-    )
-
-
-@app.get("/health")
-async def health():
-    from app.database import get_client
-    client = get_client()
-    if client is None:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=503, content={"status": "error"})
-    try:
-        await client.admin.command("ping")
-        return {"status": "ok", "mongodb": "connected"}
-    except Exception:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=503, content={"status": "error"})
-```
-
-**Why this is correct:**
-- `main.py` is untouched — no regression risk to the operator service.
-- `admin_main.py` is small, readable, and self-documenting.
-- Lifespan is minimal — no wasted UDP socket or change-stream task.
-- The `_bootstrap_admin()` call is not needed in `admin_main.py` because the admin user
-  is bootstrapped by the operator service at startup. If the operator service is not
-  running, the admin account bootstrap would not have run anyway. (Both services share
-  the same MongoDB; the bootstrap is idempotent so it can optionally be included.)
-- `init_db()` and `close_db()` are the same functions — both services share
-  `app/database.py` without modification.
-
-### Approach C: Docker `command:` override to a different Python file
-
-```yaml
-admin:
-  build: .
-  command: ["uvicorn", "app.admin_main:app", "--host", "0.0.0.0", "--port", "8001"]
-```
-
-This is actually the *same* as Approach B — it requires `app/admin_main.py` to exist.
-"Approach C" is how you wire Approach B into Docker Compose, not a separate strategy.
-
-### Docker Compose changes
-
-```yaml
-# docker-compose.yml additions
-
-  admin:
-    build: .
-    command: ["uvicorn", "app.admin_main:app", "--host", "0.0.0.0", "--port", "8001"]
-    ports:
-      - "8001:8001"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      - SECRET_KEY=dev-secret-change-in-production
-      - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
-      - MONGODB_DB=ollog
-```
-
-The `admin` service uses an identical `env_file:` and environment block. Both services
-share the same image, same database, same JWT secret — a token issued on port 8000 is
-valid on port 8001 and vice versa. This is correct: an admin who logs in on the operator
-UI should be able to use the same session on the admin UI.
-
-**Image build note:** The `Dockerfile` `COPY` section does not include `docs/` or
-`mkdocs.yml` — only `app/`, `templates/`, `static/`, `site/`. The admin image needs
-`static/` (for template assets) but not `site/`. This is already handled correctly.
-
----
-
-## Section 3: Backup Module — Package vs. Single File
-
-### Decision: `app/backup/` package (not `app/backup.py`)
-
-Rationale:
-
-A backup operation involves at minimum three distinct concerns:
-1. `__main__.py` — CLI entry point and argument parsing
-2. MongoDB dump logic — connecting to Motor/PyMongo, running `mongodump` or
-   streaming a collection export
-3. S3 upload logic — boto3/aiobotocore calls, retry, presigned URL or direct put
-
-Putting all three in a single `app/backup.py` creates a file that will grow past
-200 lines immediately and has no natural seam for tests or future features (e.g. restore,
-backup verification, rotation policy). A package with clear module boundaries is better:
+## System Overview
 
 ```
-app/backup/
-    __init__.py        # public API if needed; may be empty
-    __main__.py        # entry point: python -m app.backup [args]
-    dump.py            # MongoDB dump: mongodump subprocess or Motor streaming
-    upload.py          # S3 upload via boto3
-    config.py          # backup-specific settings (S3 bucket, prefix, schedule)
-    scheduler.py       # APScheduler or simple asyncio.sleep loop for scheduled runs
-```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  BUILD PIPELINE (Node.js)                                               │
+│  tailwind.config.js  ←  static/css/input.css  →  static/css/output.css │
+│  (darkMode: 'class', (design tokens, @layer    (compiled, minified,     │
+│   custom colors,       components, @layer base) served at /static/css/) │
+│   fontFamily)                                                            │
+└───────────────────────────────────┬─────────────────────────────────────┘
+                                    │ output.css linked in base.html
+┌───────────────────────────────────▼─────────────────────────────────────┐
+│  JINJA2 TEMPLATE TREE                                                   │
+│                                                                          │
+│  base.html                                                               │
+│  ├── <head>: output.css link, FOUC-prevention inline script             │
+│  └── base_app.html (extends base.html)                                  │
+│      ├── sidebar + dark mode toggle button + toggleTheme() JS           │
+│      ├── log/form.html       (content block, uses component classes)    │
+│      ├── log/log.html        (content block, HTMX swap container)       │
+│      │   └── log/log_table.html   (HTMX innerHTML swap target)          │
+│      ├── log/import.html     (content block)                            │
+│      └── admin/users.html    (content block, HTMX swap container)       │
+│          └── admin/users_table.html  (HTMX innerHTML swap target)       │
+│                                                                          │
+│  Standalone (extend base.html directly, dark-always backgrounds):       │
+│  ├── log/login.html                                                      │
+│  └── admin/login.html                                                    │
+└─────────────────────────────────────────────────────────────────────────┘
 
-`python -m app.backup` dispatches to `app/backup/__main__.py`. This is standard Python
-packaging convention and works with the existing project layout.
-
-### MongoDB connection in backup
-
-The backup module must connect to MongoDB *independently* of the FastAPI app. It cannot
-import `app.database` and call `init_db()` because that function also calls `init_beanie`
-which requires the full model tree. For a dump, raw PyMongo is preferable:
-
-```python
-# app/backup/dump.py
-from pymongo import MongoClient
-
-def dump_collection(uri: str, db_name: str, collection: str) -> bytes:
-    """Stream all documents from a collection as NDJSON bytes."""
-    import json
-    client = MongoClient(uri)
-    db = client[db_name]
-    lines = []
-    for doc in db[collection].find():
-        doc["_id"] = str(doc["_id"])
-        lines.append(json.dumps(doc))
-    client.close()
-    return b"\n".join(line.encode() for line in lines)
-```
-
-Alternative: call `mongodump` as a subprocess and capture stdout (BSON). This is more
-faithful for restore purposes but requires `mongodump` to be present in the image. The
-Dockerfile base is `python:3.12-slim` which does not include MongoDB tools. Either:
-- Add `RUN apt-get install -y mongodb-database-tools` to Dockerfile, or
-- Use the pure-Python NDJSON approach and skip `mongodump` entirely.
-
-For v1.8, the pure-Python approach is recommended: no Dockerfile changes, no binary
-dependency. The output format (NDJSON per collection) is sufficient for point-in-time
-restore and is human-readable.
-
-### S3 upload
-
-Use `boto3` (synchronous) in the backup CLI — it does not need to be async since the CLI
-is not a FastAPI endpoint. `boto3` is simpler and better documented than `aiobotocore`
-for a CLI use case:
-
-```python
-# app/backup/upload.py
-import boto3
-from datetime import datetime, timezone
-
-def upload_to_s3(data: bytes, bucket: str, key_prefix: str, filename: str) -> str:
-    """Upload bytes to S3. Returns the S3 object key."""
-    s3 = boto3.client("s3")
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    key = f"{key_prefix}/{timestamp}-{filename}"
-    s3.put_object(Bucket=bucket, Key=key, Body=data)
-    return key
-```
-
-S3 credentials come from environment variables (`AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`) — the standard boto3 credential chain.
-No custom credential handling needed.
-
-### Scheduled runs
-
-If v1.8 requires scheduled backups (e.g. nightly), two options:
-
-**Option A: Docker Compose `cron` service** — add a `backup` service with
-`restart: always` that loops with `sleep`:
-
-```yaml
-  backup:
-    build: .
-    command: >
-      sh -c "while true; do python -m app.backup; sleep 86400; done"
-    env_file: .env
-    environment:
-      - MONGODB_URI=mongodb://mongodb:27017/?replicaSet=rs0
-      - BACKUP_S3_BUCKET=my-ollog-backups
-```
-
-**Option B: APScheduler inside `app/backup/scheduler.py`** — a long-running Python
-process that fires the backup job on a cron schedule.
-
-Option A is simpler and requires no additional dependencies. Recommended for v1.8.
-
-### Named volume and backup path
-
-From `docker-compose.yml`:
-
-```yaml
-volumes:
-  mongo-data:
-```
-
-The `mongodb` service mounts `mongo-data:/data/db`. This is a Docker named volume, not a
-bind mount. It cannot be accessed directly from the host filesystem path. Implications:
-
-- A `mongodump`-based backup would need the backup service to share the same volume
-  mount (`mongo-data:/data/db:ro`) — messy and fragile.
-- The pure-Python NDJSON approach (connecting to `mongodb:27017` via network) sidesteps
-  this entirely. The backup service connects to MongoDB the same way the API service does.
-- **Confirmed: there is no bind-mount path to worry about.** The backup module uses the
-  `MONGODB_URI` environment variable, not a filesystem path.
-
----
-
-## Section 4: MkDocs — Current State and What Changes
-
-### What already exists
-
-```
-mkdocs.yml          # config: Material theme, slate/indigo, 7-page nav
-docs/               # source markdown
-    index.md
-    deployment.md
-    getting-started.md
-    admin-guide.md
-    api-reference.md
-    adif-field-reference.md
-    troubleshooting.md
-site/               # built HTML (committed to repo, served by FastAPI)
-```
-
-`app/main.py` line 151:
-```python
-app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
-```
-
-The docs are served at `/guide` by the operator service. MkDocs Material is already
-configured with the correct theme (`slate` scheme, `indigo` primary). This is a
-content-rewrite task, not an infrastructure task.
-
-### What v1.8 changes
-
-The "docs rewrite" means updating the content of `docs/*.md` files and rebuilding
-`site/`. No changes needed to:
-- `mkdocs.yml` (unless new pages are added to `nav:`)
-- `app/main.py` (mount point stays at `/guide`)
-- `Dockerfile` (already `COPY site/ site/`)
-- `docker-compose.yml` (no new service)
-
-If new pages are added (e.g. a backup guide or API token guide), add them to the `nav:`
-in `mkdocs.yml` and create the corresponding `docs/*.md` files. Rebuild with
-`mkdocs build` before committing the updated `site/`.
-
-The admin container (`admin_main.py`) does not mount `/guide` — documentation is only
-relevant on the operator-facing port 8000.
-
-### Build workflow
-
-```bash
-# From project root, with mkdocs-material installed:
-mkdocs build          # outputs to site/
-# Then commit site/ alongside docs/ changes
-```
-
-The `site/` directory is committed to the repository (as it is today) so Docker image
-builds do not require `mkdocs` to be present in the image. This is the correct pattern
-for this project.
-
----
-
-## Section 5: Shared Infrastructure — What Both Services Use
-
-| Component | Used by operator | Used by admin | Notes |
-|-----------|-----------------|---------------|-------|
-| `app/config.py` | Yes | Yes | Both read from same `.env` |
-| `app/database.py` | Yes | Yes | `init_db()` / `close_db()` |
-| `app/auth/` | Yes | Yes | Models, deps, router, service |
-| `app/admin/router.py` | Yes | Yes | Admin user CRUD |
-| `app/admin/ui_router.py` | Yes | Yes | Admin browser UI |
-| `app/qso/` | Yes | No | Operator-only |
-| `app/adif/` | Yes | No | Operator-only |
-| `app/feed/` | Yes | No | Operator-only |
-| `app/profile/` | Yes | No | Operator-only |
-| `app/tokens/` | Yes | No | Operator-only |
-| `app/udp/` | Yes (if enabled) | No | Operator-only |
-| `app/backup/` | No | No | CLI-only, invoked by backup service |
-| `templates/` | Yes | Yes | Admin UI templates are in `templates/admin/` |
-| `static/` | Yes | Yes | CSS/JS for both UIs |
-| `site/` | Yes | No | Only operator service mounts /guide |
-
----
-
-## Section 6: Component Boundaries Diagram
-
-```
-Docker Compose
-│
-├── mongodb (mongo:7, named volume mongo-data)
-│   └── Collections: qsos, users, api_tokens
-│
-├── api (port 8000) → uvicorn app.main:app
-│   Routes: /auth /admin/users /admin/ui /api/qsos /log
-│           /api/adif /feed /api/profile /api/tokens
-│           /guide /static /health
-│   Lifespan: init_db, _bootstrap_admin, watch_qsos, udp_listener
-│
-├── admin (port 8001) → uvicorn app.admin_main:app
-│   Routes: /auth /admin/users /admin/ui /static /health
-│   Lifespan: init_db only (no UDP, no change stream)
-│
-└── backup (no port) → python -m app.backup
-    Connects to: MONGODB_URI (direct PyMongo)
-    Writes to: AWS S3 via boto3
-    Trigger: schedule (sleep loop) or one-shot
+┌─────────────────────────────────────────────────────────────────────────┐
+│  THEME PERSISTENCE (Browser)                                            │
+│  localStorage['theme']  →  inline script in <head>                     │
+│  (set by toggleTheme()      adds/removes 'dark' class on <html>        │
+│   in base_app.html)         before first paint — no FOUC               │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Section 7: Anti-Patterns to Avoid
+## Component Responsibilities
 
-### Anti-Pattern 1: `APP_MODE` env var branching in `main.py`
+| Component | Responsibility | Scope of Change |
+|-----------|---------------|----------------|
+| `tailwind.config.js` | Extend color palette with Apple-like tokens (glass, surface, sidebar); extend borderRadius, boxShadow | Modify: add design tokens |
+| `static/css/input.css` | Define all reusable component classes via `@layer components`; define CSS variables via `@layer base` | Modify: refine existing classes, add new ones |
+| `static/css/output.css` | Compiled output — never hand-edited | Regenerated by build |
+| `templates/base.html` | FOUC-prevention script (already present and correct); link to output.css | Minimal or no change |
+| `templates/base_app.html` | Sidebar layout, dark mode toggle button and JS | Modify: refine visual design, ensure toggle JS is complete |
+| `templates/log/*.html` + `templates/admin/*.html` | Page-level markup using component classes | Modify: replace hardcoded utility soup with refined component classes |
+| `templates/log/log_table.html` + `templates/admin/users_table.html` | HTMX partial swap targets — rendered as fragments | Modify: use same component classes; no theme-specific logic needed |
+| `templates/log/login.html` + `templates/admin/login.html` | Standalone login pages with fixed dark background | Modify: Apple-style glass card, refined typography |
 
-**What goes wrong:** `main.py` accumulates conditional logic. Every new router and every
-lifespan concern needs a mode check. Tests need to set `APP_MODE` before importing.
+---
 
-**Do this instead:** Separate entry point `app/admin_main.py`. Keep `main.py` clean.
+## Recommended Project Structure (Changes Only)
 
-### Anti-Pattern 2: `app/backup.py` as a single file
+```
+static/css/
+├── input.css         (MODIFY — primary design token and component work)
+└── output.css        (REGENERATED — do not edit)
 
-**What goes wrong:** Dump logic, S3 upload, CLI parsing, and scheduling all live in one
-file. It grows past 300 lines with no seam for tests. Future features (restore, rotation)
-have nowhere to live.
+tailwind.config.js    (MODIFY — add Apple-like color tokens, radius, shadow)
 
-**Do this instead:** `app/backup/` package with `__main__.py`, `dump.py`, `upload.py`,
-`config.py`.
+templates/
+├── base.html         (MINIMAL CHANGE — FOUC script already correct)
+├── base_app.html     (MODIFY — sidebar refinement, toggle JS)
+├── log/
+│   ├── form.html     (MODIFY — markup cleanup, component class usage)
+│   ├── log.html      (MODIFY — markup cleanup)
+│   ├── log_table.html (MODIFY — component classes in partial)
+│   ├── login.html    (MODIFY — Apple glass card redesign)
+│   └── import.html   (MODIFY — markup cleanup)
+└── admin/
+    ├── login.html    (MODIFY — Apple glass card redesign)
+    ├── users.html    (MODIFY — markup cleanup)
+    └── users_table.html (MODIFY — component classes in partial)
+```
 
-### Anti-Pattern 3: Sharing the `site/` mount on the admin container
+No new files are required. No Python files change. No routes change.
 
-**What goes wrong:** The admin container serves docs at `/guide`. This doubles the
-surface area where documentation is accessible and adds a `StaticFiles` mount that serves
-no purpose for admin workflows.
+---
 
-**Do this instead:** `admin_main.py` does not mount `/guide`. Docs are operator-facing
-only.
+## Architectural Patterns
 
-### Anti-Pattern 4: Using `mongodump` subprocess without the binary in the image
+### Pattern 1: FOUC-Free Theme Application via Inline `<head>` Script
 
-**What goes wrong:** `python:3.12-slim` does not include `mongodb-database-tools`.
-`mongodump` fails with `FileNotFoundError`. Adding it requires a multi-stage build or
-apt install, which bloats the image used for both the API and admin services.
+**What:** A small synchronous script in `<head>`, before any content renders, reads
+`localStorage['theme']` and conditionally adds the `dark` class to `<html>`. Because it
+runs inline (not `defer`, not `async`), the browser applies the class before the first
+paint. The dark Tailwind classes are already present in the compiled CSS.
 
-**Do this instead:** Use Motor or PyMongo to stream documents as NDJSON. No binary
-dependency. No Dockerfile change.
+**When to use:** Any server-rendered app without a JS framework (Next.js, Nuxt) that
+manages hydration. Essential for vanilla HTML + Tailwind.
 
-### Anti-Pattern 5: `admin_main.py` imports from `main.py`
+**Status in this codebase:** Already implemented and correct in `templates/base.html`
+lines 14-21. No change needed. It handles both `localStorage` preference and
+`prefers-color-scheme` OS-level fallback.
 
-**What goes wrong:** `main.py` creates the `app` FastAPI object at module import time.
-Importing from `main.py` in `admin_main.py` starts the full operator lifespan.
+```html
+<!-- Already in base.html — DO NOT remove or defer this script -->
+<script>
+  (function () {
+    var theme = localStorage.getItem('theme');
+    if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  })();
+</script>
+```
 
-**Do this instead:** `admin_main.py` imports directly from `app.admin.router`,
-`app.auth.router`, etc. Never imports from `app.main`.
+**Confidence:** HIGH — standard pattern, confirmed present and correct in codebase.
+
+---
+
+### Pattern 2: `darkMode: 'class'` + Component Classes in `@layer components`
+
+**What:** Tailwind's `darkMode: 'class'` means every `dark:` utility applies only when
+`<html class="dark">` is present. Component classes defined in `@layer components` (like
+`.card`, `.form-input`, `.btn-primary`) use `dark:` modifier utilities inline — so a
+single class name carries both light and dark styles. Partials don't need to know about
+theme state.
+
+**Status in this codebase:** Already implemented. `tailwind.config.js` has
+`darkMode: 'class'`. All component classes in `input.css` already use `dark:` modifiers.
+The Apple redesign adds refinements on top of this existing pattern — not a structural
+change.
+
+**Example (existing pattern to continue):**
+```css
+/* input.css — @layer components */
+.card {
+  @apply bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm;
+}
+```
+
+The Apple redesign will evolve this toward more pronounced blur/glass surfaces and refined
+radii, but the structural pattern stays identical.
+
+**Confidence:** HIGH — directly observed in codebase.
+
+---
+
+### Pattern 3: CSS Variables for Apple Design Tokens
+
+**What:** Define semantic color tokens as CSS custom properties in `@layer base`. Reference
+them in `@layer components`. Use Tailwind's `extend.colors` to make tokens available as
+Tailwind utility classes. This avoids duplicating the same hex values in multiple places
+and enables future theme additions without touching every component class.
+
+**When to use:** When a small but consistent set of surface/glass/accent colors needs to
+appear across many components in both light and dark modes.
+
+**Recommended approach for this project:**
+
+Define raw CSS variables on `:root` (light mode) and override them under `.dark` in
+`@layer base` in `input.css`. Then reference them in `tailwind.config.js` via
+`var(--token-name)` so Tailwind generates utility classes for them. This keeps
+`tailwind.config.js` as the single point of truth for token names.
+
+```css
+/* input.css — @layer base */
+@layer base {
+  :root {
+    --color-surface:       255 255 255;   /* white */
+    --color-surface-muted: 248 250 252;   /* slate-50 */
+    --color-border:        226 232 240;   /* slate-200 */
+    --color-text-primary:  15  23  42;    /* slate-900 */
+    --color-text-muted:    100 116 139;   /* slate-500 */
+  }
+  .dark {
+    --color-surface:       17  24  39;    /* gray-900 */
+    --color-surface-muted: 3   7   18;    /* gray-950 */
+    --color-border:        31  41  55;    /* gray-800 */
+    --color-text-primary:  248 250 252;   /* slate-50 */
+    --color-text-muted:    148 163 184;   /* slate-400 */
+  }
+}
+```
+
+```js
+// tailwind.config.js — extend.colors
+colors: {
+  surface: 'rgb(var(--color-surface) / <alpha-value>)',
+  'surface-muted': 'rgb(var(--color-surface-muted) / <alpha-value>)',
+  border: 'rgb(var(--color-border) / <alpha-value>)',
+  // ... etc
+}
+```
+
+This enables utilities like `bg-surface`, `border-border`, `text-text-primary` that
+automatically flip between light and dark values. Component classes in `@layer components`
+can then use these utilities instead of `bg-white dark:bg-gray-900` pairs everywhere.
+
+**Important:** The existing `sidebar` color tokens in `tailwind.config.js` follow this
+extension pattern already (hardcoded hex, not CSS variables). For the sidebar, which is
+always dark regardless of theme, the existing approach is correct and should be kept.
+CSS variables are only needed for surfaces that need to change between light and dark modes.
+
+**Confidence:** HIGH — pattern derived from direct codebase inspection. CSS variable
+channel-notation approach (`255 255 255`) is the standard Tailwind v3 pattern for
+supporting `/opacity` modifiers.
+
+---
+
+### Pattern 4: Theme Toggle JS Lives in `base_app.html`, Not in Partials
+
+**What:** The `toggleTheme()` function and the `updateThemeIcons()` function live in
+`base_app.html` at the bottom of the body. HTMX partials (`log_table.html`,
+`users_table.html`) never include theme-related JS. Partials inherit the theme state
+from `<html class="dark">` automatically via CSS.
+
+**Why this works:** HTMX `innerHTML` swaps replace the content inside the swap target
+element (e.g. `#users-table-body`, `#log-table`). They never touch `<html>`, `<head>`,
+or `<body>` attributes. The `dark` class on `<html>` is never inside any swap target,
+so it survives every HTMX swap intact.
+
+**Verification:** Confirmed by reviewing all `hx-target` values in the codebase:
+- `hx-target="#users-table-body"` (tbody element)
+- `hx-target="#log-table"` (div element)
+- `hx-target="#qso-result"` (div element)
+- `hx-target="#station-feed"` (tbody element, `afterbegin`)
+
+None target `<html>`, `<body>`, or any ancestor of the theme toggle button.
+
+**Confidence:** HIGH — directly verified by reading all template files.
+
+---
+
+### Pattern 5: Apple-like Visual Hierarchy via Tailwind Utilities
+
+**What:** Apple's design language uses a specific set of visual patterns translatable
+directly into Tailwind classes. No new dependencies needed.
+
+| Apple Design Concept | Tailwind Implementation |
+|----------------------|------------------------|
+| Rounded corners (large) | `rounded-2xl` (16px), `rounded-xl` (12px), `rounded-lg` (8px) |
+| Frosted glass surface | `backdrop-blur-xl bg-white/70 dark:bg-gray-900/80 border border-white/20 dark:border-white/10` |
+| Elevated card shadow | `shadow-xl shadow-black/5 dark:shadow-black/40` |
+| SF Pro-style typography | Inter font already loaded — `font-semibold tracking-tight` for headings |
+| Sidebar vibrancy | `bg-sidebar` (existing) + potential `backdrop-blur` on mobile overlay |
+| Subtle dividers | `divide-gray-100 dark:divide-gray-800` or `border-gray-100 dark:border-gray-800` |
+| Focus rings | `focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2` |
+| Button hierarchy | Primary: filled; Secondary: outlined ghost; Destructive: rose-filled |
+
+**Login pages specifically:** Both login pages already use the glass card pattern
+(`bg-white/5 backdrop-blur-sm border border-white/10`) on a dark gradient background.
+The Apple redesign deepens this — more blur, slightly more opacity, better shadow layering.
+These pages are standalone (extend `base.html` directly) and always render dark regardless
+of the user's localStorage preference because their outer container is a fixed dark gradient.
+
+**Confidence:** MEDIUM — Apple design pattern mapping is derived from observation and
+community consensus, not official Apple CSS specifications.
+
+---
+
+## Data Flow
+
+### Theme Toggle Flow (Full Page)
+
+```
+User clicks toggle button in sidebar
+    ↓
+toggleTheme() in base_app.html
+    ↓
+document.documentElement.classList.toggle('dark')
+    ↓
+localStorage.setItem('theme', 'dark' | 'light')
+    ↓
+updateThemeIcons(isDark) → swaps moon/sun SVG, updates label text
+    ↓
+All dark: CSS classes in output.css apply/unapply immediately
+(No page reload, no HTMX request, no server involvement)
+```
+
+### Theme Persistence Flow (Page Load)
+
+```
+Browser requests page → FastAPI returns HTML
+    ↓
+Browser starts parsing <head>
+    ↓
+Inline script runs synchronously (before paint):
+  1. localStorage.getItem('theme') → 'dark' | 'light' | null
+  2. If null: check window.matchMedia('(prefers-color-scheme: dark)')
+  3. If dark condition met: document.documentElement.classList.add('dark')
+    ↓
+Browser continues parsing, renders page with correct theme classes applied
+(Zero FOUC — dark class already present when CSS is evaluated)
+    ↓
+DOMContentLoaded fires → updateThemeIcons() syncs toggle button icons
+```
+
+### HTMX Partial Swap + Theme Preservation
+
+```
+User triggers HTMX action (e.g. filter log table, toggle user status)
+    ↓
+HTMX sends GET/POST to FastAPI
+    ↓
+FastAPI renders partial template (log_table.html or users_table.html)
+    ↓
+HTMX swaps innerHTML of target element (#log-table or #users-table-body)
+    ↓
+<html class="dark"> is UNCHANGED — not inside any swap target
+    ↓
+New content immediately renders with correct dark: classes
+(No theme re-initialization needed in partials)
+```
+
+---
+
+## Integration Points
+
+### Files That Change
+
+| File | Type | Change Scope |
+|------|------|-------------|
+| `tailwind.config.js` | Config | Add CSS variable-backed color tokens for surfaces, text, borders |
+| `static/css/input.css` | CSS source | Add CSS variables in `@layer base`; refine component classes in `@layer components` for Apple aesthetic |
+| `templates/base_app.html` | Base template | Sidebar visual refinement; ensure `updateThemeIcons()` is correct; add system-preference auto mode if desired |
+| `templates/log/login.html` | Standalone page | Deeper glass card, refined typography |
+| `templates/admin/login.html` | Standalone page | Deeper glass card, refined typography (violet accent preserved for admin distinction) |
+| `templates/log/form.html` | Page template | Component class cleanup, Apple-style section headers |
+| `templates/log/log.html` | Page template | Component class cleanup, filter card refinement |
+| `templates/log/log_table.html` | HTMX partial | Component class cleanup — no theme logic needed |
+| `templates/log/import.html` | Page template | Component class cleanup |
+| `templates/admin/users.html` | Page template | Component class cleanup |
+| `templates/admin/users_table.html` | HTMX partial | Component class cleanup — no theme logic needed |
+
+### Files That Do NOT Change
+
+| File | Reason |
+|------|--------|
+| `templates/base.html` | FOUC script already correct; no structural change needed |
+| All Python files (`app/`) | Pure frontend change — no routes, no models, no services |
+| `docker-compose.yml`, `Dockerfile` | No new services or build steps |
+| `static/css/output.css` | Regenerated by `npm run build` — never hand-edited |
+
+---
+
+## Build Order
+
+The build must follow this order because each step depends on the previous:
+
+```
+1. tailwind.config.js
+   ↓  Add color tokens (CSS variable references)
+   ↓  Extend borderRadius and boxShadow if needed
+
+2. static/css/input.css
+   ↓  Add CSS variable definitions in @layer base (:root and .dark)
+   ↓  Refine existing component classes (.card, .form-input, .btn-*, etc.)
+   ↓  Add any new component classes needed for Apple-specific patterns
+
+3. npm run build  (or npm run watch during development)
+   ↓  Generates static/css/output.css
+   ↓  Tailwind scans templates/**/*.html for used classes
+   ↓  All dark: variants compiled into output.css
+
+4. templates/base_app.html
+   ↓  Sidebar visual refinement using new tokens
+   ↓  Verify toggleTheme() and updateThemeIcons() are complete
+   ↓  (This is the only template where theme JS lives)
+
+5. templates/log/login.html + templates/admin/login.html
+   ↓  Apple glass card redesign
+   ↓  These are standalone — no dependency on base_app.html changes
+
+6. Page templates (form.html, log.html, users.html, import.html)
+   ↓  Use updated component classes from step 2
+   ↓  Replace any hardcoded utility chains with component class names
+
+7. HTMX partial templates (log_table.html, users_table.html)
+   ↓  Update to use same component classes
+   ↓  These are the last in the chain — they inherit everything from CSS
+```
+
+**Critical constraint on step 3:** Tailwind's CSS scanner only includes classes that
+appear literally in template files. If a class name is constructed dynamically (e.g.
+`'btn-' + variant`), it will be purged. All dynamic class strings must appear in full
+somewhere in the templates or in a `safelist:` entry in `tailwind.config.js`. This
+codebase already follows this correctly (all dynamic classes use ternary expressions
+with full class names: `'btn-danger' if user.enabled else 'btn-success'`).
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Putting theme toggle JS in partial templates
+
+**What people do:** Add `<script>toggleTheme()</script>` or re-declare `updateThemeIcons()`
+inside `log_table.html` or `users_table.html` to "ensure" the theme state is correct after
+a swap.
+
+**Why it's wrong:** Partials are loaded via HTMX and injected into the DOM. Inline scripts
+in partials execute in the context of the existing page. If the function is re-declared,
+it shadows the original. More importantly, it's unnecessary — the `dark` class is on
+`<html>`, not on any element inside the swap target. Theme state is never lost during
+HTMX swaps.
+
+**Do this instead:** Keep all theme JS in `base_app.html`. Partials are theme-agnostic.
+
+---
+
+### Anti-Pattern 2: Deferring or asyncing the FOUC-prevention script
+
+**What people do:** Add `defer` or `async` to the inline theme script in `<head>` to
+avoid blocking HTML parsing.
+
+**Why it's wrong:** The entire purpose of the script is to run before the first paint.
+Adding `defer` causes it to execute after the DOM is ready — which is after the browser
+has already rendered the page without the `dark` class, producing exactly the flash it
+was meant to prevent.
+
+**Do this instead:** The inline script in `base.html` must remain synchronous and inline
+(no `src`, no `defer`, no `async`). This is the correct, intentional pattern.
+
+---
+
+### Anti-Pattern 3: Using hardcoded hex colors in templates instead of design tokens
+
+**What people do:** Write `bg-[#1a1d2e]` or `text-[#c4c9e4]` directly in template HTML
+for bespoke Apple-style surfaces instead of going through the token system.
+
+**Why it's wrong:** These arbitrary values are not scanned by Tailwind if they're dynamic,
+are invisible to the design token system, and create inconsistency across templates. When
+the palette changes, every arbitrary value must be found and updated.
+
+**Do this instead:** Define the color in `tailwind.config.js` `extend.colors` (as already
+done for the `sidebar` palette), then use the semantic class everywhere. Apple-like glass
+surfaces go into a `glass` or `surface` token group in the config.
+
+---
+
+### Anti-Pattern 4: Moving the sidebar to a fixed dark color that ignores the theme
+
+**What people do:** Keep the sidebar `bg-sidebar` (always dark) while making the main
+content area theme-aware, creating an inconsistent UI where the sidebar stays dark even
+in light mode.
+
+**Why it's wrong:** On macOS-style apps, the sidebar adapts to the theme — it's a lighter
+gray tint in light mode, a dark surface in dark mode. Keeping `bg-sidebar` hardcoded to
+a dark hex value means it never adapts.
+
+**Do this instead:** Either (a) make `sidebar` a CSS variable token that flips between
+light and dark sidebar values, or (b) consciously decide that the sidebar is permanently
+dark (which is a valid design choice for a dark-primary app like ollog) and document this
+decision. The current codebase chose option (b) and uses a fixed dark sidebar. If the
+redesign should preserve this, no change is needed. If a proper adaptive sidebar is
+desired, add CSS variable-backed sidebar tokens.
+
+---
+
+### Anti-Pattern 5: Adding `backdrop-filter` to every card surface
+
+**What people do:** Apply `backdrop-blur-xl` to all `.card` elements to achieve a
+universal glass-morphism look.
+
+**Why it's wrong:** `backdrop-filter: blur()` requires GPU compositing and is expensive
+when applied to many elements simultaneously. On pages with many cards (e.g. log_table
+with 25+ rows), this can cause visible jank, especially on lower-powered devices.
+
+**Do this instead:** Reserve glass/blur effects for prominent single surfaces — login
+cards, modal overlays, the sidebar backdrop on mobile. Regular content cards should use
+solid surface colors with border and shadow for depth instead of blur.
+
+---
+
+## Scaling Considerations
+
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| Current (single dev, single user) | Current `npm run build` manually is fine. Theme state in localStorage is sufficient. |
+| Multi-page additions | As new templates are added, the component class system in `input.css` scales cleanly — new pages inherit all tokens automatically. |
+| Theme variants beyond light/dark | If a "system" auto mode is added (follows OS), extend `base.html` FOUC script with a `window.matchMedia` listener for live changes. The current FOUC script already handles initial system preference detection on cold load. |
 
 ---
 
 ## Sources
 
-- Direct codebase inspection: `docker-compose.yml`, `Dockerfile`, `app/main.py`,
-  `app/config.py`, `app/database.py`, `app/admin/router.py`, `app/admin/ui_router.py`,
-  `app/qso/router.py`, `app/qso/ui_router.py`, `app/auth/router.py`, `app/adif/router.py`,
-  `app/feed/router.py`, `app/profile/router.py`, `app/tokens/router.py`,
-  `app/udp/server.py`, `mkdocs.yml`, `docs/index.md` (HIGH confidence — live codebase)
-- FastAPI `StaticFiles` mount ordering: `main.py` line 151 comment notes it is
-  load-bearing — confirmed pattern (HIGH confidence)
-- Docker Compose named volume vs. bind mount: `docker-compose.yml` `volumes:` section
-  shows `mongo-data:` (named, not bind-mounted) — directly observed (HIGH confidence)
-- `python -m package` entry point convention: Python stdlib `__main__.py` pattern
-  (HIGH confidence)
-- boto3 credential chain: standard AWS SDK pattern, no project-specific validation needed
-  (MEDIUM confidence — standard but not verified against current project deps)
+- Direct codebase inspection: `tailwind.config.js`, `static/css/input.css`,
+  `templates/base.html`, `templates/base_app.html`, all page templates and partials
+  — HIGH confidence (live codebase, April 2026)
+- Tailwind CSS v3 `darkMode: 'class'` documentation: [https://v3.tailwindcss.com/docs/dark-mode](https://v3.tailwindcss.com/docs/dark-mode)
+  — HIGH confidence
+- FOUC prevention inline script pattern: community consensus across multiple sources
+  (swyx.io, multiple dev.to posts, Gatsby/Astro documentation) — HIGH confidence
+- CSS custom property channel notation for Tailwind opacity support: Tailwind v3 docs
+  pattern for `rgb(var(--color) / <alpha-value>)` — HIGH confidence
+- HTMX `hx-swap="innerHTML"` behavior — never touches `<html>` attributes:
+  [https://htmx.org/attributes/hx-swap/](https://htmx.org/attributes/hx-swap/) — HIGH confidence
+- Apple Liquid Glass / glassmorphism CSS patterns: dev.to/gruszdev, css-tricks.com
+  — MEDIUM confidence (design aesthetic guidance, not prescriptive spec)
+- `backdrop-filter` GPU compositing cost: general browser rendering knowledge
+  — MEDIUM confidence
 
 ---
 
-*Architecture research for: ollog v1.8 — admin container, backup module, docs rewrite*
-*Researched: 2026-04-10*
+*Architecture research for: ollog Apple-like UI redesign + dark/light mode toggle*
+*Researched: 2026-04-11*
