@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 
 ## Current Position
 
-Phase: 30 — Database Backup CLI and Scheduler (plan 01 complete)
+Phase: 31 — Comprehensive Docs Rewrite (plan 01 complete)
 Plan: 01 complete
-Status: Backup CLI, APScheduler cron integration, and S3 upload implemented; ready for Phase 31
-Last activity: 2026-04-10 — 030-01 executed (app/backup package, lifespan wiring, docker-compose bind mount)
+Status: Full docs rewrite complete — 25 pages across 6 sections, embedded Swagger UI, v1.8 content; v1.8 milestone complete
+Last activity: 2026-04-11 — 031-01 executed (mkdocs.yml 2-level nav, swagger-ui-tag, admin-container.md, backup.md, api-tokens.md, mkdocs build --strict exit 0)
 
-Progress: [██████████████████████░░░░░░░░] ~73% (29/31 planned phases, 1 plan of phase 30 done)
+Progress: [██████████████████████████████] ~100% (31/31 planned phases complete, v1.8 milestone done)
 
 ## Performance Metrics
 
@@ -34,7 +34,7 @@ Progress: [██████████████████████░
 | v1.5 | 19–22 | 4 |
 | v1.6 | 23–24 | 2 |
 | v1.7 | 25–28 | 4 |
-| v1.8 | 29–31 | 3 (planned, 2 done) |
+| v1.8 | 29–31 | 3 (all complete) |
 
 ## Accumulated Context
 
@@ -61,6 +61,8 @@ Progress: [██████████████████████░
 - **DOC:** `openapi.json` exported with `python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > docs/openapi.json` before `mkdocs build`
 - **DOC:** `html=True` on `StaticFiles(directory="site", html=True)` in `app/main.py` is load-bearing for MkDocs `use_directory_urls: true`; must be annotated with a comment
 - **DOC:** Do not activate both `navigation.indexes` and `navigation.sections` simultaneously (MkDocs Material issue #3070)
+- **DOC:** `not_in_nav: | openapi.json` suppresses MkDocs INFO/WARNING about openapi.json not in nav — required when openapi.json lives in docs/ for swagger-ui-tag src path resolution
+- **DOC:** openapi.json path count for operator app is 11 unique paths (16 operations) — admin endpoints are in admin_main.py and excluded from operator OpenAPI schema by design
 
 ### Key Decisions (v1.7 — carried forward)
 
@@ -85,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-10
-Stopped at: Completed 030-01-PLAN.md — database backup CLI and scheduler implemented
+Last session: 2026-04-11
+Stopped at: Completed 031-01-PLAN.md — comprehensive docs rewrite (25 pages, Swagger UI, v1.8 content, mkdocs build --strict exit 0)
 Resume file: None
