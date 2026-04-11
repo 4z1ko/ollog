@@ -11,6 +11,7 @@
 - ✅ **v1.6 Live Log Table** — Phases 23–24 (shipped 2026-04-08)
 - ✅ **v1.7 API Token Auth** — Phases 25–28 (shipped 2026-04-09)
 - ✅ **v1.8 Admin Isolation, Backup & Docs** — Phases 29–31 (shipped 2026-04-10)
+- 🚧 **v1.9 Admin & Login UI Redesign** — Phases 32–36 (in progress)
 
 
 ## Phases
@@ -118,6 +119,94 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
 
 ---
 
+### 🚧 v1.9 Admin & Login UI Redesign (In Progress)
+
+**Milestone Goal:** Redesign the admin console and login page with an Apple-like UI aesthetic — clean sans-serif typography, card-based layouts, generous whitespace, correctly-sized sharp icons, and a persistent dark/light mode toggle. Every template uses Apple design tokens from a unified CSS component system.
+
+#### Phase 32: Theme Infrastructure and Build Discipline
+
+**Goal:** The theme toggle, dark/light persistence, FOUC prevention, and build safety gates are all locked in — every subsequent phase builds on a verified foundation.
+**Depends on:** Phase 31 (v1.8 complete)
+**Requirements:** THEM-01, THEM-02, THEM-03, THEM-04, THEM-05, THEM-06
+**Success Criteria** (what must be TRUE):
+  1. A sun/moon toggle button is visible and clickable at the bottom of the sidebar nav on every page (admin and operator); clicking it switches the page between dark and light mode immediately
+  2. Reloading any page after switching theme renders the correct theme with no white or light flash visible before the page is fully painted
+  3. Scrollbars, form inputs, and select dropdowns adopt the active theme's color scheme — native browser controls do not stay light in dark mode
+  4. Theme icon on the toggle button shows the correct sun/moon state after HTMX partial swaps replace page content
+  5. Toggling the theme animates a smooth color transition; loading any page cold shows no color animation before the user interacts
+**Plans:** TBD
+
+Plans:
+- [ ] 032-01: Theme toggle, FOUC-prevention annotation, no-transition suppression pattern, color-scheme meta tag, htmx:afterSettle handler
+
+---
+
+#### Phase 33: Design Tokens and CSS Component System
+
+**Goal:** All Apple-calibrated design tokens are defined in `tailwind.config.js` and CSS variables in `input.css`, and the full component class library (`.card`, `.btn-*`, `.form-input`, `.badge-*`, `.data-table`, `.card-title`) is built and verified in `output.css`.
+**Depends on:** Phase 32
+**Requirements:** DSGN-01, DSGN-02, DSGN-03, DSGN-04, DSGN-05, DSGN-06
+**Success Criteria** (what must be TRUE):
+  1. The page canvas renders `#f2f2f7` in light mode and `#0f0f0f` in dark mode; card surfaces render white in light mode and `#1c1c1e` in dark mode
+  2. All body text uses the system font stack (`-apple-system, BlinkMacSystemFont`) — no Google Fonts or external CDN font requests appear in the browser network tab
+  3. Cards in light mode show a visible two-layer shadow depth; the same cards in dark mode have no shadow, relying on surface color contrast alone
+  4. Status badges (enabled/disabled) use a rectangular shape with visibly rounded corners — no pill-shaped badges remain in any template
+  5. Prominent nav and card header icons render sharp and correctly sized at 24px on both standard and Retina/HiDPI displays
+**Plans:** TBD
+
+Plans:
+- [ ] 033-01: tailwind.config.js token definitions, input.css CSS variables and component classes, npm run build + output.css verification
+
+---
+
+#### Phase 34: Admin Console Template Polish
+
+**Goal:** The admin operator management UI and sidebar are fully redesigned using Apple component tokens, with correct icon sizing and accessible action buttons throughout.
+**Depends on:** Phase 33
+**Requirements:** ADMN-01, ADMN-02, ADMN-03
+**Success Criteria** (what must be TRUE):
+  1. The admin operator management table renders inside an Apple-style card container with refined typography — no raw table-without-card layout remains
+  2. The admin sidebar background uses `#1c1c1e` in dark mode with generous padding; nav items have consistent spacing and clear active states
+  3. Every operator action button (enable, disable, reset password) has a visible, correctly-sized icon and an `aria-label` that identifies the action and the target operator
+**Plans:** TBD
+
+Plans:
+- [ ] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
+
+---
+
+#### Phase 35: Login Page Glass Card Redesign
+
+**Goal:** Both login pages (admin and operator) present an Apple glassmorphism card that renders correctly in Safari and all major browsers.
+**Depends on:** Phase 33
+**Requirements:** LOGN-01, LOGN-02, LOGN-03
+**Success Criteria** (what must be TRUE):
+  1. The admin login card displays a frosted-glass appearance with visible backdrop blur over the dark gradient background in Chrome and Firefox
+  2. The operator login card uses the same glass card pattern and is visually consistent with the admin login card
+  3. Both glass cards render correctly in Safari — the backdrop blur effect is visible, not a solid opaque background
+**Plans:** TBD
+
+Plans:
+- [ ] 035-01: admin/login.html and log/login.html glass card redesign; -webkit-backdrop-filter with fixed pixel values in @layer components; Safari compatibility verification
+
+---
+
+#### Phase 36: Operator Log Views
+
+**Goal:** All operator-facing log templates (log view, QSO form, import page) use Apple component tokens and render correct dark-mode colors through HTMX partial swaps and SSE-driven refreshes.
+**Depends on:** Phase 34
+**Requirements:** OPER-01, OPER-02, OPER-03
+**Success Criteria** (what must be TRUE):
+  1. The operator log view table and pagination controls render using Apple card and data-table component classes in both light and dark mode; SSE-triggered log table refreshes preserve correct dark-mode colors
+  2. The QSO entry form uses Apple form input and button styles — field labels, inputs, and submit button match the established component library
+  3. The ADIF import page uses Apple card and button styles — the file upload area and import report are visually consistent with the rest of the operator UI
+**Plans:** TBD
+
+Plans:
+- [ ] 036-01: log.html, log_table.html, form.html, import.html redesign with Apple component tokens; SSE dark-mode color verification; no inline style attributes in any partial
+
+---
+
 ## Phase Details
 
 ### Phase 25: Token Model and Service Layer
@@ -151,7 +240,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 026-01-PLAN.md — expires_at model patch, REST CRUD /api/tokens, HTMX profile UI, templates, and integration tests
+- [x] 026-01-PLAN.md — expires_at model patch, REST CRUD /api/tokens, HTMX profile UI, templates, and integration tests
 
 ---
 
@@ -168,7 +257,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 027-01-PLAN.md — dual-auth dependencies (JWT + X-API-Key), QSO router Depends() swap, isolation audit update, integration tests
+- [x] 027-01-PLAN.md — dual-auth dependencies (JWT + X-API-Key), QSO router Depends() swap, isolation audit update, integration tests
 
 ---
 
@@ -185,7 +274,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 028-01-PLAN.md — UDPTokenCache singleton, _handle_datagram APP_OLLOG_TOKEN branch, notify_refresh() wiring, tests
+- [x] 028-01-PLAN.md — UDPTokenCache singleton, _handle_datagram APP_OLLOG_TOKEN branch, notify_refresh() wiring, tests
 
 ---
 
@@ -209,7 +298,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 029-01-PLAN.md — admin_main.py entry point, admin_token cookie rename, docker-compose.yml admin service + profiles, SECRET_KEY default removal
+- [x] 029-01-PLAN.md — admin_main.py entry point, admin_token cookie rename, docker-compose.yml admin service + profiles, SECRET_KEY default removal
 
 ---
 
@@ -236,7 +325,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 030-01-PLAN.md — app/backup/ package, PyMongo EJSON dump, aioboto3 S3 upload, APScheduler lifespan wiring, bind mount, pyproject.toml deps
+- [x] 030-01-PLAN.md — app/backup/ package, PyMongo EJSON dump, aioboto3 S3 upload, APScheduler lifespan wiring, bind mount, pyproject.toml deps
 
 ---
 
@@ -261,7 +350,91 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 031-01-PLAN.md — docs/*.md rewrite, mkdocs.yml nav restructure, mkdocs-swagger-ui-tag integration, openapi.json export, html=True comment, mkdocs build
+- [x] 031-01-PLAN.md — docs/*.md rewrite, mkdocs.yml nav restructure, mkdocs-swagger-ui-tag integration, openapi.json export, html=True comment, mkdocs build
+
+---
+
+### Phase 32: Theme Infrastructure and Build Discipline
+
+**Goal:** The theme toggle, dark/light persistence, FOUC prevention, and build safety gates are all locked in — every subsequent phase builds on a verified foundation.
+**Depends on:** Phase 31 (v1.8 complete)
+**Requirements:** THEM-01, THEM-02, THEM-03, THEM-04, THEM-05, THEM-06
+**Success Criteria** (what must be TRUE):
+  1. A sun/moon toggle button is visible and clickable at the bottom of the sidebar nav on every page (admin and operator); clicking it switches the page between dark and light mode immediately
+  2. Reloading any page after switching theme renders the correct theme with no white or light flash visible before the page is fully painted
+  3. Scrollbars, form inputs, and select dropdowns adopt the active theme's color scheme — native browser controls do not stay light in dark mode
+  4. Theme icon on the toggle button shows the correct sun/moon state after HTMX partial swaps replace page content
+  5. Toggling the theme animates a smooth color transition; loading any page cold shows no color animation before the user interacts
+**Plans:** TBD
+
+Plans:
+- [ ] 032-01: Theme toggle, FOUC-prevention annotation, no-transition suppression pattern, color-scheme meta tag, htmx:afterSettle handler
+
+---
+
+### Phase 33: Design Tokens and CSS Component System
+
+**Goal:** All Apple-calibrated design tokens are defined in `tailwind.config.js` and CSS variables in `input.css`, and the full component class library (`.card`, `.btn-*`, `.form-input`, `.badge-*`, `.data-table`, `.card-title`) is built and verified in `output.css`.
+**Depends on:** Phase 32
+**Requirements:** DSGN-01, DSGN-02, DSGN-03, DSGN-04, DSGN-05, DSGN-06
+**Success Criteria** (what must be TRUE):
+  1. The page canvas renders `#f2f2f7` in light mode and `#0f0f0f` in dark mode; card surfaces render white in light mode and `#1c1c1e` in dark mode
+  2. All body text uses the system font stack (`-apple-system, BlinkMacSystemFont`) — no Google Fonts or external CDN font requests appear in the browser network tab
+  3. Cards in light mode show a visible two-layer shadow depth; the same cards in dark mode have no shadow, relying on surface color contrast alone
+  4. Status badges (enabled/disabled) use a rectangular shape with visibly rounded corners — no pill-shaped badges remain in any template
+  5. Prominent nav and card header icons render sharp and correctly sized at 24px on both standard and Retina/HiDPI displays
+**Plans:** TBD
+
+Plans:
+- [ ] 033-01: tailwind.config.js token definitions, input.css CSS variables and component classes, npm run build + output.css verification
+
+---
+
+### Phase 34: Admin Console Template Polish
+
+**Goal:** The admin operator management UI and sidebar are fully redesigned using Apple component tokens, with correct icon sizing and accessible action buttons throughout.
+**Depends on:** Phase 33
+**Requirements:** ADMN-01, ADMN-02, ADMN-03
+**Success Criteria** (what must be TRUE):
+  1. The admin operator management table renders inside an Apple-style card container with refined typography — no raw table-without-card layout remains
+  2. The admin sidebar background uses `#1c1c1e` in dark mode with generous padding; nav items have consistent spacing and clear active states
+  3. Every operator action button (enable, disable, reset password) has a visible, correctly-sized icon and an `aria-label` that identifies the action and the target operator
+**Plans:** TBD
+
+Plans:
+- [ ] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
+
+---
+
+### Phase 35: Login Page Glass Card Redesign
+
+**Goal:** Both login pages (admin and operator) present an Apple glassmorphism card that renders correctly in Safari and all major browsers.
+**Depends on:** Phase 33
+**Requirements:** LOGN-01, LOGN-02, LOGN-03
+**Success Criteria** (what must be TRUE):
+  1. The admin login card displays a frosted-glass appearance with visible backdrop blur over the dark gradient background in Chrome and Firefox
+  2. The operator login card uses the same glass card pattern and is visually consistent with the admin login card
+  3. Both glass cards render correctly in Safari — the backdrop blur effect is visible, not a solid opaque background
+**Plans:** TBD
+
+Plans:
+- [ ] 035-01: admin/login.html and log/login.html glass card redesign; -webkit-backdrop-filter with fixed pixel values in @layer components; Safari compatibility verification
+
+---
+
+### Phase 36: Operator Log Views
+
+**Goal:** All operator-facing log templates (log view, QSO form, import page) use Apple component tokens and render correct dark-mode colors through HTMX partial swaps and SSE-driven refreshes.
+**Depends on:** Phase 34
+**Requirements:** OPER-01, OPER-02, OPER-03
+**Success Criteria** (what must be TRUE):
+  1. The operator log view table and pagination controls render using Apple card and data-table component classes in both light and dark mode; SSE-triggered log table refreshes preserve correct dark-mode colors
+  2. The QSO entry form uses Apple form input and button styles — field labels, inputs, and submit button match the established component library
+  3. The ADIF import page uses Apple card and button styles — the file upload area and import report are visually consistent with the rest of the operator UI
+**Plans:** TBD
+
+Plans:
+- [ ] 036-01: log.html, log_table.html, form.html, import.html redesign with Apple component tokens; SSE dark-mode color verification; no inline style attributes in any partial
 
 ---
 
@@ -300,3 +473,8 @@ Plans:
 | 29. Admin Container Isolation | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 30. Database Backup CLI and Scheduler | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 31. Comprehensive Docs Rewrite | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
+| 32. Theme Infrastructure and Build Discipline | v1.9 | 0/TBD | Not started | - |
+| 33. Design Tokens and CSS Component System | v1.9 | 0/TBD | Not started | - |
+| 34. Admin Console Template Polish | v1.9 | 0/TBD | Not started | - |
+| 35. Login Page Glass Card Redesign | v1.9 | 0/TBD | Not started | - |
+| 36. Operator Log Views | v1.9 | 0/TBD | Not started | - |

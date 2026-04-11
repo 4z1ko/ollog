@@ -5,19 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign
+**Current focus:** v1.9 Admin & Login UI Redesign — Phase 32: Theme Infrastructure and Build Discipline
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-11 — Milestone v1.9 started
+Phase: 32 of 36 (Theme Infrastructure and Build Discipline)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-04-11 — v1.9 roadmap created (phases 32–36)
+
+Progress: [████████████████████░░░░░░░░░░] ~65% (31/36 phases complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity (historical):**
-- Total plans completed: 47 (v1.0: 19, v1.1: 7, v1.2: 2, v1.3: 8, v1.4: 4, v1.5: 4, v1.6: 2, v1.7: 4, v1.8: 1)
+- Total plans completed: 31 plans across v1.0–v1.8
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -33,47 +35,27 @@ Last activity: 2026-04-11 — Milestone v1.9 started
 | v1.6 | 23–24 | 2 |
 | v1.7 | 25–28 | 4 |
 | v1.8 | 29–31 | 3 (all complete) |
+| v1.9 | 32–36 | TBD |
 
 ## Accumulated Context
 
-### v1.8 Milestone Goals
+### v1.9 Critical Build Rules (Pitfall Prevention)
 
-1. **Admin Container** — Separate Docker Compose service (shared image), port 8001, admin-only routes (/admin/*, /auth, /health), stoppable independently without affecting operator app
-2. **Database Backup** — `python -m app.backup` CLI → PyMongo EJSON .gz to ./backups/<timestamp>.gz; BACKUP_SCHEDULE cron env var + S3 credentials for automated scheduled uploads
-3. **Docs Rewrite** — Full comprehensive rewrite of /guide covering all features from v1.0–v1.8 (2-level nav, interactive API reference via mkdocs-swagger-ui-tag)
+- **FOUC prevention:** The inline IIFE in `base.html` `<head>` is load-bearing. Never move it, add `defer`/`async`, or extract it to an external file. Add a load-bearing comment before Phase 32 ships.
+- **Tailwind purge:** New `dark:` classes must appear as complete literal strings in scanned template files. Always run `npm run build` + grep verification for new classes before committing templates or `input.css`.
+- **Transition flash:** Never add `transition-*` to `<body>`, `<html>`, or `*` in `@layer base`. Use the `no-transition` class suppression pattern in the IIFE for user-initiated toggles only.
+- **HTMX icon desync:** The `htmx:afterSettle` handler must be wired in `base_app.html` in Phase 32, before any new Apple components are built.
+- **Safari backdrop-filter:** Declare `-webkit-backdrop-filter` explicitly in `@layer components` for glass card classes. Use fixed pixel values (e.g. `blur(12px)`), not CSS variable references.
+- **HiDPI icon blurry:** Use `w-6 h-6` (24px, 1:1 with Heroicons viewBox) for all prominent nav and card header icons. `w-4 h-4` is acceptable for small secondary icons only.
 
-### Key Architecture Decisions (v1.8)
+### Key Architecture (v1.9)
 
-- **ADM:** `app/admin_main.py` is a standalone FastAPI entry point — NOT `app/main.py` with an APP_MODE flag; `admin_main.py` must never import from `app.main`
-- **ADM:** Admin cookie is `admin_token` (not `access_token`) — RFC 6265 excludes port from cookie scope; name collision between ports 8000 and 8001 is guaranteed without rename
-- **ADM:** Admin lifespan calls `init_db()` + `_bootstrap_admin()` only — no UDP listener, no SSE change-stream watcher
-- **ADM:** `init_beanie()` must include full `document_models=[QSO, User, ApiToken]` list in admin app to prevent `CollectionWasNotInitialized`
-- **ADM:** `SECRET_KEY=dev-secret-change-in-production` hardcoded default removed from `docker-compose.yml`; must come from `.env`
-- **BAK:** Pure-Python PyMongo + `bson.json_util.dumps()` EJSON (no `mongodump` subprocess — not in `python:3.12-slim`)
-- **BAK:** Bind mount `./backups:/app/backups` in docker-compose.yml (host-visible; survives restarts)
-- **BAK:** APScheduler 3.x `AsyncIOScheduler` + `CronTrigger.from_crontab()`; pin `apscheduler>=3.10,<4`
-- **BAK:** `aioboto3>=13,<16` for async S3 upload inside lifespan; standard boto3 credential chain
-- **BAK:** `BACKUP_SCHEDULE` defaults to `None`; scheduler not started when absent (mirrors `udp_enabled` guard)
-- **BAK:** Backup asyncio task tracked in lifespan `yield` block, cancelled + awaited on shutdown (mirrors change-stream watcher)
-- **DOC:** `mkdocs-swagger-ui-tag` (static assets bundled, no CDN) — NOT `mkdocs-render-swagger-plugin`
-- **DOC:** `openapi.json` exported with `python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > docs/openapi.json` before `mkdocs build`
-- **DOC:** `html=True` on `StaticFiles(directory="site", html=True)` in `app/main.py` is load-bearing for MkDocs `use_directory_urls: true`; must be annotated with a comment
-- **DOC:** Do not activate both `navigation.indexes` and `navigation.sections` simultaneously (MkDocs Material issue #3070)
-- **DOC:** `not_in_nav: | openapi.json` suppresses MkDocs INFO/WARNING about openapi.json not in nav — required when openapi.json lives in docs/ for swagger-ui-tag src path resolution
-- **DOC:** openapi.json path count for operator app is 11 unique paths (16 operations) — admin endpoints are in admin_main.py and excluded from operator OpenAPI schema by design
+- **Stack:** CSS-first, template-second. `tailwind.config.js` tokens → `input.css` component classes → `npm run build` → templates consume output.css.
+- **No Python changes:** No routes, no models, no database changes. Pure frontend visual redesign.
+- **Phase 35 dependency:** Login pages depend on Phase 33 (tokens) not Phase 34 (admin templates) — they can be worked in parallel with Phase 34 once Phase 33 is complete.
+- **Build order:** Phase 32 (theme infra) → Phase 33 (tokens) → Phase 34 (admin) + Phase 35 (login, parallel) → Phase 36 (log views).
 
-### Key Decisions (v1.7 — carried forward)
-
-Full decision log in PROJECT.md Key Decisions table.
-
-- HMAC-SHA256 for token hashing (not Argon2 — 200-500ms verify is unacceptable per request)
-- Separate `api_tokens` Beanie collection (not embedded in User)
-- `X-API-Key` header (not `Authorization: Bearer`) — clean separation from JWT session auth
-- `APP_OLLOG_TOKEN` fixed ADIF field name (APP_ prefix per ADIF spec convention)
-- `auto_error=False` on both optional schemes; raise HTTP 401 manually
-- Lazy cache invalidation with `_dirty=True` flag (UDPTokenCache)
-
-### Known Tech Debt
+### Known Tech Debt (carried forward)
 
 - `QSO.find_active()` in models.py — dead production code
 - `from_mongo_dt()` in utils.py — tested, not called in production
@@ -86,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-11
-Stopped at: Completed 031-01-PLAN.md — comprehensive docs rewrite (25 pages, Swagger UI, v1.8 content, mkdocs build --strict exit 0)
+Stopped at: v1.9 roadmap written — ROADMAP.md, STATE.md, REQUIREMENTS.md traceability all complete
 Resume file: None
