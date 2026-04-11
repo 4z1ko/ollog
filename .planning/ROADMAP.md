@@ -134,10 +134,10 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
   3. Scrollbars, form inputs, and select dropdowns adopt the active theme's color scheme — native browser controls do not stay light in dark mode
   4. Theme icon on the toggle button shows the correct sun/moon state after HTMX partial swaps replace page content
   5. Toggling the theme animates a smooth color transition; loading any page cold shows no color animation before the user interacts
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 032-01: Theme toggle, FOUC-prevention annotation, no-transition suppression pattern, color-scheme meta tag, htmx:afterSettle handler
+- [ ] 032-01-PLAN.md — FOUC IIFE annotation, rAF-rAF transition suppression, color-scheme meta+CSS, htmx:afterSettle handler, verify script
 
 ---
 
@@ -152,7 +152,7 @@ Plans:
   3. Cards in light mode show a visible two-layer shadow depth; the same cards in dark mode have no shadow, relying on surface color contrast alone
   4. Status badges (enabled/disabled) use a rectangular shape with visibly rounded corners — no pill-shaped badges remain in any template
   5. Prominent nav and card header icons render sharp and correctly sized at 24px on both standard and Retina/HiDPI displays
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 033-01: tailwind.config.js token definitions, input.css CSS variables and component classes, npm run build + output.css verification
@@ -168,7 +168,7 @@ Plans:
   1. The admin operator management table renders inside an Apple-style card container with refined typography — no raw table-without-card layout remains
   2. The admin sidebar background uses `#1c1c1e` in dark mode with generous padding; nav items have consistent spacing and clear active states
   3. Every operator action button (enable, disable, reset password) has a visible, correctly-sized icon and an `aria-label` that identifies the action and the target operator
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
@@ -184,7 +184,7 @@ Plans:
   1. The admin login card displays a frosted-glass appearance with visible backdrop blur over the dark gradient background in Chrome and Firefox
   2. The operator login card uses the same glass card pattern and is visually consistent with the admin login card
   3. Both glass cards render correctly in Safari — the backdrop blur effect is visible, not a solid opaque background
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 035-01: admin/login.html and log/login.html glass card redesign; -webkit-backdrop-filter with fixed pixel values in @layer components; Safari compatibility verification
@@ -200,7 +200,7 @@ Plans:
   1. The operator log view table and pagination controls render using Apple card and data-table component classes in both light and dark mode; SSE-triggered log table refreshes preserve correct dark-mode colors
   2. The QSO entry form uses Apple form input and button styles — field labels, inputs, and submit button match the established component library
   3. The ADIF import page uses Apple card and button styles — the file upload area and import report are visually consistent with the rest of the operator UI
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 036-01: log.html, log_table.html, form.html, import.html redesign with Apple component tokens; SSE dark-mode color verification; no inline style attributes in any partial
@@ -365,10 +365,10 @@ Plans:
   3. Scrollbars, form inputs, and select dropdowns adopt the active theme's color scheme — native browser controls do not stay light in dark mode
   4. Theme icon on the toggle button shows the correct sun/moon state after HTMX partial swaps replace page content
   5. Toggling the theme animates a smooth color transition; loading any page cold shows no color animation before the user interacts
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 032-01: Theme toggle, FOUC-prevention annotation, no-transition suppression pattern, color-scheme meta tag, htmx:afterSettle handler
+- [ ] 032-01-PLAN.md — FOUC IIFE annotation, rAF-rAF transition suppression, color-scheme meta+CSS, htmx:afterSettle handler, verify script
 
 ---
 
@@ -383,7 +383,7 @@ Plans:
   3. Cards in light mode show a visible two-layer shadow depth; the same cards in dark mode have no shadow, relying on surface color contrast alone
   4. Status badges (enabled/disabled) use a rectangular shape with visibly rounded corners — no pill-shaped badges remain in any template
   5. Prominent nav and card header icons render sharp and correctly sized at 24px on both standard and Retina/HiDPI displays
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 033-01: tailwind.config.js token definitions, input.css CSS variables and component classes, npm run build + output.css verification
@@ -399,7 +399,7 @@ Plans:
   1. The admin operator management table renders inside an Apple-style card container with refined typography — no raw table-without-card layout remains
   2. The admin sidebar background uses `#1c1c1e` in dark mode with generous padding; nav items have consistent spacing and clear active states
   3. Every operator action button (enable, disable, reset password) has a visible, correctly-sized icon and an `aria-label` that identifies the action and the target operator
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
@@ -415,7 +415,7 @@ Plans:
   1. The admin login card displays a frosted-glass appearance with visible backdrop blur over the dark gradient background in Chrome and Firefox
   2. The operator login card uses the same glass card pattern and is visually consistent with the admin login card
   3. Both glass cards render correctly in Safari — the backdrop blur effect is visible, not a solid opaque background
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 035-01: admin/login.html and log/login.html glass card redesign; -webkit-backdrop-filter with fixed pixel values in @layer components; Safari compatibility verification
@@ -431,7 +431,7 @@ Plans:
   1. The operator log view table and pagination controls render using Apple card and data-table component classes in both light and dark mode; SSE-triggered log table refreshes preserve correct dark-mode colors
   2. The QSO entry form uses Apple form input and button styles — field labels, inputs, and submit button match the established component library
   3. The ADIF import page uses Apple card and button styles — the file upload area and import report are visually consistent with the rest of the operator UI
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 036-01: log.html, log_table.html, form.html, import.html redesign with Apple component tokens; SSE dark-mode color verification; no inline style attributes in any partial
@@ -473,7 +473,7 @@ Plans:
 | 29. Admin Container Isolation | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 30. Database Backup CLI and Scheduler | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 31. Comprehensive Docs Rewrite | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
-| 32. Theme Infrastructure and Build Discipline | v1.9 | 0/TBD | Not started | - |
+| 32. Theme Infrastructure and Build Discipline | v1.9 | 0/1 | Planned | - |
 | 33. Design Tokens and CSS Component System | v1.9 | 0/TBD | Not started | - |
 | 34. Admin Console Template Polish | v1.9 | 0/TBD | Not started | - |
 | 35. Login Page Glass Card Redesign | v1.9 | 0/TBD | Not started | - |
