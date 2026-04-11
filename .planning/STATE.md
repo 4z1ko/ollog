@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-04-11)
 ## Current Position
 
 Phase: 32 of 36 (Theme Infrastructure and Build Discipline)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-04-11 — v1.9 roadmap created (phases 32–36)
+Plan: 1 of TBD in current phase
+Status: In progress
+Last activity: 2026-04-11 — Phase 32 Plan 01 complete: theme infra, FOUC suppression, color-scheme, htmx:afterSettle, verify script
 
 Progress: [████████████████████░░░░░░░░░░] ~65% (31/36 phases complete across all milestones)
 
@@ -61,6 +61,12 @@ Progress: [████████████████████░░░
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
+### Decisions (Phase 32)
+
+- **032-01:** Use `document.body` (not `document`) for htmx:afterSettle listener — matches existing HTMX event patterns in codebase
+- **032-01:** IIFE moved before stylesheet link tag to ensure synchronous execution before any paint
+- **032-01:** rAF-rAF pattern chosen for transition suppression — inject style before dark class, remove after two animation frames so user toggles still animate
+
 ### Pending Todos
 
 None.
@@ -68,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-11
-Stopped at: v1.9 roadmap written — ROADMAP.md, STATE.md, REQUIREMENTS.md traceability all complete
+Stopped at: Completed 032-01-PLAN.md — theme infrastructure, FOUC suppression, color-scheme, htmx:afterSettle, npm verify
 Resume file: None
