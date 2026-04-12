@@ -152,10 +152,11 @@ Plans:
   3. Cards in light mode show a visible two-layer shadow depth; the same cards in dark mode have no shadow, relying on surface color contrast alone
   4. Status badges (enabled/disabled) use a rectangular shape with visibly rounded corners — no pill-shaped badges remain in any template
   5. Prominent nav and card header icons render sharp and correctly sized at 24px on both standard and Retina/HiDPI displays
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 033-01: tailwind.config.js token definitions, input.css CSS variables and component classes, npm run build + output.css verification
+- [ ] 033-01-PLAN.md — tailwind.config.js tokens (canvas, surface, shadow-card, system font), input.css component class updates (card, badges, card-title), base.html CDN removal
+- [ ] 033-02-PLAN.md — base_app.html canvas classes + nav icon sizing, npm run build + grep verification, human visual review
 
 ---
 
@@ -383,10 +384,11 @@ Plans:
   3. Cards in light mode show a visible two-layer shadow depth; the same cards in dark mode have no shadow, relying on surface color contrast alone
   4. Status badges (enabled/disabled) use a rectangular shape with visibly rounded corners — no pill-shaped badges remain in any template
   5. Prominent nav and card header icons render sharp and correctly sized at 24px on both standard and Retina/HiDPI displays
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 033-01: tailwind.config.js token definitions, input.css CSS variables and component classes, npm run build + output.css verification
+- [ ] 033-01-PLAN.md — tailwind.config.js tokens (canvas, surface, shadow-card, system font), input.css component class updates (card, badges, card-title), base.html CDN removal
+- [ ] 033-02-PLAN.md — base_app.html canvas classes + nav icon sizing, npm run build + grep verification, human visual review
 
 ---
 
