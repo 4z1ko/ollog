@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign — Phase 32: Theme Infrastructure and Build Discipline
+**Current focus:** v1.9 Admin & Login UI Redesign — Phase 33: Design Tokens and CSS Component System
 
 ## Current Position
 
-Phase: 32 of 36 (Theme Infrastructure and Build Discipline)
-Plan: 1 of TBD in current phase
+Phase: 33 of 36 (Design Tokens and CSS Component System)
+Plan: 1 of 1 in current phase (complete)
 Status: In progress
-Last activity: 2026-04-11 — Phase 32 Plan 01 complete: theme infra, FOUC suppression, color-scheme, htmx:afterSettle, verify script
+Last activity: 2026-04-12 — Phase 33 Plan 01 complete: canvas/surface/shadow tokens, system font stack, badge rounded-md, Google Fonts removed
 
-Progress: [████████████████████░░░░░░░░░░] ~65% (31/36 phases complete across all milestones)
+Progress: [█████████████████████░░░░░░░░░] ~68% (32/36 phases complete across all milestones)
 
 ## Performance Metrics
 
@@ -61,6 +61,15 @@ Progress: [████████████████████░░░
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
+### Decisions (Phase 33)
+
+- **033-01:** canvas and surface tokens added in extend.colors alongside sidebar block — sidebar preserved unchanged
+- **033-01:** boxShadow.card uses two-layer RGBA for Apple-caliber subtle elevation
+- **033-01:** dark:shadow-none on .card and .table-wrap — shadow removed in dark mode to avoid halo artifact
+- **033-01:** .card-title loses uppercase/tracking-wider, uses text-gray-700/200 for stronger contrast
+- **033-01:** badge rounded-md chosen over rounded-full — matches Apple HIG status indicator convention
+- **033-01:** Inter fully removed from config and input.css; system font stack leads with -apple-system, eliminating CDN font request
+
 ### Decisions (Phase 32)
 
 - **032-01:** Use `document.body` (not `document`) for htmx:afterSettle listener — matches existing HTMX event patterns in codebase
@@ -73,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-11
-Stopped at: Completed 032-01-PLAN.md — theme infrastructure, FOUC suppression, color-scheme, htmx:afterSettle, npm verify
+Last session: 2026-04-12
+Stopped at: Completed 033-01-PLAN.md — design tokens, system fonts, badge shape, Google Fonts removed
 Resume file: None
