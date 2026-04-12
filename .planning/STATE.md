@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-11)
 ## Current Position
 
 Phase: 34 of 36 (Admin Templates)
-Plan: 1 of 1 in current phase (not started)
+Plan: 1 of 1 in current phase (complete)
 Status: In progress
-Last activity: 2026-04-12 — Phase 33 complete: canvas classes, icon sizing, build verified, visual review approved
+Last activity: 2026-04-12 — Phase 34 plan 01 complete: sidebar_class block, dark:bg-surface-dark, w-6 h-6 admin icons, aria-labels and SVG icons on action buttons
 
-Progress: [██████████████████████░░░░░░░░] ~72% (33/36 phases complete across all milestones)
+Progress: [██████████████████████░░░░░░░░] ~75% (34/36 phases complete across all milestones)
 
 ## Performance Metrics
 
@@ -61,6 +61,13 @@ Progress: [██████████████████████░
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
+### Decisions (Phase 34)
+
+- **034-01:** sidebar_class block placed inside class attribute of `<aside>` — minimal-invasive extension point; empty default block adds no whitespace artifact for operators
+- **034-01:** `dark:bg-surface-dark` placed as literal string in users.html (not Jinja expression) — required for Tailwind purge scanner to include utility in output.css
+- **034-01:** shield icon in sidebar_user avatar badge left at w-4 h-4 — badge icon sizing is correct; only nav-link SVGs promoted to w-6 h-6
+- **034-01:** aria-hidden=true on all three new action button SVGs; button aria-label carries accessible name — icons are decorative
+
 ### Decisions (Phase 33)
 
 - **033-01:** canvas and surface tokens added in extend.colors alongside sidebar block — sidebar preserved unchanged
@@ -86,5 +93,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-12
-Stopped at: Completed 033-02-PLAN.md — canvas classes, nav icon sizing, build verification, visual review approved
+Stopped at: Completed 034-01-PLAN.md — sidebar_class block, dark:bg-surface-dark, w-6 h-6 admin icons, aria-labels and SVG icons on action buttons
 Resume file: None
