@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign — Phase 33: Design Tokens and CSS Component System
+**Current focus:** v1.9 Admin & Login UI Redesign — Phase 34: Admin Templates
 
 ## Current Position
 
-Phase: 33 of 36 (Design Tokens and CSS Component System)
-Plan: 1 of 1 in current phase (complete)
+Phase: 34 of 36 (Admin Templates)
+Plan: 1 of 1 in current phase (not started)
 Status: In progress
-Last activity: 2026-04-12 — Phase 33 Plan 01 complete: canvas/surface/shadow tokens, system font stack, badge rounded-md, Google Fonts removed
+Last activity: 2026-04-12 — Phase 33 complete: canvas classes, icon sizing, build verified, visual review approved
 
-Progress: [█████████████████████░░░░░░░░░] ~68% (32/36 phases complete across all milestones)
+Progress: [██████████████████████░░░░░░░░] ~72% (33/36 phases complete across all milestones)
 
 ## Performance Metrics
 
@@ -69,6 +69,9 @@ Progress: [█████████████████████░░
 - **033-01:** .card-title loses uppercase/tracking-wider, uses text-gray-700/200 for stronger contrast
 - **033-01:** badge rounded-md chosen over rounded-full — matches Apple HIG status indicator convention
 - **033-01:** Inter fully removed from config and input.css; system font stack leads with -apple-system, eliminating CDN font request
+- **033-02:** bg-canvas-light/dark placed as literal strings in base_app.html (not Jinja expressions) — prevents Tailwind purge (Pitfall 1)
+- **033-02:** Sidebar logo SVG kept at w-5 h-5; only nav-item anchor SVGs and theme toggle SVGs promoted to w-6 h-6
+- **033-02:** All 10 grep token checks required to pass before committing output.css — no partial verification accepted
 
 ### Decisions (Phase 32)
 
@@ -83,5 +86,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-12
-Stopped at: Completed 033-01-PLAN.md — design tokens, system fonts, badge shape, Google Fonts removed
+Stopped at: Completed 033-02-PLAN.md — canvas classes, nav icon sizing, build verification, visual review approved
 Resume file: None
