@@ -169,10 +169,11 @@ Plans:
   1. The admin operator management table renders inside an Apple-style card container with refined typography — no raw table-without-card layout remains
   2. The admin sidebar background uses `#1c1c1e` in dark mode with generous padding; nav items have consistent spacing and clear active states
   3. Every operator action button (enable, disable, reset password) has a visible, correctly-sized icon and an `aria-label` that identifies the action and the target operator
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
+- [ ] 034-01-PLAN.md — base_app.html sidebar_class block + users.html dark:bg-surface-dark and w-6 h-6 icons; users_table.html action button icons and aria-labels
+- [ ] 034-02-PLAN.md — npm run build + output.css verification; human visual review of admin sidebar and action buttons
 
 ---
 
