@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign — Phase 34: Admin Templates
+**Current focus:** v1.9 Admin & Login UI Redesign — Phase 35: Login Page Redesign
 
 ## Current Position
 
-Phase: 34 of 36 (Admin Templates)
-Plan: 1 of 1 in current phase (complete)
-Status: In progress
-Last activity: 2026-04-12 — Phase 34 plan 01 complete: sidebar_class block, dark:bg-surface-dark, w-6 h-6 admin icons, aria-labels and SVG icons on action buttons
+Phase: 35 of 36 (Login Page Redesign)
+Plan: 1 of TBD in current phase
+Status: Ready to start
+Last activity: 2026-04-12 — Phase 34 complete: Tailwind build verified, dark:bg-surface-dark compiled, human sign-off on admin UI, StaticFiles 404 bug fixed
 
-Progress: [██████████████████████░░░░░░░░] ~75% (34/36 phases complete across all milestones)
+Progress: [████████████████████████░░░░░░] ~80% (35/36 phases complete across all milestones — Phase 34 done)
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Progress: [██████████████████████░
 - **HTMX icon desync:** The `htmx:afterSettle` handler must be wired in `base_app.html` in Phase 32, before any new Apple components are built.
 - **Safari backdrop-filter:** Declare `-webkit-backdrop-filter` explicitly in `@layer components` for glass card classes. Use fixed pixel values (e.g. `blur(12px)`), not CSS variable references.
 - **HiDPI icon blurry:** Use `w-6 h-6` (24px, 1:1 with Heroicons viewBox) for all prominent nav and card header icons. `w-4 h-4` is acceptable for small secondary icons only.
+- **FastAPI sub-app StaticFiles:** Every FastAPI sub-app that serves HTML must have its own `StaticFiles` mount for `/static`. The main app mount does not propagate. Always verify before CSS-dependent visual verification steps.
 
 ### Key Architecture (v1.9)
 
@@ -67,6 +68,8 @@ Progress: [██████████████████████░
 - **034-01:** `dark:bg-surface-dark` placed as literal string in users.html (not Jinja expression) — required for Tailwind purge scanner to include utility in output.css
 - **034-01:** shield icon in sidebar_user avatar badge left at w-4 h-4 — badge icon sizing is correct; only nav-link SVGs promoted to w-6 h-6
 - **034-01:** aria-hidden=true on all three new action button SVGs; button aria-label carries accessible name — icons are decorative
+- **034-02:** output.css not committed — build artifact; human visual approval recorded as verification
+- **034-02:** StaticFiles mount added to admin_main.py (blocking bug fix) — sub-app was 404-ing on /static/css/output.css at port 8001
 
 ### Decisions (Phase 33)
 
@@ -93,5 +96,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-12
-Stopped at: Completed 034-01-PLAN.md — sidebar_class block, dark:bg-surface-dark, w-6 h-6 admin icons, aria-labels and SVG icons on action buttons
+Stopped at: Completed 034-02-PLAN.md — Phase 34 fully complete; Tailwind build verified, human sign-off on admin UI, StaticFiles 404 bug fixed in admin_main.py
 Resume file: None
