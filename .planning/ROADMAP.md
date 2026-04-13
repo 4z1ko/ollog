@@ -202,10 +202,12 @@ Plans:
   1. The operator log view table and pagination controls render using Apple card and data-table component classes in both light and dark mode; SSE-triggered log table refreshes preserve correct dark-mode colors
   2. The QSO entry form uses Apple form input and button styles — field labels, inputs, and submit button match the established component library
   3. The ADIF import page uses Apple card and button styles — the file upload area and import report are visually consistent with the rest of the operator UI
-**Plans:** 1 plan
+**Plans:** 3 plans
 
 Plans:
-- [ ] 036-01: log.html, log_table.html, form.html, import.html redesign with Apple component tokens; SSE dark-mode color verification; no inline style attributes in any partial
+- [ ] 036-01-PLAN.md — Remove inline style= attrs from log_table.html, qso_row.html, qso_row_edit.html, qso_result.html; npm run build verification
+- [ ] 036-02-PLAN.md — Full rewrite of import_report.html to component classes with dark-mode utilities; npm run build verification
+- [ ] 036-03-PLAN.md — Final inline-style audit + human visual review (dark mode log view, SSE refresh, import report)
 
 ---
 
@@ -434,10 +436,12 @@ Plans:
   1. The operator log view table and pagination controls render using Apple card and data-table component classes in both light and dark mode; SSE-triggered log table refreshes preserve correct dark-mode colors
   2. The QSO entry form uses Apple form input and button styles — field labels, inputs, and submit button match the established component library
   3. The ADIF import page uses Apple card and button styles — the file upload area and import report are visually consistent with the rest of the operator UI
-**Plans:** 1 plan
+**Plans:** 3 plans
 
 Plans:
-- [ ] 036-01: log.html, log_table.html, form.html, import.html redesign with Apple component tokens; SSE dark-mode color verification; no inline style attributes in any partial
+- [ ] 036-01-PLAN.md — Remove inline style= attrs from log_table.html, qso_row.html, qso_row_edit.html, qso_result.html; npm run build verification
+- [ ] 036-02-PLAN.md — Full rewrite of import_report.html to component classes with dark-mode utilities; npm run build verification
+- [ ] 036-03-PLAN.md — Final inline-style audit + human visual review (dark mode log view, SSE refresh, import report)
 
 ---
 
