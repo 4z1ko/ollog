@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign — Phase 35: Login Page Redesign
+**Current focus:** v1.9 Admin & Login UI Redesign — Phase 36: Log Views
 
 ## Current Position
 
-Phase: 35 of 36 (Login Page Redesign)
+Phase: 36 of 36 (Log Views)
 Plan: 1 of TBD in current phase
 Status: Ready to start
-Last activity: 2026-04-12 — Phase 34 complete: Tailwind build verified, dark:bg-surface-dark compiled, human sign-off on admin UI, StaticFiles 404 bug fixed
+Last activity: 2026-04-11 — Phase 35 complete: .glass-card component class with -webkit-backdrop-filter, both login templates updated, postcss autoprefixer fix, Safari visual approval
 
-Progress: [████████████████████████░░░░░░] ~80% (35/36 phases complete across all milestones — Phase 34 done)
+Progress: [███████████████████████████░░░] ~92% (36/36 phases started — Phase 35 complete, Phase 36 next)
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [███████████████████████
 - **Transition flash:** Never add `transition-*` to `<body>`, `<html>`, or `*` in `@layer base`. Use the `no-transition` class suppression pattern in the IIFE for user-initiated toggles only.
 - **HTMX icon desync:** The `htmx:afterSettle` handler must be wired in `base_app.html` in Phase 32, before any new Apple components are built.
 - **Safari backdrop-filter:** Declare `-webkit-backdrop-filter` explicitly in `@layer components` for glass card classes. Use fixed pixel values (e.g. `blur(12px)`), not CSS variable references.
+- **PostCSS autoprefixer:** Default autoprefixer silently strips manually-added `-webkit-` prefixes it considers unnecessary. Always configure `postcss.config.js` with `autoprefixer({ remove: false })` when writing explicit webkit prefixes in source CSS. After any build, grep output.css to confirm the prefix survived.
 - **HiDPI icon blurry:** Use `w-6 h-6` (24px, 1:1 with Heroicons viewBox) for all prominent nav and card header icons. `w-4 h-4` is acceptable for small secondary icons only.
 - **FastAPI sub-app StaticFiles:** Every FastAPI sub-app that serves HTML must have its own `StaticFiles` mount for `/static`. The main app mount does not propagate. Always verify before CSS-dependent visual verification steps.
 
@@ -61,6 +62,12 @@ Progress: [███████████████████████
 - `QSO.find_active()` in models.py — dead production code
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
+
+### Decisions (Phase 35)
+
+- **035-01:** `.glass-card` uses raw `-webkit-backdrop-filter: blur(12px)` not `@apply backdrop-blur-md` — Tailwind backdrop-blur utilities emit CSS variable references which fail in Safari pre-18.0 and 18.x
+- **035-01:** `postcss.config.js` created with `autoprefixer({ remove: false })` — default autoprefixer silently strips manually-added `-webkit-backdrop-filter` during build; `remove: false` preserves it
+- **035-01:** `bg-white/10` used instead of `bg-white/5` — 10% white opacity improves legibility over dark violet/indigo gradients
 
 ### Decisions (Phase 34)
 
@@ -95,6 +102,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-12
-Stopped at: Completed 034-02-PLAN.md — Phase 34 fully complete; Tailwind build verified, human sign-off on admin UI, StaticFiles 404 bug fixed in admin_main.py
+Last session: 2026-04-11
+Stopped at: Completed 035-01-PLAN.md — Phase 35 fully complete; .glass-card component class, postcss autoprefixer fix, Safari/Chrome/Firefox visual approval on both login pages
 Resume file: None
