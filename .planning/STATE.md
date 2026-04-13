@@ -2,19 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-11)
+See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign — COMPLETE (all 5 phases, 36 total)
+**Current focus:** v2.0 Database Backup — admin one-click MongoDB backup download
 
 ## Current Position
 
-Phase: 36 of 36 (Log Views) — COMPLETE
-Plan: 3 of 3 in current phase — ALL PLANS COMPLETE
-Status: Complete
-Last activity: 2026-04-11 — 036-03 complete: final audit confirmed zero inline style= attributes; human visual review approved all five dark-mode rendering checks; v1.9 milestone fully delivered
-
-Progress: [██████████████████████████████] 100% (36/36 phases complete — v1.9 milestone done)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-13 — Milestone v2.0 Database Backup started
 
 ## Performance Metrics
 

@@ -132,6 +132,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Operator QSO form (`form.html`) uses Apple form input and button styles — v1.9
 - ✓ Operator import page (`import.html`) uses Apple card and button styles — v1.9
 
+### Active
+
+<!-- Current scope — v2.0 Database Backup. Building toward these. -->
+
+- [ ] Admin can trigger a full MongoDB database backup from the admin console UI
+- [ ] Backup file downloads directly to the browser on demand
+- [ ] Backup filename includes ISO-formatted date and time timestamp (e.g. `ollog-backup-20260413-153042.gz`)
+
 ### Out of Scope
 
 - Award tracking (DXCC, WAS, WAZ, etc.) — deferred to v2
@@ -144,6 +152,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - DXCC entity / CQ zone / ITU zone derivation from callsign — requires cty.dat lookup (v2)
 - Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
 - Multiple station profiles per operator — deferred (v2)
+
+## Current Milestone: v2.0 Database Backup
+
+**Goal:** Give the admin a one-click way to download a full MongoDB database backup with a timestamped filename.
+
+**Target features:**
+- Backup button in admin console UI
+- Server-side MongoDB dump triggered on request
+- Streaming download response with timestamped filename (e.g. `ollog-backup-YYYYMMDD-HHMMSS.gz`)
 
 ## Context
 
@@ -262,4 +279,4 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | `{% block sidebar_class %}{% endblock %}` in `<aside>` class attribute | Minimal-invasive extension point; empty default block adds no whitespace artifact; `users.html` injects `dark:bg-surface-dark` as a literal string for Tailwind scanner | ✓ Good — admin sidebar dark surface without touching base_app.html for every template |
 
 ---
-*Last updated: 2026-04-11 after v1.9 milestone complete*
+*Last updated: 2026-04-13 after v2.0 milestone started*
