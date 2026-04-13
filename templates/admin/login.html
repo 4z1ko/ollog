@@ -1,21 +1,74 @@
 {% extends "base.html" %}
-{% block title %}Login — ollog Admin{% endblock %}
-{% block content %}
-<div class="login-box">
-  <h1>ollog Admin</h1>
-  {% if error %}
-  <div class="error-msg">{{ error }}</div>
-  {% endif %}
-  <form method="POST" action="/admin/ui/login">
-    <label>
-      Username
-      <input type="text" name="username" autocomplete="username" required autofocus>
-    </label>
-    <label>
-      Password
-      <input type="password" name="password" autocomplete="current-password" required>
-    </label>
-    <button type="submit">Log in</button>
-  </form>
+{% block title %}ollog Admin — Login{% endblock %}
+{% block body %}
+<div class="min-h-screen flex items-center justify-center p-4"
+     style="background: linear-gradient(135deg, #0f1117 0%, #1a1d2e 50%, #2e1065 100%);">
+
+  <div class="absolute inset-0 opacity-5"
+       style="background-image: radial-gradient(circle, #7c3aed 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+  <div class="relative w-full max-w-sm">
+
+    <!-- Logo mark -->
+    <div class="flex justify-center mb-8">
+      <div class="w-14 h-14 bg-violet-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-violet-900/50">
+        <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div class="glass-card">
+      <div class="text-center mb-8">
+        <h1 class="text-2xl font-bold text-white tracking-tight">Admin Console</h1>
+        <p class="text-slate-400 text-sm mt-1">ollog operator management</p>
+      </div>
+
+      {% if error %}
+      <div class="alert-error mb-6">
+        <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+        {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/admin/ui/login" class="space-y-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Username
+          </label>
+          <input type="text" name="username" autocomplete="username" required autofocus
+                 class="block w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5
+                        text-white placeholder-slate-500 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent
+                        transition-colors duration-150">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Password
+          </label>
+          <input type="password" name="password" autocomplete="current-password" required
+                 class="block w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5
+                        text-white placeholder-slate-500 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent
+                        transition-colors duration-150">
+        </div>
+        <button type="submit"
+                class="w-full flex items-center justify-center gap-2 px-4 py-3 mt-2
+                       bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold
+                       rounded-xl transition-colors duration-150
+                       focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-slate-900">
+          Sign in
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-xs text-slate-600 mt-6">Administrative access only</p>
+  </div>
 </div>
 {% endblock %}
