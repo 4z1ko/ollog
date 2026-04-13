@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-04-11)
 ## Current Position
 
 Phase: 36 of 36 (Log Views)
-Plan: 1 of TBD in current phase
-Status: Ready to start
-Last activity: 2026-04-11 — Phase 35 complete: .glass-card component class with -webkit-backdrop-filter, both login templates updated, postcss autoprefixer fix, Safari visual approval
+Plan: 2 of TBD in current phase
+Status: In progress
+Last activity: 2026-04-13 — 036-02 complete: import_report.html rewritten from inline styles to Phase 33 component class system (.card, .card-body, .table-wrap, .data-table) with full dark-mode support via Tailwind dark: variants
 
 Progress: [███████████████████████████░░░] ~92% (36/36 phases started — Phase 35 complete, Phase 36 next)
 
@@ -63,6 +63,12 @@ Progress: [███████████████████████
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
+### Decisions (Phase 36)
+
+- **036-02:** `.card` outer wrapper chosen for import_report.html HTMX swap partial — carries dark-mode background/border/shadow from Phase 33 component library; no additional dark: classes needed on outer div
+- **036-02:** Raw Tailwind color utilities used for section headings (`text-amber-700 dark:text-amber-400`) not badge classes — `.badge-amber` does not exist in component library
+- **036-02:** `.table-wrap` required around each `.data-table` in import_report.html — provides rounded border and overflow behavior per Phase 33 component spec
+
 ### Decisions (Phase 35)
 
 - **035-01:** `.glass-card` uses raw `-webkit-backdrop-filter: blur(12px)` not `@apply backdrop-blur-md` — Tailwind backdrop-blur utilities emit CSS variable references which fail in Safari pre-18.0 and 18.x
@@ -102,6 +108,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-11
-Stopped at: Completed 035-01-PLAN.md — Phase 35 fully complete; .glass-card component class, postcss autoprefixer fix, Safari/Chrome/Firefox visual approval on both login pages
+Last session: 2026-04-13
+Stopped at: Completed 036-02-PLAN.md — import_report.html rewritten with .card/.card-body/.table-wrap/.data-table and dark: color utilities; output.css rebuilt and verified
 Resume file: None
