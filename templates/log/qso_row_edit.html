@@ -1,15 +1,15 @@
 <tr id="qso-{{ qso.id }}">
   <td>
-    <input type="text" name="QSO_DATE" value="{{ qso.QSO_DATE or '' }}" style="width:90px">
-    <input type="text" name="TIME_ON" value="{{ qso.TIME_ON or '' }}" style="width:60px">
+    <input type="text" name="QSO_DATE" value="{{ qso.QSO_DATE or '' }}" class="form-input font-mono w-24">
+    <input type="text" name="TIME_ON" value="{{ qso.TIME_ON or '' }}" class="form-input font-mono w-16">
   </td>
-  <td><input type="text" name="CALL" value="{{ qso.CALL }}" style="width:80px"></td>
-  <td><input type="text" name="BAND" value="{{ qso.BAND or '' }}" style="width:60px"></td>
-  <td><input type="text" name="MODE" value="{{ qso.MODE or '' }}" style="width:60px"></td>
-  <td><input type="text" name="FREQ" value="{{ qso.FREQ or '' }}" style="width:80px"></td>
+  <td><input type="text" name="CALL" value="{{ qso.CALL }}" class="form-input font-mono uppercase w-20"></td>
+  <td><input type="text" name="BAND" value="{{ qso.BAND or '' }}" class="form-input font-mono w-16"></td>
+  <td><input type="text" name="MODE" value="{{ qso.MODE or '' }}" class="form-input font-mono w-16"></td>
+  <td><input type="text" name="FREQ" value="{{ qso.FREQ or '' }}" class="form-input font-mono w-20"></td>
   <td>
-    <input type="text" name="RST_SENT" value="{{ qso.RST_SENT or '' }}" style="width:40px"> /
-    <input type="text" name="RST_RCVD" value="{{ qso.RST_RCVD or '' }}" style="width:40px">
+    <input type="text" name="RST_SENT" value="{{ qso.RST_SENT or '' }}" class="form-input font-mono w-10"> /
+    <input type="text" name="RST_RCVD" value="{{ qso.RST_RCVD or '' }}" class="form-input font-mono w-10">
   </td>
   <td class="actions">
     <button class="safe"
