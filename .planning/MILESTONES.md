@@ -118,3 +118,13 @@
 
 ---
 
+
+## v1.9 Admin & Login UI Redesign (Shipped: 2026-04-13)
+
+**Phases completed:** 36 phases, 62 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+

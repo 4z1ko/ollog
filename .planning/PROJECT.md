@@ -108,6 +108,30 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ ADIF field reference: QSO_DATE, TIME_ON, BAND, MODE, OPERATOR vs STATION_CALLSIGN format tables — v1.3
 - ✓ Troubleshooting: SSE not updating (replica set), login fails after restart (SECRET_KEY/JWT), ADIF import all duplicates (delete-then-import) — v1.3
 
+### Validated (v1.9)
+
+- ✓ Toggle button fixed at bottom of sidebar nav (admin + operator), showing sun/moon icon for current mode — v1.9
+- ✓ Selected theme persists across page loads via localStorage — v1.9
+- ✓ Page loads without theme flash — FOUC-prevention inline script preserved and annotated as load-bearing — v1.9
+- ✓ Browser native controls (scrollbars, form inputs) respect active theme via `color-scheme` meta tag — v1.9
+- ✓ Theme icon stays correct after HTMX partial swaps (`htmx:afterSettle` handler) — v1.9
+- ✓ Theme transitions animate on user-initiated toggle only — no color-fade animation on page load — v1.9
+- ✓ Apple background colors applied (canvas: `#f2f2f7`/`#0f0f0f`, card surface: white/`#1c1c1e`) — v1.9
+- ✓ System font stack (`-apple-system, BlinkMacSystemFont`) applied globally, CDN font link removed — v1.9
+- ✓ Card shadows use two-layer depth in light mode, removed in dark mode — v1.9
+- ✓ Status badges use rectangular shape (`rounded-md`) instead of pill (`rounded-full`) — v1.9
+- ✓ Section headers use sentence-case `font-semibold` typography, no uppercase letter-spacing — v1.9
+- ✓ Nav/card icons sized at `w-6 h-6` (24px, 1:1 Heroicons viewBox); secondary button icons at `w-4 h-4` — v1.9
+- ✓ Admin operator management table redesigned with Apple card container and refined tokens — v1.9
+- ✓ Admin sidebar uses Apple dark surface (`#1c1c1e`), generous padding, properly-spaced nav items — v1.9
+- ✓ Operator action buttons (enable/disable/reset) have `aria-label` attributes and correctly-sized icons — v1.9
+- ✓ Admin login card redesigned with Apple glassmorphism (`glass-card`, `shadow-2xl`, semi-transparent border) — v1.9
+- ✓ Operator login card redesigned with the same Apple glass card pattern — v1.9
+- ✓ Glass card renders correctly in Safari (explicit `-webkit-backdrop-filter` with fixed pixel values) — v1.9
+- ✓ Operator log view (`log.html`, `log_table.html`) uses Apple component tokens; dark mode preserved through SSE swaps — v1.9
+- ✓ Operator QSO form (`form.html`) uses Apple form input and button styles — v1.9
+- ✓ Operator import page (`import.html`) uses Apple card and button styles — v1.9
+
 ### Out of Scope
 
 - Award tracking (DXCC, WAS, WAZ, etc.) — deferred to v2
@@ -135,24 +159,13 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
 
-## Current Milestone: v1.9 Admin & Login UI Redesign
-
-**Goal:** Redesign the admin console and login page with an Apple-like UI aesthetic (clean typography, generous whitespace, refined controls), properly-sized and resolution-appropriate icons, and a dark/light mode with a persistent toggle at the bottom of the screen.
-
-**Target features:**
-- Apple-inspired UI: clean sans-serif typography, card-based layouts, subtle shadows, smooth transitions for admin console and login page
-- Icons: correct sizing and rendering sharpness for browser display (no blurry/oversized icons)
-- Dark mode: full dark color scheme for admin console and login page
-- Light mode: clean light color scheme (current default baseline)
-- Mode toggle: persistent dark/light toggle pinned at bottom of screen, preference saved across sessions
-
 ## Current State
 
-**Version:** v1.8 Admin Isolation, Backup & Docs (in progress)
-**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
+**Version:** v1.9 Admin & Login UI Redesign (shipped 2026-04-11)
+**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
-**Codebase:** ~8,102 LOC Python (+ HTML templates) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
+**Codebase:** ~8,102 LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
 **Shipped features (cumulative):**
 - Custom ADIF parser + serializer (no third-party ADIF lib)
@@ -174,6 +187,11 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - UDP listener (`app/udp/server.py`): `asyncio.DatagramProtocol` on configurable port (default 2399); `_handle_datagram` pipeline: parse_adi → validate → build_qso_dict(profile=user) → find_duplicate → QSO.insert; operator identity pinned to `UDP_OPERATOR` config (never from datagram); operator `User` document cached at startup; structured `disposition=accepted|rejected|duplicate` log tokens; Docker UDP port exposed
 - SSE-triggered live log table: `htmx:sseMessage` listener on `#log-table` fires `htmx.ajax('GET', '/log/view')` on `new_qso` events; server-side `#auto-refresh-ok` sentinel guards against refresh during pagination/filtering/sorting; `#log-table input` guard blocks refresh during inline edit; LIVE/OFFLINE indicator in nav bar
 - JWT session lifetime configurable via `JWT_EXPIRE_MINUTES` env var; default raised to 480 min (`app/config.py`)
+- Apple design token system: `tailwind.config.js` (canvas/surface color tokens, card shadow, system font stack), `static/css/input.css` component library (`.card`, `.btn-*`, `.form-input`, `.badge-*`, `.data-table`, `.card-title`, `.glass-card`), compiled via `npm run build` with PostCSS autoprefixer(`remove: false`)
+- Persistent dark/light mode: FOUC-prevention IIFE in `<head>` applies `dark` class before first paint; localStorage persistence; rAF-rAF transition suppression on load; `htmx:afterSettle` handler keeps toggle icon in sync after HTMX swaps
+- `.glass-card` component: explicit `-webkit-backdrop-filter: blur(12px)` with fixed pixel values (no CSS variable indirection) — renders correctly in Safari pre-18.0 and 18.x
+- `postcss.config.js` with `autoprefixer({ remove: false })` — prevents autoprefixer from silently stripping manually-added `-webkit-backdrop-filter` during Tailwind build
+- All operator log view templates (log view, QSO form, import report) converted to Apple component tokens; zero `style=` inline attributes remain
 
 **Known tech debt:**
 - `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
@@ -234,6 +252,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | Server-side `#auto-refresh-ok` hidden sentinel span | Client-side JS cannot evaluate server-side predicates (page number, active filters); server renders marker only at page 1 + default sort + no filters; client checks `getElementById` | ✓ Good — single source of truth; marker disappears atomically on any navigation |
 | `#log-table input` selector for edit-row guard | `qso_row_edit.html` renders `<tr>` with NO `.editing` class — the prior research assumption was wrong; input presence is the correct discriminator | ✓ Good — catches any open edit row without relying on a CSS class convention |
 | `jwt_expire_minutes` default raised 60 → 480 | Overnight FT8 sessions run 8+ hours; 60-min default would expire mid-SSE-connection, silently breaking live log table feature | ✓ Good — existing env var mechanism unchanged; operators can still override |
+| FOUC IIFE placed before `<link rel=stylesheet>` in `<head>` | Class applied synchronously before any CSS loads; any other position (deferred, external file, after link) causes visible white flash | ✓ Good — zero flash on cold page load across Chrome, Firefox, Safari |
+| rAF-rAF pattern for transition suppression | Inject `.no-transition` before adding `dark` class, remove after two animation frames — prevents color-fade on load while preserving user-initiated toggle animation | ✓ Good — smooth toggle, no load animation |
+| `document.body` htmx:afterSettle listener (not `document`) | Matches existing HTMX event patterns in codebase; body is the correct target for afterSettle | ✓ Good — theme icon stays in sync after all HTMX swaps |
+| `.glass-card` uses raw `-webkit-backdrop-filter: blur(12px)` (not `@apply backdrop-blur-md`) | `@apply backdrop-blur-md` generates `backdrop-filter: var(--tw-backdrop-blur)` — Safari pre-18.0 ignores `-webkit-backdrop-filter` with variable references; fixed pixel values are the only reliable path | ✓ Good — frosted glass renders in Safari and all major browsers |
+| `postcss.config.js` with `autoprefixer({ remove: false })` | Default autoprefixer silently strips manually-added `-webkit-backdrop-filter` during Tailwind build — build artifact was missing the prefix until this was discovered | ✓ Good — `-webkit-backdrop-filter` survives every build |
+| FastAPI sub-app (`admin_main.py`) requires its own `StaticFiles` mount | Main app `StaticFiles` mount does not propagate to sub-apps; admin was 404-ing on `/static/css/output.css` until this was added | ✓ Good — each FastAPI sub-app is isolated; mount must be explicit |
+| Canvas/surface token classes as literal strings in templates (not Jinja expressions) | Tailwind purge scanner reads template files as text — dynamic class construction (e.g. `class="{{ dark_class }}"`) is invisible to the scanner; new `dark:` classes dropped from output.css | ✓ Good — all tokens present in output.css |
+| `{% block sidebar_class %}{% endblock %}` in `<aside>` class attribute | Minimal-invasive extension point; empty default block adds no whitespace artifact; `users.html` injects `dark:bg-surface-dark` as a literal string for Tailwind scanner | ✓ Good — admin sidebar dark surface without touching base_app.html for every template |
 
 ---
-*Last updated: 2026-04-11 after v1.9 milestone start*
+*Last updated: 2026-04-11 after v1.9 milestone complete*
