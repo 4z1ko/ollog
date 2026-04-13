@@ -65,6 +65,9 @@ Progress: [███████████████████████
 
 ### Decisions (Phase 36)
 
+- **036-01:** `cursor-pointer` added to `<a class="btn-ghost btn-sm">` pagination anchors — HTMX anchors have no `href`, browser shows text cursor by default; Tailwind class is the correct fix per OPER-01
+- **036-01:** `form-input` applied to all 8 qso_row_edit.html inputs — ensures dark-mode border/bg/text consistency in inline edit mode; replaces style="width:Npx" with Tailwind width utilities
+- **036-01:** `uppercase` class added to CALL input alongside form-input font-mono — callsign entry convention, visually enforces uppercase format
 - **036-02:** `.card` outer wrapper chosen for import_report.html HTMX swap partial — carries dark-mode background/border/shadow from Phase 33 component library; no additional dark: classes needed on outer div
 - **036-02:** Raw Tailwind color utilities used for section headings (`text-amber-700 dark:text-amber-400`) not badge classes — `.badge-amber` does not exist in component library
 - **036-02:** `.table-wrap` required around each `.data-table` in import_report.html — provides rounded border and overflow behavior per Phase 33 component spec
@@ -109,5 +112,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-13
-Stopped at: Completed 036-02-PLAN.md — import_report.html rewritten with .card/.card-body/.table-wrap/.data-table and dark: color utilities; output.css rebuilt and verified
+Stopped at: Completed 036-01-PLAN.md — zero inline style= attributes in log_table.html, qso_row.html, qso_row_edit.html, qso_result.html; form-input on all 8 edit inputs; CSS build verified
 Resume file: None
