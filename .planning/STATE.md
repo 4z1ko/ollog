@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v1.9 Admin & Login UI Redesign — Phase 36: Log Views
+**Current focus:** v1.9 Admin & Login UI Redesign — COMPLETE (all 5 phases, 36 total)
 
 ## Current Position
 
-Phase: 36 of 36 (Log Views)
-Plan: 2 of TBD in current phase
-Status: In progress
-Last activity: 2026-04-13 — 036-02 complete: import_report.html rewritten from inline styles to Phase 33 component class system (.card, .card-body, .table-wrap, .data-table) with full dark-mode support via Tailwind dark: variants
+Phase: 36 of 36 (Log Views) — COMPLETE
+Plan: 3 of 3 in current phase — ALL PLANS COMPLETE
+Status: Complete
+Last activity: 2026-04-11 — 036-03 complete: final audit confirmed zero inline style= attributes; human visual review approved all five dark-mode rendering checks; v1.9 milestone fully delivered
 
-Progress: [███████████████████████████░░░] ~92% (36/36 phases started — Phase 35 complete, Phase 36 next)
+Progress: [██████████████████████████████] 100% (36/36 phases complete — v1.9 milestone done)
 
 ## Performance Metrics
 
@@ -105,12 +105,17 @@ Progress: [███████████████████████
 - **032-01:** IIFE moved before stylesheet link tag to ensure synchronous execution before any paint
 - **032-01:** rAF-rAF pattern chosen for transition suppression — inject style before dark class, remove after two animation frames so user toggles still animate
 
+### Decisions (Phase 36 — Plan 03)
+
+- **036-03:** Audit-only plan — zero files modified; all template and CSS work completed in plans 01 and 02
+- **036-03:** All five human visual verification checks passed on first review; no remediation needed
+
 ### Pending Todos
 
 None.
 
 ## Session Continuity
 
-Last session: 2026-04-13
-Stopped at: Completed 036-01-PLAN.md — zero inline style= attributes in log_table.html, qso_row.html, qso_row_edit.html, qso_result.html; form-input on all 8 edit inputs; CSS build verified
+Last session: 2026-04-11
+Stopped at: Completed 036-03-PLAN.md — final audit (zero style= violations) + human visual review approved; Phase 36 complete; v1.9 milestone complete
 Resume file: None
