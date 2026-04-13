@@ -189,7 +189,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 035-01: admin/login.html and log/login.html glass card redesign; -webkit-backdrop-filter with fixed pixel values in @layer components; Safari compatibility verification
+- [ ] 035-01-PLAN.md — .glass-card in input.css with -webkit-backdrop-filter: blur(12px) (literal, not CSS variable); both login templates updated to glass-card; npm run build; Safari visual verification checkpoint
 
 ---
 
@@ -421,7 +421,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 035-01: admin/login.html and log/login.html glass card redesign; -webkit-backdrop-filter with fixed pixel values in @layer components; Safari compatibility verification
+- [ ] 035-01-PLAN.md — .glass-card in input.css with -webkit-backdrop-filter: blur(12px) (literal, not CSS variable); both login templates updated to glass-card; npm run build; Safari visual verification checkpoint
 
 ---
 
@@ -479,5 +479,5 @@ Plans:
 | 32. Theme Infrastructure and Build Discipline | v1.9 | 0/1 | Planned | - |
 | 33. Design Tokens and CSS Component System | v1.9 | 0/TBD | Not started | - |
 | 34. Admin Console Template Polish | v1.9 | 0/TBD | Not started | - |
-| 35. Login Page Glass Card Redesign | v1.9 | 0/TBD | Not started | - |
+| 35. Login Page Glass Card Redesign | v1.9 | 0/1 | Planned | - |
 | 36. Operator Log Views | v1.9 | 0/TBD | Not started | - |
