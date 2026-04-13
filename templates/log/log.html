@@ -1,133 +1,152 @@
-{% extends "base.html" %}
-{% block title %}ollog - QSO Log{% endblock %}
-{% block content %}
-<nav>
-  <h1>ollog</h1>
-  <div style="display:flex;gap:1rem;align-items:center;">
-    <span>Logged in as <strong>{{ callsign }}</strong></span>
-    <a href="/log/">Log QSO</a>
-    <a href="/log/import">Import</a>
-    <a href="/log/export">Export</a>
-    <a href="/log/profile">Profile</a>
-    <a href="/log/logout">Logout</a>
-    <span id="live-indicator" style="display:none;font-size:0.8rem;padding:0.2rem 0.5rem;border-radius:4px;background:#1e8449;color:white;font-weight:600;">LIVE</span>
-  </div>
-</nav>
+{% extends "base_app.html" %}
+{% block title %}ollog — Log View{% endblock %}
+{% block active_page %}view{% endblock %}
 
-<div class="card">
-  <h2>Filters</h2>
-  <form id="filter-form"
-        hx-get="/log/view"
-        hx-target="#log-table"
-        hx-swap="innerHTML"
-        hx-push-url="true">
-    <label>
-      Callsign
-      <input type="text" name="call" value="{{ filters.call or '' }}" placeholder="W1AW" autocomplete="off" style="width:110px">
-    </label>
-    <label>
-      Band
-      <select name="band" style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
-        <option value="">All</option>
-        <option value="160M" {% if filters.band == '160M' %}selected{% endif %}>160M</option>
-        <option value="80M"  {% if filters.band == '80M'  %}selected{% endif %}>80M</option>
-        <option value="60M"  {% if filters.band == '60M'  %}selected{% endif %}>60M</option>
-        <option value="40M"  {% if filters.band == '40M'  %}selected{% endif %}>40M</option>
-        <option value="30M"  {% if filters.band == '30M'  %}selected{% endif %}>30M</option>
-        <option value="20M"  {% if filters.band == '20M'  %}selected{% endif %}>20M</option>
-        <option value="17M"  {% if filters.band == '17M'  %}selected{% endif %}>17M</option>
-        <option value="15M"  {% if filters.band == '15M'  %}selected{% endif %}>15M</option>
-        <option value="12M"  {% if filters.band == '12M'  %}selected{% endif %}>12M</option>
-        <option value="10M"  {% if filters.band == '10M'  %}selected{% endif %}>10M</option>
-        <option value="6M"   {% if filters.band == '6M'   %}selected{% endif %}>6M</option>
-        <option value="2M"   {% if filters.band == '2M'   %}selected{% endif %}>2M</option>
-        <option value="70CM" {% if filters.band == '70CM' %}selected{% endif %}>70CM</option>
-      </select>
-    </label>
-    <label>
-      Mode
-      <select name="mode" style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
-        <option value="">All</option>
-        <option value="SSB"   {% if filters.mode == 'SSB'   %}selected{% endif %}>SSB</option>
-        <option value="CW"    {% if filters.mode == 'CW'    %}selected{% endif %}>CW</option>
-        <option value="FT8"   {% if filters.mode == 'FT8'   %}selected{% endif %}>FT8</option>
-        <option value="FT4"   {% if filters.mode == 'FT4'   %}selected{% endif %}>FT4</option>
-        <option value="FM"    {% if filters.mode == 'FM'    %}selected{% endif %}>FM</option>
-        <option value="AM"    {% if filters.mode == 'AM'    %}selected{% endif %}>AM</option>
-        <option value="RTTY"  {% if filters.mode == 'RTTY'  %}selected{% endif %}>RTTY</option>
-        <option value="PSK31" {% if filters.mode == 'PSK31' %}selected{% endif %}>PSK31</option>
-        <option value="JS8"   {% if filters.mode == 'JS8'   %}selected{% endif %}>JS8</option>
-        <option value="DSTAR" {% if filters.mode == 'DSTAR' %}selected{% endif %}>DSTAR</option>
-      </select>
-    </label>
-    <label>
-      Date From
-      <input type="text" name="date_from" value="{{ filters.date_from or '' }}" placeholder="YYYYMMDD" autocomplete="off" style="width:100px">
-    </label>
-    <label>
-      Date To
-      <input type="text" name="date_to" value="{{ filters.date_to or '' }}" placeholder="YYYYMMDD" autocomplete="off" style="width:100px">
-    </label>
-    <input type="hidden" name="sort" value="{{ sort }}">
-    <button type="submit">Filter</button>
-    <button type="button"
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  <!-- Page header -->
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-xl font-bold text-gray-900 dark:text-white">Log View</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        {{ total }} contact{{ 's' if total != 1 else '' }} total
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Live indicator -->
+      <span id="live-indicator"
+            class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+                   bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+        LIVE
+      </span>
+      <a href="/log/export" class="btn-ghost btn-sm">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Export ADIF
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Filters</h2>
+      {% if filters.call or filters.band or filters.mode or filters.date_from or filters.date_to %}
+      <span class="badge-blue">Active</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <form id="filter-form"
             hx-get="/log/view"
             hx-target="#log-table"
             hx-swap="innerHTML"
-            hx-push-url="true"
-            hx-params="none"
-            onclick="document.querySelectorAll('#filter-form input[type=text]').forEach(i=>i.value='');document.querySelectorAll('#filter-form select').forEach(s=>s.value='');">Clear</button>
-  </form>
+            hx-push-url="true">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div>
+            <label class="form-label">Callsign</label>
+            <input type="text" name="call" value="{{ filters.call or '' }}" placeholder="W1AW"
+                   autocomplete="off" class="form-input font-mono">
+          </div>
+          <div>
+            <label class="form-label">Band</label>
+            <select name="band" class="form-select">
+              <option value="">All bands</option>
+              {% for b in ['160M','80M','60M','40M','30M','20M','17M','15M','12M','10M','6M','2M','70CM'] %}
+              <option value="{{ b }}" {% if filters.band == b %}selected{% endif %}>{{ b }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Mode</label>
+            <select name="mode" class="form-select">
+              <option value="">All modes</option>
+              {% for m in ['SSB','CW','FT8','FT4','FM','AM','RTTY','PSK31','JS8','DSTAR'] %}
+              <option value="{{ m }}" {% if filters.mode == m %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Date from</label>
+            <input type="text" name="date_from" value="{{ filters.date_from or '' }}"
+                   placeholder="YYYYMMDD" autocomplete="off" class="form-input font-mono">
+          </div>
+          <div>
+            <label class="form-label">Date to</label>
+            <input type="text" name="date_to" value="{{ filters.date_to or '' }}"
+                   placeholder="YYYYMMDD" autocomplete="off" class="form-input font-mono">
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-4">
+          <button type="submit" class="btn-primary btn-sm">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            Search
+          </button>
+          <button type="button"
+                  hx-get="/log/view"
+                  hx-target="#log-table"
+                  hx-swap="innerHTML"
+                  hx-push-url="true"
+                  hx-params="none"
+                  onclick="document.querySelectorAll('#filter-form input[type=text]').forEach(function(i){i.value=''});document.querySelectorAll('#filter-form select').forEach(function(s){s.value=''});"
+                  class="btn-ghost btn-sm">
+            Clear
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Log table (SSE + HTMX swap target) -->
+  <div id="log-table"
+       hx-ext="sse"
+       sse-connect="/feed/station">
+    {% include "log/log_table.html" %}
+  </div>
+
 </div>
 
-<div id="log-table"
-     hx-ext="sse"
-     sse-connect="/feed/station">
-  {% include "log/log_table.html" %}
-</div>
 <script>
-  (function() {
+  (function () {
     var indicator = document.getElementById('live-indicator');
 
-    // LIVE-05: Show LIVE indicator when SSE connection opens
-    document.body.addEventListener('htmx:sseOpen', function(e) {
+    document.body.addEventListener('htmx:sseOpen', function (e) {
       if (e.detail.elt && e.detail.elt.id === 'log-table') {
-        indicator.style.background = '#1e8449';
-        indicator.textContent = 'LIVE';
-        indicator.style.display = '';
+        indicator.classList.remove('hidden');
+        indicator.classList.add('flex');
+        indicator.querySelector('span:last-child').textContent = 'LIVE';
+        indicator.className = indicator.className
+          .replace('bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400', '')
+          + ' bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400';
       }
     });
 
-    // LIVE-05: Show OFFLINE indicator on SSE error
-    document.body.addEventListener('htmx:sseError', function(e) {
+    document.body.addEventListener('htmx:sseError', function (e) {
       if (e.detail.elt && e.detail.elt.id === 'log-table') {
-        indicator.style.background = '#c0392b';
-        indicator.textContent = 'OFFLINE';
-        indicator.style.display = '';
+        indicator.classList.remove('hidden');
+        indicator.classList.add('flex');
+        indicator.querySelector('span:last-child').textContent = 'OFFLINE';
       }
     });
 
-    // LIVE-05: Hide indicator when SSE connection closes
-    document.body.addEventListener('htmx:sseClose', function(e) {
+    document.body.addEventListener('htmx:sseClose', function (e) {
       if (e.detail.elt && e.detail.elt.id === 'log-table') {
-        indicator.style.display = 'none';
+        indicator.classList.add('hidden');
+        indicator.classList.remove('flex');
       }
     });
 
-    // LIVE-01/02/03/04: Conditional refresh on new_qso SSE event
-    document.body.addEventListener('htmx:sseMessage', function(e) {
-      // Only respond to new_qso events on the log-table element
+    document.body.addEventListener('htmx:sseMessage', function (e) {
       if (!e.detail || !e.detail.elt || e.detail.elt.id !== 'log-table') return;
       if (e.detail.type !== 'new_qso') return;
-
-      // LIVE-03: Server-side guard — only refresh on page 1, default sort, no filters
       if (!document.getElementById('auto-refresh-ok')) return;
-
-      // LIVE-04: Client-side guard — do not refresh while edit row is open
       if (document.querySelector('#log-table input')) return;
-
-      // LIVE-01/02: Trigger re-fetch of /log/view (JWT cookie sent automatically = operator isolation)
-      htmx.ajax('GET', '/log/view', {target: '#log-table', swap: 'innerHTML'});
+      htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
     });
   })();
 </script>

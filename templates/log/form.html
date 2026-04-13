@@ -1,117 +1,258 @@
-{% extends "base.html" %}
-{% block title %}ollog - Log QSO{% endblock %}
+{% extends "base_app.html" %}
+{% block title %}ollog — Log QSO{% endblock %}
+{% block active_page %}form{% endblock %}
+
 {% block content %}
-<nav>
-  <h1>ollog</h1>
-  <div style="display:flex;gap:1rem;align-items:center;">
-    <span>Logged in as <strong>{{ callsign }}</strong></span>
-    <a href="/log/view">Log View</a>
-    <a href="/log/import">Import</a>
-    <a href="/log/export">Export</a>
-    <a href="/log/profile">Profile</a>
-    <a href="/log/logout">Logout</a>
+<div class="max-w-5xl mx-auto space-y-6">
+
+  <!-- Page header -->
+  <div>
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Log QSO</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Enter a new contact into your logbook</p>
   </div>
-</nav>
 
-<div class="card">
-  <h2>Log QSO</h2>
-  <form id="qso-form"
-        hx-post="/log/qsos"
-        hx-target="#qso-result"
-        hx-swap="innerHTML">
+  <!-- QSO Entry Form -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">New Contact</h2>
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+        <span class="text-xs text-gray-500 dark:text-gray-400">Live logging</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <form id="qso-form"
+            hx-post="/log/qsos"
+            hx-target="#qso-result"
+            hx-swap="innerHTML">
 
-    <label>
-      CALL
-      <input type="text" name="CALL" placeholder="W1AW" required autocomplete="off" style="width:120px">
-    </label>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
 
-    <label>
-      QSO_DATE
-      <input type="text" name="QSO_DATE" placeholder="YYYYMMDD" required autocomplete="off" style="width:110px">
-    </label>
+          <!-- CALL -->
+          <div class="col-span-2 sm:col-span-1">
+            <label class="form-label">Callsign</label>
+            <input type="text" name="CALL" placeholder="W1AW" required autocomplete="off"
+                   class="form-input font-mono uppercase">
+          </div>
 
-    <label>
-      TIME_ON
-      <input type="text" name="TIME_ON" placeholder="HHMM" required autocomplete="off" style="width:80px">
-    </label>
+          <!-- QSO_DATE -->
+          <div>
+            <label class="form-label">Date (UTC)</label>
+            <input type="text" name="QSO_DATE" placeholder="YYYYMMDD" required autocomplete="off"
+                   class="form-input font-mono">
+          </div>
 
-    <label>
-      BAND
-      <select name="BAND" required style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
-        <option value="">--</option>
-        <option value="160M">160M</option>
-        <option value="80M">80M</option>
-        <option value="60M">60M</option>
-        <option value="40M">40M</option>
-        <option value="30M">30M</option>
-        <option value="20M" selected>20M</option>
-        <option value="17M">17M</option>
-        <option value="15M">15M</option>
-        <option value="12M">12M</option>
-        <option value="10M">10M</option>
-        <option value="6M">6M</option>
-        <option value="2M">2M</option>
-        <option value="70CM">70CM</option>
-      </select>
-    </label>
+          <!-- TIME_ON -->
+          <div>
+            <label class="form-label">Time (UTC)</label>
+            <input type="text" name="TIME_ON" placeholder="HHMM" required autocomplete="off"
+                   class="form-input font-mono">
+          </div>
 
-    <label>
-      FREQ
-      <input type="text" name="FREQ" placeholder="14.250" autocomplete="off" style="width:90px">
-    </label>
+          <!-- BAND -->
+          <div>
+            <label class="form-label">Band</label>
+            <select name="BAND" required class="form-select">
+              <option value="">--</option>
+              <option value="160M">160M</option>
+              <option value="80M">80M</option>
+              <option value="60M">60M</option>
+              <option value="40M">40M</option>
+              <option value="30M">30M</option>
+              <option value="20M" selected>20M</option>
+              <option value="17M">17M</option>
+              <option value="15M">15M</option>
+              <option value="12M">12M</option>
+              <option value="10M">10M</option>
+              <option value="6M">6M</option>
+              <option value="2M">2M</option>
+              <option value="70CM">70CM</option>
+            </select>
+          </div>
 
-    <label>
-      MODE
-      <select name="MODE" required style="padding:0.4rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;">
-        <option value="">--</option>
-        <option value="SSB" selected>SSB</option>
-        <option value="CW">CW</option>
-        <option value="FT8">FT8</option>
-        <option value="FT4">FT4</option>
-        <option value="FM">FM</option>
-        <option value="AM">AM</option>
-        <option value="RTTY">RTTY</option>
-        <option value="PSK31">PSK31</option>
-        <option value="JS8">JS8</option>
-        <option value="DSTAR">DSTAR</option>
-      </select>
-    </label>
+          <!-- FREQ -->
+          <div>
+            <label class="form-label">Frequency (MHz)</label>
+            <input type="text" name="FREQ" placeholder="14.250" autocomplete="off"
+                   class="form-input font-mono">
+          </div>
 
-    <label>
-      RST_SENT
-      <input type="text" name="RST_SENT" placeholder="59" autocomplete="off" style="width:70px">
-    </label>
+          <!-- MODE -->
+          <div>
+            <label class="form-label">Mode</label>
+            <select name="MODE" required class="form-select">
+              <option value="">--</option>
+              <option value="SSB" selected>SSB</option>
+              <option value="CW">CW</option>
+              <option value="FT8">FT8</option>
+              <option value="FT4">FT4</option>
+              <option value="FM">FM</option>
+              <option value="AM">AM</option>
+              <option value="RTTY">RTTY</option>
+              <option value="PSK31">PSK31</option>
+              <option value="JS8">JS8</option>
+              <option value="DSTAR">DSTAR</option>
+            </select>
+          </div>
 
-    <label>
-      RST_RCVD
-      <input type="text" name="RST_RCVD" placeholder="59" autocomplete="off" style="width:70px">
-    </label>
+          <!-- RST SENT -->
+          <div>
+            <label class="form-label">RST Sent</label>
+            <input type="text" name="RST_SENT" placeholder="59" autocomplete="off"
+                   class="form-input font-mono">
+          </div>
 
-    <button type="submit">Log QSO</button>
-  </form>
+          <!-- RST RCVD -->
+          <div>
+            <label class="form-label">RST Rcvd</label>
+            <input type="text" name="RST_RCVD" placeholder="59" autocomplete="off"
+                   class="form-input font-mono">
+          </div>
+
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button type="submit" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Log QSO
+          </button>
+          <button type="reset" class="btn-ghost btn-sm">Clear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- QSO result (HTMX swap target) -->
+  <div id="qso-result"></div>
+
+  <!-- Station Feed -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Station Feed</h2>
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></div>
+        <span class="text-xs text-gray-500 dark:text-gray-400">All operators · live</span>
+      </div>
+    </div>
+
+    <div hx-ext="sse" sse-connect="/feed/station">
+      <div class="table-wrap rounded-none border-0 border-t border-gray-200 dark:border-gray-800">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Time (UTC)</th>
+              <th>Callsign</th>
+              <th>Band</th>
+              <th>Mode</th>
+              <th>Freq</th>
+              <th>Operator</th>
+            </tr>
+          </thead>
+          <tbody id="station-feed" sse-swap="new_qso" hx-swap="afterbegin">
+            <!-- SSE rows prepended here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="px-6 py-3 border-t border-gray-100 dark:border-gray-800">
+      <p class="text-xs text-gray-400 dark:text-gray-500">
+        New QSOs from all operators appear automatically via server-sent events
+      </p>
+    </div>
+  </div>
+
 </div>
 
-<div id="qso-result"></div>
+<script>
+(function () {
+  var form = document.getElementById('qso-form');
+  var submitAttempted = false;
 
-<div class="card" style="margin-top:1rem;">
-  <h2>Station Feed</h2>
-  <div hx-ext="sse" sse-connect="/feed/station">
-    <table>
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>Call</th>
-          <th>Band</th>
-          <th>Mode</th>
-          <th>Freq</th>
-          <th>Operator</th>
-        </tr>
-      </thead>
-      <tbody id="station-feed" sse-swap="new_qso" hx-swap="afterbegin">
-        <!-- New QSO rows prepended here via SSE -->
-      </tbody>
-    </table>
-  </div>
-  <p style="font-size:0.8rem;color:#888;margin-top:0.5rem;">Live feed — new QSOs from all operators appear automatically</p>
-</div>
+  // ── Validation rules ────────────────────────────────────────────────────────
+  // CALL: any non-empty string; DATE: exactly 8 digits; TIME: exactly 4 digits
+  // BAND / MODE: must have a value selected
+  var rules = {
+    CALL:     function (v) { return v.trim().length > 0; },
+    QSO_DATE: function (v) { return /^\d{8}$/.test(v.trim()); },
+    TIME_ON:  function (v) { return /^\d{4}$/.test(v.trim()); },
+    BAND:     function (v) { return v.trim().length > 0; },
+    MODE:     function (v) { return v.trim().length > 0; },
+  };
+
+  function field(name) {
+    return form.querySelector('[name="' + name + '"]');
+  }
+
+  function setError(el, isError) {
+    if (isError) {
+      el.classList.add('form-input-error');
+    } else {
+      el.classList.remove('form-input-error');
+    }
+  }
+
+  function validate() {
+    var ok = true;
+    Object.keys(rules).forEach(function (name) {
+      var el = field(name);
+      if (!el) return;
+      var valid = rules[name](el.value);
+      setError(el, !valid);
+      if (!valid) ok = false;
+    });
+    return ok;
+  }
+
+  function clearErrors() {
+    form.querySelectorAll('.form-input-error').forEach(function (el) {
+      el.classList.remove('form-input-error');
+    });
+  }
+
+  // ── Live re-validation (only after first submit attempt) ────────────────────
+  form.addEventListener('input', function (e) {
+    if (!submitAttempted) return;
+    var name = e.target.getAttribute('name');
+    if (rules[name]) setError(e.target, !rules[name](e.target.value));
+  });
+
+  form.addEventListener('change', function (e) {
+    if (!submitAttempted) return;
+    var name = e.target.getAttribute('name');
+    if (rules[name]) setError(e.target, !rules[name](e.target.value));
+  });
+
+  // ── Enter key on text inputs submits the form ───────────────────────────────
+  form.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      htmx.trigger(form, 'submit');
+    }
+  });
+
+  // ── Gate HTMX request behind validation ─────────────────────────────────────
+  form.addEventListener('htmx:beforeRequest', function (e) {
+    submitAttempted = true;
+    if (!validate()) {
+      e.preventDefault();
+    }
+  });
+
+  // ── Clear form + focus CALL after a successful log ───────────────────────────
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (!e.detail.target || e.detail.target.id !== 'qso-result') return;
+    var result = document.getElementById('qso-result');
+    if (result && result.querySelector('.success-msg')) {
+      form.reset();
+      clearErrors();
+      submitAttempted = false;
+      var callField = form.querySelector('[name="CALL"]');
+      if (callField) callField.focus();
+    }
+  });
+})();
+</script>
 {% endblock %}
