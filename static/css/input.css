@@ -172,4 +172,16 @@
   /* Status text classes used in partials */
   .status-enabled  { @apply text-emerald-600 dark:text-emerald-400 font-semibold; }
   .status-disabled { @apply text-rose-600    dark:text-rose-400    font-semibold; }
+
+  /* Glass card — Apple glassmorphism for login pages */
+  /* Safari fix: -webkit-backdrop-filter requires fixed pixel values, NOT CSS variable references */
+  /* Using raw CSS (not @apply) for backdrop-filter to avoid Tailwind CSS variable indirection */
+  /* Reference: github.com/tailwindlabs/tailwindcss/issues/13844 */
+  /* Reference: github.com/mdn/browser-compat-data/issues/25914 */
+  .glass-card {
+    @apply bg-white/10 rounded-2xl p-8 shadow-2xl;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
 }
