@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.1 Database Restore — Phase 39: Restore Backend
+**Current focus:** v2.1 Database Restore — Phase 40: Restore UI
 
 ## Current Position
 
-Phase: 39 of 40 (Restore Backend)
-Plan: 1 of 1 complete
+Phase: 40 of 40 (Restore UI)
+Plan: 1 of 1 — at checkpoint:human-verify
 Milestone: v2.1 Database Restore — in progress
-Status: Phase 39 complete — Phase 40 next
-Last activity: 2026-04-14 — Phase 39 Plan 01 executed: restore backend implemented
+Status: Phase 40 Plan 01 tasks complete — awaiting human verification checkpoint
+Last activity: 2026-04-14 — Phase 40 Plan 01 executed: restore UI shell built, awaiting visual verification
 
-Progress: [x] Phase 37 [x] Phase 38 [x] Phase 39 [ ] Phase 40
+Progress: [x] Phase 37 [x] Phase 38 [x] Phase 39 [~] Phase 40 (checkpoint)
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [x] Phase 37 [x] Phase 38 [x] Phase 39 [ ] Phase 40
 **Phase 37 metrics:** 4 min, 2 tasks, 3 files modified
 **Phase 38 metrics:** 35 min, 2 tasks, 3 files modified
 **Phase 39 metrics:** 3 min, 2 tasks, 7 files modified
+**Phase 40 metrics (partial):** 4 min, 2 tasks, 6 files modified (checkpoint pending)
 
 ## Accumulated Context
 
@@ -60,6 +61,12 @@ Progress: [x] Phase 37 [x] Phase 38 [x] Phase 39 [ ] Phase 40
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
+### Phase 40 Decisions (restore UI)
+
+- **#restore-modal sibling placement**: `#restore-modal` must be a sibling of `#restore-result`, not nested in form — required by HTMX outerHTML swap for Cancel button
+- **GET /restore dual-render**: Returns `<div id="restore-modal"></div>` on hx_request header — clears modal without page reload
+- **backdrop-filter raw CSS**: `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not @apply) — consistent with glass-card Safari fix pattern
+
 ### Phase 39 Decisions (restore backend)
 
 - **bson.json_util.loads** must be used for restore deserialization (not json.loads) — preserves ObjectId, datetime, and all BSON types with correct types
@@ -74,5 +81,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 039-01-PLAN.md — restore backend complete; Phase 40 (Restore UI) next
+Stopped at: 040-01-PLAN.md checkpoint:human-verify — 2/2 auto tasks done, awaiting visual verification of restore page
 Resume file: None
