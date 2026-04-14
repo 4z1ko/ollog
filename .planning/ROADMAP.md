@@ -152,7 +152,7 @@ Full archive: `.planning/milestones/v2.0-ROADMAP.md`
 
 **Milestone Goal:** The admin can restore the MongoDB database from a previously downloaded `.gz` backup file via the admin console — with file validation, password confirmation, auto-backup before wipe, and clear success/error reporting.
 
-- [ ] **Phase 39: Restore Backend** — `app/backup/restore.py` module, `POST /admin/ui/restore/upload` (validate file integrity), `POST /admin/ui/restore/confirm` (auto-backup + drop + restore), password verification wiring; covers VAL-01, VAL-02, VAL-03, AUTH-02, AUTH-03, OPS-01, OPS-02, OPS-03, OPS-04
+- [x] **Phase 39: Restore Backend** — `app/backup/restore.py` module, `POST /admin/ui/restore/upload` (validate file integrity), `POST /admin/ui/restore/confirm` (auto-backup + drop + restore), password verification wiring; covers VAL-01, VAL-02, VAL-03, AUTH-02, AUTH-03, OPS-01, OPS-02, OPS-03, OPS-04
 - [ ] **Phase 40: Restore UI** — `GET /admin/ui/restore` page route, `templates/admin/restore.html` with HTMX upload form + password modal (backdrop blur), sidebar updated on all three admin pages with correct active states; covers UI-01, UI-02, UI-03, AUTH-01, AUTH-04
 
 ---
@@ -461,7 +461,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 039-01-PLAN.md — app/backup/restore.py module, POST /restore/upload (validate + modal), POST /restore/confirm (password verify + auto-backup + restore), HTMX response fragments
+- [x] 039-01-PLAN.md — app/backup/restore.py module, POST /restore/upload (validate + modal), POST /restore/confirm (password verify + auto-backup + restore), HTMX response fragments
 
 ---
 
@@ -532,5 +532,5 @@ Plans:
 | 36. Operator Log Views | v1.9 | 3/3 | ✓ Complete | 2026-04-11 |
 | 37. Infrastructure and Backup Endpoint | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
 | 38. Admin Backup UI | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
-| 39. Restore Backend | v2.1 | 0/1 | Not started | - |
+| 39. Restore Backend | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 40. Restore UI | v2.1 | 0/1 | Not started | - |
