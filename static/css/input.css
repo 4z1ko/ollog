@@ -184,4 +184,42 @@
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
   }
+
+  /* Modal overlay — used by templates/admin/restore/password_modal.html */
+  /* backdrop-filter uses raw CSS (not @apply) — Safari requires fixed pixel values, not CSS var refs */
+  /* See: github.com/tailwindlabs/tailwindcss/issues/13844 */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/50 z-40;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Modal content box — fixed centered above backdrop */
+  .modal-box {
+    @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+           bg-surface-light dark:bg-surface-dark rounded-xl shadow-2xl p-6 w-full max-w-md;
+  }
+
+  /* Modal typography */
+  .modal-title {
+    @apply text-lg font-semibold text-gray-900 dark:text-white mb-2;
+  }
+  .modal-body {
+    @apply text-sm text-gray-600 dark:text-gray-400 mb-4;
+  }
+
+  /* Modal action buttons row */
+  .modal-actions {
+    @apply flex gap-3 justify-end mt-4;
+  }
+
+  /* Form group — spacing wrapper used in modal form */
+  .form-group {
+    @apply mb-4;
+  }
+
+  /* form-control — alias for form-input, used in password_modal.html */
+  .form-control {
+    @apply form-input;
+  }
 }
