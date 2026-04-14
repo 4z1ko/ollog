@@ -56,7 +56,7 @@ completed: 2026-04-14
 - **Duration:** 4 min
 - **Started:** 2026-04-14T18:05:50Z
 - **Completed:** 2026-04-14T18:09:14Z
-- **Tasks:** 2 auto tasks complete (1 checkpoint pending human verify)
+- **Tasks:** 3 (2 auto + 1 checkpoint:human-verify — APPROVED)
 - **Files modified:** 5 (plus output.css rebuild)
 
 ## Accomplishments
@@ -71,6 +71,7 @@ Each task was committed atomically:
 
 1. **Task 1: Add modal and form-control CSS component classes** - `469d191` (feat)
 2. **Task 2: Create restore.html, add GET route, update sidebars** - `d705d6d` (feat)
+3. **Task 3: checkpoint:human-verify** - `1c3eeb3` (docs) — APPROVED by user, all six browser checks passed
 
 ## Files Created/Modified
 - `static/css/input.css` - Added 7 modal/form component classes in @layer components
@@ -96,9 +97,10 @@ None.
 None — no external service configuration required. Human verification checkpoint requires starting the dev server and testing the upload flow interactively.
 
 ## Next Phase Readiness
-- Restore page UI shell complete and wired to Phase 39 backend routes
-- Human verification checkpoint pending: auth gate, page render, three-link sidebar, file upload modal flow, cancel dismiss, and modal styling must be confirmed
-- After human approval, Phase 40 Plan 01 is fully complete and v2.1 Database Restore milestone is done
+- Phase 40 Plan 01 fully complete — human verification checkpoint APPROVED
+- All six browser checks passed: auth gate, page render, three-link sidebar, file upload modal flow, cancel dismiss, modal styling
+- v2.1 Database Restore milestone complete: Phase 39 backend + Phase 40 UI shell both verified end-to-end
+- No blockers. No further phases planned for v2.1.
 
 ---
 *Phase: 040-restore-ui*
