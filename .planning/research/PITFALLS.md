@@ -1,318 +1,313 @@
 # Pitfalls Research
 
-**Domain:** Apple-like UI redesign + dark/light mode — Jinja2 + HTMX 2.0.4 + Tailwind CSS v3
-**Researched:** 2026-04-11
-**Confidence:** HIGH (all critical pitfalls verified against official Tailwind docs, HTMX GitHub issues, and MDN; no finding relies solely on training data)
+**Domain:** MongoDB backup download endpoint — FastAPI + pymongo async + HTMX 2.0.4 + Docker Compose
+**Researched:** 2026-04-13
+**Confidence:** HIGH (all critical pitfalls verified against official FastAPI docs, HTMX GitHub issues, Python changelog, and code inspection of this project's existing `app/backup/dump.py`)
 
 ---
 
 ## Summary
 
-Four distinct risk profiles converge in this milestone. The flash-of-wrong-theme (FOWT) pitfall
-is the most user-visible: a white flash on hard navigation that is imperceptible in development
-but immediately obvious to any user who chose dark mode. Tailwind purge removing `dark:` classes
-is the most insidious: it is undetectable in development (full CSS is always present) but breaks
-the production build silently. The HTMX partial-swap desync problem is the most project-specific:
-the existing codebase has three HTMX swap targets and an SSE-driven refresh, each of which can
-leave the dark mode toggle icon in the wrong state. The SVG sharpness problem is cosmetic but
-directly at odds with the Apple aesthetic goal.
+This milestone adds a "Download Backup" button to the existing admin UI. The feature looks simple
+but sits at the intersection of four integration layers — each with a non-obvious failure mode:
 
-This project already has the FOWT prevention correctly implemented (inline IIFE in `<head>` in
-`base.html`). The primary risk is regressing that during the redesign. The Tailwind purge risk
-requires a build-discipline gate to be established before any visual work begins. The HTMX desync
-risk requires a single `htmx:afterSettle` listener to be added once, early.
+1. **HTMX** intercepts every `hx-*` triggered request and attempts a DOM swap. Binary file
+   responses cannot be swapped; HTMX silently discards them. The button must use a plain anchor
+   or a `window.location` redirect, not an `hx-get`.
+
+2. **Asyncio / FastAPI** event loop blocking. The existing `run_backup()` in `app/backup/dump.py`
+   uses synchronous `gzip.open` writes inside an `async def`. In the scheduled CLI context this is
+   fine. Inside a FastAPI request handler it blocks every concurrent request for the duration of
+   the backup.
+
+3. **Memory** — `run_backup()` calls `to_list(length=None)` on every collection, materialising the
+   entire database in RAM before writing a single byte. For the logbook's expected scale (~10k QSO
+   records) this is acceptable today but will silently fail if the operator imports an ADIF archive.
+
+4. **Auth** — the backup file contains every collection including `users` (hashed passwords,
+   callsigns, roles). Any authentication gap on the download endpoint is a complete data dump.
+
+The most dangerous pitfall is the HTMX binary response one: it produces no error, no 5xx, no
+console output — the button just appears to do nothing. The developer will likely waste hours
+debugging the server before realising the client is the problem.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Flash of Wrong Theme (FOWT) — Regression During Redesign
+### Pitfall 1: HTMX Intercepts the Binary Response — Download Never Starts
 
 **What goes wrong:**
-The page briefly renders in light mode before the `dark` class is applied to `<html>`, even though
-the user had selected dark mode. A white flash appears on every hard navigation, page refresh, and
-browser-back event.
+The admin presses "Download Backup." Nothing happens. No download dialog appears. No error. The
+server correctly generates the `.gz` file and sends it with `Content-Disposition: attachment`, but
+HTMX has intercepted the XHR response and attempted a DOM swap. Binary data is not valid HTML; HTMX
+discards it silently. `hx-swap="none"` does not help — the response still travels through HTMX's
+XHR pipeline and cannot trigger the browser's native download handler.
 
 **Why it happens:**
-The browser paints HTML synchronously before JavaScript executes. If the theme-restoration script
-is ever moved out of `<head>`, converted to an external file, or given `defer`/`async`/`type="module"`,
-the stylesheet cascade runs without the `dark` class on `<html>`. By the time JavaScript reads
-`localStorage` and adds `dark`, the browser has already painted the wrong colors.
+HTMX replaces the browser's default request behaviour with XHR (XMLHttpRequest). The browser's
+native file-download mechanism — the one that opens a "Save As" dialog — is only triggered for
+top-level navigations (full-page requests), not for XHR responses. HTMX issue #474 (raised 2021,
+closed without native support) confirmed that respecting `Content-Disposition: attachment` in XHR
+is architecturally out of scope for HTMX.
 
-**This project's current state:**
-`base.html` lines 13–21 already have the correct inline IIFE. This is the right approach. The risk
-is regression during the redesign: the IIFE could be accidentally moved during template refactoring,
-extracted into a JS file for "cleanliness," or wrapped in a Jinja2 `{% block head_scripts %}` block
-that renders at the bottom of `<body>`.
+This is confirmed by the HTMX maintainers in GitHub Discussion #2741: "HTMX can't return a file
+directly — a full request is needed to get a file."
 
 **How to avoid:**
-- Keep the theme script as a raw inline `<script>` block in `<head>`, positioned before the
-  `<link rel="stylesheet">` tag.
-- Never add `defer`, `async`, or `type="module"` to it.
-- Never extract it to a static JS file.
-- Never place it in a Jinja2 `{% block %}` that a child template could move or omit.
-- Test explicitly: set dark mode, do a hard refresh (Cmd+Shift+R), verify zero white flash.
-- Add a code comment marking it as load-bearing: `<!-- LOAD-BEARING: must be inline, in <head>, before stylesheet -->`.
+Do not use any `hx-*` attribute to trigger the download. Use one of:
+
+- **Option A (simplest):** A plain `<a href="/admin/ui/backup/download" download>` anchor tag.
+  The browser navigates directly; auth cookie is sent automatically. No JavaScript needed.
+- **Option B (with spinner feedback):** Use `hx-get` to a *trigger* endpoint that responds with
+  an `HX-Redirect` header pointing to the download URL. The browser follows the redirect as a
+  full-page navigation and the download starts. The HTMX request shows a loading state; the
+  redirect delivers the file.
+- **Option C:** An inline `<script>` that sets `window.location.href` to the download URL on
+  button click. The navigation is a full request; the cookie is included.
+
+In all cases, the actual file-serving endpoint must be a standard GET, protected by
+`require_admin_cookie`, and return `FileResponse` or `StreamingResponse` with the correct headers.
 
 **Warning signs:**
-- Any PR that moves or removes the `<script>` block from `<head>` in `base.html`.
-- A new `<script src="/static/js/theme.js">` tag appearing where the inline script was.
-- `type="module"` added to the theme script (modules are deferred by spec).
-- White flash visible on hard reload in development, even briefly.
-- A Jinja2 `{% block %}` wrapping the theme script, allowing child templates to override it.
+- The backup button uses `hx-get="/admin/ui/backup/download"` or `hx-post="..."`.
+- The download endpoint returns `StreamingResponse` with `Content-Disposition: attachment` but
+  the button is an HTMX-wired element.
+- Console shows no network error; server logs show the request completed 200; browser shows nothing.
+- `hx-swap="none"` was added to "fix" the no-swap, but download still does not start.
 
-**Phase to address:** Theme infrastructure setup — first task, before any visual template changes.
+**Phase to address:** Backup UI implementation — design the button as a plain anchor or
+window.location redirect before writing any server-side handler.
 
 ---
 
-### Pitfall 2: Tailwind Purges `dark:` Variants in Production Build
+### Pitfall 2: Blocking the Asyncio Event Loop with Synchronous gzip I/O
 
 **What goes wrong:**
-Dark mode classes that appear only in files not covered by the `content` glob, or that are
-constructed via string concatenation, are absent from the production CSS bundle. The UI looks
-correct in development (`output.css` is rebuilt continuously by `npm run watch` or is stale-but-complete)
-but dark mode breaks after `npm run build --minify`.
+The backup endpoint calls `run_backup()` directly from an `async def` FastAPI route handler.
+`run_backup()` in `app/backup/dump.py` uses `gzip.open(path, "wt")` — a synchronous, blocking
+file write. While the gzip write runs (potentially several seconds for a large database), the
+entire uvicorn event loop is blocked. No other request — including health checks, admin UI page
+loads, and any concurrent operator request — can be served until the write completes.
 
 **Why it happens:**
-Tailwind's content scanner treats every source file as plain text. A class is included in the
-output only if its complete literal string (e.g., `dark:bg-gray-900`) appears somewhere in a
-scanned file. The current `tailwind.config.js` scans `./templates/**/*.html`. Any class that:
+`async def` in FastAPI does not mean "run in a thread." It means "run in the event loop." Any
+call to a synchronous blocking function inside `async def` — including `gzip.open`, standard
+`open()`, and `time.sleep()` — occupies the loop. FastAPI's documentation explicitly states:
+"If you are calling a blocking library, use `run_in_threadpool` or `asyncio.to_thread`."
 
-- Is constructed dynamically in Python (e.g., `"dark:bg-" + severity`),
-- Exists only in a new template directory outside `./templates/`,
-- Appears only in a JavaScript `classList.add()` call that is not in a `.html` file,
-- Is a new Apple-style utility like `dark:backdrop-blur-xl` or `dark:ring-white/10` added to a
-  template while the build watcher is not running,
-
-...will be missing from the production bundle.
-
-**The specific trap for this project:**
-The redesign will introduce new classes. If the developer adds `dark:bg-white/5 dark:ring-1
-dark:ring-white/10` to a template during a dev session with `npm run watch` running, those classes
-appear in the live `output.css`. But if the same template is edited without the watcher, or if the
-build is not re-run before commit, the committed `output.css` will be missing those classes and
-dark mode will silently break for those elements.
+The existing `run_backup()` was designed for the CLI (`python -m app.backup`) and the APScheduler
+scheduler, both of which run their own event loops and are not shared with uvicorn. Calling the
+same function from a uvicorn async route handler changes its blocking profile.
 
 **How to avoid:**
-- Always run `npm run watch` during development. Never rely on a stale `output.css`.
-- Run `npm run build` and perform a visual dark-mode smoke test before every commit that touches
-  `.html` templates or `input.css`.
-- For any new class added during the Apple redesign (glassmorphism utilities, new color stops,
-  `ring-white/*` opacity variants), verify with: `grep "class-name" static/css/output.css`.
-- Never construct Tailwind class names via Python string concatenation or f-strings. Use complete
-  literal class name strings.
-- If Python needs to vary classes conditionally, use a lookup dict (complete strings as values,
-  not string-assembled fragments).
-- Add `output.css` to the git repository (it already appears to be committed) and verify it is
-  rebuilt via `npm run build` in CI before deployment.
+Wrap the synchronous parts of `run_backup()` in `asyncio.to_thread()` (Python 3.9+):
+
+```python
+import asyncio
+
+@ui_router.get("/backup/download")
+async def download_backup(_user: User = Depends(require_admin_cookie)):
+    path = await asyncio.to_thread(run_backup_sync, settings)
+    return FileResponse(path, filename=path.name, media_type="application/gzip",
+                        headers={"Content-Disposition": f'attachment; filename="{path.name}"'})
+```
+
+Or refactor `run_backup()` to use `aiofiles` for the gzip write so it can remain in the async
+context without blocking. The MongoDB reads (`to_list`) are already async via pymongo's async
+driver and do not block.
 
 **Warning signs:**
-- A dark mode style works in the development browser but is missing after deploying.
-- Python code contains `"dark:" + variable` patterns.
-- `grep "dark:backdrop" static/css/output.css` returns nothing after a build that added glassmorphism.
-- A new `.html` file lives outside `./templates/` (e.g., in `components/` or `views/`).
-- The build watcher was not running when templates were edited.
+- `run_backup()` (or any function that calls `gzip.open`) is awaited directly in an `async def`
+  route handler without `asyncio.to_thread` or `run_in_threadpool`.
+- The admin UI becomes unresponsive for several seconds after pressing "Download Backup."
+- A uvicorn warning appears: "Blocking operation detected in async context."
+- Integration test shows other endpoints returning 503 or timing out during a backup.
 
-**Phase to address:** Theme infrastructure setup (establish build discipline and verification gate);
-repeated at the end of each component-level phase as a go/no-go check.
+**Phase to address:** Backup endpoint implementation — wrap sync I/O before wiring the route.
 
 ---
 
-### Pitfall 3: HTMX Partial Swaps Desync the Theme Toggle Icon
+### Pitfall 3: Auth Not Applied to the Download Endpoint (Complete Data Exposure)
 
 **What goes wrong:**
-After an HTMX swap replaces content (e.g., sorting the log table, paginating, submitting the
-create-operator form), the dark mode toggle in the sidebar shows the wrong icon or label. The
-`dark` class on `<html>` is unaffected — the page colors remain correct — but the toggle button
-displays moon when it should show sun, or the label says "Dark mode" when it should say "Light mode."
+The backup `.gz` file contains every MongoDB collection, including `users` (hashed passwords via
+bcrypt, usernames, callsigns, roles). An unauthenticated or insufficiently-authorised request to
+the download endpoint returns the full database dump.
 
 **Why it happens:**
-The `updateThemeIcons()` function in `base_app.html` runs once on `DOMContentLoaded`. HTMX swaps
-do not re-fire `DOMContentLoaded`. In the current codebase, this is not yet a problem because the
-sidebar (which contains the toggle) is never the HTMX swap target. However:
+Three specific failure modes for this project:
 
-1. If a future HTMX swap uses `hx-swap-oob` to update any element that contains or is an ancestor
-   of `#theme-btn`, `#icon-moon`, `#icon-sun`, or `#theme-label`, the newly-inserted HTML will not
-   have the icon state set by JavaScript — it will reflect whatever the server rendered.
+1. **Wrong dependency:** The developer uses `require_admin` (Bearer JWT) instead of
+   `require_admin_cookie` (HttpOnly cookie). The admin UI uses cookie auth. A route guarded by
+   `require_admin` will raise HTTP 401 for every browser-initiated download because the browser
+   sends the cookie, not a Bearer header.
 
-2. New Apple-style components added during the redesign that have theme-dependent initialization
-   (a toggle chip, a colored status badge, a modal with theme-aware backdrop) will not initialize
-   correctly after any HTMX swap unless they listen to `htmx:afterSettle`.
+2. **Missing dependency altogether:** The endpoint is added to `ui_router` without a `Depends`
+   guard. It works in testing because the developer is logged in, but an unauthenticated path is
+   left open.
 
-3. HTMX's settle period is a specific danger zone: `htmx:afterSwap` fires before HTMX restores
-   original classes from the server response, so an icon re-initialization running on `afterSwap`
-   may be overwritten by HTMX's own settle step. The correct event is `htmx:afterSettle`.
-
-**This project's current HTMX targets:**
-- `#log-table` (innerHTML): log table rows and pagination. Does not contain the toggle.
-- `#users-table-body` (innerHTML): operator rows. Does not contain the toggle.
-- SSE-driven refresh of `#log-table`: same scope as above.
-- The `<html>` and `<body>` elements are never HTMX targets. The `dark` class on `<html>` is safe.
+3. **Auth exception handler intercepts:** `admin_main.py` has a global exception handler that
+   redirects 401/403 for `/admin/ui/` paths to `/admin/ui/login`. If the download endpoint
+   raises 401 due to wrong dependency type, the browser follows the redirect, the developer sees
+   the login page, and incorrectly concludes "auth is working" — but the redirect means the auth
+   failure is being silently swallowed for non-browser clients.
 
 **How to avoid:**
-- Add a single `htmx:afterSettle` event listener on `document.body` that calls
-  `updateThemeIcons(document.documentElement.classList.contains('dark'))`. This is a one-line
-  addition to the existing `<script>` block in `base_app.html`.
-- Never use `hx-swap="outerHTML"` or `hx-swap-oob` on elements that are ancestors of the
-  toggle button (i.e., the sidebar, `<body>`, or `<html>`).
-- When adding new Apple-style components that need theme-aware JS initialization, always register
-  on `htmx:afterSettle`, not only `DOMContentLoaded`.
-- Use `htmx:afterSettle` (not `htmx:afterSwap`) because HTMX may restore server-supplied classes
-  during the settle window after `afterSwap` fires.
+- Apply `_user: User = Depends(require_admin_cookie)` to the download route — same dependency
+  used on all other `ui_router` routes.
+- Write an explicit unauthenticated-access test: clear cookies, request `/admin/ui/backup/download`,
+  assert HTTP 302 redirect to `/admin/ui/login` (not 200).
+- Never use `require_admin` (Bearer) on any route under `ui_router` — that router is browser-only,
+  cookie-auth only.
+- Verify with `curl -v http://localhost:8001/admin/ui/backup/download` (no cookie) — must return
+  302, not 200 or any file content.
 
 **Warning signs:**
-- The toggle label says "Light mode" after clicking a column sort link in the log table.
-- A new component has a `DOMContentLoaded` listener for theme initialization but no `htmx:afterSettle` listener.
-- An `hx-swap-oob` target in a server response wraps or contains the sidebar.
-- Any HTMX request targets `body` or sets `hx-target` to a selector that matches an ancestor of `#theme-btn`.
+- The download route uses `Depends(require_admin)` instead of `Depends(require_admin_cookie)`.
+- Accessing the download URL in a private browser window (no cookies) returns a file or a 200.
+- No automated test for unauthenticated access to the download endpoint.
+- The route is defined in `ui_router` but has no `Depends` at all.
 
-**Phase to address:** Theme infrastructure setup — add the `htmx:afterSettle` handler once, early,
-before building any new components.
+**Phase to address:** Backup endpoint implementation — apply auth guard as the first line of the
+route handler, before any other logic.
 
 ---
 
-### Pitfall 4: SVG Icons Blurry on HiDPI / Retina Displays
+### Pitfall 4: `to_list(length=None)` Loads Entire Database into RAM
 
 **What goes wrong:**
-Icons in the redesigned Apple-style UI look fuzzy or anti-aliased on Retina and HiDPI displays
-(MacBook Pro, iPhone, any 2x+ device pixel ratio display). This is directly contrary to the goal
-of an Apple-quality aesthetic — Apple users are acutely sensitive to sub-pixel rendering artifacts.
+`run_backup()` in `app/backup/dump.py` (line 35) calls `await db[coll_name].find({}).to_list(length=None)`
+for every collection. This materialises every document from every collection into a Python list in
+memory before writing a single byte. For a logbook with 50,000 QSO records at ~500 bytes each,
+that is ~25 MB in RAM per collection — acceptable. But if an operator imports a large ADIF file
+(ARRL Contest exports can exceed 100,000 QSOs at 1–2 KB each), the RAM footprint is 100–200 MB
+for the `qso` collection alone, plus the overhead of BSON-to-Python-dict conversion and the
+intermediate EJSON string before gzip compression. Peak RAM during backup can easily reach 3–5x
+the raw collection size.
 
 **Why it happens:**
-The Heroicons used throughout this project have `viewBox="0 0 24 24"`. Rendering them at exactly
-24px CSS (or multiples of 24px) keeps stroke coordinates on integer pixel boundaries. Rendering at
-20px CSS (`w-5 h-5`, the most common Tailwind icon size) requires a 20/24 = 0.833x scaling factor.
-On a 1x display this is undetectable. On a 2x Retina display, the browser renders 40 physical
-pixels divided by 24 viewBox units = 1.667 physical pixels per SVG unit — fractional pixel
-coordinates force anti-aliasing on all stroke edges, producing visibly blurry icons.
-
-The problem is most pronounced for prominent icons (sidebar nav, card headers, modal icons) and
-worst at `w-5 h-5` (20px). Less visible at `w-4 h-4` (16px) on 2x displays (32 physical pixels,
-ratio is 1.333x — acceptable for small secondary icons).
+`to_list(length=None)` is the simplest cursor-to-list call in pymongo/motor. The existing
+implementation was written for correctness and simplicity, not memory efficiency. The scheduled
+backup at 02:00 UTC is fine — it runs in isolation. The download endpoint hits the same code
+path during normal operating hours with users active.
 
 **How to avoid:**
-- For prominent icons in the Apple redesign (sidebar nav items, card headers, empty state
-  illustrations, button icons), use `w-6 h-6` (24px CSS) — a 1:1 match with the Heroicons
-  `viewBox`. Sharp at both 1x and 2x.
-- For small secondary icons (sort indicators, inline text icons), `w-4 h-4` (16px) is acceptable.
-  The anti-aliasing at this size is visually tolerable.
-- Avoid `w-5 h-5` for prominent icons. It is the worst case for 2x rendering.
-- Never use `<img src="icon.svg">`. Use inline `<svg>` only: it inherits CSS `color`, responds
-  to `dark:` variants, and uses the full display DPR for rasterization.
-- Never apply CSS `transform: scale()` to icons. Use explicit Tailwind size classes.
-- Do not use arbitrary sizes like `w-[18px]` or `w-[22px]` — they produce non-integer ratios
-  against the 24px viewBox at both 1x and 2x.
+Replace `to_list(length=None)` with an `async for` cursor iteration that writes one document at a
+time to the gzip stream:
+
+```python
+async with gzip.open(backup_path, "wt", encoding="utf-8") as gz:
+    async for doc in db[coll_name].find({}):
+        gz.write(dumps({"collection": coll_name, "doc": doc}, ...) + "\n")
+```
+
+This keeps RAM usage proportional to one document at a time rather than the entire collection.
+Note: `gzip.open` in `"wt"` mode buffers internally (~64 KB), so the write calls are not
+individually expensive even though they happen per-document.
 
 **Warning signs:**
-- Redesigned nav items or card headers use `w-5 h-5` icons.
-- Any icon element uses `<img>` instead of inline `<svg>`.
-- An icon uses `w-[18px]`, `w-[22px]`, or any arbitrary pixel value not in the w-4/w-5/w-6 set.
-- Icons look correct on a 1080p monitor but blurry on a MacBook Pro Retina.
+- `to_list(length=None)` appears in the backup code path that serves the HTTP download endpoint.
+- The admin container's RSS memory spikes sharply (use `docker stats`) when backup is triggered.
+- Large ADIF imports cause the download endpoint to return 500 or timeout.
+- The scheduled backup succeeds but the on-demand download fails with `MemoryError` in logs.
 
-**Phase to address:** Component styling phase — apply consistently when building all Apple-style
-nav items, card headers, and any new icon usage.
+**Phase to address:** Backup endpoint implementation — evaluate whether to refactor `run_backup()`
+or provide a separate streaming path for the on-demand download.
 
 ---
 
-### Pitfall 5: CSS Transitions Cause Their Own Flash on Page Load
+### Pitfall 5: `datetime.utcnow()` in Filenames — Deprecated in Python 3.12
 
 **What goes wrong:**
-When `transition-colors duration-300` is added to `<body>`, cards, or table cells (a natural
-choice for a smooth Apple-like theme toggle), it causes a visible color-fade animation on every
-hard page load. Instead of preventing the flash of wrong theme, it makes it worse: the page
-fades from light to dark over 300ms on every navigation.
+`run_backup()` uses `datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')` to generate the filename
+(e.g., `20260413T143000Z.gz`). Python 3.12 (the version in this project's Dockerfile) emits a
+`DeprecationWarning` for `datetime.utcnow()` and it is scheduled for removal in a future Python
+version. The filename suffix `Z` incorrectly implies an RFC 3339 UTC-aware datetime but the object
+returned by `utcnow()` is timezone-naive (no `tzinfo`), which can produce incorrect results in
+any code that does datetime arithmetic on the value.
 
 **Why it happens:**
-The inline IIFE in `<head>` adds the `dark` class to `<html>` synchronously. However, child
-elements painted after the external stylesheet loads — which happens slightly after the script
-runs — have transitions active from the moment the CSS is parsed. Any element that paints its
-initial background color in a state that briefly conflicts with the `dark` class before the
-browser resolves the cascade will animate the transition visibly.
-
-Specifically: if `transition-colors` is on `<body>` or `.card` in a `@layer base` rule, the
-initial paint of those elements may trigger the transition even on first load, creating a
-300ms fade from a light background to the correct dark background.
+`utcnow()` has been in the standard library since Python 2.3. Its deprecation in 3.12 is recent
+and many tutorials and examples still use it. The issue is not a bug today but a forward
+compatibility problem: the `DeprecationWarning` already appears in Python 3.12 logs and the
+function will be removed in Python 3.14 or later.
 
 **How to avoid:**
-- Do NOT add `transition-colors` or `transition-all` to `<html>`, `<body>`, `.card`, `.data-table td`,
-  `.form-input`, or any element that is painted as part of the initial page layout.
-- Add smooth transitions ONLY to explicitly interactive states: the theme toggle button's own
-  indicator, hover states on nav items, focus rings on inputs.
-- For the toggle button animation, transition the button's icon rotation or label opacity —
-  not the page background.
-- If full-page theme transition on *user-initiated* toggle (not on load) is desired, use a JS
-  approach: suppress all transitions during initial load by adding a `no-transition` utility
-  class to `<html>` and removing it in the IIFE, after the `dark` class is set:
-  ```html
-  <script>
-    (function() {
-      document.documentElement.classList.add('no-transition');
-      var theme = localStorage.getItem('theme');
-      if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      }
-      // Remove no-transition after first paint to allow user-initiated toggle to animate
-      requestAnimationFrame(function() {
-        document.documentElement.classList.remove('no-transition');
-      });
-    })();
-  </script>
-  ```
-  Then define `.no-transition * { transition: none !important; }` in `input.css`.
+Replace `datetime.utcnow()` with `datetime.now(timezone.utc)` throughout the backup module:
+
+```python
+from datetime import datetime, timezone
+timestamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+```
+
+The strftime output is identical; the object is now timezone-aware. This change is confined to
+`app/backup/dump.py` — one line.
 
 **Warning signs:**
-- A `@layer base` rule adds `transition-colors` to `html`, `body`, or `*`.
-- Cards or the page background visibly fade in to the correct dark color on each page load.
-- The fade is more visible on slow network connections (larger gap between script and first paint).
-- `transition-all` appears anywhere in the component layer — this catches background-color among
-  everything else.
+- `DeprecationWarning: datetime.utcnow() is deprecated` appears in Docker logs during backup.
+- `app/backup/dump.py` imports `datetime` and calls `.utcnow()` anywhere.
+- Python version in Dockerfile is 3.12 or higher (already the case).
 
-**Phase to address:** Theme infrastructure setup — establish the transition policy before applying
-any transitions to components.
+**Phase to address:** Backup endpoint implementation — fix alongside the endpoint work; it is a
+one-line change in the shared `run_backup()` function.
 
 ---
 
-### Pitfall 6: `backdrop-filter` Glassmorphism Breaks on Older Safari and with CSS Variables
+### Pitfall 6: Content-Disposition Header Format Errors Prevent Download Dialog
 
 **What goes wrong:**
-Apple-like frosted glass cards (`backdrop-filter: blur(...)`) render as plain, non-blurred
-opaque backgrounds on older Safari. In Safari 18, `backdrop-filter` works with fixed values
-but fails silently when the blur value is specified via a CSS custom property.
+The browser receives the response but does not open a download dialog. The file either opens
+inline in the browser (displayed as garbled binary) or the browser ignores the header and treats
+the response as a page navigation. Alternatively, the filename in the download dialog is wrong
+(e.g., `"20260413T143000Z.gz"` with literal quote characters in the filename, or `download`
+as the generic filename).
 
 **Why it happens:**
-Tailwind's `backdrop-blur-*` utilities emit only the unprefixed `backdrop-filter` property. The
-`-webkit-backdrop-filter` prefix was required in Safari until version 17. Starting Safari 18,
-the prefix is no longer required for fixed values — but there is a confirmed open bug (MDN
-browser-compat-data issue #25914, still open in 2025) where `backdrop-filter` with CSS variable
-values (e.g., `backdrop-filter: blur(var(--blur))`) fails in Safari even with the prefix. Fixed
-values (`blur(12px)`) work; variable references do not.
+Three common mistakes:
+
+1. `Content-Disposition: attachment; filename=20260413T143000Z.gz` — no quotes around the
+   filename. RFC 6266 requires the filename to be quoted when it contains special characters.
+   Although letters, digits, hyphens, and underscores technically do not require quoting, many
+   browsers behave inconsistently without quotes.
+
+2. `Content-Disposition: attachment; filename="20260413T143000Z.gz"` — correct format, but if
+   the header is set via a FastAPI response `headers=` dict that is overridden by
+   `GZipMiddleware`, the middleware may strip or replace it.
+
+3. Using `StreamingResponse` with `media_type="application/gzip"` but omitting
+   `Content-Disposition` entirely — the browser receives binary data with no instruction to save
+   it and either shows gibberish or triggers a MIME-type download with a generic filename.
 
 **How to avoid:**
-- For any glassmorphism component class defined in `input.css` via `@apply` or explicit CSS,
-  always write both forms:
-  ```css
-  .glass-card {
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-    backdrop-filter: blur(12px) saturate(180%);
-  }
-  ```
-- Do not use CSS custom properties as the value for `backdrop-filter` or `-webkit-backdrop-filter`.
-  Use fixed pixel values only.
-- Tailwind's `backdrop-blur-*` utilities do NOT add the `-webkit-` prefix automatically. Any
-  component using glassmorphism must declare both forms explicitly.
-- Test on Safari (macOS or Browserstack) before marking a glass component done. The Chrome/Firefox
-  experience is not representative.
-- If Safari support cannot be tested, use `@supports (backdrop-filter: blur(1px))` to fall back
-  gracefully to a semi-transparent solid background.
+Use `FileResponse` for files already written to disk (the current `run_backup()` approach). It
+handles `Content-Length`, `Last-Modified`, and `ETag` automatically. Set the filename explicitly:
+
+```python
+from fastapi.responses import FileResponse
+
+return FileResponse(
+    path=str(backup_path),
+    media_type="application/gzip",
+    filename=backup_path.name,  # FastAPI sets Content-Disposition: attachment; filename="..."
+)
+```
+
+`FileResponse`'s `filename` parameter automatically produces a correctly-formatted
+`Content-Disposition: attachment; filename="..."` header. Do not manually construct the header
+unless you need non-ASCII characters (which require RFC 5987 `filename*` encoding).
+
+Verify after implementation: `curl -I http://localhost:8001/admin/ui/backup/download` (with cookie)
+must show `content-disposition: attachment; filename="20260413T143000Z.gz"`.
 
 **Warning signs:**
-- A glass card looks correct in Chrome but shows a solid background in Safari.
-- `backdrop-filter` is set via a Tailwind arbitrary value with a CSS variable: `backdrop-blur-[var(--blur)]`.
-- Only Tailwind utility classes are used for the blur effect without explicit `-webkit-backdrop-filter`
-  in `input.css`.
-- `grep "\-webkit-backdrop-filter" static/css/output.css` returns nothing.
+- Browser opens the `.gz` file inline or shows binary content instead of a dialog.
+- The download filename is `download` instead of the timestamped name.
+- The `Content-Disposition` header is absent from `curl -I` output.
+- `GZipMiddleware` is present in `admin_main.py` (it would interfere with a `StreamingResponse`).
 
-**Phase to address:** Glassmorphism / glass card component phase.
+**Phase to address:** Backup endpoint implementation — verify headers with `curl -I` before closing
+the phase.
 
 ---
 
@@ -320,11 +315,10 @@ values (`blur(12px)`) work; variable references do not.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Putting all dark mode logic in `@layer base` (e.g., `body { @apply dark:bg-gray-950 }`) | Centralizes styles, no per-element `dark:` prefixes needed | Dark variant rules become invisible to template authors; inconsistency creeps in as others add inline `dark:` classes in templates | Never — choose one approach and enforce it; prefer inline `dark:` in templates for visibility |
-| Using `!important` on dark mode overrides to fix legacy conflicts | Quickly overrides light-mode styles during redesign | Creates specificity wars; hard to remove later; blocks future intent | Only as a temporary bridge for a single PR; must be removed in the same or next phase |
-| Storing theme preference in a cookie (server-rendered) instead of localStorage | Server can render the correct `dark` class on `<html>` without JS flash | Adds cookie round-trip; breaks with CDN edge caching; requires session awareness | Never for this project — the current localStorage IIFE is sufficient and correct |
-| Using `transition-all` on cards or form elements | Smooth transitions on all state changes | Triggers on every HTMX swap that adds/removes a class; colors also animate on page load FOUC | Never — use `transition-colors` only, on interactive elements only |
-| Keeping sidebar background as a raw hex (`#1a1d2e`) only in inline `style=""` | One-off exact Apple color without build-time overhead | Cannot be targeted by `dark:` prefix variants; invisible to Tailwind purge scanner | Unacceptable inline; already correctly placed as a named design token in `tailwind.config.js` |
+| Call `run_backup()` directly in async route (no `asyncio.to_thread`) | No refactoring needed | Blocks event loop; all admin requests stall during backup generation | Never for a production route; acceptable only in a CLI/scheduler context |
+| `to_list(length=None)` for all collections | Simple, one-liner | RAM spike proportional to database size; can exhaust container memory on large imports | Acceptable for scheduled backup (isolated); unacceptable for on-demand HTTP download |
+| Serve the backup from a pre-generated file on disk (keep the scheduled dump path) | Reuses existing infrastructure; no streaming complexity | File may be stale (hours old); disk space accumulates if old backups are not pruned | Acceptable as V1 for a logbook with a small number of operators; add pruning logic |
+| No expiry / one-time token for the download URL | Simpler auth (same cookie-based guard as the rest of the UI) | If the admin copies the URL and shares it, the file is accessible to anyone with a valid admin session | Acceptable — the download URL is session-scoped via `require_admin_cookie`; that is sufficient |
 
 ---
 
@@ -332,12 +326,12 @@ values (`blur(12px)`) work; variable references do not.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| HTMX swaps + theme toggle icon | `updateThemeIcons()` only runs on `DOMContentLoaded`; swaps do not re-fire that event | Add `document.body.addEventListener('htmx:afterSettle', ...)` that re-calls `updateThemeIcons()` |
-| HTMX SSE re-render (`#log-table`) + inline color styles | SSE-delivered HTML that uses inline `style="background-color: white"` ignores dark mode | Never use inline `style` for color values in HTMX partials; rely entirely on Tailwind classes with `dark:` variants |
-| Tailwind build watch + new Apple component classes | Adding `dark:backdrop-blur-xl` or `dark:ring-white/10` while build watcher is not running produces stale `output.css` | Always verify new classes are in the built CSS with `grep` before committing |
-| `backdrop-filter` + Tailwind | Tailwind's `backdrop-blur-*` emits only unprefixed property; Safari needs `-webkit-backdrop-filter` | Declare `-webkit-backdrop-filter` explicitly in `@layer components` in `input.css` for glass card components |
-| HTMX `hx-push-url="true"` navigation + dark class | Full-page navigation replaces `#log-table` or `#users-table-body`; sidebar persists; `<html>` is never replaced | This is safe by current design — verify no HTMX target is `body` or `html` |
-| Jinja2 server-side dark class | Passing `dark_mode=True` from Python to render the `dark` class server-side creates round-trip dependency | Keep dark mode state entirely in `localStorage`; the server never needs to know the theme |
+| HTMX + binary response | Use `hx-get` or `hx-post` to trigger download | Use `<a href="..." download>` or `window.location.href`; no HTMX attributes on the download trigger |
+| FastAPI + `FileResponse` + `GZipMiddleware` | `GZipMiddleware` re-compresses an already-gzip file, corrupting it | Do not add `GZipMiddleware` to `admin_main.py`; the `.gz` file is already compressed |
+| pymongo async + gzip sync write | Calling `gzip.open` inside `async def` without offloading | Wrap in `asyncio.to_thread()` or use `aiofiles` for the write loop |
+| `require_admin` vs `require_admin_cookie` | Using Bearer-JWT dependency on a browser download route | All `ui_router` routes must use `require_admin_cookie` — browser sends cookie, not Bearer header |
+| Docker Compose hostname | If `mongodump` were used, connecting to `mongodb:27017` requires the Docker Compose network — not localhost | The existing Python-native `run_backup()` avoids this entirely by using the pymongo URI from `settings.mongodb_uri`, which already uses the correct hostname |
+| `datetime.utcnow()` deprecation | Generates a `DeprecationWarning` on Python 3.12+ in every backup run | Replace with `datetime.now(timezone.utc)` |
 
 ---
 
@@ -345,9 +339,9 @@ values (`blur(12px)`) work; variable references do not.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| `backdrop-filter: blur()` on many concurrent elements | Scroll jank on mid-tier hardware; GPU memory pressure on mobile; fan noise on MacBooks | Limit glassmorphism to 1–2 focal elements (sidebar, modal, hero card); do not apply to every table row or form card | Immediately on older GPUs; at 3+ concurrent blurred layers on mobile |
-| `transition-all` on frequently HTMX-swapped elements | Every swap that adds/removes any class triggers a full CSS transition sweep | Use `transition-colors` scoped to interactive elements only; never `transition-all` | Every HTMX swap; noticeable immediately |
-| Overloaded `@layer base` with dark overrides | CSS specificity becomes unpredictable; bundle size grows | Keep base layer minimal (typography, font, HTML element resets); put component dark styles in `@layer components` | At 30+ component override rules in base layer |
+| Synchronous gzip write blocking event loop | Admin UI unresponsive for backup duration; 30s+ latency on other endpoints | Wrap in `asyncio.to_thread()`; or refactor to aiofiles | Immediately on any backup request; worse as DB grows |
+| `to_list(length=None)` on large collections | Container OOM kill (`docker stats` shows RAM spike); 500 error on download | Stream documents via `async for` cursor iteration | ~50k QSOs (~25 MB) is manageable; 200k+ QSOs can exceed container RAM limit |
+| Multiple concurrent backup requests | Two admins pressing download simultaneously doubles memory and disk usage | Add a simple in-memory lock (`asyncio.Lock`) or check for in-progress backup before starting | Immediately with two concurrent admin sessions |
 
 ---
 
@@ -355,8 +349,10 @@ values (`blur(12px)`) work; variable references do not.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Reading `localStorage.theme` and reflecting it into server-side Jinja2 HTML as a class or attribute | If an attacker can write arbitrary values to `localStorage` (via another XSS), the value could be reflected into template output as executable HTML | The theme value is used only in client-side JS as a boolean gate for `classList.add('dark')`; it is never sent to the server or rendered server-side |
-| Using `document.write()` or `innerHTML` assignment in the theme IIFE to apply the dark class | If the IIFE is extended and uses `innerHTML`, it opens an XSS vector | The IIFE must only call `document.documentElement.classList.add('dark')`; never write HTML from localStorage values |
+| No auth on download endpoint | Complete database dump (all users, hashed passwords, all QSOs) accessible without login | Apply `Depends(require_admin_cookie)` to the route; write an unauthenticated test |
+| Wrong auth dependency (`require_admin` instead of `require_admin_cookie`) | Browser cannot authenticate (no Bearer header); 401 is silently swallowed by the app exception handler redirect; appears to work but is a no-op guard | Use `require_admin_cookie` exclusively on all `ui_router` routes |
+| Backup file left world-readable on disk | If the `backups/` volume is ever exposed via a static file server or a misconfigured volume mount, files are readable without auth | Keep `backup_dir` outside the `static/` directory tree; verify `StaticFiles` mount in `admin_main.py` does not cover `backups/` |
+| Unbound backup accumulation | Disk fills up silently; Docker volume exhaustion causes container failure | Add backup pruning (keep last N files) or delete the on-demand file after streaming |
 
 ---
 
@@ -364,26 +360,23 @@ values (`blur(12px)`) work; variable references do not.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Theme toggle only reachable by opening the sidebar on mobile | Mobile users cannot change theme without first opening the sidebar; discovery is zero | Add a small theme toggle icon button to the mobile top bar (`md:hidden` section of `base_app.html`) that is always visible |
-| Theme toggle does not follow system preference after it changes | User sets OS to dark mode after having explicitly selected light mode in the app — app stays light (correct). But if user has never explicitly set a preference (`localStorage.theme` is null), and their system changes, the app should follow | The current IIFE already handles this correctly: only override with localStorage if `theme` is explicitly set; otherwise follow `prefers-color-scheme`. Do not regress this. |
-| Color contrast failures in dark mode | Gray text on dark gray backgrounds fails WCAG AA (4.5:1 for normal text). Specific failure: `text-gray-500` on `bg-gray-900` = ~3.5:1 contrast ratio | Run all `dark:text-gray-400` and `dark:text-gray-500` instances through a contrast checker against their dark background. Minimum acceptable: 4.5:1 for body text, 3:1 for large text |
-| Dark mode transition not announced to screen readers | Screen reader users receive no cue when the theme changes | Add `aria-label` to the toggle button that updates with the action (e.g., "Switch to light mode") and use `aria-live="polite"` on a visually-hidden status element |
-| Login page ignores the theme IIFE | The login page shows a white flash or incorrect theme because `base.html` (the login base) may not have been updated in sync with `base_app.html` | Verify both `templates/log/login.html` and `templates/admin/login.html` extend `base.html` which contains the IIFE; do not duplicate the IIFE in login templates |
+| No feedback while backup generates | Admin presses button, nothing happens for 5–30s; assumes the button is broken and presses again (double backup) | Show a loading spinner or disable the button on click; re-enable on completion |
+| Download starts immediately but file is corrupt | Admin gets a `.gz` that gunzip rejects — no error was visible | Verify with a smoke test: `gunzip -t <file>` and `wc -l <file>` after generation; surface server errors as a toast |
+| Stale backup served (pre-generated file) | Admin downloads a "backup" that is 23 hours old without knowing it | Display the backup file's timestamp prominently near the button; include it in the filename (already done) |
+| No confirmation that backup is "complete" | Admin does not know if the download represents the current database state | After download completes, show a toast with the timestamp and approximate size |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **FOWT on hard refresh:** Set dark mode, do Cmd+Shift+R, verify zero white flash. Test on both a login page and an authenticated page.
-- [ ] **Dark mode on login pages:** `templates/log/login.html` and `templates/admin/login.html` must both get the `dark` class on `<html>` before paint.
-- [ ] **Production CSS contains new classes:** Run `npm run build`, then `grep` for every new Apple-style class added (e.g., `backdrop-blur`, `ring-white/10`, `bg-white/5`, `divide-white/10`).
-- [ ] **HTMX swap toggle icon sync:** Sort a column in Log View while in dark mode. Verify the moon/sun icon and label are correct after the swap.
-- [ ] **SSE re-render dark survival:** Trigger an SSE-driven `#log-table` refresh. Verify the LIVE badge uses dark colors (`dark:bg-emerald-900/40`).
-- [ ] **`-webkit-backdrop-filter` present (if glassmorphism used):** `grep "\-webkit-backdrop-filter" static/css/output.css` must return results.
-- [ ] **No `transition-colors` on load-bearing elements:** Inspect `input.css`: no `transition-*` rule in `@layer base` on `html`, `body`, or `*`. No page color fade on hard refresh.
-- [ ] **Icon size audit:** All prominent icons (nav items, card headers) use `w-6 h-6` (24px). No `w-5 h-5` on prominent icons in the Apple redesign.
-- [ ] **Mobile toggle accessible:** Dark mode toggle is reachable on a narrow viewport without opening the sidebar.
-- [ ] **Contrast ratio check:** All `dark:text-gray-400` instances on `dark:bg-gray-900` or `dark:bg-gray-950` backgrounds pass WCAG AA (4.5:1 for normal text).
+- [ ] **HTMX not used for download:** The backup button is a plain `<a>` or uses `window.location`, not `hx-get`/`hx-post`. Verify in the template source.
+- [ ] **Auth guard present and correct:** Route has `Depends(require_admin_cookie)`. Verify with `curl -v` (no cookie) → must return 302, not 200.
+- [ ] **Content-Disposition header correct:** `curl -I` (with valid cookie) shows `content-disposition: attachment; filename="20260413T143000Z.gz"` (exact format, no stray quotes in filename).
+- [ ] **File is a valid gzip:** After download, run `gunzip -t <downloaded-file>` — must exit 0.
+- [ ] **Event loop not blocked:** While backup runs, load `/admin/ui/users` in another tab — must respond in under 1 second.
+- [ ] **`utcnow()` removed:** `grep -r "utcnow" app/backup/` returns nothing.
+- [ ] **Unauthenticated access test exists:** A test (or manual `curl` verification) confirms the download URL returns 302 without a valid admin cookie.
+- [ ] **No GZipMiddleware on the admin app:** `grep "GZipMiddleware" app/admin_main.py` returns nothing.
 
 ---
 
@@ -391,13 +384,11 @@ values (`blur(12px)`) work; variable references do not.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| FOWT reinstated (script moved or made external) | LOW | Move the inline IIFE back into `<head>` in `base.html`, before the `<link>` stylesheet; remove `defer`/`async`/`src` if present |
-| `dark:` classes missing from production CSS | LOW–MEDIUM | Identify missing classes via visual inspection in dark mode, confirm via `grep` on `output.css`, ensure all templates are in the `content` glob, run `npm run build`, re-verify |
-| HTMX swap desyncs toggle icon | LOW | Add `document.body.addEventListener('htmx:afterSettle', function() { updateThemeIcons(document.documentElement.classList.contains('dark')); });` to `base_app.html` |
-| Glassmorphism broken on Safari | LOW | Add `-webkit-backdrop-filter` to the glass card class in `input.css`; rebuild CSS; avoid CSS variable values |
-| CSS transition plays on page load | LOW | Remove `transition-*` from base-layer HTML/body rules; restrict to interactive hover/focus states |
-| SVG icons blurry on HiDPI | MEDIUM | Audit all prominent icons; change `w-5 h-5` to `w-6 h-6`; rebuild; verify visually on a 2x display |
-| Color contrast failures discovered post-launch | MEDIUM | Identify failing pairs with a contrast checker; adjust `dark:text-gray-*` level upward (e.g., `400` → `300`) until passing |
+| HTMX intercepts download (silent no-op) | LOW | Replace `hx-get` attribute with `href` on an anchor tag; remove HTMX attributes from the button element |
+| Event loop blocking discovered post-deploy | LOW | Wrap `run_backup()` call in `asyncio.to_thread()`; redeploy; no data migration needed |
+| Auth gap found after deployment | HIGH (data already potentially exposed) | Rotate all user passwords immediately; add `Depends(require_admin_cookie)` to route; redeploy; audit access logs |
+| Memory OOM during backup | MEDIUM | Refactor `to_list(length=None)` to `async for` cursor; redeploy; adjust Docker container memory limit as temporary guard |
+| Corrupt download (bad Content-Disposition) | LOW | Switch to `FileResponse(filename=...)` and remove any manual header construction; re-test with `curl -I` |
 
 ---
 
@@ -405,32 +396,30 @@ values (`blur(12px)`) work; variable references do not.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Flash of wrong theme (FOWT) | Theme infrastructure setup — Phase 1 | Hard refresh in dark mode: zero white flash; inline script still in `<head>` of `base.html` |
-| Tailwind purging dark: variants | Theme infrastructure setup — Phase 1 (build discipline) + verification gate at end of each phase | `npm run build` + `grep` new classes in `output.css`; visual dark smoke test |
-| HTMX swap toggle icon desync | Theme infrastructure setup — Phase 1 (add `htmx:afterSettle` handler) | Sort log table column in dark mode; verify icon and label are correct |
-| SVG icon blurriness on HiDPI | Component styling phase | Visual review on a 2x display; all prominent icons are `w-6 h-6` |
-| `backdrop-filter` Safari breakage | Glassmorphism component phase | Safari visual test; `grep "\-webkit-backdrop-filter" output.css` |
-| CSS transition on page load | Theme infrastructure setup — Phase 1 | No color fade on hard refresh; no `transition-*` in base layer on `html`/`body` |
-| Color contrast failures | Component styling phase + accessibility review | WCAG contrast checker on all `dark:text-*` on dark backgrounds |
+| HTMX binary response interception | Backup UI implementation — design button as plain anchor | Template source has no `hx-*` on download trigger; download dialog appears on click |
+| Asyncio event loop blocking | Backup endpoint implementation — wrap sync I/O | Load admin users page while backup generates; response time under 1s |
+| Auth bypass on download endpoint | Backup endpoint implementation — apply auth guard first | `curl -v` (no cookie) → 302; `curl -v` (with cookie) → 200 + file |
+| RAM exhaustion from `to_list(length=None)` | Backup endpoint implementation — evaluate streaming vs. bulk | `docker stats` shows stable RAM during backup; large ADIF import does not OOM |
+| `datetime.utcnow()` deprecation | Backup endpoint implementation — one-line fix | `grep -r "utcnow" app/backup/` returns nothing; no DeprecationWarning in logs |
+| Content-Disposition header format | Backup endpoint implementation — use FileResponse.filename | `curl -I` shows correctly formatted header; file opens with correct name |
 
 ---
 
 ## Sources
 
-- [Tailwind CSS dark mode — official docs (v3)](https://tailwindcss.com/docs/dark-mode) — HIGH confidence
-- [Tailwind CSS content configuration — official docs](https://tailwindcss.com/docs/content-configuration) — HIGH confidence
-- [Tailwind dark mode classes purged in production — GitHub Discussion #4358](https://github.com/tailwindlabs/tailwindcss/discussions/4358) — HIGH confidence
-- [HTMX `hx-preserve` attribute — official docs](https://htmx.org/attributes/hx-preserve/) — HIGH confidence
-- [HTMX issue #412: classes removed during HTMX settle period](https://github.com/bigskysoftware/htmx/issues/412) — HIGH confidence
-- [HTMX issue #2349: dark mode discussion on HTMX site](https://github.com/bigskysoftware/htmx/issues/2349) — MEDIUM confidence
-- [caniuse: CSS backdrop-filter browser support](https://caniuse.com/css-backdrop-filter) — HIGH confidence
-- [MDN browser-compat-data #25914: Safari 18 backdrop-filter with CSS variables broken](https://github.com/mdn/browser-compat-data/issues/25914) — HIGH confidence (confirmed open bug, 2025)
-- [lightningcss #537: -webkit- prefix dropped from backdrop-filter](https://github.com/parcel-bundler/lightningcss/issues/537) — HIGH confidence
-- [FOUC dark mode prevention — Victor Dibia (Gatsby/Tailwind)](https://victordibia.com/blog/gatsby-fouc/) — MEDIUM confidence (principle is framework-agnostic)
-- [Disable CSS transitions on color scheme change — reemus.dev](https://reemus.dev/article/disable-css-transition-color-scheme-change) — MEDIUM confidence
-- [SVG blurry on Retina — SVGGenie](https://www.svggenie.com/blog/svg-blurry-fixes) — MEDIUM confidence (aligns with browser rendering behavior)
-- [Dark mode transition flash — tailwindlabs GitHub Discussion #3479](https://github.com/tailwindlabs/tailwindcss/discussions/3479) — HIGH confidence
+- [HTMX issue #474: respect content-download headers — closed without native support](https://github.com/bigskysoftware/htmx/issues/474) — HIGH confidence (official HTMX repo, maintainer response)
+- [HTMX Discussion #2741: how to download a file the HTMX way](https://github.com/bigskysoftware/htmx/discussions/2741) — HIGH confidence (official HTMX repo)
+- [FastAPI custom responses — FileResponse, StreamingResponse](https://fastapi.tiangolo.com/advanced/custom-response/) — HIGH confidence (official FastAPI docs)
+- [FastAPI concurrency and async/await — blocking I/O guidance](https://fastapi.tiangolo.com/async/) — HIGH confidence (official FastAPI docs)
+- [Python 3.12 datetime.utcnow() deprecation — DeprecationWarning](https://andreas.scherbaum.la/post/2024-08-05_deprecationwarning-datetime-datetime-utcnow-is-deprecated-and-scheduled-for-removal-in-a-future-version-use-timezone-aware-objects-to-represent-datetimes-in-utc-datetime-datetime-now-datetime-utc/) — HIGH confidence (aligns with Python 3.12 changelog)
+- [FastAPI GZipMiddleware does not compress StreamingResponse — issue #4739](https://github.com/fastapi/fastapi/issues/4739) — HIGH confidence (FastAPI GitHub)
+- [PyMongo cursor to_list memory risk — official PyMongo docs and community discussion](https://pymongo.readthedocs.io/en/stable/api/pymongo/cursor.html) — HIGH confidence (official pymongo docs)
+- [FastAPI difference between run_in_executor and run_in_threadpool — Sentry](https://sentry.io/answers/fastapi-difference-between-run-in-executor-and-run-in-threadpool/) — MEDIUM confidence (verified against FastAPI docs)
+- Project source: `app/backup/dump.py` — code inspection, HIGH confidence
+- Project source: `app/admin/ui_router.py` — auth pattern verification, HIGH confidence
+- Project source: `app/auth/dependencies.py` — `require_admin` vs `require_admin_cookie` distinction, HIGH confidence
+- Project source: `docker-compose.yml` — container topology and volume mounts, HIGH confidence
 
 ---
-*Pitfalls research for: Apple-like UI redesign + dark/light mode on Jinja2 + HTMX + Tailwind CSS*
-*Researched: 2026-04-11*
+*Pitfalls research for: MongoDB backup download endpoint — FastAPI + pymongo async + HTMX 2.0.4 + Docker*
+*Researched: 2026-04-13*

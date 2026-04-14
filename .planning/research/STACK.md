@@ -1,345 +1,184 @@
-# Stack Research: Apple-like UI Redesign (Dark/Light Mode + Icons)
+# Stack Research
 
-**Domain:** ollog — UI redesign milestone adding Apple-inspired aesthetics, icon library, and dark/light mode toggle to existing FastAPI + Jinja2 + HTMX + Tailwind CSS app
-**Researched:** 2026-04-11
-**Confidence:** HIGH for dark mode config (already correct), Heroicons Python package, font stack. MEDIUM for heroicons npm version pinning (latest confirmed via multiple sources, not direct npm registry query).
-
----
-
-## Executive Summary
-
-The project already has the correct foundations for this milestone:
-
-- `darkMode: 'class'` is already set in `tailwind.config.js` — this is exactly right for localStorage-based toggling
-- The FOUC-prevention inline script is already in `templates/base.html` with localStorage + `prefers-color-scheme` fallback — this is the canonical pattern
-- Inter font is already loaded via Google Fonts CDN and set as the primary sans-serif in `input.css` and `tailwind.config.js`
-- A component library (`card`, `btn-*`, `form-input`, etc.) already exists in `static/css/input.css`
-- The Tailwind build pipeline (`npm run build` / `npm run watch`) is operational
-
-**Net new dependencies for this milestone:**
-
-| Layer | What to Add | Why |
-|-------|-------------|-----|
-| Python | `heroicons[jinja]>=2.13` | Render SVG icons natively in Jinja2 templates without React |
-| CSS | Tailwind theme extensions in `tailwind.config.js` | Apple-calibrated border radii, shadows, and color tokens |
-| Font | Switch CDN → `@fontsource-variable/inter` (npm) | Self-hosted variable font, no Google Fonts external dependency |
-
-**Nothing else is needed.** No Alpine.js, no heavy component framework, no new CSS framework.
+**Domain:** MongoDB backup download endpoint — FastAPI admin sub-app
+**Researched:** 2026-04-13
+**Confidence:** HIGH (all findings verified directly from codebase; no unverified training-data claims)
 
 ---
 
-## 1. Dark/Light Mode — Already Correct
+## Existing Backup Infrastructure (Codebase Audit)
 
-### Status: COMPLETE — no changes required
+The project already has a complete, working backup engine. This is the single most important finding for this milestone.
 
-The existing `tailwind.config.js` already has:
+| File | What It Does |
+|------|-------------|
+| `app/backup/dump.py` | `run_backup(settings)` — async; iterates all collections via `AsyncMongoClient`, writes EJSON NDJSON to a gzip file at `settings.backup_dir/{timestamp}.gz`; returns the `Path` of the created file |
+| `app/backup/__init__.py` | Empty package marker |
+| `app/backup/scheduler.py` | `make_scheduler(cron, job)` — wraps APScheduler `AsyncIOScheduler`; used by `app/main.py` lifespan |
+| `app/backup/upload.py` | `upload_to_s3(path, bucket, key)` — aioboto3, fire-and-forget; called by `run_backup` when `BACKUP_S3_BUCKET` is set |
+| `app/backup/__main__.py` | CLI entry point: `python -m app.backup` — one-shot backup, prints path to stdout |
 
-```js
-darkMode: 'class',
-```
+`run_backup` already returns the `Path` of the created `.gz` file. The scheduler in `app/main.py` (port 8000, `api` service) calls it on a cron. Nothing in the admin sub-app (`admin_main.py`, port 8001, `admin` service) calls `run_backup` yet.
 
-The `class` strategy adds the `dark` class to `<html>` to activate dark mode. This is the only strategy that supports user-controlled toggling with localStorage persistence. The alternative `media` strategy only follows the OS setting — it does not allow user overrides.
-
-The existing `base.html` FOUC-prevention script is already correct:
-
-```html
-<script>
-  (function () {
-    var theme = localStorage.getItem('theme');
-    if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    }
-  })();
-</script>
-```
-
-This must remain inline in `<head>` (not deferred, not in an external JS file). Deferring it causes a visible flash of the wrong theme on page load.
-
-**Toggle button implementation** (add to any template — no additional libraries):
-
-```html
-<button id="theme-toggle" aria-label="Toggle dark mode">
-  <!-- sun/moon icons go here (Heroicons) -->
-</button>
-
-<script>
-  document.getElementById('theme-toggle').addEventListener('click', function () {
-    var html = document.documentElement;
-    var isDark = html.classList.toggle('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  });
-</script>
-```
-
-**Confidence:** HIGH — pattern confirmed in official Tailwind CSS dark mode docs and widely validated in community. The existing implementation matches the canonical approach exactly.
-
-**Sources:**
-- [Tailwind CSS — Dark Mode](https://tailwindcss.com/docs/dark-mode)
-- [Tailwind CSS v3 — Dark Mode](https://v3.tailwindcss.com/docs/dark-mode)
+**Conclusion: zero new Python libraries are needed for the dump itself.** The new milestone adds one HTTP endpoint to `admin_main.py` that calls the already-existing `run_backup`, then streams the resulting file back to the browser.
 
 ---
 
-## 2. Icon Library — `heroicons` Python Package
+## Recommended Stack
 
-### Recommendation: `heroicons[jinja]` (adamchainz) — latest: 2.13.0
+### Core Technologies
 
-**Why this over alternatives:**
+All already installed in `pyproject.toml`. No additions required.
 
-| Option | Verdict | Reason |
-|--------|---------|--------|
-| `heroicons[jinja]` Python package | **Use this** | Renders SVG inline in Jinja2 templates via template function calls; designed for non-React server-rendered apps; maintained by adamchainz (Django/Jinja specialist) |
-| `heroicons` npm package (SVG files only) | Avoid as primary | Requires a build step to copy SVGs into templates or a custom Jinja2 macro; more friction than the Python package |
-| Lucide (`lucide-static` npm) | Avoid | Good library, but adds an npm dependency with no Python/Jinja integration story; more appropriate for React/Vue |
-| Font Awesome CDN | Avoid | External dependency, large payload for icon fonts, inconsistent with Tailwind design philosophy |
-| Inline SVG copy-paste | Avoid | Works but is unmaintainable at scale; templates become bloated |
+| Technology | Pinned Version | Role in Feature | Why It Is The Right Choice |
+|------------|---------------|-----------------|---------------------------|
+| `fastapi[standard]` | `>=0.135.0` | HTTP endpoint + `StreamingResponse` | Already in stack; `StreamingResponse` handles streaming binary downloads without buffering the full file in memory |
+| `pymongo` | `>=4.16.0` | `AsyncMongoClient` used inside `run_backup` | Already used; `bson.json_util.dumps` with `CANONICAL_JSON_OPTIONS` handles ObjectId, datetime, Decimal128 correctly |
+| `bson` (bundled with pymongo) | n/a | EJSON serialisation inside `run_backup` | Ships with pymongo; no separate install |
+| `gzip` (Python stdlib) | n/a | Compression in `run_backup` | Python stdlib; no install |
+| `apscheduler` | `>=3.10,<4` | Existing scheduled backups (unchanged) | Already pinned; `<4` upper bound is load-bearing — APScheduler v4 removed `AsyncIOScheduler` entirely |
 
-**Why Heroicons specifically:**
-- Created by the Tailwind Labs team — designed to work with Tailwind CSS class conventions
-- MIT licensed, 316 icons (v2.2.0 npm), four styles: outline 24px, solid 24px, mini 20px, micro 16px
-- The Python package (adamchainz) wraps the official heroicons SVG files and exposes Jinja2-compatible template functions
+### Supporting Libraries
 
-**Heroicons v2 size guide for browser display:**
-- `heroicon_outline` / `heroicon_solid` → 24×24px — standard UI elements (buttons, navigation)
-- `heroicon_mini` → 20×20px — compact contexts (table cells, badges, inline text)
-- `heroicon_micro` → 16×16px — tight density contexts (tags, small labels)
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `fastapi.responses.StreamingResponse` | bundled with FastAPI | Stream `.gz` file to browser | Use for the download endpoint — yields file in chunks, avoids holding the full backup in memory; consistent with existing patterns in `app/adif/router.py` and `app/qso/ui_router.py` |
+| `fastapi.responses.FileResponse` | bundled with FastAPI | Serve static files by path | Do NOT use here — requires the file to pre-exist on a path the server process can reach; the admin container currently lacks the `/app/backups` volume mount (see Docker note below) |
+| `fastapi.background.BackgroundTasks` | bundled with FastAPI | Delete temp file after response completes | Not needed here; backup files are intentionally retained on disk |
 
-Use `w-5 h-5` Tailwind classes for 20px (mini) and `w-6 h-6` for 24px (outline/solid) — these map to correct pixel sizes in a 16px root font context.
+### Development Tools
 
-### Installation
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `pytest-asyncio` | Async test runner | Already in `[dev]` deps; sufficient for endpoint integration tests |
+| `httpx` | Async HTTP client for tests | Already in `[dev]` deps |
+
+---
+
+## Installation
+
+No new dependencies. The feature uses only what is already declared in `pyproject.toml`.
 
 ```bash
-pip install "heroicons[jinja]>=2.13"
+# Nothing to add — run_backup, StreamingResponse, and require_admin_cookie are all available
 ```
 
-### FastAPI/Jinja2 Integration Pattern
-
-FastAPI's `Jinja2Templates` accepts a pre-configured `jinja2.Environment`. Add heroicons globals when constructing the environment:
-
-```python
-# app/templates.py (or wherever Jinja2Templates is configured)
-import jinja2
-from fastapi.templating import Jinja2Templates
-from heroicons.jinja import heroicon_micro, heroicon_mini, heroicon_outline, heroicon_solid
-
-environment = jinja2.Environment(
-    loader=jinja2.FileSystemLoader("templates"),
-    autoescape=True,
-)
-environment.globals.update({
-    "heroicon_micro": heroicon_micro,
-    "heroicon_mini": heroicon_mini,
-    "heroicon_outline": heroicon_outline,
-    "heroicon_solid": heroicon_solid,
-})
-
-templates = Jinja2Templates(env=environment)
-```
-
-### Template Usage
-
-```html
-<!-- 24px outline icon, sized with Tailwind -->
-{{ heroicon_outline("user", class="w-6 h-6 text-gray-500") }}
-
-<!-- 20px mini icon in a button -->
-<button class="btn btn-primary">
-  {{ heroicon_mini("plus", class="w-5 h-5") }}
-  Add Contact
-</button>
-
-<!-- 16px micro icon in a badge -->
-<span class="badge-green">
-  {{ heroicon_micro("check", class="w-4 h-4") }}
-  Active
-</span>
-```
-
-The `class` kwarg passes directly to the SVG element. `stroke_width` is also supported for outline icons. The package renders `<svg>` markup with `aria-hidden="true"` by default — add `aria-label` explicitly for interactive icons.
-
-**Confidence:** HIGH for integration pattern (confirmed in adamchainz/heroicons README). MEDIUM for version 2.13.0 as latest (confirmed via PyPI libraries.io listing; PyPI page confirmed version existence).
-
-**Sources:**
-- [adamchainz/heroicons — GitHub README](https://github.com/adamchainz/heroicons)
-- [heroicons 2.13.0 on PyPI — Libraries.io](https://libraries.io/pypi/heroicons)
-- [heroicons — PyPI](https://pypi.org/project/heroicons/)
+The only `pyproject.toml` entry to double-check: `aioboto3>=13,<16` is already a top-level (non-optional) dependency, so it is installed in all containers including `admin`.
 
 ---
 
-## 3. Typography — Apple-Like Font Stack
+## Key Decision 1: mongodump subprocess vs pymongo EJSON dump
 
-### Recommendation: Upgrade to `@fontsource-variable/inter` (self-hosted variable font)
+**Use the existing `app/backup/dump.py::run_backup`. Do not use mongodump.**
 
-The project currently uses Inter via Google Fonts CDN:
+| Criterion | `mongodump` subprocess | `run_backup` (pymongo EJSON) |
+|-----------|----------------------|------------------------------|
+| Available in `python:3.12-slim` | No — not installed | Yes — pure Python |
+| Requires Dockerfile change | Yes (install `mongodb-database-tools`, adds ~150 MB) | No |
+| Produces `mongorestore`-compatible archive | Yes | No (EJSON NDJSON, not BSON wire format) |
+| Handles ObjectId / datetime correctly | Yes | Yes (`CANONICAL_JSON_OPTIONS`) |
+| Already tested and documented | No | Yes (scheduler, CLI, `docs/admin-guide/backup.md`) |
+| Design intent of this project | Explicitly avoided | Explicitly chosen |
 
-```html
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-```
+The `docs/admin-guide/backup.md` states verbatim: "No external mongodump tool is required." This is a deliberate, documented architectural decision. The existing dump function is the correct integration point.
 
-This works but has two problems for an Apple-like feel:
-1. External CDN dependency — adds latency and a third-party network request
-2. Non-variable static weights — the Google Fonts version loads separate wfont files per weight
-
-**Recommended upgrade:** `@fontsource-variable/inter` — the variable font variant of Inter, self-hosted, served from your own static assets.
-
-```bash
-npm install @fontsource-variable/inter
-```
-
-Then in `static/css/input.css`, replace the Google Fonts `@import` (or remove the `<link>` from `base.html`) with:
-
-```css
-@import "@fontsource-variable/inter";
-```
-
-The variable font supports all weights (100–900) and optical sizes in a single file. With Tailwind's build pipeline (`npm run build`), the font files are bundled into the CSS output or can be copied to `static/`.
-
-**If self-hosting the font file adds build complexity:** Keep the Google Fonts CDN link but add `font-display: swap` and the `preconnect` hints already present in `base.html`. The Apple-like aesthetic is achieved by the design tokens and class patterns, not the font delivery mechanism.
-
-### CSS Font Stack for Apple-Like Feel
-
-The `tailwind.config.js` already has a correct font stack:
-
-```js
-fontFamily: {
-  sans: [
-    'Inter',
-    'ui-sans-serif',
-    'system-ui',
-    '-apple-system',   // macOS/iOS: San Francisco
-    'sans-serif',
-  ],
-},
-```
-
-`-apple-system` resolves to San Francisco on Apple devices — so on macOS/iOS, the fallback is SF Pro itself. On non-Apple devices, Inter renders with the same optical characteristics. This is exactly the right stack.
-
-**Do NOT add `BlinkMacSystemFont`** — it was a Blink-era Chrome workaround for macOS that is now redundant. `system-ui` covers modern Chrome/Edge on macOS.
-
-**Note:** Apple does not license SF Pro for `@font-face` web embedding. The system stack approach (`-apple-system`) is the only sanctioned way to display SF Pro on web pages — and it only works on Apple devices. For cross-platform Apple aesthetics, Inter is the canonical choice.
-
-**Confidence:** HIGH — CSS font stack behavior verified via CSS-Tricks system font stack reference and Apple Developer forums. Inter ↔ SF Pro optical similarity is well-established in the design community.
-
-**Sources:**
-- [System Font Stack — CSS-Tricks](https://css-tricks.com/snippets/css/system-font-stack/)
-- [Apple Developer — SF Fonts licensing](https://developer.apple.com/forums/thread/127350)
-- [@fontsource-variable/inter — npm](https://www.npmjs.com/package/@fontsource-variable/inter)
+**mongodump is a non-starter** for `python:3.12-slim`. The image contains no `mongodump` binary. Adding it requires installing the MongoDB Database Tools package via `apt`, which significantly increases image size and adds system-level complexity with no benefit for a self-hosted ham radio logbook (small dataset, no `mongorestore`-compatible format required).
 
 ---
 
-## 4. Apple-Like Design Tokens (Tailwind Config Extensions)
+## Key Decision 2: StreamingResponse vs FileResponse
 
-No new library is required. Apple HIG design values are expressible as Tailwind theme extensions.
+**Use `StreamingResponse` reading the file in binary chunks.**
 
-### Recommended `tailwind.config.js` additions
+The download endpoint flow:
+1. Call `await run_backup(settings)` — this is already `async`, uses `AsyncMongoClient`, and returns the `Path` of the created `.gz` file.
+2. Open the file and yield chunks via an `async` generator.
+3. Return `StreamingResponse` with `media_type="application/gzip"` and `Content-Disposition: attachment; filename="ollog-backup-{timestamp}.gz"`.
 
-```js
-theme: {
-  extend: {
-    // ... existing colors and fontFamily ...
-
-    borderRadius: {
-      'apple-sm': '8px',   // small buttons, badges
-      'apple-md': '12px',  // inputs, small cards
-      'apple-lg': '16px',  // standard cards (App Store card style)
-      'apple-xl': '20px',  // large feature cards
-      'apple-2xl': '24px', // modals, sheets
-    },
-
-    boxShadow: {
-      // Apple-style layered shadows (subtle, not Material-style drops)
-      'apple-sm': '0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)',
-      'apple-md': '0 4px 12px 0 rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.05)',
-      'apple-lg': '0 8px 24px 0 rgba(0,0,0,0.10), 0 4px 8px -4px rgba(0,0,0,0.06)',
-      // Dark mode: slightly stronger shadows since backgrounds are dark
-      'apple-dark': '0 4px 16px 0 rgba(0,0,0,0.40)',
-    },
-
-    backdropBlur: {
-      'apple': '20px',  // Used for frosted glass / translucent cards
-    },
-  },
-},
-```
-
-These values are derived from Apple HIG specifications (16px corner radius for standard cards, `backdrop-filter: blur(20px)` for system sheets). Apply via standard Tailwind classes: `rounded-apple-lg`, `shadow-apple-md`, `backdrop-blur-apple`.
-
-**Confidence:** MEDIUM — values derived from Apple HIG token analysis and community CSS recreation projects. Not from a published Apple specification document.
-
-**Sources:**
-- [Apple HIG Design System tokens — GitHub](https://github.com/cmurphy1140/apple-design-system)
-- [iOS App Design Guidelines 2025 — tapptitude](https://tapptitude.com/blog/i-os-app-design-guidelines-for-2025)
+Why not `FileResponse`:
+- `FileResponse` requires the file to exist on a path the serving process can read.
+- The `admin` service does NOT currently have the `/app/backups` volume mount in `docker-compose.yml` (only the `api` service has it).
+- Even if the volume is added, `StreamingResponse` is already the established pattern in this codebase (used in `app/adif/router.py` for ADIF export and in `app/qso/ui_router.py`). Consistency favors `StreamingResponse`.
 
 ---
 
-## 5. What NOT to Add
+## Key Decision 3: Timestamp Filename for Browser Download
+
+`run_backup` writes files as `{YYYYMMDDTHHMMSSZ}.gz` (e.g., `20260413T153042Z.gz`). The milestone goal is `ollog-backup-20260413-153042.gz` in the `Content-Disposition` header.
+
+Recommended approach: derive the display filename from `Path.name` with a simple string transform in the endpoint, or compute `datetime.utcnow()` before calling `run_backup` and format it independently. Do NOT rename the file on disk — that creates a race condition if scheduled backups or the CLI are also running.
+
+---
+
+## Docker-Compose Integration Point
+
+The `admin` service currently in `docker-compose.yml`:
+- Runs `uvicorn app.admin_main:app --host 0.0.0.0 --port 8001`
+- Has `env_file: .env` (so `BACKUP_DIR`, `MONGODB_URI`, `MONGODB_DB` are all available via `settings`)
+- Does NOT mount `./backups:/app/backups`
+
+Required addition to `docker-compose.yml` for the backup to persist on the host:
+
+```yaml
+admin:
+  # ... existing config ...
+  volumes:
+    - ./backups:/app/backups   # add this line
+```
+
+Without this, `run_backup` writes to `/app/backups` inside the admin container's ephemeral filesystem. The file is streamed back to the browser correctly within the same request, but it does not survive container restarts and is not co-located with scheduled backups created by the `api` service. Adding the volume mount is the correct production configuration.
+
+---
+
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| pymongo EJSON + gzip (existing `run_backup`) | `mongodump` subprocess | Only if `mongorestore`-compatible BSON archive is required AND Dockerfile is modified to install `mongodb-database-tools` |
+| `StreamingResponse` (chunked file read) | `FileResponse` | If admin service has the `/app/backups` volume mount AND file always pre-exists; `FileResponse` then becomes equally valid |
+| In-process backup generated on request | Pre-generated backup + serve latest | Only if backup latency matters or the logbook is very large; unnecessary for a self-hosted ham radio logbook |
+
+---
+
+## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Alpine.js | Adds a second JS reactive framework alongside HTMX; creates two overlapping DOM-management systems | Vanilla `<script>` for the dark mode toggle; HTMX for all server interactions |
-| Flowbite / daisyUI / Preline | Pre-built component libraries that ship their own Tailwind plugins and override token values; fight with existing component classes in `input.css` | Extend existing `input.css` component layer with Apple-calibrated values |
-| Headless UI (npm) | React/Vue only — incompatible with Jinja2 template rendering | Native HTML elements styled with Tailwind |
-| Font Awesome CDN | Icon font approach; inconsistent sizing behaviour vs inline SVG; external dependency | `heroicons[jinja]` inline SVG |
-| `@heroicons/react` npm package | React-only; outputs JSX, not usable in Jinja2 templates | `heroicons[jinja]` Python package |
-| Tailwind CSS v4 (upgrade) | Breaking changes from v3; `darkMode: 'class'` config syntax changed; would require rewriting `tailwind.config.js` and possibly `input.css` | Stay on Tailwind CSS 3.4.x which is already installed and working |
-| Google Fonts variable font via CDN | Google Fonts does not serve the Inter variable font with the full axis range as a single file | `@fontsource-variable/inter` (npm, self-hosted) if switching to variable font |
-
----
-
-## 6. Summary of Required Changes
-
-### Python dependencies (`pyproject.toml` or `requirements.txt`)
-
-```
-heroicons[jinja]>=2.13
-```
-
-### npm dependencies (`package.json`)
-
-```json
-"dependencies": {
-  "@fontsource-variable/inter": "^5.0.0"
-}
-```
-
-Optional — only needed if switching from Google Fonts CDN to self-hosted. The CDN approach continues to work.
-
-### `tailwind.config.js`
-
-Add `borderRadius` and `boxShadow` Apple token extensions (see Section 4). No other changes needed — `darkMode: 'class'` is already correct.
-
-### `templates/base.html`
-
-No structural changes. The FOUC script is already correct. Add the dark mode toggle button in whatever layout template wraps the admin console.
-
-### Application code
-
-Wire the heroicons Jinja2 functions into the `Jinja2Templates` environment (see Section 2 integration pattern).
+| `mongodump` subprocess | Not present in `python:3.12-slim`; violates existing documented design decision; adds significant Docker image complexity | `app/backup/dump.py::run_backup` |
+| GridFS for backup storage | Adds unnecessary indirection; app is single-node self-hosted; backups already go to bind-mounted `./backups/` | Direct filesystem write in `run_backup` |
+| APScheduler v4 | `AsyncIOScheduler` was removed in v4; would break the existing scheduler | `apscheduler>=3.10,<4` (already pinned correctly) |
+| Blocking file I/O in the async endpoint | Would stall the event loop during dump | `run_backup` is already `async`; for file streaming, use `asyncio.to_thread` if opening the file proves slow on large backups |
 
 ---
 
 ## Version Compatibility
 
-| Package | Version | Python | Notes |
-|---------|---------|--------|-------|
-| `heroicons[jinja]` | `>=2.13` | 3.9–3.13 | Confirmed Python 3.12 compatible |
-| `@fontsource-variable/inter` | `^5.0.0` | N/A | npm package; works with Tailwind 3.4 build pipeline |
-| `tailwindcss` | `3.4.17` (existing) | N/A | No upgrade needed; `darkMode: 'class'` is stable in 3.x |
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| `apscheduler>=3.10,<4` | `asyncio` event loop | `<4` upper bound is load-bearing; v4 removed `AsyncIOScheduler` entirely |
+| `pymongo>=4.16.0` | Python 3.12, `AsyncMongoClient` | `AsyncMongoClient` is a pymongo 4.x API; compatible with existing Beanie 2.1+ ODM |
+| `aioboto3>=13,<16` | Python 3.12, asyncio | Already declared as a non-optional dep; available in all containers |
 
 ---
 
 ## Sources
 
-- [Tailwind CSS — Dark Mode (v3)](https://v3.tailwindcss.com/docs/dark-mode) — darkMode: 'class' strategy, toggle pattern
-- [adamchainz/heroicons — GitHub](https://github.com/adamchainz/heroicons) — Jinja2 integration pattern, function signatures
-- [heroicons — PyPI](https://pypi.org/project/heroicons/) — version 2.13.0 confirmed
-- [heroicons.com](https://heroicons.com/) — icon styles, size guide (24px/20px/16px)
-- [@heroicons/react 2.2.0 — cloudsmith.com](https://cloudsmith.com/navigator/npm/@heroicons/react) — npm version 2.2.0 confirmed
-- [@fontsource-variable/inter — npm](https://www.npmjs.com/package/@fontsource-variable/inter) — self-hosted variable font
-- [System Font Stack — CSS-Tricks](https://css-tricks.com/snippets/css/system-font-stack/) — `-apple-system` fallback behavior
-- [Apple Developer Forums — SF Fonts web embedding](https://developer.apple.com/forums/thread/127350) — confirms no @font-face licensing for SF Pro
-- [Apple HIG design system tokens — cmurphy1140/apple-design-system](https://github.com/cmurphy1140/apple-design-system) — border radius and shadow values
+All sources are direct codebase reads. Confidence: HIGH throughout.
+
+- `/Users/royco/ollog/app/backup/dump.py` — `run_backup` signature, EJSON strategy, return value confirmed
+- `/Users/royco/ollog/app/backup/scheduler.py` — APScheduler v3 pin confirmed
+- `/Users/royco/ollog/app/backup/upload.py` — aioboto3 usage confirmed
+- `/Users/royco/ollog/app/backup/__main__.py` — CLI entry point confirmed
+- `/Users/royco/ollog/app/adif/router.py` — `StreamingResponse` pattern confirmed as established project convention
+- `/Users/royco/ollog/app/qso/ui_router.py` — second `StreamingResponse` usage confirmed
+- `/Users/royco/ollog/docker-compose.yml` — volume mount gap for admin service confirmed; `env_file` presence confirmed
+- `/Users/royco/ollog/Dockerfile` — `python:3.12-slim` base image; no mongodump binary present
+- `/Users/royco/ollog/pyproject.toml` — all existing deps confirmed; no new additions needed
+- `/Users/royco/ollog/app/config.py` — `backup_dir`, `backup_s3_bucket`, `mongodb_uri`, `mongodb_db` settings confirmed
+- `/Users/royco/ollog/app/auth/dependencies.py` — `require_admin_cookie` dependency confirmed available for endpoint auth
+- `/Users/royco/ollog/docs/admin-guide/backup.md` — "no mongodump required" design rationale confirmed as intentional and documented
 
 ---
 
-*Stack research for: ollog Apple-like UI redesign milestone*
-*Researched: 2026-04-11*
+*Stack research for: ollog admin backup download endpoint*
+*Researched: 2026-04-13*
