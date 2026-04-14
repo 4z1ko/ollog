@@ -259,6 +259,23 @@ async def backup_download(
 # Restore
 # ---------------------------------------------------------------------------
 
+@ui_router.get("/restore", response_class=HTMLResponse)
+async def restore_page(
+    request: Request,
+    hx_request: Annotated[str | None, Header()] = None,
+    _user: User = Depends(require_admin_cookie),
+):
+    """Render restore page (full) or empty modal div (HTMX cancel).
+
+    When the Cancel button in password_modal.html fires hx-get="/admin/ui/restore"
+    with hx-target="#restore-modal" + hx-swap="outerHTML", return a bare
+    <div id="restore-modal"></div> to clear the modal without a full page reload.
+    """
+    if hx_request:
+        return HTMLResponse(content='<div id="restore-modal"></div>')
+    return templates.TemplateResponse(request, "admin/restore.html", {})
+
+
 @ui_router.post("/restore/upload", response_class=HTMLResponse)
 async def restore_upload(
     request: Request,
