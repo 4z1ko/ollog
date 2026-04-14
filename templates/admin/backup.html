@@ -1,18 +1,17 @@
 {% extends "base_app.html" %}
-{% block title %}Operators — ollog Admin{% endblock %}
-{% block active_page %}users{% endblock %}
+{% block title %}Backup — ollog Admin{% endblock %}
+{% block active_page %}backup{% endblock %}
 {% block sidebar_class %}dark:bg-surface-dark{% endblock %}
 
 {# Override sidebar for admin area #}
 {% block sidebar_nav %}
-<a href="/admin/ui/users"
-   class="nav-item nav-item-active">
+<a href="/admin/ui/users" class="nav-item">
   <svg class="w-6 h-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
   </svg>
   Operators
 </a>
-<a href="/admin/ui/backup" class="nav-item">
+<a href="/admin/ui/backup" class="nav-item nav-item-active">
   <svg class="w-6 h-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
   </svg>
@@ -45,75 +44,27 @@
 
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6">
-
-  <!-- Page header -->
   <div>
-    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Operator Accounts</h1>
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Backup</h1>
     <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-      Manage operator logins and callsign assignments
+      Download a full MongoDB backup of all operator data
     </p>
   </div>
-
-  <!-- Create operator form -->
   <div class="card">
     <div class="card-header">
-      <h2 class="card-title">Create Operator</h2>
+      <h2 class="card-title">Download Backup</h2>
     </div>
     <div class="card-body">
-      <form hx-post="/admin/ui/users/create"
-            hx-target="#users-table-body"
-            hx-swap="innerHTML">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label class="form-label">Username</label>
-            <input type="text" name="username" required placeholder="e.g. jsmith"
-                   class="form-input">
-          </div>
-          <div>
-            <label class="form-label">Callsign</label>
-            <input type="text" name="callsign" required placeholder="e.g. W1ABC"
-                   class="form-input font-mono uppercase">
-          </div>
-          <div>
-            <label class="form-label">Password</label>
-            <input type="password" name="password" required
-                   class="form-input">
-          </div>
-        </div>
-        <div class="mt-4">
-          <button type="submit" class="btn-primary">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Create Operator
-          </button>
-        </div>
-      </form>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Creates a compressed backup of the database and downloads it as a .gz file.
+      </p>
+      <a href="/admin/ui/backup/download" class="btn-primary">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Download Backup
+      </a>
     </div>
   </div>
-
-  <!-- Operators table -->
-  <div class="card overflow-hidden">
-    <div class="card-header">
-      <h2 class="card-title">All Operators</h2>
-    </div>
-    <div class="table-wrap rounded-none border-0 border-t border-gray-200 dark:border-gray-800">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Callsign</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="users-table-body">
-          {% include "admin/users_table.html" %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
 </div>
 {% endblock %}
