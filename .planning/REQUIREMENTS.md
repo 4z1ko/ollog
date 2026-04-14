@@ -1,6 +1,6 @@
 # Requirements: ollog v2.0
 
-**Defined:** 2026-04-14
+**Defined:** 2026-04-13
 **Core Value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
 
 ## v2.0 Requirements
@@ -69,5 +69,5 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 after initial definition*
+*Requirements defined: 2026-04-13*
+*Last updated: 2026-04-13 — traceability confirmed during roadmap creation (Phases 37–38)*

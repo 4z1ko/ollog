@@ -9,15 +9,17 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-13 — Milestone v2.0 Database Backup started
+Phase: 37 — Infrastructure and Backup Endpoint
+Plan: Not started
+Status: Roadmap created; ready for plan-phase
+Last activity: 2026-04-13 — Roadmap created for v2.0 (Phases 37–38)
+
+Progress: [ ] Phase 37 [ ] Phase 38
 
 ## Performance Metrics
 
 **Velocity (historical):**
-- Total plans completed: 31 plans across v1.0–v1.8
+- Total plans completed: 47 plans across v1.0–v1.9
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -32,28 +34,36 @@ Last activity: 2026-04-13 — Milestone v2.0 Database Backup started
 | v1.5 | 19–22 | 4 |
 | v1.6 | 23–24 | 2 |
 | v1.7 | 25–28 | 4 |
-| v1.8 | 29–31 | 3 (all complete) |
-| v1.9 | 32–36 | TBD |
+| v1.8 | 29–31 | 3 |
+| v1.9 | 32–36 | TBD (shipped) |
+| v2.0 | 37–38 | TBD (in progress) |
 
 ## Accumulated Context
 
-### v1.9 Critical Build Rules (Pitfall Prevention)
+### v2.0 Critical Implementation Rules (Pitfall Prevention)
 
-- **FOUC prevention:** The inline IIFE in `base.html` `<head>` is load-bearing. Never move it, add `defer`/`async`, or extract it to an external file. Add a load-bearing comment before Phase 32 ships.
+- **No HTMX on the download button:** The download anchor in `backup.html` must be a plain `<a href="/admin/ui/backup/download">` with zero `hx-*` attributes. HTMX intercepts XHR responses — `Content-Disposition: attachment` is silently ignored and the binary payload is discarded. There is no error, no console output, no server-side failure. The button appears to do nothing. Prevention: plain anchor only.
+- **Volume mount before endpoint test:** Without `- ./backups:/app/backups` in the `admin` service `volumes` block, `run_backup` writes to the container's ephemeral overlay filesystem. The download works within the same request but the file vanishes on container restart. Add the mount in Phase 37 before any curl verification.
+- **asyncio.to_thread is required:** `run_backup` uses synchronous `gzip.open` I/O. Called directly from an `async def` route handler it blocks all concurrent uvicorn requests for the duration of the write. Wrap with `await asyncio.to_thread(run_backup, settings)`.
+- **require_admin_cookie, not require_admin:** The browser sends a cookie, not an Authorization header. Using the Bearer-JWT dependency (`require_admin`) causes 401 → silent 302 redirect to login, masking the real failure. Use `Depends(require_admin_cookie)` exclusively on the backup endpoint.
+- **datetime.now(timezone.utc) in dump.py:** `datetime.utcnow()` emits DeprecationWarning on Python 3.12 and is scheduled for removal. Fix is one line in `app/backup/dump.py`. Address in Phase 37 alongside the endpoint.
+- **FileResponse filename derivation:** Use `f"ollog-backup-{backup_path.stem}.gz"` in the `filename=` argument of `FileResponse`. This avoids a second `datetime.now()` call and ensures the filename matches the actual file on disk.
+
+### v2.0 Key Architecture
+
+- **Existing:** `app/backup/dump.py::run_backup(settings)` is fully implemented, tested, and used by the CLI and scheduler. Phase 37 is pure wiring.
+- **Phase 37 touches:** `docker-compose.yml` (volume mount), `app/backup/dump.py` (utcnow fix), `app/admin/ui_router.py` (new endpoint)
+- **Phase 38 touches:** `app/admin/ui_router.py` (GET /admin/ui/backup page route), `templates/admin/backup.html` (new template), admin sidebar nav in `templates/admin/base_app.html` or equivalent
+- **No new dependencies:** All required libraries (`fastapi.responses.FileResponse`, `require_admin_cookie`, `run_backup`) are already present
+- **apscheduler<4 upper bound is load-bearing:** Do not touch `pyproject.toml` APScheduler constraints
+
+### v1.9 Critical Build Rules (carried forward — CSS pipeline still active)
+
+- **FOUC prevention:** The inline IIFE in `base.html` `<head>` is load-bearing. Never move it, add `defer`/`async`, or extract it to an external file.
 - **Tailwind purge:** New `dark:` classes must appear as complete literal strings in scanned template files. Always run `npm run build` + grep verification for new classes before committing templates or `input.css`.
-- **Transition flash:** Never add `transition-*` to `<body>`, `<html>`, or `*` in `@layer base`. Use the `no-transition` class suppression pattern in the IIFE for user-initiated toggles only.
-- **HTMX icon desync:** The `htmx:afterSettle` handler must be wired in `base_app.html` in Phase 32, before any new Apple components are built.
-- **Safari backdrop-filter:** Declare `-webkit-backdrop-filter` explicitly in `@layer components` for glass card classes. Use fixed pixel values (e.g. `blur(12px)`), not CSS variable references.
-- **PostCSS autoprefixer:** Default autoprefixer silently strips manually-added `-webkit-` prefixes it considers unnecessary. Always configure `postcss.config.js` with `autoprefixer({ remove: false })` when writing explicit webkit prefixes in source CSS. After any build, grep output.css to confirm the prefix survived.
-- **HiDPI icon blurry:** Use `w-6 h-6` (24px, 1:1 with Heroicons viewBox) for all prominent nav and card header icons. `w-4 h-4` is acceptable for small secondary icons only.
-- **FastAPI sub-app StaticFiles:** Every FastAPI sub-app that serves HTML must have its own `StaticFiles` mount for `/static`. The main app mount does not propagate. Always verify before CSS-dependent visual verification steps.
-
-### Key Architecture (v1.9)
-
-- **Stack:** CSS-first, template-second. `tailwind.config.js` tokens → `input.css` component classes → `npm run build` → templates consume output.css.
-- **No Python changes:** No routes, no models, no database changes. Pure frontend visual redesign.
-- **Phase 35 dependency:** Login pages depend on Phase 33 (tokens) not Phase 34 (admin templates) — they can be worked in parallel with Phase 34 once Phase 33 is complete.
-- **Build order:** Phase 32 (theme infra) → Phase 33 (tokens) → Phase 34 (admin) + Phase 35 (login, parallel) → Phase 36 (log views).
+- **Safari backdrop-filter:** Declare `-webkit-backdrop-filter` explicitly in `@layer components` for glass card classes. Use fixed pixel values, not CSS variable references.
+- **PostCSS autoprefixer:** Always configure `postcss.config.js` with `autoprefixer({ remove: false })` when writing explicit webkit prefixes in source CSS.
+- **FastAPI sub-app StaticFiles:** Every FastAPI sub-app that serves HTML must have its own `StaticFiles` mount for `/static`. The main app mount does not propagate.
 
 ### Known Tech Debt (carried forward)
 
@@ -61,52 +71,11 @@ Last activity: 2026-04-13 — Milestone v2.0 Database Backup started
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
-### Decisions (Phase 36)
+### Decisions (v2.0 Roadmap)
 
-- **036-01:** `cursor-pointer` added to `<a class="btn-ghost btn-sm">` pagination anchors — HTMX anchors have no `href`, browser shows text cursor by default; Tailwind class is the correct fix per OPER-01
-- **036-01:** `form-input` applied to all 8 qso_row_edit.html inputs — ensures dark-mode border/bg/text consistency in inline edit mode; replaces style="width:Npx" with Tailwind width utilities
-- **036-01:** `uppercase` class added to CALL input alongside form-input font-mono — callsign entry convention, visually enforces uppercase format
-- **036-02:** `.card` outer wrapper chosen for import_report.html HTMX swap partial — carries dark-mode background/border/shadow from Phase 33 component library; no additional dark: classes needed on outer div
-- **036-02:** Raw Tailwind color utilities used for section headings (`text-amber-700 dark:text-amber-400`) not badge classes — `.badge-amber` does not exist in component library
-- **036-02:** `.table-wrap` required around each `.data-table` in import_report.html — provides rounded border and overflow behavior per Phase 33 component spec
-
-### Decisions (Phase 35)
-
-- **035-01:** `.glass-card` uses raw `-webkit-backdrop-filter: blur(12px)` not `@apply backdrop-blur-md` — Tailwind backdrop-blur utilities emit CSS variable references which fail in Safari pre-18.0 and 18.x
-- **035-01:** `postcss.config.js` created with `autoprefixer({ remove: false })` — default autoprefixer silently strips manually-added `-webkit-backdrop-filter` during build; `remove: false` preserves it
-- **035-01:** `bg-white/10` used instead of `bg-white/5` — 10% white opacity improves legibility over dark violet/indigo gradients
-
-### Decisions (Phase 34)
-
-- **034-01:** sidebar_class block placed inside class attribute of `<aside>` — minimal-invasive extension point; empty default block adds no whitespace artifact for operators
-- **034-01:** `dark:bg-surface-dark` placed as literal string in users.html (not Jinja expression) — required for Tailwind purge scanner to include utility in output.css
-- **034-01:** shield icon in sidebar_user avatar badge left at w-4 h-4 — badge icon sizing is correct; only nav-link SVGs promoted to w-6 h-6
-- **034-01:** aria-hidden=true on all three new action button SVGs; button aria-label carries accessible name — icons are decorative
-- **034-02:** output.css not committed — build artifact; human visual approval recorded as verification
-- **034-02:** StaticFiles mount added to admin_main.py (blocking bug fix) — sub-app was 404-ing on /static/css/output.css at port 8001
-
-### Decisions (Phase 33)
-
-- **033-01:** canvas and surface tokens added in extend.colors alongside sidebar block — sidebar preserved unchanged
-- **033-01:** boxShadow.card uses two-layer RGBA for Apple-caliber subtle elevation
-- **033-01:** dark:shadow-none on .card and .table-wrap — shadow removed in dark mode to avoid halo artifact
-- **033-01:** .card-title loses uppercase/tracking-wider, uses text-gray-700/200 for stronger contrast
-- **033-01:** badge rounded-md chosen over rounded-full — matches Apple HIG status indicator convention
-- **033-01:** Inter fully removed from config and input.css; system font stack leads with -apple-system, eliminating CDN font request
-- **033-02:** bg-canvas-light/dark placed as literal strings in base_app.html (not Jinja expressions) — prevents Tailwind purge (Pitfall 1)
-- **033-02:** Sidebar logo SVG kept at w-5 h-5; only nav-item anchor SVGs and theme toggle SVGs promoted to w-6 h-6
-- **033-02:** All 10 grep token checks required to pass before committing output.css — no partial verification accepted
-
-### Decisions (Phase 32)
-
-- **032-01:** Use `document.body` (not `document`) for htmx:afterSettle listener — matches existing HTMX event patterns in codebase
-- **032-01:** IIFE moved before stylesheet link tag to ensure synchronous execution before any paint
-- **032-01:** rAF-rAF pattern chosen for transition suppression — inject style before dark class, remove after two animation frames so user toggles still animate
-
-### Decisions (Phase 36 — Plan 03)
-
-- **036-03:** Audit-only plan — zero files modified; all template and CSS work completed in plans 01 and 02
-- **036-03:** All five human visual verification checks passed on first review; no remediation needed
+- **Phase structure:** 2 phases (37 + 38) derived from the natural infrastructure/backend vs UI delivery boundary; consistent with research recommendation
+- **Phase 37 bundles INFRA-01 + BACK-01–05:** Volume mount is an infrastructure prerequisite for reliable endpoint testing; both touch the same Docker + Python files in one coherent wiring session
+- **Phase 38 is UI-only:** All four UI requirements (sidebar nav, page route, plain anchor, component tokens) are delivered together as one template session with no backend risk
 
 ### Pending Todos
 
@@ -114,6 +83,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-11
-Stopped at: Completed 036-03-PLAN.md — final audit (zero style= violations) + human visual review approved; Phase 36 complete; v1.9 milestone complete
+Last session: 2026-04-13
+Stopped at: Roadmap created for v2.0 (Phases 37–38); ROADMAP.md, STATE.md, REQUIREMENTS.md written; ready for /gsd:plan-phase 37
 Resume file: None

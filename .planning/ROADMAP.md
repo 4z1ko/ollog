@@ -12,6 +12,7 @@
 - ✅ **v1.7 API Token Auth** — Phases 25–28 (shipped 2026-04-09)
 - ✅ **v1.8 Admin Isolation, Backup & Docs** — Phases 29–31 (shipped 2026-04-10)
 - ✅ **v1.9 Admin & Login UI Redesign** — Phases 32–36 (shipped 2026-04-11)
+- 🚧 **v2.0 Database Backup** — Phases 37–38 (in progress)
 
 
 ## Phases
@@ -131,6 +132,15 @@ Full archive: `.planning/milestones/v1.6-ROADMAP.md`
 Full archive: `.planning/milestones/v1.9-ROADMAP.md`
 
 </details>
+
+---
+
+### v2.0 Database Backup (Phases 37–38) — IN PROGRESS
+
+**Milestone Goal:** The admin can trigger a full MongoDB database backup from the admin console UI, with the backup file downloading directly to the browser on demand with a timestamped filename.
+
+- [ ] **Phase 37: Infrastructure and Backup Endpoint** — volume mount, `GET /admin/ui/backup/download` endpoint wired to existing `run_backup()`, `asyncio.to_thread()` wrapping, `datetime.utcnow()` fix; covers INFRA-01, BACK-01–05
+- [ ] **Phase 38: Admin Backup UI** — sidebar nav item, `backup.html` template with card layout, plain `<a href>` download anchor; covers UI-01–04
 
 ---
 
@@ -295,7 +305,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 032-01-PLAN.md — FOUC IIFE annotation, rAF-rAF transition suppression, color-scheme meta+CSS, htmx:afterSettle handler, verify script
+- [x] 032-01-PLAN.md — FOUC IIFE annotation, rAF-rAF transition suppression, color-scheme meta+CSS, htmx:afterSettle handler, verify script
 
 ---
 
@@ -313,8 +323,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 033-01-PLAN.md — tailwind.config.js tokens (canvas, surface, shadow-card, system font), input.css component class updates (card, badges, card-title), base.html CDN removal
-- [ ] 033-02-PLAN.md — base_app.html canvas classes + nav icon sizing, npm run build + grep verification, human visual review
+- [x] 033-01-PLAN.md — tailwind.config.js tokens (canvas, surface, shadow-card, system font), input.css component class updates (card, badges, card-title), base.html CDN removal
+- [x] 033-02-PLAN.md — base_app.html canvas classes + nav icon sizing, npm run build + grep verification, human visual review
 
 ---
 
@@ -330,7 +340,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
+- [x] 034-01: users.html, users_table.html, base_app.html sidebar redesign with Apple tokens; icon sizing audit; aria-label attributes
 
 ---
 
@@ -346,7 +356,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 035-01-PLAN.md — .glass-card in input.css with -webkit-backdrop-filter: blur(12px) (literal, not CSS variable); both login templates updated to glass-card; npm run build; Safari visual verification checkpoint
+- [x] 035-01-PLAN.md — .glass-card in input.css with -webkit-backdrop-filter: blur(12px) (literal, not CSS variable); both login templates updated to glass-card; npm run build; Safari visual verification checkpoint
 
 ---
 
@@ -362,9 +372,56 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 036-01-PLAN.md — Remove inline style= attrs from log_table.html, qso_row.html, qso_row_edit.html, qso_result.html; npm run build verification
-- [ ] 036-02-PLAN.md — Full rewrite of import_report.html to component classes with dark-mode utilities; npm run build verification
-- [ ] 036-03-PLAN.md — Final inline-style audit + human visual review (dark mode log view, SSE refresh, import report)
+- [x] 036-01-PLAN.md — Remove inline style= attrs from log_table.html, qso_row.html, qso_row_edit.html, qso_result.html; npm run build verification
+- [x] 036-02-PLAN.md — Full rewrite of import_report.html to component classes with dark-mode utilities; npm run build verification
+- [x] 036-03-PLAN.md — Final inline-style audit + human visual review (dark mode log view, SSE refresh, import report)
+
+---
+
+### Phase 37: Infrastructure and Backup Endpoint
+
+**Goal:** The admin can successfully download a valid MongoDB backup `.gz` file via `GET /admin/ui/backup/download`, with the file persisting to the shared `./backups` volume and arriving in the browser with a correctly formatted timestamped filename.
+**Depends on:** Phase 36 (v1.9 complete)
+**Requirements:** INFRA-01, BACK-01, BACK-02, BACK-03, BACK-04, BACK-05
+**Architecture decisions:**
+  - `run_backup(settings)` already exists in `app/backup/dump.py` — this phase is wiring, not building
+  - `asyncio.to_thread(run_backup, settings)` wraps the synchronous gzip I/O to avoid blocking the uvicorn event loop
+  - `FileResponse` with `filename=f"ollog-backup-{backup_path.stem}.gz"` generates the correct `Content-Disposition: attachment` header automatically
+  - Auth via `Depends(require_admin_cookie)` — the same dependency used on every other admin UI route; never `require_admin` (Bearer)
+  - Volume mount added to the `admin` service in `docker-compose.yml` — without it, backups land in the container's ephemeral overlay filesystem
+  - `datetime.utcnow()` replaced with `datetime.now(timezone.utc)` in `dump.py` — Python 3.12 deprecation fix, touched in the same phase as the endpoint
+**Success Criteria** (what must be TRUE):
+  1. `curl -I` against `/admin/ui/backup/download` with a valid admin cookie returns `content-disposition: attachment; filename="ollog-backup-YYYY-MM-DD-HH-MM-SS.gz"` and `content-type: application/gzip`
+  2. `curl` without a valid admin cookie receives a 302 redirect to the admin login page — the backup endpoint is not accessible to unauthenticated requests
+  3. `gunzip -t` on the downloaded file exits 0 — the file is a valid gzip archive containing EJSON-encoded MongoDB collection data
+  4. A backup file written by the endpoint is visible on the host at `./backups/<timestamp>.gz` after the request completes — it is not lost in the container's ephemeral filesystem
+  5. Loading another admin page while a backup is in progress responds in under 1 second — the event loop is not blocked during `run_backup` execution
+**Plans:** TBD
+
+Plans:
+- [ ] 037-01-PLAN.md — docker-compose.yml admin volume mount, dump.py utcnow fix, ui_router.py backup download endpoint with asyncio.to_thread + FileResponse
+
+---
+
+### Phase 38: Admin Backup UI
+
+**Goal:** The admin console has a dedicated Backup page at `/admin/ui/backup` with a sidebar nav link and a "Download Backup" button that triggers a browser-native file save dialog.
+**Depends on:** Phase 37
+**Requirements:** UI-01, UI-02, UI-03, UI-04
+**Architecture decisions:**
+  - Download button is a plain `<a href="/admin/ui/backup/download" class="btn-primary">` anchor — no `hx-*` attributes; HTMX intercepts XHR responses and silently discards binary content
+  - New `backup.html` template uses existing Apple component tokens (`.card`, `.btn-primary`, `.card-title`) — no new CSS classes needed
+  - Sidebar nav item added to `base_app.html` admin nav section linking to `/admin/ui/backup`
+  - `GET /admin/ui/backup` route serves the `backup.html` template; separate from the download endpoint on the same path prefix
+**Success Criteria** (what must be TRUE):
+  1. A "Backup" item appears in the admin sidebar nav and is reachable by clicking — it loads the backup page at `/admin/ui/backup`
+  2. The backup page displays a "Download Backup" button; clicking it opens a browser Save dialog (or downloads directly to the default downloads folder) — no HTMX interception occurs
+  3. The backup page and button are visually consistent with the rest of the admin UI — card container, card title, and button use the v1.9 Apple component tokens without introducing new styles
+  4. Navigating to `/admin/ui/backup` in a logged-out browser session redirects to the admin login page — the page is not publicly accessible
+**Plans:** TBD
+
+Plans:
+- [ ] 038-01-PLAN.md — GET /admin/ui/backup route, backup.html template with card + plain anchor, sidebar nav item
 
 ---
 
@@ -403,8 +460,10 @@ Plans:
 | 29. Admin Container Isolation | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 30. Database Backup CLI and Scheduler | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
 | 31. Comprehensive Docs Rewrite | v1.8 | 1/1 | ✓ Complete | 2026-04-10 |
-| 32. Theme Infrastructure and Build Discipline | v1.9 | 0/1 | Planned | - |
-| 33. Design Tokens and CSS Component System | v1.9 | 0/TBD | Not started | - |
-| 34. Admin Console Template Polish | v1.9 | 0/TBD | Not started | - |
-| 35. Login Page Glass Card Redesign | v1.9 | 0/1 | Planned | - |
-| 36. Operator Log Views | v1.9 | 0/TBD | Not started | - |
+| 32. Theme Infrastructure and Build Discipline | v1.9 | 1/1 | ✓ Complete | 2026-04-11 |
+| 33. Design Tokens and CSS Component System | v1.9 | 2/2 | ✓ Complete | 2026-04-11 |
+| 34. Admin Console Template Polish | v1.9 | 2/2 | ✓ Complete | 2026-04-11 |
+| 35. Login Page Glass Card Redesign | v1.9 | 1/1 | ✓ Complete | 2026-04-11 |
+| 36. Operator Log Views | v1.9 | 3/3 | ✓ Complete | 2026-04-11 |
+| 37. Infrastructure and Backup Endpoint | v2.0 | 0/TBD | Not started | - |
+| 38. Admin Backup UI | v2.0 | 0/TBD | Not started | - |
