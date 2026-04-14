@@ -10,7 +10,7 @@ Mounted at /admin/ui by app/main.py.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Header, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_admin_cookie
@@ -219,4 +219,24 @@ async def reset_password(
         request,
         "admin/users_table.html",
         {"users": users, "error": None, "success": f"Password reset for {username}"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Backup download
+# ---------------------------------------------------------------------------
+
+@ui_router.get("/backup/download")
+async def backup_download(
+    _user: User = Depends(require_admin_cookie),
+):
+    """Trigger a full MongoDB backup and return it as a .gz file download."""
+    from app.backup.dump import run_backup
+    from app.config import settings
+
+    backup_path = await run_backup(settings)
+    return FileResponse(
+        path=backup_path,
+        media_type="application/gzip",
+        filename=f"ollog-backup-{backup_path.stem}.gz",
     )
