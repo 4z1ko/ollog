@@ -138,14 +138,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Backup file downloads directly to the browser on demand — v2.0
 - ✓ Backup filename includes UTC date and time timestamp (`ollog-backup-2026-04-14-15-30-42.gz`) — v2.0
 
+### Validated (v2.1)
+
+- ✓ Admin can upload a `.gz` backup file and restore the full database from it — v2.1
+- ✓ System validates the backup file integrity (gzip decompressibility + NDJSON format) before attempting any restore — v2.1
+- ✓ Admin must re-enter their password in a confirmation modal before the destructive overwrite proceeds — v2.1
+- ✓ System auto-backs up the current database before wiping, so recovery is possible if the restore fails — v2.1
+
 ### Active
 
-<!-- Current scope — v2.1 Database Restore. Building toward these. -->
-
-- [ ] Admin can upload a `.gz` backup file and restore the full database from it
-- [ ] System validates the backup file integrity before attempting any restore
-- [ ] Admin must re-enter their password in a confirmation modal before the destructive overwrite proceeds
-- [ ] System auto-backs up the current database before wiping, so recovery is possible if the restore fails
+(No active requirements — v2.1 shipped. Next milestone TBD.)
 
 ### Out of Scope
 
@@ -162,18 +164,20 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.1 Database Restore (in progress — started 2026-04-14)
-**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler), aioboto3 (S3 upload)
+**Version:** v2.1 Database Restore (shipped 2026-04-14)
+**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
-**Codebase:** ~8,200+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
+**Codebase:** ~8,300+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.0):**
-All v1.9 features (custom ADIF parser, QSO REST API, operator profiles, callsign flags, typed OpenAPI, MkDocs docs, UDP listener, live log table, API tokens, admin container isolation, backup CLI+scheduler, Apple design token system, dark mode, glass card login) plus:
-- Admin backup page at `/admin/ui/backup` with Apple-style card and Download Backup button
-- `GET /admin/ui/backup/download` endpoint — cookie-authenticated, streams timestamped `.gz` MongoDB backup via `asyncio.to_thread`
-- `./backups:/app/backups` Docker volume mount on admin service — backups persist across container restarts
-- `app/backup/dump.py` sync/async split: `_write_backup` (sync MongoClient, safe for `asyncio.to_thread`) + `run_backup` async orchestrator
+**Shipped features (cumulative, v1.0–v2.1):**
+All v2.0 features (custom ADIF parser, QSO REST API, operator profiles, callsign flags, typed OpenAPI, MkDocs docs, UDP listener, live log table, API tokens, admin container isolation, backup CLI+scheduler, Apple design token system, dark mode, glass card login, admin backup page + download endpoint) plus:
+- Admin Restore page at `/admin/ui/restore` with Apple-style card, `.gz` file upload form, HTMX-wired — no page reloads
+- `POST /admin/ui/restore/upload` — validates gzip decompressibility + NDJSON format, returns password modal fragment on success, inline error on failure
+- `POST /admin/ui/restore/confirm` — path traversal guard, password verification, auto-backup before any `db.drop()`, full drop+restore all collections, finally-block tempfile cleanup
+- `app/backup/restore.py` sync/async split: `_restore_from_file` (sync MongoClient + `bson.json_util.loads`) + `run_restore` async orchestrator via `asyncio.to_thread`
+- Password confirmation modal with blurred backdrop (`modal-backdrop`, `modal-box`, CSS component classes compiled into output.css)
+- All three admin pages (Operators, Backup, Restore) show complete three-link sidebar nav with correct active states
 
 **Known tech debt:**
 - `QSO.find_active()` in models.py — dead production code
@@ -193,45 +197,6 @@ All v1.9 features (custom ADIF parser, QSO REST API, operator profiles, callsign
 - **ADIF Version**: ADIF 3.1.7
 - **Deployment**: Self-hosted (Docker Compose) or cloud without code changes — twelve-factor config
 - **Auth**: Admin-managed accounts only — no public self-registration endpoint
-
-## Current State
-
-**Version:** v1.9 Admin & Login UI Redesign (shipped 2026-04-11)
-**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (AsyncMongoClient), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only)
-**Database:** MongoDB 7 (single-node replica set for change streams)
-**Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API
-**Codebase:** ~8,102 LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
-
-**Shipped features (cumulative):**
-- Custom ADIF parser + serializer (no third-party ADIF lib)
-- QSO REST API (POST/GET/PATCH/soft-DELETE) with operator isolation
-- HTMX operator UI: login, QSO form with duplicate warning, paginated log view with filters
-- Admin HTMX UI: operator account management (create/enable/disable/reset)
-- ADIF import (file upload, duplicate detection, import report) and export (streaming .adi download)
-- Real-time SSE station feed — MongoDB change streams → ConnectionManager → htmx-ext-sse DOM injection
-- Programmatic operator isolation audit — route introspection test + cross-operator data layer tests
-- Operator profile: 12 optional fields (personal info, station equipment, grid/location) embedded in User document
-- `grid_to_latlon()` utility — Maidenhead → decimal lat/lon using center=True (17 unit tests)
-- Profile API: GET/PATCH `/api/profile` with JWT auth, lat/lon auto-sync on grid change, operator isolation
-- QSO auto-stamping: OPERATOR always, STATION_CALLSIGN/equipment conditionally; ADIF import path excluded
-- Profile UI at `/log/profile` — HTMX inline save, OPERATOR vs STATION_CALLSIGN clearly labeled
-- `app/callsign/prefixes.py` — pure-Python ITU prefix resolver: 313 Series Range entries, bisect-based longest-prefix-match, suffix stripping, ISO mapping (28 unit tests)
-- Country flag icons displayed in QSO log table rows — render-time `lookup_prefix()` enrichment in `_qso_to_view_dict()`, conditional `<img>` tag with tooltip, graceful no-flag fallback
-- Typed OpenAPI schema: all 16 REST endpoints annotated; HTMX/SSE routes excluded from `/docs`
-- MkDocs Material documentation site at `/guide`: deployment guide (incl. UDP env vars + Docker Compose snippet), operator walkthrough (incl. Step 8 UDP sending guide for nc/Log4OM/WSJT-X/N1MM+), admin guide, API reference, ADIF field reference, troubleshooting (incl. 4 UDP entries with verbatim log strings)
-- UDP listener (`app/udp/server.py`): `asyncio.DatagramProtocol` on configurable port (default 2399); `_handle_datagram` pipeline: parse_adi → validate → build_qso_dict(profile=user) → find_duplicate → QSO.insert; operator identity pinned to `UDP_OPERATOR` config (never from datagram); operator `User` document cached at startup; structured `disposition=accepted|rejected|duplicate` log tokens; Docker UDP port exposed
-- SSE-triggered live log table: `htmx:sseMessage` listener on `#log-table` fires `htmx.ajax('GET', '/log/view')` on `new_qso` events; server-side `#auto-refresh-ok` sentinel guards against refresh during pagination/filtering/sorting; `#log-table input` guard blocks refresh during inline edit; LIVE/OFFLINE indicator in nav bar
-- JWT session lifetime configurable via `JWT_EXPIRE_MINUTES` env var; default raised to 480 min (`app/config.py`)
-- Apple design token system: `tailwind.config.js` (canvas/surface color tokens, card shadow, system font stack), `static/css/input.css` component library (`.card`, `.btn-*`, `.form-input`, `.badge-*`, `.data-table`, `.card-title`, `.glass-card`), compiled via `npm run build` with PostCSS autoprefixer(`remove: false`)
-- Persistent dark/light mode: FOUC-prevention IIFE in `<head>` applies `dark` class before first paint; localStorage persistence; rAF-rAF transition suppression on load; `htmx:afterSettle` handler keeps toggle icon in sync after HTMX swaps
-- `.glass-card` component: explicit `-webkit-backdrop-filter: blur(12px)` with fixed pixel values (no CSS variable indirection) — renders correctly in Safari pre-18.0 and 18.x
-- `postcss.config.js` with `autoprefixer({ remove: false })` — prevents autoprefixer from silently stripping manually-added `-webkit-backdrop-filter` during Tailwind build
-- All operator log view templates (log view, QSO form, import report) converted to Apple component tokens; zero `style=` inline attributes remain
-
-**Known tech debt:**
-- `QSO.find_active()` defined in models.py but superseded by `get_qso_page()` in service.py — dead code
-- `from_mongo_dt()` in utils.py — tested utility, not called from production modules
-- Docker not verified end-to-end on a machine with Docker installed (code is correct; environment constraint)
 
 ## Key Decisions
 
@@ -299,18 +264,18 @@ All v1.9 features (custom ADIF parser, QSO REST API, operator profiles, callsign
 | Plain `<a href>` anchor for download button (no `hx-*` attributes) | HTMX intercepts XHR responses — `Content-Disposition: attachment` is silently ignored and binary payload discarded; plain anchor causes browser-native navigation that HTMX does not intercept | ✓ Good — file save dialog fires correctly; confirmed no `hx-boost` on `<body>` in base_app.html |
 | Per-page `{% block sidebar_nav %}` override in admin templates | Each admin page owns its entire sidebar nav block with both links and correct active state — avoids fragile conditional logic in base_app.html | ✓ Good — Operators page shows Operators active; Backup page shows Backup active |
 | FileResponse filename from `backup_path.stem` (not a second datetime call) | Guarantees download filename matches actual file on disk; eliminates clock skew between generation and naming | ✓ Good — `ollog-backup-{stem}.gz` always matches the file returned |
+| `bson.json_util.loads` (not `json.loads`) for restore deserialization | `json.loads` silently corrupts ObjectId as `{"$oid":"..."}` dict — BSON types must round-trip correctly | ✓ Good — ObjectId, datetime, and all BSON extended types restored with correct Python types |
+| Auto-backup runs before any `db.drop()` in `restore_confirm` | OPS-01 safety requirement: if restore fails mid-wipe, the pre-restore backup filename is included in the error response so admin can recover | ✓ Good — failure response always includes auto-backup path |
+| Path traversal guard: `resolve(temp_path).startswith(gettempdir())` + `.gz` suffix + `.exists()` | All three checks required before any file read — prevents directory traversal attacks on the temp file path in the hidden form field | ✓ Good — three-layer guard; any missing check is a security hole |
+| All HTMX error fragments return HTTP 200 | HTMX 2.x silently drops response body on 4xx — error HTML would never appear in the UI | ✓ Good — all five fragment templates return 200 with HTMX-consumable error HTML |
+| `#restore-modal` div is a sibling of `#restore-result` (not nested in form) | Cancel button targets `#restore-modal` with `hx-swap="outerHTML"` — element must be independently addressable in the DOM | ✓ Good — modal clears cleanly; upload form and result div unaffected |
+| GET `/admin/ui/restore` returns bare `<div id="restore-modal"></div>` on HTMX request | Cancel button fires `hx-get="/admin/ui/restore"` — dual-render pattern returns empty div to clear modal without page reload | ✓ Good — modal dismissal is a pure DOM swap; no data lost |
+| `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not `@apply`) | Consistent with glass-card Safari fix: fixed pixel values required; CSS variable references ignored by Safari | ✓ Good — backdrop blur renders across Safari, Chrome, Firefox |
 
 ---
-## Current Milestone: v2.1 Database Restore
+## Last Milestone: v2.1 Database Restore (shipped 2026-04-14)
 
-**Goal:** Give the admin a safe, authenticated way to restore the full MongoDB database from a `.gz` backup file, with integrity validation, password confirmation, and automatic pre-restore backup.
-
-**Target features:**
-- File upload form on a new Restore admin page
-- Server-side backup file integrity validation (gzip + NDJSON format)
-- Password confirmation modal with blurred background before destructive restore
-- Auto-backup current DB before wiping
-- Full drop-and-restore from uploaded file, with success/error feedback
+Gave the admin a safe, authenticated way to restore the full MongoDB database from a `.gz` backup file — with integrity validation, password confirmation, auto-backup-before-wipe, and HTMX-wired UI with no page reloads.
 
 ---
-*Last updated: 2026-04-14 after v2.1 milestone started*
+*Last updated: 2026-04-14 after v2.1 milestone shipped*

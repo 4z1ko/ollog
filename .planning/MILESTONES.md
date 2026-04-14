@@ -145,3 +145,20 @@
 
 ---
 
+
+## v2.1 Database Restore (Shipped: 2026-04-14)
+
+**Phases:** 39–40 (2 phases) | **Plans:** 2 | **Timeline:** 2026-04-14 (single session)
+**Files changed:** 24 files | **Lines:** +2647 / -11
+
+**Key accomplishments:**
+- `app/backup/restore.py` — sync `_restore_from_file` (MongoClient + `bson.json_util.loads`) + async `run_restore` via `asyncio.to_thread`, mirroring `dump.py` pattern exactly
+- `POST /restore/upload` validates gzip decompressibility + NDJSON structure, writes tempfile, returns password modal fragment on success or inline error at HTTP 200
+- `POST /restore/confirm` enforces path traversal guard, password verification, auto-backup before any `db.drop()`, full drop+restore all collections, finally-block tempfile cleanup
+- Admin Restore page at `/admin/ui/restore` with HTMX-wired `.gz` file upload form, modal CSS component classes, and auth gate — no page reloads
+- Password confirmation modal with blurred backdrop (`modal-backdrop`, `modal-box` CSS classes compiled into output.css) — all three admin pages show three-link sidebar nav
+
+**Archive:** `.planning/milestones/v2.1-ROADMAP.md` | `.planning/milestones/v2.1-REQUIREMENTS.md`
+
+---
+
