@@ -226,6 +226,19 @@ async def reset_password(
 # Backup download
 # ---------------------------------------------------------------------------
 
+@ui_router.get("/backup", response_class=HTMLResponse)
+async def backup_page(
+    request: Request,
+    _user: User = Depends(require_admin_cookie),
+):
+    """Render the admin backup page."""
+    return templates.TemplateResponse(
+        request,
+        "admin/backup.html",
+        {},
+    )
+
+
 @ui_router.get("/backup/download")
 async def backup_download(
     _user: User = Depends(require_admin_cookie),
