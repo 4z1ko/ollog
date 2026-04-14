@@ -396,7 +396,7 @@ Plans:
   3. `gunzip -t` on the downloaded file exits 0 — the file is a valid gzip archive containing EJSON-encoded MongoDB collection data
   4. A backup file written by the endpoint is visible on the host at `./backups/<timestamp>.gz` after the request completes — it is not lost in the container's ephemeral filesystem
   5. Loading another admin page while a backup is in progress responds in under 1 second — the event loop is not blocked during `run_backup` execution
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 037-01-PLAN.md — docker-compose.yml admin volume mount, dump.py utcnow fix, ui_router.py backup download endpoint with asyncio.to_thread + FileResponse
@@ -418,7 +418,7 @@ Plans:
   2. The backup page displays a "Download Backup" button; clicking it opens a browser Save dialog (or downloads directly to the default downloads folder) — no HTMX interception occurs
   3. The backup page and button are visually consistent with the rest of the admin UI — card container, card title, and button use the v1.9 Apple component tokens without introducing new styles
   4. Navigating to `/admin/ui/backup` in a logged-out browser session redirects to the admin login page — the page is not publicly accessible
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 038-01-PLAN.md — GET /admin/ui/backup route, backup.html template with card + plain anchor, sidebar nav item
@@ -465,5 +465,5 @@ Plans:
 | 34. Admin Console Template Polish | v1.9 | 2/2 | ✓ Complete | 2026-04-11 |
 | 35. Login Page Glass Card Redesign | v1.9 | 1/1 | ✓ Complete | 2026-04-11 |
 | 36. Operator Log Views | v1.9 | 3/3 | ✓ Complete | 2026-04-11 |
-| 37. Infrastructure and Backup Endpoint | v2.0 | 0/TBD | Not started | - |
+| 37. Infrastructure and Backup Endpoint | v2.0 | 0/1 | Planning complete | - |
 | 38. Admin Backup UI | v2.0 | 0/TBD | Not started | - |
