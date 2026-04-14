@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 39 of 40 (Restore Backend)
-Plan: —
+Plan: 1 of 1 complete
 Milestone: v2.1 Database Restore — in progress
-Status: Ready to plan
-Last activity: 2026-04-14 — v2.1 roadmap created; Phase 39 next
+Status: Phase 39 complete — Phase 40 next
+Last activity: 2026-04-14 — Phase 39 Plan 01 executed: restore backend implemented
 
-Progress: [x] Phase 37 [x] Phase 38 [ ] Phase 39 [ ] Phase 40
+Progress: [x] Phase 37 [x] Phase 38 [x] Phase 39 [ ] Phase 40
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Progress: [x] Phase 37 [x] Phase 38 [ ] Phase 39 [ ] Phase 40
 
 **Phase 37 metrics:** 4 min, 2 tasks, 3 files modified
 **Phase 38 metrics:** 35 min, 2 tasks, 3 files modified
+**Phase 39 metrics:** 3 min, 2 tasks, 7 files modified
 
 ## Accumulated Context
 
@@ -59,6 +60,13 @@ Progress: [x] Phase 37 [x] Phase 38 [ ] Phase 39 [ ] Phase 40
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
+### Phase 39 Decisions (restore backend)
+
+- **bson.json_util.loads** must be used for restore deserialization (not json.loads) — preserves ObjectId, datetime, and all BSON types with correct types
+- **Auto-backup before drop** (OPS-01): run_backup is called before any db.drop() in restore_confirm; failure response includes auto-backup filename
+- **HTMX error fragments return HTTP 200** — HTMX 2.x ignores response body on 4xx, which silently drops error HTML
+- **Path traversal guard**: resolve(temp_path).startswith(gettempdir()), .gz suffix, and .exists() checks — all three required before file access
+
 ### Pending Todos
 
 None.
@@ -66,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: v2.1 roadmap created — ROADMAP.md, STATE.md, REQUIREMENTS.md updated; Phase 39 ready to plan
+Stopped at: Completed 039-01-PLAN.md — restore backend complete; Phase 40 (Restore UI) next
 Resume file: None
