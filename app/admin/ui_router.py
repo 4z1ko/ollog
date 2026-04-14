@@ -9,7 +9,7 @@ Mounted at /admin/ui by app/main.py.
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Header, Request, Response
+from fastapi import APIRouter, Depends, Form, Header, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -253,3 +253,134 @@ async def backup_download(
         media_type="application/gzip",
         filename=f"ollog-backup-{backup_path.stem}.gz",
     )
+
+
+# ---------------------------------------------------------------------------
+# Restore
+# ---------------------------------------------------------------------------
+
+@ui_router.post("/restore/upload", response_class=HTMLResponse)
+async def restore_upload(
+    request: Request,
+    file: UploadFile,
+    _user: User = Depends(require_admin_cookie),
+):
+    """Receive a .gz backup file, validate it, return modal or error fragment.
+
+    Returns HTTP 200 always — HTMX 2.x ignores body on 4xx responses.
+    On success: password_modal.html with temp_path embedded in hidden field.
+    On failure: upload_error.html inline error; tempfile is deleted.
+    """
+    import os
+    import tempfile
+    import gzip
+    import json
+
+    raw = await file.read()
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".gz")
+    try:
+        tmp.write(raw)
+        tmp.close()
+        temp_path = tmp.name
+
+        # Validate: gzip decompressibility + NDJSON backup structure
+        try:
+            with gzip.open(temp_path, "rt", encoding="utf-8") as gz:
+                first_line = gz.readline()
+            record = json.loads(first_line)
+            if "collection" not in record or "doc" not in record:
+                raise ValueError("Missing required keys in backup format")
+        except (OSError, EOFError, ValueError):
+            # OSError: bad gzip magic bytes (gzip.BadGzipFile is an OSError)
+            # EOFError: truncated/corrupt gzip file
+            # ValueError: json.JSONDecodeError or explicit key check failure
+            os.unlink(temp_path)
+            return templates.TemplateResponse(
+                request,
+                "admin/restore/upload_error.html",
+                {"error": "Invalid backup file: not a valid ollog backup"},
+                status_code=200,
+            )
+
+        # Validation passed — return modal with temp_path in hidden field
+        return templates.TemplateResponse(
+            request,
+            "admin/restore/password_modal.html",
+            {"temp_path": temp_path},
+        )
+    except Exception:
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
+        raise
+
+
+@ui_router.post("/restore/confirm", response_class=HTMLResponse)
+async def restore_confirm(
+    request: Request,
+    password: Annotated[str, Form()],
+    temp_path: Annotated[str, Form()],
+    current_user: User = Depends(require_admin_cookie),
+):
+    """Verify password, auto-backup, drop all collections, restore from file.
+
+    Path traversal guard runs before any file access.
+    Auto-backup runs before any db.drop() operation (OPS-01).
+    Temp file is deleted in finally block regardless of outcome.
+    Returns HTTP 200 always — HTMX 2.x ignores body on 4xx responses.
+    """
+    import os
+    import pathlib
+    import tempfile
+    from app.backup.dump import run_backup
+    from app.backup.restore import run_restore
+    from app.config import settings
+
+    # Path traversal guard — MUST run before any file access
+    try:
+        p = pathlib.Path(temp_path).resolve()
+        tmpdir = pathlib.Path(tempfile.gettempdir()).resolve()
+        if not str(p).startswith(str(tmpdir)) or p.suffix != ".gz" or not p.exists():
+            raise ValueError("Invalid temp_path")
+    except (ValueError, OSError):
+        return HTMLResponse(content="<p>Invalid request</p>", status_code=400)
+
+    # Password check — current_user already hydrated by require_admin_cookie
+    if not verify_password(password, current_user.hashed_password):
+        return templates.TemplateResponse(
+            request,
+            "admin/restore/password_error.html",
+            {"error": "Incorrect password", "temp_path": temp_path},
+            status_code=200,
+        )
+
+    # Auto-backup before any destructive operation (OPS-01)
+    try:
+        auto_backup_path = await run_backup(settings)
+    except Exception as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/restore/restore_failure.html",
+            {"error": f"Auto-backup failed: {exc}", "backup_path": None},
+            status_code=200,
+        )
+
+    # Restore
+    try:
+        await run_restore(str(p), settings)
+        return templates.TemplateResponse(
+            request,
+            "admin/restore/restore_success.html",
+            {"backup_path": auto_backup_path.name},
+            status_code=200,
+        )
+    except Exception as exc:
+        return templates.TemplateResponse(
+            request,
+            "admin/restore/restore_failure.html",
+            {"error": str(exc), "backup_path": auto_backup_path.name},
+            status_code=200,
+        )
+    finally:
+        if p.exists():
+            os.unlink(p)

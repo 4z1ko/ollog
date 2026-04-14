@@ -1,0 +1,7 @@
+<div class="alert alert-error" role="alert">
+  <strong>Restore failed.</strong>
+  {{ error }}
+  {% if backup_path %}
+  An automatic backup was saved as <code>{{ backup_path }}</code> before the restore began.
+  {% endif %}
+</div>
