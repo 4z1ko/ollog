@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 ## Current Position
 
-Phase: 37 — Infrastructure and Backup Endpoint
+Phase: 38 — Admin Backup UI
 Plan: 01 complete (1/1 plans done)
-Status: Phase 37 complete; ready for Phase 38
-Last activity: 2026-04-14 — Executed 037-01: backup endpoint + Docker volume mount
+Status: Phase 38 complete; v2.0 Database Backup milestone delivered
+Last activity: 2026-04-14 — Executed 038-01: admin backup page template + route
 
-Progress: [x] Phase 37 [ ] Phase 38
+Progress: [x] Phase 37 [x] Phase 38
 
 ## Performance Metrics
 
@@ -39,6 +39,7 @@ Progress: [x] Phase 37 [ ] Phase 38
 | v2.0 | 37–38 | TBD (in progress) |
 
 **Phase 37 metrics:** 4 min, 2 tasks, 3 files modified
+**Phase 38 metrics:** 35 min, 2 tasks, 3 files modified
 
 ## Accumulated Context
 
@@ -79,6 +80,12 @@ Progress: [x] Phase 37 [ ] Phase 38
 - **Phase 37 bundles INFRA-01 + BACK-01–05:** Volume mount is an infrastructure prerequisite for reliable endpoint testing; both touch the same Docker + Python files in one coherent wiring session
 - **Phase 38 is UI-only:** All four UI requirements (sidebar nav, page route, plain anchor, component tokens) are delivered together as one template session with no backend risk
 
+### Decisions (038-01 Execution)
+
+- **Plain anchor for download button:** `<a href="/admin/ui/backup/download">` with zero hx-* attributes. HTMX intercepts XHR and silently discards `Content-Disposition: attachment` binary responses — the download simply never fires with hx-* attributes.
+- **require_admin_cookie on backup_page route:** Browser sends a cookie, not a Bearer Authorization header. `require_admin` would cause a silent 302 redirect masking the failure.
+- **No build step:** All CSS classes used in backup.html (`.card`, `.btn-primary`, `.nav-item`, `.nav-item-active`, etc.) are already compiled in output.css — no `npm run build` needed.
+
 ### Decisions (037-01 Execution)
 
 - **Sync/async split in dump.py:** `_write_backup` is sync (MongoClient), `run_backup` is async orchestrator calling `await asyncio.to_thread(_write_backup, settings)` — required because `asyncio.to_thread` must receive a sync callable; passing `async def` silently returns a coroutine object
@@ -92,5 +99,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 037-01-PLAN.md — backup endpoint + volume mount; Phase 37 complete; ready for Phase 38
+Stopped at: Completed 038-01-PLAN.md — admin backup page template + route; Phase 38 complete; v2.0 milestone delivered
 Resume file: None
