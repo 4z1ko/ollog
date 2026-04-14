@@ -1,35 +1,34 @@
+import asyncio
 import gzip
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from bson.json_util import dumps, CANONICAL_JSON_OPTIONS
-from pymongo import AsyncMongoClient
+from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
 
 
-async def run_backup(settings) -> Path:
-    """Export all MongoDB collections to a gzip NDJSON file using EJSON encoding.
+def _write_backup(settings) -> Path:
+    """Sync helper: dump all MongoDB collections to a gzip NDJSON file.
 
-    Creates its own AsyncMongoClient — does NOT use app.database.get_client()
-    because get_client() returns None in CLI context where lifespan has not run.
-
-    Returns the Path to the created .gz file.
+    Uses a synchronous MongoClient so it can be called inside asyncio.to_thread
+    without blocking the event loop.
     """
-    client = AsyncMongoClient(settings.mongodb_uri)
+    client = MongoClient(settings.mongodb_uri)
     db = client[settings.mongodb_db]
 
     backup_path = (
         Path(settings.backup_dir)
-        / f"{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.gz"
+        / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H-%M-%S')}.gz"
     )
     backup_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         with gzip.open(backup_path, "wt", encoding="utf-8") as gz:
-            for coll_name in sorted(await db.list_collection_names()):
-                docs = await db[coll_name].find({}).to_list(length=None)
+            for coll_name in sorted(db.list_collection_names()):
+                docs = list(db[coll_name].find({}))
                 for doc in docs:
                     line = (
                         dumps(
@@ -43,6 +42,18 @@ async def run_backup(settings) -> Path:
         client.close()
 
     logger.info("Backup written to %s", backup_path)
+    return backup_path
+
+
+async def run_backup(settings) -> Path:
+    """Async orchestrator: run backup in a thread pool and optionally upload to S3.
+
+    Wraps _write_backup in asyncio.to_thread to avoid blocking the event loop
+    during synchronous gzip I/O and MongoDB reads.
+
+    Returns the Path to the created .gz file.
+    """
+    backup_path = await asyncio.to_thread(_write_backup, settings)
 
     if settings.backup_s3_bucket is not None:
         from app.backup.upload import upload_to_s3
