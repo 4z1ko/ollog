@@ -132,13 +132,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Operator QSO form (`form.html`) uses Apple form input and button styles — v1.9
 - ✓ Operator import page (`import.html`) uses Apple card and button styles — v1.9
 
+### Validated (v2.0)
+
+- ✓ Admin can trigger a full MongoDB database backup from the admin console UI — v2.0
+- ✓ Backup file downloads directly to the browser on demand — v2.0
+- ✓ Backup filename includes UTC date and time timestamp (`ollog-backup-2026-04-14-15-30-42.gz`) — v2.0
+
 ### Active
 
-<!-- Current scope — v2.0 Database Backup. Building toward these. -->
-
-- [ ] Admin can trigger a full MongoDB database backup from the admin console UI
-- [ ] Backup file downloads directly to the browser on demand
-- [ ] Backup filename includes ISO-formatted date and time timestamp (e.g. `ollog-backup-20260413-153042.gz`)
+<!-- No active requirements — define next milestone with /gsd:new-milestone -->
 
 ### Out of Scope
 
@@ -153,14 +155,25 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
 - Multiple station profiles per operator — deferred (v2)
 
-## Current Milestone: v2.0 Database Backup
+## Current State
 
-**Goal:** Give the admin a one-click way to download a full MongoDB database backup with a timestamped filename.
+**Version:** v2.0 Database Backup (shipped 2026-04-14)
+**Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler), aioboto3 (S3 upload)
+**Database:** MongoDB 7 (single-node replica set for change streams)
+**Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
+**Codebase:** ~8,200+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Target features:**
-- Backup button in admin console UI
-- Server-side MongoDB dump triggered on request
-- Streaming download response with timestamped filename (e.g. `ollog-backup-YYYYMMDD-HHMMSS.gz`)
+**Shipped features (cumulative, v1.0–v2.0):**
+All v1.9 features (custom ADIF parser, QSO REST API, operator profiles, callsign flags, typed OpenAPI, MkDocs docs, UDP listener, live log table, API tokens, admin container isolation, backup CLI+scheduler, Apple design token system, dark mode, glass card login) plus:
+- Admin backup page at `/admin/ui/backup` with Apple-style card and Download Backup button
+- `GET /admin/ui/backup/download` endpoint — cookie-authenticated, streams timestamped `.gz` MongoDB backup via `asyncio.to_thread`
+- `./backups:/app/backups` Docker volume mount on admin service — backups persist across container restarts
+- `app/backup/dump.py` sync/async split: `_write_backup` (sync MongoClient, safe for `asyncio.to_thread`) + `run_backup` async orchestrator
+
+**Known tech debt:**
+- `QSO.find_active()` in models.py — dead production code
+- `from_mongo_dt()` in utils.py — tested, not called in production
+- Docker end-to-end verification pending (requires live Docker environment)
 
 ## Context
 
@@ -277,6 +290,10 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 | FastAPI sub-app (`admin_main.py`) requires its own `StaticFiles` mount | Main app `StaticFiles` mount does not propagate to sub-apps; admin was 404-ing on `/static/css/output.css` until this was added | ✓ Good — each FastAPI sub-app is isolated; mount must be explicit |
 | Canvas/surface token classes as literal strings in templates (not Jinja expressions) | Tailwind purge scanner reads template files as text — dynamic class construction (e.g. `class="{{ dark_class }}"`) is invisible to the scanner; new `dark:` classes dropped from output.css | ✓ Good — all tokens present in output.css |
 | `{% block sidebar_class %}{% endblock %}` in `<aside>` class attribute | Minimal-invasive extension point; empty default block adds no whitespace artifact; `users.html` injects `dark:bg-surface-dark` as a literal string for Tailwind scanner | ✓ Good — admin sidebar dark surface without touching base_app.html for every template |
+| `asyncio.to_thread(_write_backup, settings)` (sync helper, not async run_backup) | `asyncio.to_thread` requires a sync callable — passing the `async def run_backup` silently returns a coroutine object instead of a Path; extracted `_write_backup` sync helper is the correct target | ✓ Good — event loop unblocked during all MongoDB + gzip I/O |
+| Plain `<a href>` anchor for download button (no `hx-*` attributes) | HTMX intercepts XHR responses — `Content-Disposition: attachment` is silently ignored and binary payload discarded; plain anchor causes browser-native navigation that HTMX does not intercept | ✓ Good — file save dialog fires correctly; confirmed no `hx-boost` on `<body>` in base_app.html |
+| Per-page `{% block sidebar_nav %}` override in admin templates | Each admin page owns its entire sidebar nav block with both links and correct active state — avoids fragile conditional logic in base_app.html | ✓ Good — Operators page shows Operators active; Backup page shows Backup active |
+| FileResponse filename from `backup_path.stem` (not a second datetime call) | Guarantees download filename matches actual file on disk; eliminates clock skew between generation and naming | ✓ Good — `ollog-backup-{stem}.gz` always matches the file returned |
 
 ---
-*Last updated: 2026-04-13 after v2.0 milestone started*
+*Last updated: 2026-04-14 after v2.0 milestone shipped*

@@ -12,7 +12,7 @@
 - ✅ **v1.7 API Token Auth** — Phases 25–28 (shipped 2026-04-09)
 - ✅ **v1.8 Admin Isolation, Backup & Docs** — Phases 29–31 (shipped 2026-04-10)
 - ✅ **v1.9 Admin & Login UI Redesign** — Phases 32–36 (shipped 2026-04-11)
-- 🚧 **v2.0 Database Backup** — Phases 37–38 (in progress)
+- ✅ **v2.0 Database Backup** — Phases 37–38 (shipped 2026-04-14)
 
 
 ## Phases
@@ -135,12 +135,15 @@ Full archive: `.planning/milestones/v1.9-ROADMAP.md`
 
 ---
 
-### v2.0 Database Backup (Phases 37–38) — IN PROGRESS
+<details>
+<summary>✅ v2.0 Database Backup (Phases 37–38) — SHIPPED 2026-04-14</summary>
 
-**Milestone Goal:** The admin can trigger a full MongoDB database backup from the admin console UI, with the backup file downloading directly to the browser on demand with a timestamped filename.
+- [x] Phase 37: Infrastructure and Backup Endpoint (1/1 plan) — completed 2026-04-14
+- [x] Phase 38: Admin Backup UI (1/1 plan) — completed 2026-04-14
 
-- [ ] **Phase 37: Infrastructure and Backup Endpoint** — volume mount, `GET /admin/ui/backup/download` endpoint wired to existing `run_backup()`, `asyncio.to_thread()` wrapping, `datetime.utcnow()` fix; covers INFRA-01, BACK-01–05
-- [ ] **Phase 38: Admin Backup UI** — sidebar nav item, `backup.html` template with card layout, plain `<a href>` download anchor; covers UI-01–04
+Full archive: `.planning/milestones/v2.0-ROADMAP.md`
+
+</details>
 
 ---
 
@@ -399,7 +402,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 037-01-PLAN.md — docker-compose.yml admin volume mount, dump.py utcnow fix, ui_router.py backup download endpoint with asyncio.to_thread + FileResponse
+- [x] 037-01-PLAN.md — docker-compose.yml admin volume mount, dump.py utcnow fix, ui_router.py backup download endpoint with asyncio.to_thread + FileResponse
 
 ---
 
@@ -421,7 +424,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 038-01-PLAN.md — GET /admin/ui/backup route, backup.html template with card + plain anchor, sidebar nav item
+- [x] 038-01-PLAN.md — GET /admin/ui/backup route, backup.html template with card + plain anchor, sidebar nav item
 
 ---
 
@@ -465,5 +468,5 @@ Plans:
 | 34. Admin Console Template Polish | v1.9 | 2/2 | ✓ Complete | 2026-04-11 |
 | 35. Login Page Glass Card Redesign | v1.9 | 1/1 | ✓ Complete | 2026-04-11 |
 | 36. Operator Log Views | v1.9 | 3/3 | ✓ Complete | 2026-04-11 |
-| 37. Infrastructure and Backup Endpoint | v2.0 | 0/1 | Planning complete | - |
-| 38. Admin Backup UI | v2.0 | 0/TBD | Not started | - |
+| 37. Infrastructure and Backup Endpoint | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
+| 38. Admin Backup UI | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |

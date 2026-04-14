@@ -128,3 +128,20 @@
 
 ---
 
+
+## v2.0 Database Backup (Shipped: 2026-04-14)
+
+**Phases:** 37–38 (2 phases) | **Plans:** 2 | **Timeline:** 11 days (2026-04-03 → 2026-04-14)
+**Files changed:** 5 core files | **Lines:** +113 / -34
+
+**Key accomplishments:**
+- Wired existing `run_backup()` engine to `GET /admin/ui/backup/download` — cookie-protected, streams timestamped `.gz` file directly to browser
+- Sync/async split in `dump.py`: sync `_write_backup` (MongoClient) + async `run_backup` orchestrator via `asyncio.to_thread` — event loop never blocked during backup I/O
+- Added `./backups:/app/backups` Docker volume mount to `admin` service — backup files persist across container restarts
+- Created `templates/admin/backup.html` with Apple-style card layout and plain `<a href>` download anchor (zero `hx-*` attributes — HTMX silently discards binary `Content-Disposition` responses)
+- Updated admin sidebar on both Operators and Backup pages with correct active states — full nav between admin pages
+
+**Archive:** `.planning/milestones/v2.0-ROADMAP.md` | `.planning/milestones/v2.0-REQUIREMENTS.md`
+
+---
+
