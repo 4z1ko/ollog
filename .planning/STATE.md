@@ -5,13 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone — run `/gsd:new-milestone` to start
+**Current focus:** v2.1 Database Restore — admin upload + restore from .gz backup file
 
 ## Current Position
 
-Phase: 38 — complete
-Milestone: v2.0 Database Backup — SHIPPED 2026-04-14
-Status: All phases complete; ready for next milestone planning
+Phase: Not started (defining requirements)
+Plan: —
+Milestone: v2.1 Database Restore — in progress
+Status: Defining requirements
+Last activity: 2026-04-14 — Milestone v2.1 started
 
 Progress: [x] Phase 37 [x] Phase 38
 

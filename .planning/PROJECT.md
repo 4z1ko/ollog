@@ -140,7 +140,12 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ### Active
 
-<!-- No active requirements — define next milestone with /gsd:new-milestone -->
+<!-- Current scope — v2.1 Database Restore. Building toward these. -->
+
+- [ ] Admin can upload a `.gz` backup file and restore the full database from it
+- [ ] System validates the backup file integrity before attempting any restore
+- [ ] Admin must re-enter their password in a confirmation modal before the destructive overwrite proceeds
+- [ ] System auto-backs up the current database before wiping, so recovery is possible if the restore fails
 
 ### Out of Scope
 
@@ -157,7 +162,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.0 Database Backup (shipped 2026-04-14)
+**Version:** v2.1 Database Restore (in progress — started 2026-04-14)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler), aioboto3 (S3 upload)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -296,4 +301,16 @@ All v1.9 features (custom ADIF parser, QSO REST API, operator profiles, callsign
 | FileResponse filename from `backup_path.stem` (not a second datetime call) | Guarantees download filename matches actual file on disk; eliminates clock skew between generation and naming | ✓ Good — `ollog-backup-{stem}.gz` always matches the file returned |
 
 ---
-*Last updated: 2026-04-14 after v2.0 milestone shipped*
+## Current Milestone: v2.1 Database Restore
+
+**Goal:** Give the admin a safe, authenticated way to restore the full MongoDB database from a `.gz` backup file, with integrity validation, password confirmation, and automatic pre-restore backup.
+
+**Target features:**
+- File upload form on a new Restore admin page
+- Server-side backup file integrity validation (gzip + NDJSON format)
+- Password confirmation modal with blurred background before destructive restore
+- Auto-backup current DB before wiping
+- Full drop-and-restore from uploaded file, with success/error feedback
+
+---
+*Last updated: 2026-04-14 after v2.1 milestone started*
