@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.1 Database Restore — admin upload + restore from .gz backup file
+**Current focus:** v2.1 Database Restore — Phase 39: Restore Backend
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 39 of 40 (Restore Backend)
 Plan: —
 Milestone: v2.1 Database Restore — in progress
-Status: Defining requirements
-Last activity: 2026-04-14 — Milestone v2.1 started
+Status: Ready to plan
+Last activity: 2026-04-14 — v2.1 roadmap created; Phase 39 next
 
-Progress: [x] Phase 37 [x] Phase 38
+Progress: [x] Phase 37 [x] Phase 38 [ ] Phase 39 [ ] Phase 40
 
 ## Performance Metrics
 
@@ -66,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: v2.0 milestone archived — PROJECT.md, ROADMAP.md, MILESTONES.md, STATE.md updated; git tag v2.0 pending
+Stopped at: v2.1 roadmap created — ROADMAP.md, STATE.md, REQUIREMENTS.md updated; Phase 39 ready to plan
 Resume file: None

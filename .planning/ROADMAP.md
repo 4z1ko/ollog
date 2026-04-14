@@ -13,6 +13,7 @@
 - ✅ **v1.8 Admin Isolation, Backup & Docs** — Phases 29–31 (shipped 2026-04-10)
 - ✅ **v1.9 Admin & Login UI Redesign** — Phases 32–36 (shipped 2026-04-11)
 - ✅ **v2.0 Database Backup** — Phases 37–38 (shipped 2026-04-14)
+- 🚧 **v2.1 Database Restore** — Phases 39–40 (in progress)
 
 
 ## Phases
@@ -144,6 +145,15 @@ Full archive: `.planning/milestones/v1.9-ROADMAP.md`
 Full archive: `.planning/milestones/v2.0-ROADMAP.md`
 
 </details>
+
+---
+
+### 🚧 v2.1 Database Restore (Phases 39–40) — IN PROGRESS
+
+**Milestone Goal:** The admin can restore the MongoDB database from a previously downloaded `.gz` backup file via the admin console — with file validation, password confirmation, auto-backup before wipe, and clear success/error reporting.
+
+- [ ] **Phase 39: Restore Backend** — `app/backup/restore.py` module, `POST /admin/ui/restore/upload` (validate file integrity), `POST /admin/ui/restore/confirm` (auto-backup + drop + restore), password verification wiring; covers VAL-01, VAL-02, VAL-03, AUTH-02, AUTH-03, OPS-01, OPS-02, OPS-03, OPS-04
+- [ ] **Phase 40: Restore UI** — `GET /admin/ui/restore` page route, `templates/admin/restore.html` with HTMX upload form + password modal (backdrop blur), sidebar updated on all three admin pages with correct active states; covers UI-01, UI-02, UI-03, AUTH-01, AUTH-04
 
 ---
 
@@ -428,6 +438,58 @@ Plans:
 
 ---
 
+### Phase 39: Restore Backend
+
+**Goal:** The two-phase restore API exists and is fully functional — an uploaded `.gz` file is validated for integrity and NDJSON format, a password modal form triggers auto-backup then drop-and-restore, and all outcomes (validation failure, wrong password, restore success, restore failure) return appropriate HTMX response fragments.
+**Depends on:** Phase 38 (v2.0 complete)
+**Requirements:** VAL-01, VAL-02, VAL-03, AUTH-02, AUTH-03, OPS-01, OPS-02, OPS-03, OPS-04
+**Architecture decisions:**
+  - `app/backup/restore.py`: sync `_restore_from_file(backup_path, settings)` + async `run_restore(backup_path, settings)` wrapper using `asyncio.to_thread` — mirrors `dump.py` structure exactly
+  - `_restore_from_file` reads the `.gz` line by line: groups records by collection name, drops each collection, inserts documents in batches using MongoClient (not Beanie — sync path)
+  - `POST /admin/ui/restore/upload`: receives `UploadFile`, writes to `tempfile.NamedTemporaryFile(delete=False, suffix=".gz")`, validates gzip decompressibility + NDJSON record structure; on failure returns error HTML fragment; on success returns modal HTML fragment containing a hidden `<input name="temp_path">` field
+  - `POST /admin/ui/restore/confirm`: receives form fields `password` + `temp_path`; looks up admin User document, calls `verify_password(password, user.hashed_password)`; on mismatch returns inline error fragment; on match calls `run_backup()` then `run_restore(temp_path)`; cleans up temp file in all branches
+  - File validation: decompress first chunk with `gzip.open`, read first line, parse with `json.loads`, check keys `"collection"` and `"doc"` both present
+  - Auth: `Depends(require_admin_cookie)` on both POST routes — cookie already verified; password check is a second explicit factor, not a re-check of the cookie
+**Success Criteria** (what must be TRUE):
+  1. `POST /restore/upload` with a valid ollog `.gz` backup file returns an HTML fragment containing a password modal — not a redirect, not JSON
+  2. `POST /restore/upload` with a corrupt or non-gzip file returns an inline error HTML fragment; the database is unchanged
+  3. `POST /restore/upload` with a gzip file whose contents are not NDJSON `{"collection": ..., "doc": ...}` records returns an inline error HTML fragment; the database is unchanged
+  4. `POST /restore/confirm` with the correct admin password triggers an auto-backup (a new `.gz` file appears in `./backups/` before any data is modified), then drops and repopulates all collections from the uploaded file
+  5. `POST /restore/confirm` with a wrong password returns an inline error fragment visible inside the modal; no auto-backup is created and no data is modified
+  6. On successful restore, the response fragment indicates success and includes the auto-backup filename so the admin knows the safety net exists
+  7. On restore failure after the wipe has started, the response fragment includes the auto-backup filename so the admin can recover
+**Plans:** 1 plan
+
+Plans:
+- [ ] 039-01-PLAN.md — app/backup/restore.py module, POST /restore/upload (validate + modal), POST /restore/confirm (password verify + auto-backup + restore), HTMX response fragments
+
+---
+
+### Phase 40: Restore UI
+
+**Goal:** The admin console has a dedicated Restore page at `/admin/ui/restore` with an HTMX file upload form, a password confirmation modal with backdrop blur, and all three admin sidebar pages (Operators, Backup, Restore) showing all three nav links with correct active states.
+**Depends on:** Phase 39
+**Requirements:** UI-01, UI-02, UI-03, AUTH-01, AUTH-04
+**Architecture decisions:**
+  - `GET /admin/ui/restore` route in `app/admin/ui_router.py` serves `templates/admin/restore.html` behind `Depends(require_admin_cookie)`
+  - `restore.html` upload form uses `hx-post="/admin/ui/restore/upload"` + `hx-target="#restore-response"` + `hx-encoding="multipart/form-data"`; response div `#restore-response` swaps in either error HTML or the modal HTML returned by Phase 39
+  - Password modal: rendered as an overlay `<div>` with `position: fixed; inset: 0` and `backdrop-filter: blur(8px)` (plus `-webkit-backdrop-filter`) over the page; contains the confirm form posting to `/admin/ui/restore/confirm`
+  - Cancel button in modal: plain `hx-on:click` that removes the modal div from DOM — no server round-trip; uploaded temp file is cleaned up on next server restart (acceptable: temp files are small and ephemeral)
+  - Sidebar: all three admin pages (`users.html`, `backup.html`, `restore.html`) updated to show Operators, Backup, and Restore nav links; active state driven by current URL path comparison
+  - No new CSS component classes needed — modal overlay uses inline Tailwind utilities for the fixed backdrop; form and button use existing `.card`, `.btn-primary`, `.form-input` tokens
+**Success Criteria** (what must be TRUE):
+  1. Navigating to `/admin/ui/restore` in a logged-out browser session redirects to the admin login page — the page is not publicly accessible
+  2. The Restore page displays a file upload form accepting `.gz` files; submitting a valid backup file via the form causes a password modal to appear over the page with the background visibly blurred — no page reload occurs
+  3. The password modal contains a "Cancel" button; clicking it dismisses the modal without reloading the page and without starting a restore operation
+  4. All three admin pages (Operators, Backup, Restore) show all three sidebar nav links; the active page's nav link is visually distinguished from the inactive links
+  5. The Restore page and modal are visually consistent with the rest of the admin UI — card layout, form inputs, and buttons use the established Apple component tokens
+**Plans:** 1 plan
+
+Plans:
+- [ ] 040-01-PLAN.md — GET /admin/ui/restore route, restore.html template (upload form + modal overlay), sidebar updates on users.html + backup.html + restore.html
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -470,3 +532,5 @@ Plans:
 | 36. Operator Log Views | v1.9 | 3/3 | ✓ Complete | 2026-04-11 |
 | 37. Infrastructure and Backup Endpoint | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
 | 38. Admin Backup UI | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
+| 39. Restore Backend | v2.1 | 0/1 | Not started | - |
+| 40. Restore UI | v2.1 | 0/1 | Not started | - |

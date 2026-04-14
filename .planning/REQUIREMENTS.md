@@ -58,26 +58,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UI-01 | — | Pending |
-| UI-02 | — | Pending |
-| UI-03 | — | Pending |
-| VAL-01 | — | Pending |
-| VAL-02 | — | Pending |
-| VAL-03 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| OPS-01 | — | Pending |
-| OPS-02 | — | Pending |
-| OPS-03 | — | Pending |
-| OPS-04 | — | Pending |
+| UI-01 | Phase 40 | Pending |
+| UI-02 | Phase 40 | Pending |
+| UI-03 | Phase 40 | Pending |
+| VAL-01 | Phase 39 | Pending |
+| VAL-02 | Phase 39 | Pending |
+| VAL-03 | Phase 39 | Pending |
+| AUTH-01 | Phase 40 | Pending |
+| AUTH-02 | Phase 39 | Pending |
+| AUTH-03 | Phase 39 | Pending |
+| AUTH-04 | Phase 40 | Pending |
+| OPS-01 | Phase 39 | Pending |
+| OPS-02 | Phase 39 | Pending |
+| OPS-03 | Phase 39 | Pending |
+| OPS-04 | Phase 39 | Pending |
 
 **Coverage:**
 - v2.1 requirements: 14 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 14 ⚠
+- Mapped to phases: 14 (100%)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 — initial definition*
+*Last updated: 2026-04-14 — traceability filled in after roadmap creation*
