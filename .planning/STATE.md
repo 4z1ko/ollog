@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 ## Current Position
 
 Phase: 37 — Infrastructure and Backup Endpoint
-Plan: Not started
-Status: Roadmap created; ready for plan-phase
-Last activity: 2026-04-13 — Roadmap created for v2.0 (Phases 37–38)
+Plan: 01 complete (1/1 plans done)
+Status: Phase 37 complete; ready for Phase 38
+Last activity: 2026-04-14 — Executed 037-01: backup endpoint + Docker volume mount
 
-Progress: [ ] Phase 37 [ ] Phase 38
+Progress: [x] Phase 37 [ ] Phase 38
 
 ## Performance Metrics
 
@@ -37,6 +37,8 @@ Progress: [ ] Phase 37 [ ] Phase 38
 | v1.8 | 29–31 | 3 |
 | v1.9 | 32–36 | TBD (shipped) |
 | v2.0 | 37–38 | TBD (in progress) |
+
+**Phase 37 metrics:** 4 min, 2 tasks, 3 files modified
 
 ## Accumulated Context
 
@@ -77,12 +79,18 @@ Progress: [ ] Phase 37 [ ] Phase 38
 - **Phase 37 bundles INFRA-01 + BACK-01–05:** Volume mount is an infrastructure prerequisite for reliable endpoint testing; both touch the same Docker + Python files in one coherent wiring session
 - **Phase 38 is UI-only:** All four UI requirements (sidebar nav, page route, plain anchor, component tokens) are delivered together as one template session with no backend risk
 
+### Decisions (037-01 Execution)
+
+- **Sync/async split in dump.py:** `_write_backup` is sync (MongoClient), `run_backup` is async orchestrator calling `await asyncio.to_thread(_write_backup, settings)` — required because `asyncio.to_thread` must receive a sync callable; passing `async def` silently returns a coroutine object
+- **require_admin_cookie on backup endpoint:** Browser sends cookie not Bearer header; `require_admin` causes silent 302 redirect masking the failure
+- **FileResponse filename from backup_path.stem:** Avoids second `datetime.now()` call; guarantees download filename matches actual file on disk
+
 ### Pending Todos
 
 None.
 
 ## Session Continuity
 
-Last session: 2026-04-13
-Stopped at: Roadmap created for v2.0 (Phases 37–38); ROADMAP.md, STATE.md, REQUIREMENTS.md written; ready for /gsd:plan-phase 37
+Last session: 2026-04-14
+Stopped at: Completed 037-01-PLAN.md — backup endpoint + volume mount; Phase 37 complete; ready for Phase 38
 Resume file: None
