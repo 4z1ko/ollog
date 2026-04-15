@@ -1479,7 +1479,7 @@
 <td>UDP_OPERATOR</td>
 <td>No</td>
 <td>(none)</td>
-<td>Operator callsign assigned to QSOs received via UDP. Required when <code>UDP_ENABLED=true</code>.</td>
+<td>Fallback operator callsign for UDP QSOs that do not include an <code>OPERATOR</code> field. Optional when using per-datagram <code>OPERATOR</code> routing.</td>
 </tr>
 <tr>
 <td>BACKUP_SCHEDULE</td>
@@ -1520,8 +1520,10 @@
     environment:
       - UDP_ENABLED=true
       - UDP_BIND_HOST=0.0.0.0
-      - UDP_OPERATOR=N0CALL
+      # Optional: fallback operator when datagrams omit the OPERATOR field
+      # - UDP_OPERATOR=N0CALL
 </code></pre>
+<p>If each datagram includes an <code>OPERATOR</code> field with the sender's callsign, <code>UDP_OPERATOR</code> is not needed — each QSO is routed to the matching operator's personal log automatically. Set <code>UDP_OPERATOR</code> only as a fallback for datagrams that omit the field.</p>
 <p>See <a href="../../operator-guide/udp-adif/">UDP ADIF</a> for full configuration details.</p>
 <h2 id="verification-steps">Verification Steps</h2>
 <ol>

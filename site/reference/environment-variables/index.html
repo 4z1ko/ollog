@@ -1464,7 +1464,7 @@
 <td>UDP_OPERATOR</td>
 <td>No</td>
 <td>(none)</td>
-<td>Operator callsign assigned to QSOs received via UDP. Required when <code>UDP_ENABLED=true</code>.</td>
+<td>Fallback operator callsign for UDP QSOs that do not include an <code>OPERATOR</code> field. Optional — if every datagram includes an <code>OPERATOR</code> field, this variable is not needed.</td>
 </tr>
 </tbody>
 </table>
@@ -1552,7 +1552,7 @@ ADMIN_CALLSIGN=N0CALL
 # UDP_ENABLED=true
 # UDP_PORT=2237
 # UDP_BIND_HOST=0.0.0.0
-# UDP_OPERATOR=W1AW
+# UDP_OPERATOR=W1AW  # optional fallback when datagrams omit OPERATOR field
 
 # Optional: scheduled backup
 # BACKUP_SCHEDULE=0 2 * * *
