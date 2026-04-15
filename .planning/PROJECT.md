@@ -8,6 +8,18 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
+## Current Milestone: v2.3 Operator Statistics
+
+**Goal:** Give each operator a visual breakdown of their log activity via a dedicated stats page with pie charts.
+
+**Target features:**
+- Dedicated `/log/stats` page linked from the operator sidebar nav
+- Pie chart: QSO count by band
+- Pie chart: QSO count by mode
+- Pie chart: top 8 DXCC entities by QSO count (remainder as "Other")
+- Total unique DXCC entities worked count
+- All data JWT-isolated to the authenticated operator
+
 ## Requirements
 
 ### Validated (v1.0)
@@ -152,9 +164,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Unrecognized OPERATOR callsigns are dropped with a WARNING log — v2.2
 - ✓ UDP_OPERATOR env var is an optional fallback — if absent and datagram has no OPERATOR field, QSO is dropped with WARNING — v2.2
 
-### Active
+### Active (v2.3)
 
-<!-- No active requirements — planning next milestone -->
+- [ ] Operator can view a dedicated statistics page at `/log/stats` linked from the sidebar nav
+- [ ] Stats page shows a pie chart of QSO count by band
+- [ ] Stats page shows a pie chart of QSO count by mode
+- [ ] Stats page shows a pie chart of top 8 DXCC entities by QSO count (remaining grouped as "Other")
+- [ ] Stats page displays total count of unique DXCC entities worked
+- [ ] All statistics are scoped to the authenticated operator's log (JWT-isolated)
 
 ### Out of Scope
 
@@ -277,5 +294,22 @@ All v2.1 features (custom ADIF parser, QSO REST API, operator profiles, callsign
 | GET `/admin/ui/restore` returns bare `<div id="restore-modal"></div>` on HTMX request | Cancel button fires `hx-get="/admin/ui/restore"` — dual-render pattern returns empty div to clear modal without page reload | ✓ Good — modal dismissal is a pure DOM swap; no data lost |
 | `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not `@apply`) | Consistent with glass-card Safari fix: fixed pixel values required; CSS variable references ignored by Safari | ✓ Good — backdrop blur renders across Safari, Chrome, Firefox |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-04-15 after v2.2 milestone shipped*
+*Last updated: 2026-04-15 after v2.3 milestone started*
