@@ -145,14 +145,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Admin must re-enter their password in a confirmation modal before the destructive overwrite proceeds — v2.1
 - ✓ System auto-backs up the current database before wiping, so recovery is possible if the restore fails — v2.1
 
+### Validated (v2.2)
+
+- ✓ UDP datagrams containing an OPERATOR field are routed to that operator's log — multiple operators can send ADIF via UDP simultaneously without sharing a single UDP_OPERATOR account — v2.2
+- ✓ Operator routing uses an in-memory callsign→User cache (no per-datagram MongoDB round-trip) — v2.2
+- ✓ Unrecognized OPERATOR callsigns are dropped with a WARNING log — v2.2
+- ✓ UDP_OPERATOR env var is an optional fallback — if absent and datagram has no OPERATOR field, QSO is dropped with WARNING — v2.2
+
 ### Active
 
-<!-- Current scope — v2.2 Multi-Operator UDP. Building toward these. -->
-
-- [ ] UDP datagrams containing an OPERATOR field are routed to that operator's log — multiple operators can send ADIF via UDP simultaneously without sharing a single UDP_OPERATOR account
-- [ ] Operator routing uses an in-memory callsign→User cache (no per-datagram MongoDB round-trip)
-- [ ] Unrecognized OPERATOR callsigns are dropped with a WARNING log
-- [ ] UDP_OPERATOR env var becomes an optional fallback (not required)
+<!-- No active requirements — planning next milestone -->
 
 ### Out of Scope
 
@@ -169,20 +171,18 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.1 Database Restore (shipped 2026-04-14)
+**Version:** v2.2 Multi-Operator UDP (shipped 2026-04-15)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
-**Codebase:** ~8,300+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
+**Codebase:** ~8,800+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.1):**
-All v2.0 features (custom ADIF parser, QSO REST API, operator profiles, callsign flags, typed OpenAPI, MkDocs docs, UDP listener, live log table, API tokens, admin container isolation, backup CLI+scheduler, Apple design token system, dark mode, glass card login, admin backup page + download endpoint) plus:
-- Admin Restore page at `/admin/ui/restore` with Apple-style card, `.gz` file upload form, HTMX-wired — no page reloads
-- `POST /admin/ui/restore/upload` — validates gzip decompressibility + NDJSON format, returns password modal fragment on success, inline error on failure
-- `POST /admin/ui/restore/confirm` — path traversal guard, password verification, auto-backup before any `db.drop()`, full drop+restore all collections, finally-block tempfile cleanup
-- `app/backup/restore.py` sync/async split: `_restore_from_file` (sync MongoClient + `bson.json_util.loads`) + `run_restore` async orchestrator via `asyncio.to_thread`
-- Password confirmation modal with blurred backdrop (`modal-backdrop`, `modal-box`, CSS component classes compiled into output.css)
-- All three admin pages (Operators, Backup, Restore) show complete three-link sidebar nav with correct active states
+**Shipped features (cumulative, v1.0–v2.2):**
+All v2.1 features (custom ADIF parser, QSO REST API, operator profiles, callsign flags, typed OpenAPI, MkDocs docs, UDP listener, live log table, API tokens, admin container isolation, backup CLI+scheduler, Apple design token system, dark mode, glass card login, admin backup/restore pages) plus:
+- `app/udp/operator_cache.py` — UDPOperatorCache with `load()/resolve()/notify_refresh()` dirty-flag singleton; O(1) callsign→User lookup; zero per-datagram MongoDB queries
+- `_handle_datagram` routes via OPERATOR ADIF field — pops field, resolves via operator_cache, drops+WARNs on unknown callsign; stale early guard replaced by post-resolution guard
+- Cache invalidation wired to all 4 operator mutation sites (create/enable/disable) in both admin/router.py and admin/ui_router.py
+- UDP_OPERATOR env var demoted to optional fallback — docs updated across deployment.md, udp-adif.md, environment-variables.md; Multi-Operator Routing section added to udp-adif.md
 
 **Known tech debt:**
 - `QSO.find_active()` in models.py — dead production code
@@ -278,15 +278,4 @@ All v2.0 features (custom ADIF parser, QSO REST API, operator profiles, callsign
 | `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not `@apply`) | Consistent with glass-card Safari fix: fixed pixel values required; CSS variable references ignored by Safari | ✓ Good — backdrop blur renders across Safari, Chrome, Firefox |
 
 ---
-## Current Milestone: v2.2 Multi-Operator UDP
-
-**Goal:** Route incoming UDP ADIF datagrams to each operator's own log based on the OPERATOR field in the datagram — so multiple operators can send via UDP simultaneously, each QSO landing in the correct personal logbook.
-
-**Target features:**
-- Per-datagram OPERATOR field routing via in-memory callsign→User cache
-- Cache dirty-flagged on operator create/enable/disable (no per-datagram DB queries)
-- UDP_OPERATOR env var demoted to optional fallback
-- Docs updated for multi-operator UDP usage
-
----
-*Last updated: 2026-04-15 after v2.2 milestone started*
+*Last updated: 2026-04-15 after v2.2 milestone shipped*

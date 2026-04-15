@@ -5,22 +5,18 @@
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.2 Multi-Operator UDP — Phase 41 COMPLETE
+**Current focus:** v2.2 Multi-Operator UDP — COMPLETE. Planning next milestone.
 
 ## Current Position
 
-Phase: 41 — Multi-Operator UDP Routing
-Plan: 02 complete (PHASE COMPLETE)
-Milestone: v2.2 Multi-Operator UDP — COMPLETE
-Status: All plans complete
-Last activity: 2026-04-15 — 041-02-PLAN.md executed (docs updated + mkdocs site rebuilt)
-
-Progress: [x] Phase 41 (2/2 plans)
+Phase: 41 — Multi-Operator UDP Routing — COMPLETE
+Milestone: v2.2 Multi-Operator UDP — ARCHIVED 2026-04-15
+Status: Milestone complete — ready for next milestone
 
 ## Performance Metrics
 
 **Velocity (historical):**
-- Total plans completed: 49 plans across v1.0–v2.0
+- Total plans completed: 51 plans across v1.0–v2.2
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -39,12 +35,8 @@ Progress: [x] Phase 41 (2/2 plans)
 | v1.9 | 32–36 | 5 |
 | v2.0 | 37–38 | 2 |
 | v2.1 | 39–40 | 2 |
-| v2.2 | 41 | TBD |
+| v2.2 | 41 | 2 |
 
-**Phase 37 metrics:** 4 min, 2 tasks, 3 files modified
-**Phase 38 metrics:** 35 min, 2 tasks, 3 files modified
-**Phase 39 metrics:** 3 min, 2 tasks, 7 files modified
-**Phase 40 metrics:** 4 min, 3 tasks, 6 files modified — COMPLETE (human-verified)
 **Phase 41 metrics:** Plan 01 — 2 min, 2 tasks, 5 files modified; Plan 02 — 3 min, 2 tasks, 11 files modified — COMPLETE
 
 ## Accumulated Context
@@ -64,29 +56,6 @@ Progress: [x] Phase 41 (2/2 plans)
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
-### Phase 41 Decisions (v2.2 Multi-Operator UDP) — COMPLETE
-
-- **operator_cache pattern:** `app/udp/operator_cache.py` mirrors `token_cache.py` exactly — `load()` at startup, `resolve(callsign)` O(1) dict lookup, `notify_refresh()` dirty-flag lazy reload
-- **_handle_datagram routing order:** APP_OLLOG_TOKEN first → OPERATOR field second → no-operator guard third. APP_OLLOG_TOKEN wins when both present.
-- **Stale early guard removed:** `if operator is None` guard before parsing (lines 42-45) removed; replaced with post-resolution guard that covers both UDP-05 fallback and UDP-06 drop
-- **Admin router hooks:** notify_refresh() added to create_user and set_user_enabled/toggle_user in both router.py and ui_router.py; reset_password excluded (no routing impact)
-- **UDP_OPERATOR stays Optional:** `str | None` in config.py — already Optional, no migration needed; existing deployments unaffected
-- **UDP_OPERATOR docs:** Documented as optional fallback in all 3 docs files; Multi-Operator Routing section with numbered routing-order list added to udp-adif.md
-- **Docker Compose examples:** Optional vars commented out with inline explanatory comments (pattern for future optional env vars)
-
-### Phase 40 Decisions (restore UI)
-
-- **#restore-modal sibling placement**: `#restore-modal` must be a sibling of `#restore-result`, not nested in form — required by HTMX outerHTML swap for Cancel button
-- **GET /restore dual-render**: Returns `<div id="restore-modal"></div>` on hx_request header — clears modal without page reload
-- **backdrop-filter raw CSS**: `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not @apply) — consistent with glass-card Safari fix pattern
-
-### Phase 39 Decisions (restore backend)
-
-- **bson.json_util.loads** must be used for restore deserialization (not json.loads) — preserves ObjectId, datetime, and all BSON types with correct types
-- **Auto-backup before drop** (OPS-01): run_backup is called before any db.drop() in restore_confirm; failure response includes auto-backup filename
-- **HTMX error fragments return HTTP 200** — HTMX 2.x ignores response body on 4xx, which silently drops error HTML
-- **Path traversal guard**: resolve(temp_path).startswith(gettempdir()), .gz suffix, and .exists() checks — all three required before file access
-
 ### Pending Todos
 
 None.
@@ -94,6 +63,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-15
-Stopped at: Completed 041-02-PLAN.md — Phase 41 complete, all docs updated, mkdocs site rebuilt
+Stopped at: Archived v2.2 milestone — git tagged, REQUIREMENTS.md deleted
 Resume file: None
-Next: v2.2 milestone complete — plan next phase
+Next: `/gsd:new-milestone` to define v2.3 scope

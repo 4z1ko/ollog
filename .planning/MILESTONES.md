@@ -162,3 +162,20 @@
 
 ---
 
+
+## v2.2 Multi-Operator UDP (Shipped: 2026-04-15)
+
+**Phases:** 41 (1 phase) | **Plans:** 2 | **Timeline:** 2026-04-15 (single session)
+**Files changed:** 18 files | **Lines:** +485 / -66
+
+**Key accomplishments:**
+- `app/udp/operator_cache.py` — UDPOperatorCache class with `load()/resolve()/notify_refresh()` dirty-flag singleton, mirroring token_cache.py pattern exactly; O(1) callsign lookup, zero per-datagram MongoDB queries
+- `_handle_datagram` routes via OPERATOR ADIF field: `record.pop()` → resolve via operator_cache → drop+WARN if unknown callsign; stale early guard replaced by post-resolution no-operator guard
+- `operator_cache.load()` wired at startup in main.py alongside token_cache; `notify_refresh()` hooks added to all 4 operator mutation sites in admin/router.py and admin/ui_router.py
+- UDP_OPERATOR env var demoted to optional fallback — documented in deployment.md, udp-adif.md, environment-variables.md; Docker Compose examples updated to comment out optional var
+- Multi-Operator Routing section added to udp-adif.md with example datagram and 4-step routing-order list; mkdocs rebuilt with `--strict` flag
+
+**Archive:** `.planning/milestones/v2.2-ROADMAP.md` | `.planning/milestones/v2.2-REQUIREMENTS.md`
+
+---
+
