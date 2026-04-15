@@ -58,7 +58,7 @@ This guide covers deploying ollog using Docker Compose. The stack includes the A
 | UDP_ENABLED | No | `false` | Set to `true` to start the UDP ADIF listener. |
 | UDP_PORT | No | `2237` | UDP port the listener binds to. Must match the Docker port mapping if changed. |
 | UDP_BIND_HOST | No | `127.0.0.1` | Address the UDP socket binds to. Inside Docker, set to `0.0.0.0`. |
-| UDP_OPERATOR | No | (none) | Operator callsign assigned to QSOs received via UDP. Required when `UDP_ENABLED=true`. |
+| UDP_OPERATOR | No | (none) | Fallback operator callsign for UDP QSOs that do not include an `OPERATOR` field. Optional when using per-datagram `OPERATOR` routing. |
 | BACKUP_SCHEDULE | No | (none) | Cron expression (e.g. `0 2 * * *`) for automatic backups; scheduler not started if absent |
 | BACKUP_S3_BUCKET | No | (none) | S3 bucket name for backup upload; upload skipped if absent |
 | BACKUP_S3_PREFIX | No | `backups/` | S3 key prefix for uploaded backup files |
@@ -84,8 +84,11 @@ services:
     environment:
       - UDP_ENABLED=true
       - UDP_BIND_HOST=0.0.0.0
-      - UDP_OPERATOR=N0CALL
+      # Optional: fallback operator when datagrams omit the OPERATOR field
+      # - UDP_OPERATOR=N0CALL
 ```
+
+If each datagram includes an `OPERATOR` field with the sender's callsign, `UDP_OPERATOR` is not needed — each QSO is routed to the matching operator's personal log automatically. Set `UDP_OPERATOR` only as a fallback for datagrams that omit the field.
 
 See [UDP ADIF](../operator-guide/udp-adif.md) for full configuration details.
 

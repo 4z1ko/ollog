@@ -38,7 +38,7 @@ Note: `APP_OLLOG_TOKEN` is an **ADIF field name** used inside UDP datagrams — 
 | UDP_ENABLED | No | `false` | Set to `true` to start the UDP ADIF listener. |
 | UDP_PORT | No | `2237` | UDP port the listener binds to. Update the Docker port mapping if changed. |
 | UDP_BIND_HOST | No | `127.0.0.1` | Address the UDP socket binds to. Inside Docker, set to `0.0.0.0` so host traffic reaches the container. |
-| UDP_OPERATOR | No | (none) | Operator callsign assigned to QSOs received via UDP. Required when `UDP_ENABLED=true`. |
+| UDP_OPERATOR | No | (none) | Fallback operator callsign for UDP QSOs that do not include an `OPERATOR` field. Optional — if every datagram includes an `OPERATOR` field, this variable is not needed. |
 
 ## Database Backup (v1.8)
 
@@ -77,7 +77,7 @@ ADMIN_CALLSIGN=N0CALL
 # UDP_ENABLED=true
 # UDP_PORT=2237
 # UDP_BIND_HOST=0.0.0.0
-# UDP_OPERATOR=W1AW
+# UDP_OPERATOR=W1AW  # optional fallback when datagrams omit OPERATOR field
 
 # Optional: scheduled backup
 # BACKUP_SCHEDULE=0 2 * * *

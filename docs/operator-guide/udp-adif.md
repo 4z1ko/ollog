@@ -4,16 +4,21 @@ ollog includes a UDP listener that accepts raw ADIF text datagrams. QSOs sent ov
 
 ## Enabling the UDP Listener
 
-The UDP listener is disabled by default. To enable it, set `UDP_ENABLED=true` in your `.env` file along with the other required variables:
+The UDP listener is disabled by default. To enable it, set `UDP_ENABLED=true` in your `.env` file:
 
 ```
 UDP_ENABLED=true
 UDP_PORT=2237
 UDP_BIND_HOST=0.0.0.0
+```
+
+Optionally, set `UDP_OPERATOR` as a fallback callsign for datagrams that do not include an `OPERATOR` field:
+
+```
 UDP_OPERATOR=W1AW
 ```
 
-`UDP_OPERATOR` must be set to a callsign that has an existing operator account in ollog. QSOs received via UDP are logged under that callsign.
+If every datagram includes an `OPERATOR` field, `UDP_OPERATOR` is not needed.
 
 If you change `UDP_PORT` from the default, update the Docker Compose port mapping to match (e.g., `2237:2237/udp`).
 
@@ -35,7 +40,8 @@ services:
     environment:
       - UDP_ENABLED=true
       - UDP_BIND_HOST=0.0.0.0
-      - UDP_OPERATOR=W1AW
+      # Optional: fallback operator when datagrams omit the OPERATOR field
+      # - UDP_OPERATOR=W1AW
 ```
 
 ## ADIF Datagram Format
@@ -52,7 +58,7 @@ Example datagram:
 
 ## Per-Datagram Authentication
 
-By default, the UDP listener accepts all datagrams from any sender (authentication is implicit in UDP_OPERATOR). For per-datagram authentication using API tokens, include the `APP_OLLOG_TOKEN` ADIF field in the datagram.
+By default, the UDP listener accepts all datagrams from any sender. For per-datagram authentication using API tokens, include the `APP_OLLOG_TOKEN` ADIF field in the datagram.
 
 `APP_OLLOG_TOKEN` is an **ADIF field name** (using the ADIF `APP_` prefix convention for application-specific fields). It is **not an environment variable**. When present, ollog validates the field value against the API token store. Datagrams with an invalid or missing token value (if a token is required) are rejected.
 
@@ -63,6 +69,27 @@ Example ADIF datagram with token:
 ```
 
 To create API tokens for use with UDP datagrams, see [API Tokens](api-tokens.md).
+
+## Multi-Operator Routing
+
+When multiple operators share a single ollog instance, each can receive QSOs over UDP by including their callsign in the `OPERATOR` ADIF field. The callsign must match an existing, enabled operator account in ollog.
+
+Example datagram with OPERATOR field:
+
+```
+<OPERATOR:4>W1AW<CALL:6>DL1ABC<BAND:3>20m<MODE:3>FT8<QSO_DATE:8>20240415<TIME_ON:4>1430<EOR>
+```
+
+This QSO is logged to the `W1AW` operator's personal log, regardless of the `UDP_OPERATOR` setting.
+
+**Routing order:**
+
+1. If `APP_OLLOG_TOKEN` is present, the token determines the operator (see [Per-Datagram Authentication](#per-datagram-authentication)).
+2. If `OPERATOR` is present, the callsign is looked up in the operator cache. If the callsign is not found or the operator is disabled, the datagram is dropped.
+3. If neither field is present and `UDP_OPERATOR` is set, the fallback operator is used.
+4. If none of the above apply, the datagram is dropped.
+
+Changes to operator accounts (create, enable, disable) take effect within one datagram — no restart required.
 
 ## Testing the Listener
 
@@ -75,7 +102,7 @@ echo -n '<CALL:6>DL1ABC<BAND:3>20m<MODE:3>FT8<QSO_DATE:8>20240415<TIME_ON:4>1430
 
 Replace `127.0.0.1` with the hostname of your ollog instance if remote. The `-u` flag selects UDP; `-w1` exits after 1 second (required since UDP is connectionless). On Linux with GNU netcat, use `-q1` instead of `-w1`.
 
-After sending, check your log — a new QSO from `DL1ABC` should appear under the `UDP_OPERATOR` callsign.
+After sending, check your log — a new QSO from `DL1ABC` should appear. If the datagram includes an `OPERATOR` field, the QSO is logged under that operator; otherwise it uses the `UDP_OPERATOR` fallback.
 
 ## Log4OM
 
