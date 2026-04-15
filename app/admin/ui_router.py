@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from app.auth.dependencies import require_admin_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, hash_password, verify_password
+from app.udp.operator_cache import operator_cache
 
 templates = Jinja2Templates(directory="templates")
 
@@ -142,6 +143,7 @@ async def create_user(
         enabled=True,
     )
     await new_user.insert()
+    operator_cache.notify_refresh()
 
     users = await User.find_all().to_list()
     return templates.TemplateResponse(
@@ -185,6 +187,7 @@ async def toggle_user(
             )
 
     await user.set({User.enabled: new_enabled})
+    operator_cache.notify_refresh()
 
     users = await User.find_all().to_list()
     return templates.TemplateResponse(

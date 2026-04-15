@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.auth.dependencies import require_admin
 from app.auth.models import User
 from app.auth.service import hash_password
+from app.udp.operator_cache import operator_cache
 
 router = APIRouter(prefix="/admin/users", tags=["admin"])
 
@@ -57,6 +58,7 @@ async def create_user(body: CreateUserRequest):
         enabled=True,
     )
     await user.insert()
+    operator_cache.notify_refresh()
 
     return {
         "username": user.username,
@@ -92,6 +94,7 @@ async def set_user_enabled(username: str, body: SetEnabledRequest):
             )
 
     await user.set({User.enabled: body.enabled})
+    operator_cache.notify_refresh()
 
     return {"username": username, "enabled": body.enabled}
 

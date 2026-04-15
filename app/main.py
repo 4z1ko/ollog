@@ -33,7 +33,9 @@ async def lifespan(app: FastAPI):
     udp_transport = None
     if settings.udp_enabled:
         from app.udp.token_cache import token_cache
+        from app.udp.operator_cache import operator_cache
         await token_cache.load()
+        await operator_cache.load()
         from app.auth.models import User as UserModel
         from app.udp.server import start_udp_listener
 
