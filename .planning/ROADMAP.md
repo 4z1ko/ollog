@@ -14,6 +14,7 @@
 - ✅ **v1.9 Admin & Login UI Redesign** — Phases 32–36 (shipped 2026-04-11)
 - ✅ **v2.0 Database Backup** — Phases 37–38 (shipped 2026-04-14)
 - ✅ **v2.1 Database Restore** — Phases 39–40 (shipped 2026-04-14)
+- [ ] **v2.2 Multi-Operator UDP** — Phase 41 (in progress)
 
 
 ## Phases
@@ -537,3 +538,38 @@ Plans:
 | 38. Admin Backup UI | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
 | 39. Restore Backend | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
+| 41. Multi-Operator UDP Routing | v2.2 | 0/1 | In Progress | — |
+
+---
+
+### ✅ v2.2 Multi-Operator UDP — Phase 41
+
+**Milestone Goal:** UDP datagrams are routed to each operator's own log based on the OPERATOR field — multiple operators can send ADIF via UDP simultaneously, each QSO landing in the correct personal logbook, with no per-datagram MongoDB round-trips.
+
+- [ ] **Phase 41: Multi-Operator UDP Routing** — `app/udp/operator_cache.py` (new), `_handle_datagram` OPERATOR-field routing, `app/main.py` startup wiring, `app/auth/service.py` notify_refresh() hooks, docs update, mkdocs rebuild
+
+---
+
+### Phase 41: Multi-Operator UDP Routing
+
+**Goal:** Any enabled operator can receive QSOs over UDP by including their callsign in the OPERATOR field of the ADIF datagram — each datagram is routed to the correct personal log from an in-memory cache, with no MongoDB round-trip per datagram.
+**Depends on:** Phase 40 (v2.1 complete)
+**Requirements:** UDP-01, UDP-02, UDP-03, UDP-04, UDP-05, UDP-06, DOC-01, DOC-02
+**Architecture decisions:**
+  - New `app/udp/operator_cache.py` mirrors the `token_cache.py` pattern exactly: `load()` at startup fetches all enabled operators into a `{callsign: User}` dict; `resolve(callsign)` does an O(1) dict lookup; `notify_refresh()` sets a dirty flag so the next `resolve()` call triggers a lazy reload
+  - `_handle_datagram` routing order: (1) if OPERATOR field present → resolve via operator_cache → drop+WARN if not found; (2) if no OPERATOR field and UDP_OPERATOR set → use existing startup-cached user; (3) if no OPERATOR field and no UDP_OPERATOR → drop+WARN
+  - `app/main.py` loads operator_cache at startup alongside token_cache; operator_cache.load() called inside the same lifespan block after init_db()
+  - `app/auth/service.py` calls `operator_cache.notify_refresh()` after create_operator, enable_operator, disable_operator, and update_operator — keeps cache consistent without requiring restart
+  - `UDP_OPERATOR` env var remains in config as `str | None` (already Optional) — no migration needed; existing deployments that rely on it continue to work unchanged
+  - Docs: `docs/deployment.md` updated to document UDP_OPERATOR as optional fallback; multi-operator routing section added with datagram example showing OPERATOR field; `uv run mkdocs build --strict` run and `site/` committed
+**Success Criteria** (what must be TRUE):
+  1. A UDP datagram containing `<OPERATOR:4>W1AW` is logged under W1AW's personal log — the QSO appears in W1AW's log view and is absent from any other operator's log
+  2. Two operators (W1AW and K0RY) can each send UDP datagrams simultaneously; QSOs arrive in each operator's separate log with no cross-contamination
+  3. A UDP datagram containing an OPERATOR field whose callsign is not a registered, enabled operator is dropped and a WARNING is logged that includes the unrecognized callsign and the source IP:port — no QSO is inserted
+  4. A UDP datagram with no OPERATOR field is routed using UDP_OPERATOR env var when set — existing single-operator UDP behavior is unchanged
+  5. A UDP datagram with no OPERATOR field and no UDP_OPERATOR env var set is dropped with a WARNING — the app does not crash and subsequent datagrams are processed normally
+  6. Disabling or creating an operator in the admin console takes effect for UDP routing within one datagram of the change — no app restart required
+**Plans:** 1 plan
+
+Plans:
+- [ ] 041-01-PLAN.md — app/udp/operator_cache.py, server.py OPERATOR-field routing, main.py startup wiring, auth/service.py notify_refresh() hooks, docs/deployment.md update, mkdocs rebuild
