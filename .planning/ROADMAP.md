@@ -15,6 +15,7 @@
 - ✅ **v2.0 Database Backup** — Phases 37–38 (shipped 2026-04-14)
 - ✅ **v2.1 Database Restore** — Phases 39–40 (shipped 2026-04-14)
 - ✅ **v2.2 Multi-Operator UDP** — Phase 41 (shipped 2026-04-15)
+- 🔄 **v2.3 Operator Statistics** — Phases 42–43 (active)
 
 
 ## Phases
@@ -158,6 +159,15 @@ Full archive: `.planning/milestones/v2.0-ROADMAP.md`
 Full archive: `.planning/milestones/v2.1-ROADMAP.md`
 
 </details>
+
+---
+
+### v2.3 Operator Statistics (Phases 42–43)
+
+**Milestone Goal:** Each operator can view a dedicated statistics page at `/log/stats` with pie charts for band, mode, and DXCC entity breakdowns — all data scoped to their own log.
+
+- [ ] **Phase 42: Stats Aggregation Backend** — `get_stats()` service function, `GET /log/stats` route handler, JWT-isolated MongoDB aggregations, DXCC Python-side rollup, empty-state data shape
+- [ ] **Phase 43: Stats UI** — `templates/log/stats.html` with three Chart.js pie charts, dark/light theme adaptation, `{% block extra_scripts %}` in `base.html`, Stats sidebar nav link in `base_app.html`
 
 ---
 
@@ -494,6 +504,63 @@ Plans:
 
 ---
 
+### Phase 41: Multi-Operator UDP Routing
+
+**Goal:** Any enabled operator can receive QSOs over UDP by including their callsign in the OPERATOR field of the ADIF datagram — each datagram is routed to the correct personal log from an in-memory cache, with no MongoDB round-trip per datagram.
+**Depends on:** Phase 40 (v2.1 complete)
+**Requirements:** UDP-01, UDP-02, UDP-03, UDP-04, UDP-05, UDP-06, DOC-01, DOC-02
+**Architecture decisions:**
+  - New `app/udp/operator_cache.py` mirrors the `token_cache.py` pattern exactly: `load()` at startup fetches all enabled operators into a `{callsign: User}` dict; `resolve(callsign)` does an O(1) dict lookup; `notify_refresh()` sets a dirty flag so the next `resolve()` call triggers a lazy reload
+  - `_handle_datagram` routing order: (1) if OPERATOR field present → resolve via operator_cache → drop+WARN if not found; (2) if no OPERATOR field and UDP_OPERATOR set → use existing startup-cached user; (3) if no OPERATOR field and no UDP_OPERATOR → drop+WARN
+  - `app/main.py` loads operator_cache at startup alongside token_cache; operator_cache.load() called inside the same lifespan block after init_db()
+  - `app/auth/service.py` calls `operator_cache.notify_refresh()` after create_operator, enable_operator, disable_operator, and update_operator — keeps cache consistent without requiring restart
+  - `UDP_OPERATOR` env var remains in config as `str | None` (already Optional) — no migration needed; existing deployments that rely on it continue to work unchanged
+  - Docs: `docs/deployment.md` updated to document UDP_OPERATOR as optional fallback; multi-operator routing section added with datagram example showing OPERATOR field; `uv run mkdocs build --strict` run and `site/` committed
+**Success Criteria** (what must be TRUE):
+  1. A UDP datagram containing `<OPERATOR:4>W1AW` is logged under W1AW's personal log — the QSO appears in W1AW's log view and is absent from any other operator's log
+  2. Two operators (W1AW and K0RY) can each send UDP datagrams simultaneously; QSOs arrive in each operator's separate log with no cross-contamination
+  3. A UDP datagram containing an OPERATOR field whose callsign is not a registered, enabled operator is dropped and a WARNING is logged that includes the unrecognized callsign and the source IP:port — no QSO is inserted
+  4. A UDP datagram with no OPERATOR field is routed using UDP_OPERATOR env var when set — existing single-operator UDP behavior is unchanged
+  5. A UDP datagram with no OPERATOR field and no UDP_OPERATOR env var set is dropped with a WARNING — the app does not crash and subsequent datagrams are processed normally
+  6. Disabling or creating an operator in the admin console takes effect for UDP routing within one datagram of the change — no app restart required
+**Plans:** 2 plans
+
+Plans:
+- [x] 041-01-PLAN.md — operator_cache.py, server.py OPERATOR routing, main.py startup, admin router notify_refresh hooks
+- [x] 041-02-PLAN.md — docs updates (deployment, udp-adif, env vars) + mkdocs rebuild
+
+---
+
+### Phase 42: Stats Aggregation Backend
+
+**Goal:** The stats service layer correctly computes band counts, mode counts, DXCC entity counts, and unique entity total for any operator's log — with JWT-isolated data, empty-state handling, and a `GET /log/stats` route that delivers this data to the template layer.
+**Depends on:** Phase 41 (v2.2 complete)
+**Requirements:** STATS-06, STATS-07
+**Success Criteria** (what must be TRUE):
+  1. Navigating to `/log/stats` as an authenticated operator returns an HTTP 200 response — the route exists and is protected by cookie auth
+  2. An operator with QSOs logged sees data shaped for all three charts (band counts, mode counts, DXCC counts) and a non-zero unique entity count in the template context — no KeyError or empty dict
+  3. An operator with zero QSOs logged sees template context with `total_qsos == 0` — the route does not error out or raise an exception on an empty log
+  4. Viewing `/log/stats` as operator A never returns QSO data belonging to operator B — each operator's stats are isolated by `_operator` from the JWT cookie
+**Plans:** TBD
+
+---
+
+### Phase 43: Stats UI
+
+**Goal:** Operators can view a fully functional statistics page at `/log/stats` with three interactive pie charts, a DXCC entity count scalar, a sidebar nav link, and correct chart colors in both dark and light themes — all without a page reload on theme toggle.
+**Depends on:** Phase 42
+**Requirements:** STATS-01, STATS-02, STATS-03, STATS-04, STATS-05, STATS-08
+**Success Criteria** (what must be TRUE):
+  1. A "Stats" link (with bar-chart icon) appears in the operator sidebar nav and navigates to `/log/stats` when clicked
+  2. The stats page displays three pie charts labeled "By Band", "By Mode", and "By DXCC Entity" — each chart shows correct slice labels and proportional sizing derived from the operator's actual QSO data
+  3. The DXCC chart shows at most 8 named entity slices; when more than 8 entities are present, the remainder appears as a single "Other" slice with the correct summed count — and "Other" is absent when 8 or fewer entities exist
+  4. A scalar count of unique DXCC entities worked is displayed on the page (e.g. "42 entities") — this number equals the total distinct entities before the top-8 truncation
+  5. Toggling between dark and light mode without a page reload causes all three charts to re-initialize with mode-appropriate colors — no chart displays stale light-mode colors in dark mode or vice versa
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -539,6 +606,8 @@ Plans:
 | 39. Restore Backend | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
+| 42. Stats Aggregation Backend | v2.3 | 0/? | Not started | - |
+| 43. Stats UI | v2.3 | 0/? | Not started | - |
 
 ---
 
@@ -550,30 +619,3 @@ Plans:
 Full archive: `.planning/milestones/v2.2-ROADMAP.md`
 
 </details>
-
----
-
-### Phase 41: Multi-Operator UDP Routing
-
-**Goal:** Any enabled operator can receive QSOs over UDP by including their callsign in the OPERATOR field of the ADIF datagram — each datagram is routed to the correct personal log from an in-memory cache, with no MongoDB round-trip per datagram.
-**Depends on:** Phase 40 (v2.1 complete)
-**Requirements:** UDP-01, UDP-02, UDP-03, UDP-04, UDP-05, UDP-06, DOC-01, DOC-02
-**Architecture decisions:**
-  - New `app/udp/operator_cache.py` mirrors the `token_cache.py` pattern exactly: `load()` at startup fetches all enabled operators into a `{callsign: User}` dict; `resolve(callsign)` does an O(1) dict lookup; `notify_refresh()` sets a dirty flag so the next `resolve()` call triggers a lazy reload
-  - `_handle_datagram` routing order: (1) if OPERATOR field present → resolve via operator_cache → drop+WARN if not found; (2) if no OPERATOR field and UDP_OPERATOR set → use existing startup-cached user; (3) if no OPERATOR field and no UDP_OPERATOR → drop+WARN
-  - `app/main.py` loads operator_cache at startup alongside token_cache; operator_cache.load() called inside the same lifespan block after init_db()
-  - `app/auth/service.py` calls `operator_cache.notify_refresh()` after create_operator, enable_operator, disable_operator, and update_operator — keeps cache consistent without requiring restart
-  - `UDP_OPERATOR` env var remains in config as `str | None` (already Optional) — no migration needed; existing deployments that rely on it continue to work unchanged
-  - Docs: `docs/deployment.md` updated to document UDP_OPERATOR as optional fallback; multi-operator routing section added with datagram example showing OPERATOR field; `uv run mkdocs build --strict` run and `site/` committed
-**Success Criteria** (what must be TRUE):
-  1. A UDP datagram containing `<OPERATOR:4>W1AW` is logged under W1AW's personal log — the QSO appears in W1AW's log view and is absent from any other operator's log
-  2. Two operators (W1AW and K0RY) can each send UDP datagrams simultaneously; QSOs arrive in each operator's separate log with no cross-contamination
-  3. A UDP datagram containing an OPERATOR field whose callsign is not a registered, enabled operator is dropped and a WARNING is logged that includes the unrecognized callsign and the source IP:port — no QSO is inserted
-  4. A UDP datagram with no OPERATOR field is routed using UDP_OPERATOR env var when set — existing single-operator UDP behavior is unchanged
-  5. A UDP datagram with no OPERATOR field and no UDP_OPERATOR env var set is dropped with a WARNING — the app does not crash and subsequent datagrams are processed normally
-  6. Disabling or creating an operator in the admin console takes effect for UDP routing within one datagram of the change — no app restart required
-**Plans:** 2 plans
-
-Plans:
-- [x] 041-01-PLAN.md — operator_cache.py, server.py OPERATOR routing, main.py startup, admin router notify_refresh hooks
-- [x] 041-02-PLAN.md — docs updates (deployment, udp-adif, env vars) + mkdocs rebuild

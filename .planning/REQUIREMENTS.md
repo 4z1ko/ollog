@@ -49,20 +49,20 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATS-01 | — | Pending |
-| STATS-02 | — | Pending |
-| STATS-03 | — | Pending |
-| STATS-04 | — | Pending |
-| STATS-05 | — | Pending |
-| STATS-06 | — | Pending |
-| STATS-07 | — | Pending |
-| STATS-08 | — | Pending |
+| STATS-01 | Phase 43 | Pending |
+| STATS-02 | Phase 43 | Pending |
+| STATS-03 | Phase 43 | Pending |
+| STATS-04 | Phase 43 | Pending |
+| STATS-05 | Phase 43 | Pending |
+| STATS-06 | Phase 42 | Pending |
+| STATS-07 | Phase 42 | Pending |
+| STATS-08 | Phase 43 | Pending |
 
 **Coverage:**
 - v2.3 requirements: 8 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 8 ⚠️
+- Mapped to phases: 8 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-15*
-*Last updated: 2026-04-15 after initial definition*
+*Last updated: 2026-04-15 after roadmap creation (Phases 42–43)*
