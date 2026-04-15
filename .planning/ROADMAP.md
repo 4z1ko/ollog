@@ -538,7 +538,7 @@ Plans:
 | 38. Admin Backup UI | v2.0 | 1/1 | ✓ Complete | 2026-04-14 |
 | 39. Restore Backend | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
-| 41. Multi-Operator UDP Routing | v2.2 | 0/1 | In Progress | — |
+| 41. Multi-Operator UDP Routing | v2.2 | 0/2 | In Progress | — |
 
 ---
 
@@ -569,7 +569,8 @@ Plans:
   4. A UDP datagram with no OPERATOR field is routed using UDP_OPERATOR env var when set — existing single-operator UDP behavior is unchanged
   5. A UDP datagram with no OPERATOR field and no UDP_OPERATOR env var set is dropped with a WARNING — the app does not crash and subsequent datagrams are processed normally
   6. Disabling or creating an operator in the admin console takes effect for UDP routing within one datagram of the change — no app restart required
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 041-01-PLAN.md — app/udp/operator_cache.py, server.py OPERATOR-field routing, main.py startup wiring, auth/service.py notify_refresh() hooks, docs/deployment.md update, mkdocs rebuild
+- [ ] 041-01-PLAN.md — operator_cache.py, server.py OPERATOR routing, main.py startup, admin router notify_refresh hooks
+- [ ] 041-02-PLAN.md — docs updates (deployment, udp-adif, env vars) + mkdocs rebuild
