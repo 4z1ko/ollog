@@ -147,7 +147,12 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ### Active
 
-(No active requirements — v2.1 shipped. Next milestone TBD.)
+<!-- Current scope — v2.2 Multi-Operator UDP. Building toward these. -->
+
+- [ ] UDP datagrams containing an OPERATOR field are routed to that operator's log — multiple operators can send ADIF via UDP simultaneously without sharing a single UDP_OPERATOR account
+- [ ] Operator routing uses an in-memory callsign→User cache (no per-datagram MongoDB round-trip)
+- [ ] Unrecognized OPERATOR callsigns are dropped with a WARNING log
+- [ ] UDP_OPERATOR env var becomes an optional fallback (not required)
 
 ### Out of Scope
 
@@ -273,9 +278,15 @@ All v2.0 features (custom ADIF parser, QSO REST API, operator profiles, callsign
 | `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not `@apply`) | Consistent with glass-card Safari fix: fixed pixel values required; CSS variable references ignored by Safari | ✓ Good — backdrop blur renders across Safari, Chrome, Firefox |
 
 ---
-## Last Milestone: v2.1 Database Restore (shipped 2026-04-14)
+## Current Milestone: v2.2 Multi-Operator UDP
 
-Gave the admin a safe, authenticated way to restore the full MongoDB database from a `.gz` backup file — with integrity validation, password confirmation, auto-backup-before-wipe, and HTMX-wired UI with no page reloads.
+**Goal:** Route incoming UDP ADIF datagrams to each operator's own log based on the OPERATOR field in the datagram — so multiple operators can send via UDP simultaneously, each QSO landing in the correct personal logbook.
+
+**Target features:**
+- Per-datagram OPERATOR field routing via in-memory callsign→User cache
+- Cache dirty-flagged on operator create/enable/disable (no per-datagram DB queries)
+- UDP_OPERATOR env var demoted to optional fallback
+- Docs updated for multi-operator UDP usage
 
 ---
-*Last updated: 2026-04-14 after v2.1 milestone shipped*
+*Last updated: 2026-04-15 after v2.2 milestone started*

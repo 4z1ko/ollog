@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.1 Database Restore — Phase 40: Restore UI
+**Current focus:** v2.2 Multi-Operator UDP — defining requirements
 
 ## Current Position
 
-Phase: 40 of 40 (Restore UI)
-Plan: 1 of 1 — COMPLETE
-Milestone: v2.1 Database Restore — COMPLETE
-Status: Phase 40 Plan 01 fully complete — human verification APPROVED
-Last activity: 2026-04-14 — Phase 40 Plan 01 verified: restore UI shell confirmed working end-to-end
+Phase: Not started (defining requirements)
+Plan: —
+Milestone: v2.2 Multi-Operator UDP — in progress
+Status: Defining requirements
+Last activity: 2026-04-15 — Milestone v2.2 started
 
-Progress: [x] Phase 37 [x] Phase 38 [x] Phase 39 [x] Phase 40
+Progress: [ ] Phase 41
 
 ## Performance Metrics
 
