@@ -39,12 +39,6 @@ async def _handle_datagram(
     from app.qso.models import QSO
     from app.qso.service import _REQUIRED_FIELDS, build_qso_dict, find_duplicate
 
-    if operator is None:
-        logger.warning(
-            "UDP_OPERATOR not configured — datagram from %s discarded", addr
-        )
-        return
-
     try:
         text = data.decode("utf-8", errors="replace")
         records, parse_errors = parse_adi(text)
@@ -78,6 +72,32 @@ async def _handle_datagram(
             # Override operator and user — both must come from resolved_user
             operator = resolved_user.callsign
             user = resolved_user
+
+        # --- Multi-operator routing: OPERATOR field overrides UDP_OPERATOR ---
+        _OPERATOR_FIELD = "OPERATOR"
+        op_field_value = record.pop(_OPERATOR_FIELD, None)  # consume — must not reach QSO doc
+        if op_field_value is not None:
+            from app.udp.operator_cache import operator_cache
+
+            resolved_op_user = await operator_cache.resolve(op_field_value)
+            if resolved_op_user is None:
+                logger.warning(
+                    "UDP datagram src=%s:%s disposition=rejected reason=unknown-operator callsign=%s",
+                    addr[0],
+                    addr[1],
+                    op_field_value,
+                )
+                return
+            operator = resolved_op_user.callsign
+            user = resolved_op_user
+
+        if operator is None:
+            logger.warning(
+                "UDP datagram src=%s:%s disposition=rejected reason=no-operator-configured",
+                addr[0],
+                addr[1],
+            )
+            return
 
         missing = _REQUIRED_FIELDS - set(record)
         if missing:
