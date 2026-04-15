@@ -1,157 +1,140 @@
-# Project Research Summary
+# Research Summary: v2.3 Operator Statistics
 
-**Project:** ollog admin backup download endpoint
-**Domain:** FastAPI admin sub-app — on-demand MongoDB backup download button
-**Researched:** 2026-04-13
+**Project:** ollog — Ham Radio Online Logbook
+**Milestone:** v2.3 Operator Statistics
+**Researched:** 2026-04-15
 **Confidence:** HIGH
 
-## Executive Summary
+---
 
-This milestone is intentionally narrow. The backup engine (`app/backup/dump.py::run_backup(settings)`) is already fully implemented, tested, and used by the scheduled backup and the CLI entry point. The entire milestone consists of three wiring steps: one new GET endpoint in `app/admin/ui_router.py`, one plain anchor tag in `templates/admin/users.html`, and one volume mount line in `docker-compose.yml`. No new Python dependencies are needed. No new files are created. The research across all four areas converges on the same conclusion: do not build anything new — plug in what already exists.
+## Stack Additions
 
-The recommended approach is to call `await run_backup(settings)` directly from the new endpoint, derive the download filename from the returned `Path.stem` (avoiding a second timestamp call), and return a `FileResponse` with `media_type="application/gzip"` and `filename=` set so FastAPI generates the correct `Content-Disposition` header automatically. Auth is applied via the existing `require_admin_cookie` dependency already used on every other admin UI route. The button in the template must be a plain `<a href>` with no HTMX attributes — HTMX intercepts XHR responses and silently discards binary content, so file downloads cannot go through HTMX.
+No new Python dependencies. The only net-new technology is **Chart.js 4.5.1**, loaded via jsDelivr CDN `<script>` tag inside `templates/log/stats.html` only — never in `base.html`. Use the UMD bundle (`dist/chart.umd.min.js`) because Chart.js v4 also ships an ESM-only build that cannot be loaded via a plain `<script>` tag and silently fails with "Chart is not defined."
 
-The highest-risk pitfall is invisible: using `hx-get` on the download button produces no error, no console output, and no server-side failure — the button appears to do nothing while the server completes successfully. The second structural risk is the missing volume mount on the `admin` service, which causes backups to land in the container's ephemeral filesystem and vanish on restart. Both are caught by two verification commands after implementation: `curl -I` with a valid cookie (confirms `Content-Disposition` header) and `gunzip -t` on the downloaded file (confirms integrity).
+```html
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+```
+
+All aggregation is done with `QSO.get_motor_collection().aggregate([...])` — no new Python package, no change to `requirements.txt`. DXCC entity resolution uses the existing `lookup_prefix()` (already in `app/callsign/prefixes.py`) and `pycountry` (already a project dependency imported in `ui_router.py`). The Tailwind build does not change — Chart.js color values are hardcoded hex in JS config, not Tailwind class names.
+
+**Why CDN-only:** `npm` in this project exists exclusively to build Tailwind CSS. Adding Chart.js to `package.json` would require a JS bundler. The CDN delivery path is Chart.js's documented primary installation method for non-bundled use and is consistent with how HTMX and htmx-ext-sse are already loaded in this codebase.
 
 ---
 
-## Key Findings
+## Feature Table Stakes
 
-### Recommended Stack
+These are required for the page to feel complete. Missing any of these at launch makes the page feel broken or half-built.
 
-All required libraries are already in `pyproject.toml`. Zero additions needed. The key technologies for this specific endpoint are `fastapi.responses.FileResponse` (serves the on-disk `.gz` file with correct headers, sets `Content-Length` automatically) and `app/auth/dependencies.require_admin_cookie` (HttpOnly cookie auth already wired to all admin UI routes). `StreamingResponse` is used elsewhere in the codebase for ADIF export but is less appropriate here because `run_backup` writes a complete file to disk before returning — `FileResponse` reads that file by path and handles all response headers correctly in one call.
+| Feature | Why Required | Notes |
+|---------|-------------|-------|
+| QSO count by band — pie chart | First question every operator asks | `$group` on `BAND` field |
+| QSO count by mode — pie chart | Second most common question | `$group` on `MODE` field |
+| Top 8 DXCC entities by QSO count — pie chart | Core DX question; QScope and QSL Buddy both lead with this | Python-side callsign rollup via `lookup_prefix()` |
+| Total unique DXCC entities worked — scalar | The number operators track obsessively | Count distinct ISO codes before top-8 truncation |
+| Data scoped to authenticated operator | The entire premise of ollog | `$match: {_operator: callsign}` first in every pipeline |
+| Sidebar nav link | Operators will not find the page otherwise | Bar-chart Heroicon + "Statistics" label in `base_app.html` |
+| Empty-state for zero QSOs | New operators get a broken-looking blank chart without it | `{% if stats.total_qsos == 0 %}` guard in template |
 
-The critical version constraint to preserve is `apscheduler>=3.10,<4`. APScheduler v4 removed `AsyncIOScheduler` entirely. The upper bound in `pyproject.toml` is load-bearing and must not be relaxed.
+**Defer to v2.x or later:** date range filtering, per-band DXCC matrix, QSO rate/activity charts, continent breakdown, award progress indicators, LoTW confirmation status, PDF/CSV export, gridsquare map, distance calculations.
 
-**Core technologies:**
-- `fastapi[standard] >=0.135.0`: `FileResponse` and dependency injection — already installed, no change
-- `pymongo >=4.16.0`: `AsyncMongoClient` used inside `run_backup`; `bson.json_util` handles EJSON serialization — already installed, no change
-- `app/backup/dump.py::run_backup`: the complete backup engine — already implemented and tested
-- `app/auth/dependencies::require_admin_cookie`: cookie-based admin auth — already used on all admin UI routes, applied via `Depends`
-- `apscheduler >=3.10,<4`: existing scheduled backup (unchanged) — `<4` upper bound is load-bearing
-
-See `.planning/research/STACK.md` for full rationale and version compatibility table.
-
-### Expected Features
-
-The feature surface is minimal. Everything in the P1 column requires zero new infrastructure — it is wiring of existing parts.
-
-**Must have (table stakes):**
-- `GET /admin/ui/backup/download` route — calls `run_backup(settings)`, returns `FileResponse` with `application/gzip` and `Content-Disposition: attachment`
-- Auth gate via `require_admin_cookie` — the backup contains all collections including `users`; this is a complete data dump and must be admin-only
-- Error handling — if `run_backup` raises, return an HTMX-compatible error partial (consistent with how toggle/reset errors surface in `users_table.html`)
-- "Download Backup" button/link in admin UI — plain `<a href="/admin/ui/backup/download" class="btn-primary">`, no HTMX attributes
-
-**Should have (post-launch polish):**
-- Human-readable filename prefix — `ollog-backup-20260413T142301Z.gz` instead of `20260413T142301Z.gz`; trivial one-liner: `f"ollog-backup-{backup_path.stem}.gz"` in the `filename=` argument
-- Last backup timestamp and file size displayed on the page — requires a secondary `GET /admin/ui/backup/status` endpoint that stats the most recent `.gz` in `backup_dir`
-
-**Defer (v2+):**
-- Backup history table (list all `.gz` files with sizes and dates) — mini file manager, disproportionate to milestone scope
-- Progress bar or SSE streaming — unnecessary at hobby scale; browser tab spinner is sufficient for sub-5-second dumps
-- Restore via UI — significantly more complex; belongs as a separate documented CLI tool
-
-See `.planning/research/FEATURES.md` for full prioritization matrix and anti-feature rationale.
-
-### Architecture Approach
-
-No new files are required. Changes touch three existing files plus `docker-compose.yml`. The admin sub-app (`admin_main.py`, port 8001) already mounts `ui_router`; the new endpoint is an addition to that router. The template change is one card section added below the existing operator management card. The Docker change is one volume line.
-
-**Modified components:**
-1. `app/admin/ui_router.py` — add `GET /admin/ui/backup/download`; import `FileResponse`, `run_backup`, `settings`
-2. `templates/admin/users.html` — add download button as plain `<a href>` with no HTMX attributes
-3. `docker-compose.yml` — add `- ./backups:/app/backups` volume mount to the `admin` service
-
-**Unchanged components (reused as-is):**
-1. `app/backup/dump.py::run_backup` — called directly; no wrapper, no adapter, no modification
-2. `app/auth/dependencies::require_admin_cookie` — `Depends(require_admin_cookie)` on the new route
-
-**Recommended build order within the milestone:** docker-compose fix first (infrastructure prerequisite), then endpoint, then template button, then smoke test.
-
-See `.planning/research/ARCHITECTURE.md` for full data-flow diagrams, code-level patterns, and anti-pattern catalog.
-
-### Critical Pitfalls
-
-1. **HTMX intercepts binary response — download never starts.** Using `hx-get` or `hx-post` sends the request via XHR; browsers do not act on `Content-Disposition: attachment` in XHR responses. HTMX silently discards the binary payload. No error is produced anywhere. Prevention: the button must be a plain `<a href>` with no `hx-*` attributes. Verify by clicking in the browser — the Save dialog must appear.
-
-2. **Missing volume mount on admin service.** Without `- ./backups:/app/backups` in the `admin` service `volumes` block, `run_backup` writes to the container's ephemeral overlay filesystem. The file is served correctly within the same request but is lost on container restart, and is not co-located with scheduled backups from the `api` service. Prevention: add the volume mount before any endpoint testing.
-
-3. **Wrong auth dependency.** The admin UI uses cookie auth (`require_admin_cookie`). Using `require_admin` (Bearer JWT) instead causes 401 on every browser download request because the browser sends a cookie, not an Authorization header. The app's exception handler then silently converts 401 to a 302 login redirect, masking the failure. Prevention: use `Depends(require_admin_cookie)` exclusively. Verify with `curl -v` (no cookie) — must return 302.
-
-4. **Synchronous gzip I/O blocking the asyncio event loop.** `run_backup` uses `gzip.open` (synchronous) inside `async def`. In the CLI/scheduler context this is harmless. Called from a uvicorn route handler it blocks all concurrent requests for the duration of the write. Prevention: wrap the `run_backup` call in `asyncio.to_thread()` in the endpoint handler.
-
-5. **`datetime.utcnow()` deprecation.** `run_backup` uses `datetime.utcnow()` which emits `DeprecationWarning` on Python 3.12 (already the project's runtime) and is scheduled for removal. Fix is one line in `app/backup/dump.py`: replace with `datetime.now(timezone.utc)`. Address alongside the endpoint work since the two files are touched in the same phase.
-
-See `.planning/research/PITFALLS.md` for the full pitfall catalog, "Looks Done But Isn't" checklist, and recovery strategies.
+**The "Other" bucket convention:** When the operator has worked more than 8 DXCC entities, the remainder are summed into a single "Other" slice. Only append "Other" when there are actually remaining entities — a guard in service.py prevents a zero-value "Other" slice from appearing on logs with 8 or fewer entities.
 
 ---
 
-## Implications for Roadmap
+## Architecture Pattern
 
-This milestone does not warrant multiple phases in the traditional sense — the entire scope is three file edits and one docker-compose line. The structure below presents it as one phase with ordered sub-tasks whose dependency ordering matters. A roadmapper can represent this as a single phase or as micro-tasks within a phase; either framing is correct.
+The stats page is a minimal extension of the existing request flow. No new router, no new module, no new collection.
 
-### Phase 1: Infrastructure Fix (docker-compose.yml)
+```
+GET /log/stats  (HttpOnly cookie JWT)
+        |
+        v
+get_current_operator_callsign_cookie(request)   [exists]
+        |  -> returns operator callsign string
+        v
+get_stats(operator)   [NEW -- app/qso/service.py]
+        |
+        |  Pipeline 1: $match _operator + $group BAND -> band_counts dict
+        |  Pipeline 2: $match _operator + $group MODE -> mode_counts dict
+        |  Pipeline 3: $match _operator + $group CALL -> per-callsign cursor
+        |      -> Python loop: lookup_prefix(call) + pycountry -> entity_counts dict
+        |      -> sort, take top 8, sum rest into "Other"
+        |      -> unique_dxcc = len(entity_counts) before truncation
+        |
+        |  Returns: {band_counts, mode_counts, dxcc_counts, unique_dxcc, total_qsos}
+        v
+stats_page route   [NEW -- app/qso/ui_router.py]
+        |  TemplateResponse("log/stats.html", {"stats": stats_data})
+        v
+templates/log/stats.html   [NEW]
+        |  var bandData = {{ stats.band_counts | tojson }};
+        |  var modeData = {{ stats.mode_counts | tojson }};
+        |  var dxccData = {{ stats.dxcc_counts | tojson }};
+        |  -> Chart.js initializes three pie charts from inline JSON
+        v
+Browser renders three pie charts + DXCC count scalar
+```
 
-**Rationale:** The volume mount must exist before the endpoint is tested end-to-end in Docker. Without it, `run_backup` writes to the container's ephemeral overlay filesystem — the endpoint appears to work (file is served) but the backup does not persist and the on-demand backup is invisible to the `api` service's scheduled backup directory. Fixing infrastructure before writing code avoids a misleading debugging session.
+**Files changed:**
+- `app/qso/service.py` — add `get_stats(operator: str) -> dict`
+- `app/qso/ui_router.py` — add `GET /log/stats` route (two lines of logic)
+- `templates/base_app.html` — add Stats nav item to sidebar block
+- `templates/log/stats.html` — new file; extends `base_app.html`
+- `templates/base.html` — add `{% block extra_scripts %}{% endblock %}` before `</body>`
 
-**Delivers:** Persistent shared `./backups` volume accessible to both `api` and `admin` services.
+No changes to `app/main.py` — `ui_router` is already mounted at `/log`.
 
-**Addresses:** Pitfall 2 (missing volume mount).
+**DXCC aggregation is Python-side, not MongoDB-side.** `lookup_prefix()` is a pure-Python bisect function. It cannot run inside a MongoDB aggregation expression. The correct pattern is: aggregate by `CALL` in MongoDB (returning per-callsign counts), then resolve DXCC in Python, then re-aggregate by entity name. At typical log scales (hundreds of unique callsigns) this runs in under 5 ms.
 
-**Change:** One `volumes` block entry in `docker-compose.yml` under the `admin` service.
+**Beanie aggregation access:** Use `QSO.get_motor_collection().aggregate([...])` with `await cursor.to_list(length=None)`. Beanie does not expose `aggregate()` as a Document class method; `get_motor_collection()` returns the underlying Motor collection directly, which is the established pattern in this codebase (see `app/feed/manager.py`).
 
 ---
 
-### Phase 2: Backup Download Endpoint
+## Critical Pitfalls
 
-**Rationale:** The route is the core deliverable. All other pieces (button, volume) support it or follow from it. Implement and verify the endpoint in isolation via `curl` before wiring the UI button.
+**1. Stale canvas — "Canvas is already in use"**
+Chart.js registers chart instances against canvas elements. On bfcache restore or HTMX re-swap, calling `new Chart(canvas, ...)` on an already-owned canvas throws a silent JS error and the chart disappears. Prevention: guard every `new Chart(...)` with `Chart.getChart(canvas)?.destroy()` before creating the new instance. Hook `htmx:afterSettle` to re-init if the stats page content re-enters the DOM.
 
-**Delivers:** `GET /admin/ui/backup/download` — authenticated, returns a valid `.gz` file with correct `Content-Disposition` header and `Content-Type: application/gzip`.
+**2. ESM vs UMD bundle confusion**
+Chart.js v4 ships `dist/chart.js` (ESM only) and `dist/chart.umd.min.js` (CDN-safe). Loading the wrong file produces `Chart is not defined` with no useful error. Always use `chart.umd.min.js` and pin the exact semver (`@4.5.1`), never `@latest`.
 
-**Addresses:** All P1 features (route, auth gate, error handling).
+**3. Canvas sizing collapses to zero inside Tailwind flex/grid**
+Chart.js derives canvas dimensions from its parent container. In Tailwind flex/grid layouts, the parent may report zero width during the first render frame. Prevention: wrap each `<canvas>` in `<div class="relative h-64 w-full">` and set `maintainAspectRatio: false` in Chart.js options.
 
-**Avoids:** Pitfall 3 (wrong auth dependency), Pitfall 4 (blocking event loop), Pitfall 5 (`utcnow` deprecation), Pitfall 6 (Content-Disposition format errors).
+**4. $match must be first in every aggregation pipeline**
+If `$group` precedes `$match`, MongoDB performs a full collection scan across all operators' data. The compound index (`_operator`, `_deleted`) is only used when `$match` is the first pipeline stage. Every stats pipeline must begin with `{"$match": {"_operator": callsign, "_deleted": False}}`.
 
-**Changes:**
-- `app/admin/ui_router.py` — new endpoint with `Depends(require_admin_cookie)`, `asyncio.to_thread` wrapping `run_backup`, `FileResponse` return with `filename=f"ollog-backup-{backup_path.stem}.gz"`
-- `app/backup/dump.py` — replace `datetime.utcnow()` with `datetime.now(timezone.utc)` (one line)
+**5. Use `| tojson` — never `| safe` — for inline JSON in `<script>` tags**
+`| safe` on raw Python dict output passes literal `<script>` to the browser (XSS). With autoescaping on, direct substitution turns `"` into `&quot;`, producing invalid JavaScript. `| tojson` calls `json.dumps` with HTML-escaping and marks the result as `Markup`. It is the only correct filter for this pattern. No exceptions.
 
-**Verification:** `curl -I` with valid admin cookie shows `content-disposition: attachment; filename="ollog-backup-*.gz"`; `curl -v` without cookie shows 302 redirect; `gunzip -t` on the downloaded file exits 0; loading another admin page while backup runs responds in under 1 second.
-
----
-
-### Phase 3: Admin UI Button
-
-**Rationale:** Once the endpoint is verified via `curl`, adding the browser button is a single template edit. It is decoupled from the backend and can be done last.
-
-**Delivers:** "Download Backup" anchor visible in the admin console, triggering a browser-native file download Save dialog.
-
-**Addresses:** P1 UI feature; Pitfall 1 (HTMX binary response interception).
-
-**Change:** `<a href="/admin/ui/backup/download" class="btn-primary">Download Backup</a>` in `templates/admin/users.html`. No HTMX attributes whatsoever.
-
-**Verification:** Click the button in a logged-in browser session — Save dialog appears; file downloads; `gunzip -t` on the file exits 0; clicking the button in a logged-out session redirects to `/admin/ui/login`.
+**Bonus — dark mode colors are baked in at Chart.js creation time.** Read `document.documentElement.classList.contains('dark')` at chart init to pick legend/tooltip colors. When `toggleTheme()` is called, destroy and recreate the charts with the correct color set.
 
 ---
 
-### Phase Ordering Rationale
+## Build Order
 
-- Volume mount before endpoint: Docker tests require the mount or results are misleading and non-reproducible.
-- Endpoint before button: `curl` can verify the endpoint independently; the button depends on the endpoint being correct first.
-- Auth and event-loop fixes are tasks within the endpoint phase, not separate phases — they are part of writing the endpoint correctly, not cleanup.
-- The three sub-tasks together constitute a single milestone. A roadmapper presenting this to stakeholders should describe it as one phase ("Wire the backup download button") with three ordered implementation tasks.
+Dependency-ordered. Each step is independently testable before moving to the next.
 
-### Research Flags
+1. **`app/qso/service.py` — write `get_stats()`**
+   Hardest part: DXCC rollup logic, pipeline correctness, edge cases. Write and test in isolation. Validate: `$match` is first, null/empty-string BAND/MODE map to "Unknown" via `$cond`, "Other" is only appended when more than 8 entities exist, `unique_dxcc` is computed before top-8 truncation.
 
-No phases need additional research. All patterns are directly verified from the codebase and official documentation:
+2. **`app/qso/ui_router.py` — add `GET /log/stats` route**
+   Two lines: call `get_stats(callsign)`, return `TemplateResponse`. Unblocks template work immediately.
 
-- `FileResponse` with `filename=` for `Content-Disposition`: HIGH confidence from FastAPI official docs.
-- `require_admin_cookie` auth dependency pattern: HIGH confidence from direct code inspection of every existing admin UI route.
-- HTMX binary response limitation and plain-anchor workaround: MEDIUM/HIGH confidence from HTMX maintainer confirmation in official GitHub issues; the workaround itself is unambiguous.
-- Docker volume mount: HIGH confidence from direct `docker-compose.yml` inspection.
-- `asyncio.to_thread` for wrapping synchronous I/O: HIGH confidence from FastAPI official concurrency docs.
+3. **`templates/log/stats.html` — build the template**
+   Extend `base_app.html`. Set `{% block active_page %}stats{% endblock %}`. Three `<canvas>` wrappers (`<div class="relative h-64 w-full">`). Inline JSON via `| tojson`. Chart.js CDN `<script>` before chart init script. Empty-state guard. Dark mode color detection at init time.
 
-Standard patterns apply throughout. No `/gsd:research-phase` calls are needed during planning.
+4. **`templates/base_app.html` — add Stats nav item**
+   Bar-chart Heroicon at `w-6 h-6`. Active class conditional on `ap == 'stats'`. One block, one link, one icon.
+
+5. **`templates/base.html` — add `{% block extra_scripts %}`**
+   Insert `{% block extra_scripts %}{% endblock %}` immediately before `</body>`. Does not affect any existing page.
+
+---
+
+## Watch Out For
+
+**The `| tojson` filter is the single most dangerous omission.** Every implementation of server-rendered Chart.js data skips it "just this once" because the data looks safe. It is never safe — entity names like "Korea, Republic of" contain commas and quotes; pathological callsigns have slash-separated suffixes. Omitting `| tojson` will either produce a JavaScript syntax error (breaking all three charts silently) or, if `| safe` is used as a workaround, an XSS vector. Use `| tojson` on every single inline data variable. No exceptions.
 
 ---
 
@@ -159,49 +142,40 @@ Standard patterns apply throughout. No `/gsd:research-phase` calls are needed du
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All findings from direct codebase inspection; no unverified training-data claims; zero new dependencies |
-| Features | HIGH | Codebase audited directly; HTMX file download limitation confirmed via official HTMX GitHub issues and maintainer responses |
-| Architecture | HIGH | All component boundaries verified from source code; HTMX download workaround is MEDIUM confidence but the recommended approach (plain anchor) is unambiguous and verified |
-| Pitfalls | HIGH | Critical pitfalls verified against official FastAPI docs, HTMX GitHub, Python 3.12 changelog, and direct project code inspection |
+| Stack | HIGH | Chart.js 4.5.1 confirmed from CDN; UMD vs ESM confirmed from v4 migration docs; CDN pattern consistent with existing codebase |
+| Features | HIGH | Cross-referenced QScope, QSL Buddy; direct codebase audit of `lookup_prefix()` and pycountry imports; PROJECT.md v2.3 requirements confirmed |
+| Architecture | HIGH | Fully code-verified against live codebase; route, service, template, and auth dependency patterns all confirmed |
+| Pitfalls | HIGH (Chart.js API, MongoDB) / MEDIUM (HTMX bfcache) | Stale-canvas and sizing confirmed from official docs and GitHub issues; ollog uses plain `<a href>` nav so bfcache risk is lower than full HTMX-boosted apps |
 
 **Overall confidence:** HIGH
 
-### Gaps to Address
-
-- **Asyncio event loop blocking severity at current scale:** `run_backup` uses synchronous `gzip.open` writes. The research flags this as a pitfall requiring `asyncio.to_thread()`. At hobby scale (sub-5-second dumps), the practical impact on users is low but the architectural issue is real. The roadmapper should ensure the endpoint implementation task explicitly requires the `to_thread` wrapper rather than treating it as optional polish.
-
-- **`to_list(length=None)` memory usage:** For the current logbook scale this is acceptable. If the station has imported a large contest ADIF file, peak RAM during backup could be significant (3-5x the raw collection size in bytes). The research recommends cursor streaming (`async for`) as the correct long-term fix but notes it requires modifying `run_backup` itself. Recommend deferring this refactor given hobby-scale datasets; revisit if a station accumulates 100k+ QSOs.
-
-- **UX: no spinner on plain anchor:** Because the download button must be a plain `<a href>`, there is no HTMX loading indicator during backup generation. The browser's native tab spinner is the only visible feedback during the 1-5 second backup window. This is acceptable for v1 and is architecturally unavoidable given the HTMX binary response limitation. Do not plan for an HTMX spinner.
+**Gaps to address during implementation:**
+- Confirm the exact name and location of `toggleTheme()` in `base_app.html` before wiring the dark mode re-init wrapper.
+- Confirm the exact closing tag structure of `templates/base.html` before adding `{% block extra_scripts %}` to avoid a double-closing `</body>`.
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
+**Primary (HIGH confidence):**
+- `/Users/royco/ollog/app/qso/ui_router.py` — route patterns, `_qso_to_view_dict`, cookie auth dependency (code verified)
+- `/Users/royco/ollog/app/qso/service.py` — service layer conventions (code verified)
+- `/Users/royco/ollog/app/callsign/prefixes.py` — `lookup_prefix()` returns ISO alpha-2 or None (code verified)
+- `/Users/royco/ollog/templates/base_app.html` — sidebar nav pattern, `{% block active_page %}` (code verified)
+- `/Users/royco/ollog/.planning/PROJECT.md` — v2.3 requirements confirmed
+- `https://cdn.jsdelivr.net/npm/chart.js@latest/package.json` — version 4.5.1 confirmed
+- `https://www.chartjs.org/docs/latest/getting-started/installation.html` — CDN UMD bundle
+- `https://www.chartjs.org/docs/latest/migration/v4-migration.html` — ESM vs UMD split
+- `https://www.chartjs.org/docs/latest/developers/api.html` — `.destroy()`, `.getChart()`
+- `https://www.mongodb.com/docs/manual/core/aggregation-pipeline-optimization/` — `$match` first for index
+- Context7 `/beanieodm/beanie` — `.aggregate()`, `get_motor_collection()`
 
-- `/Users/royco/ollog/app/backup/dump.py` — `run_backup` signature, EJSON strategy, filename format, `utcnow` usage confirmed
-- `/Users/royco/ollog/app/admin/ui_router.py` — existing endpoint patterns and `require_admin_cookie` usage confirmed
-- `/Users/royco/ollog/app/auth/dependencies.py` — `require_admin_cookie` vs `require_admin` distinction; `admin_token` cookie name confirmed
-- `/Users/royco/ollog/docker-compose.yml` — volume mount gap for admin service confirmed; `env_file` presence confirmed
-- `/Users/royco/ollog/app/config.py` — `backup_dir`, `mongodb_uri`, `mongodb_db` settings confirmed
-- `/Users/royco/ollog/Dockerfile` — `python:3.12-slim` base image; mongodump absence confirmed
-- `/Users/royco/ollog/pyproject.toml` — all deps confirmed as already present; `apscheduler<4` upper bound confirmed
-- `/Users/royco/ollog/docs/admin-guide/backup.md` — "no mongodump required" documented as intentional design decision
-- [FastAPI custom responses — FileResponse](https://fastapi.tiangolo.com/advanced/custom-response/) — `filename=` parameter and `Content-Disposition` header behavior
-- [FastAPI concurrency and async/await](https://fastapi.tiangolo.com/async/) — blocking I/O guidance; `asyncio.to_thread` recommendation
-- [Python 3.12 datetime.utcnow() DeprecationWarning](https://docs.python.org/3.12/library/datetime.html) — confirmed; `datetime.now(timezone.utc)` as replacement
-
-### Secondary (MEDIUM confidence)
-
-- [HTMX issue #474](https://github.com/bigskysoftware/htmx/issues/474) — HTMX maintainer confirms no `Content-Disposition: attachment` support in XHR responses; closed without native support
-- [HTMX discussion #2741](https://github.com/bigskysoftware/htmx/discussions/2741) — community pattern: plain anchor or two-step HTMX/redirect approach confirmed as established workaround
-
-### Tertiary (not applicable)
-
-All relevant decisions for this milestone are resolvable from codebase inspection and official documentation. No findings rely on inference or low-confidence sources.
+**Secondary (MEDIUM confidence):**
+- `https://github.com/chartjs/Chart.js/discussions/9214` — maintainer confirmed no native dark mode
+- `https://www.qscope.org/public/` — band/mode/entity pie charts as table stakes
+- `https://www.qslbuddy.com/features` — top countries / band/mode distribution pattern
 
 ---
 
-*Research completed: 2026-04-13*
+*Research completed: 2026-04-15*
 *Ready for roadmap: yes*
