@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.2 Multi-Operator UDP — Phase 41 ready for planning
+**Current focus:** v2.2 Multi-Operator UDP — Phase 41 Plan 01 complete
 
 ## Current Position
 
 Phase: 41 — Multi-Operator UDP Routing
-Plan: Not started
-Milestone: v2.2 Multi-Operator UDP — roadmap complete, awaiting plan-phase
-Status: Roadmap created
-Last activity: 2026-04-15 — Roadmap written for Phase 41
+Plan: 01 complete
+Milestone: v2.2 Multi-Operator UDP — operator cache and routing implemented
+Status: Plan 01 complete
+Last activity: 2026-04-15 — 041-01-PLAN.md executed (operator_cache + _handle_datagram OPERATOR routing)
 
-Progress: [ ] Phase 41 (0/1 plans)
+Progress: [x] Phase 41 (1/1 plans)
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [ ] Phase 41 (0/1 plans)
 **Phase 38 metrics:** 35 min, 2 tasks, 3 files modified
 **Phase 39 metrics:** 3 min, 2 tasks, 7 files modified
 **Phase 40 metrics:** 4 min, 3 tasks, 6 files modified — COMPLETE (human-verified)
+**Phase 41 metrics:** 2 min, 2 tasks, 5 files modified — COMPLETE
 
 ## Accumulated Context
 
@@ -63,13 +64,14 @@ Progress: [ ] Phase 41 (0/1 plans)
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
 
-### Phase 41 Architecture (v2.2 Multi-Operator UDP)
+### Phase 41 Decisions (v2.2 Multi-Operator UDP) — Plan 01 COMPLETE
 
-- **operator_cache pattern:** New `app/udp/operator_cache.py` mirrors `token_cache.py` exactly — `load()` at startup, `resolve(callsign)` O(1) dict lookup, `notify_refresh()` dirty-flag lazy reload
-- **_handle_datagram routing order:** (1) OPERATOR field present → resolve via operator_cache → drop+WARN if not found; (2) no OPERATOR + UDP_OPERATOR set → existing fallback behavior; (3) no OPERATOR + no UDP_OPERATOR → drop+WARN
-- **service.py hooks:** `operator_cache.notify_refresh()` called after create_operator, enable_operator, disable_operator, update_operator
+- **operator_cache pattern:** `app/udp/operator_cache.py` mirrors `token_cache.py` exactly — `load()` at startup, `resolve(callsign)` O(1) dict lookup, `notify_refresh()` dirty-flag lazy reload
+- **_handle_datagram routing order:** APP_OLLOG_TOKEN first → OPERATOR field second → no-operator guard third. APP_OLLOG_TOKEN wins when both present.
+- **Stale early guard removed:** `if operator is None` guard before parsing (lines 42-45) removed; replaced with post-resolution guard that covers both UDP-05 fallback and UDP-06 drop
+- **Admin router hooks:** notify_refresh() added to create_user and set_user_enabled/toggle_user in both router.py and ui_router.py; reset_password excluded (no routing impact)
 - **UDP_OPERATOR stays Optional:** `str | None` in config.py — already Optional, no migration needed; existing deployments unaffected
-- **Docs scope:** `docs/deployment.md` only (UDP_OPERATOR as optional fallback + multi-operator routing explanation); full mkdocs rebuild and site/ commit required
+- **Docs scope (pending):** `docs/deployment.md` only (UDP_OPERATOR as optional fallback + multi-operator routing explanation)
 
 ### Phase 40 Decisions (restore UI)
 
@@ -91,6 +93,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-15
-Stopped at: Roadmap created for v2.2 — Phase 41 defined, ROADMAP.md + STATE.md + REQUIREMENTS.md written
+Stopped at: Completed 041-01-PLAN.md — operator_cache + _handle_datagram OPERATOR routing + admin notify_refresh hooks
 Resume file: None
-Next: `/gsd:plan-phase 41`
+Next: Documentation phase (docs/deployment.md update for multi-operator UDP routing)
