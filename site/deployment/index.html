@@ -1333,7 +1333,7 @@
 <td>UDP_OPERATOR</td>
 <td>No</td>
 <td>(none)</td>
-<td>Operator callsign assigned to QSOs received via UDP. Required when <code>UDP_ENABLED=true</code>.</td>
+<td>Fallback operator callsign for UDP QSOs that do not include an <code>OPERATOR</code> field. Optional when using per-datagram <code>OPERATOR</code> routing.</td>
 </tr>
 </tbody>
 </table>
@@ -1356,9 +1356,9 @@ ADMIN_CALLSIGN=N0CALL
     environment:
       - UDP_ENABLED=true
       - UDP_BIND_HOST=0.0.0.0   # required inside Docker
-      - UDP_OPERATOR=N0CALL     # replace with the operator's callsign
+      # - UDP_OPERATOR=N0CALL   # optional: fallback operator for datagrams without an OPERATOR field
 </code></pre>
-<p><code>UDP_OPERATOR</code> must be set to a callsign that has an existing operator account in ollog. QSOs received via UDP are logged under that callsign. If the callsign is not found, the listener logs a WARNING and drops the datagram.</p>
+<p>If each datagram includes an <code>OPERATOR</code> field with the sender's callsign, <code>UDP_OPERATOR</code> is not needed — each QSO is routed to the matching operator's log automatically. Set <code>UDP_OPERATOR</code> only as a fallback for datagrams that omit the field.</p>
 <p>If you change <code>UDP_PORT</code> from the default <code>2399</code>, update the Docker port mapping to match (e.g., <code>2400:2400/udp</code>).</p>
 <h2 id="verification-steps">Verification Steps</h2>
 <ol>

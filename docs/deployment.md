@@ -56,7 +56,7 @@ This guide covers deploying ollog using Docker Compose. The stack includes the A
 | UDP_ENABLED | No | `false` | Set to `true` to start the UDP ADIF listener. |
 | UDP_PORT | No | `2399` | UDP port the listener binds to. Must match the Docker port mapping if changed. |
 | UDP_BIND_HOST | No | `127.0.0.1` | Address the UDP socket binds to. Inside Docker, set to `0.0.0.0` so host traffic reaches the container. |
-| UDP_OPERATOR | No | (none) | Operator callsign assigned to QSOs received via UDP. Required when `UDP_ENABLED=true`. |
+| UDP_OPERATOR | No | (none) | Fallback operator callsign for UDP QSOs that do not include an `OPERATOR` field. Optional when using per-datagram `OPERATOR` routing. |
 
 Sample `.env` file:
 
@@ -87,10 +87,10 @@ services:
     environment:
       - UDP_ENABLED=true
       - UDP_BIND_HOST=0.0.0.0   # required inside Docker
-      - UDP_OPERATOR=N0CALL     # replace with the operator's callsign
+      # - UDP_OPERATOR=N0CALL   # optional: fallback operator for datagrams without an OPERATOR field
 ```
 
-`UDP_OPERATOR` must be set to a callsign that has an existing operator account in ollog. QSOs received via UDP are logged under that callsign. If the callsign is not found, the listener logs a WARNING and drops the datagram.
+If each datagram includes an `OPERATOR` field with the sender's callsign, `UDP_OPERATOR` is not needed — each QSO is routed to the matching operator's log automatically. Set `UDP_OPERATOR` only as a fallback for datagrams that omit the field.
 
 If you change `UDP_PORT` from the default `2399`, update the Docker port mapping to match (e.g., `2400:2400/udp`).
 
