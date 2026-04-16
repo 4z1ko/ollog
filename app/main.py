@@ -132,6 +132,11 @@ from app.tokens.router import router as token_router  # noqa: E402
 
 app.include_router(token_router)
 
+# Stats UI router (browser-based, cookie auth, Jinja2 templates)
+from app.stats.router import stats_router  # noqa: E402
+
+app.include_router(stats_router, include_in_schema=False)
+
 # Documentation site (served before /static — mount order is load-bearing in FastAPI)
 # html=True is load-bearing: MkDocs use_directory_urls:true generates subdirectory
 # index.html files (e.g. site/admin-guide/index.html). Without html=True, FastAPI

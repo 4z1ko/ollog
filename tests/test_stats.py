@@ -131,7 +131,7 @@ async def test_stats_excludes_soft_deleted(stats_test_db):
     """get_stats() excludes soft-deleted QSOs from all counts."""
     await _make_qso_doc("AA1AA", "W1AW").insert()
     deleted_qso = _make_qso_doc("AA1AA", "K1TTT")
-    deleted_qso._deleted = True  # type: ignore[attr-defined]
+    deleted_qso.is_deleted = True  # Beanie field name (alias _deleted stored in MongoDB)
     await deleted_qso.insert()
 
     result = await get_stats("AA1AA")

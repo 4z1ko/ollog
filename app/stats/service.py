@@ -12,7 +12,7 @@ async def get_stats(callsign: str) -> dict:
     Returns same dict shape for empty and non-empty logs (STATS-07).
     All pipelines begin with $match guard (STATS-06).
     """
-    collection = QSO.get_motor_collection()
+    collection = QSO.get_pymongo_collection()
     match_stage = {"$match": {"_operator": callsign, "_deleted": False}}
 
     # --- Band counts ---
@@ -20,7 +20,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$group": {"_id": "$BAND", "count": {"$sum": 1}}},
     ]
-    band_results = await collection.aggregate(band_pipeline).to_list(length=None)
+    band_results = await (await collection.aggregate(band_pipeline)).to_list(length=None)
     band_counts = {doc["_id"]: doc["count"] for doc in band_results if doc["_id"]}
 
     # --- Mode counts ---
@@ -28,7 +28,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$group": {"_id": "$MODE", "count": {"$sum": 1}}},
     ]
-    mode_results = await collection.aggregate(mode_pipeline).to_list(length=None)
+    mode_results = await (await collection.aggregate(mode_pipeline)).to_list(length=None)
     mode_counts = {doc["_id"]: doc["count"] for doc in mode_results if doc["_id"]}
 
     # --- CALL-level counts for DXCC rollup ---
@@ -36,7 +36,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$group": {"_id": "$CALL", "count": {"$sum": 1}}},
     ]
-    call_results = await collection.aggregate(call_pipeline).to_list(length=None)
+    call_results = await (await collection.aggregate(call_pipeline)).to_list(length=None)
     total_qsos = sum(doc["count"] for doc in call_results)
 
     # Early return for empty log (STATS-07)
