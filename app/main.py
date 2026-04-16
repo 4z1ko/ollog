@@ -22,11 +22,11 @@ async def lifespan(app: FastAPI):
     await _bootstrap_admin()
     # Start change stream watcher for live feed
     client = get_client()
-    watcher_task = None
+    app.state.watcher_task = None
     if client is not None:
         from app.feed.manager import manager as feed_manager, watch_qsos  # noqa: E402
         collection = client[settings.mongodb_db]["qsos"]
-        watcher_task = asyncio.create_task(
+        app.state.watcher_task = asyncio.create_task(
             watch_qsos(collection, feed_manager, _templates)
         )
     # Start UDP listener (conditional on UDP_ENABLED)
@@ -77,10 +77,10 @@ async def lifespan(app: FastAPI):
     # transport.close() is synchronous — do NOT await it.
     if udp_transport is not None:
         udp_transport.close()
-    if watcher_task is not None:
-        watcher_task.cancel()
+    if app.state.watcher_task is not None:
+        app.state.watcher_task.cancel()
         try:
-            await watcher_task
+            await app.state.watcher_task
         except asyncio.CancelledError:
             pass
     if backup_task is not None:

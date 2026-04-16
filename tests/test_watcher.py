@@ -91,14 +91,30 @@ async def test_watcher_survives_render_exception():
 
 @pytest.mark.asyncio
 async def test_watcher_task_stored_in_app_state():
-    """LIVE-01b: after lifespan startup, app.state.watcher_task is an asyncio.Task."""
-    from httpx import ASGITransport, AsyncClient
+    """LIVE-01b: lifespan sets app.state.watcher_task unconditionally (not a local variable).
+
+    httpx.ASGITransport (0.28+) does not trigger ASGI lifespan events, so we
+    invoke the lifespan context manager directly with all external calls mocked.
+    This tests the real behaviour (attribute is set) without requiring MongoDB.
+    """
+    import app.main as _main
     from app.main import app
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        assert hasattr(app.state, "watcher_task"), "app.state.watcher_task must exist after startup"
-        if app.state.watcher_task is not None:
-            assert isinstance(app.state.watcher_task, asyncio.Task)
+    with (
+        patch.object(_main, "init_db", new=AsyncMock()),
+        patch.object(_main, "_bootstrap_admin", new=AsyncMock()),
+        patch.object(_main, "get_client", return_value=None),
+        patch.object(_main, "close_db", new=AsyncMock()),
+        patch("app.main.settings") as mock_settings,
+    ):
+        mock_settings.udp_enabled = False
+        mock_settings.backup_schedule = None
+
+        async with _main.lifespan(app):
+            assert hasattr(app.state, "watcher_task"), \
+                "app.state.watcher_task must exist after startup (even when client is None)"
+            # client is None in this mock — watcher_task stays None
+            assert app.state.watcher_task is None
 
 
 # ---------------------------------------------------------------------------
