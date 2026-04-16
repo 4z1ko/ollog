@@ -56,7 +56,7 @@ Source: `tailwind.config.js` (font family), `input.css` component classes, exist
 |------|------|--------|-------------|
 | Body | 14px (`text-sm`) | 400 (regular) | 1.5 |
 | Label | 12px (`text-xs`) | 600 (semibold), uppercase, tracked wider | 1.5 |
-| Heading | 20px (`text-xl`) | 700 (bold) | 1.2 |
+| Heading | 20px (`text-xl`) | 600 (semibold) | 1.2 |
 | Subtitle | 14px (`text-sm`) | 400 (regular) | 1.5 |
 
 Heading color: `text-gray-900 dark:text-white` (matches existing stats.html stub pattern, carried forward).
@@ -99,6 +99,8 @@ Chart text color: `'#9ca3af'` (gray-400) for labels in dark mode, `'#6b7280'` (g
 ## Layout Contract
 
 Source: `43-CONTEXT.md` §Decisions (D-01 and Claude's Discretion).
+
+Primary focal point: Summary card (Total QSOs count). Secondary focal point: Band + Mode chart pair.
 
 ### Page Width
 `max-w-5xl mx-auto` — wider than profile page (`max-w-3xl`) to accommodate three charts comfortably.
