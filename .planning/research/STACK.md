@@ -1,171 +1,340 @@
-# Stack Research: v2.3 Operator Statistics Page
+# Technology Stack — v2.4 Live Log & Sound Alerts
 
-**Project:** ollog — Ham Radio Online Logbook
-**Milestone:** v2.3 Operator Statistics
-**Researched:** 2026-04-15
-**Overall confidence:** HIGH
-
----
-
-## Current Stack (relevant to this milestone)
-
-| Component | Technology | Version | Notes |
-|-----------|-----------|---------|-------|
-| Backend framework | FastAPI | 0.135+ | Already in use |
-| Async ODM | Beanie | 2.1+ | Already in use; supports raw aggregation pipelines |
-| Database | MongoDB 7 | single-node replica set | Already in use |
-| Templates | Jinja2 | — | Already in use; rendered server-side |
-| Frontend interactivity | HTMX | 2.0.4 | Already in use; loaded from unpkg CDN in base.html |
-| CSS | Tailwind CSS v3 | — | Already in use; dark mode classes required |
-| Charting | None | — | NOT yet in stack; Chart.js is the addition |
-
-The existing render pipeline for operator UI pages is: FastAPI route handler (ui_router.py) -> Beanie query -> Jinja2 template -> HTMX partial swap where needed. The stats page fits this pattern exactly with one addition: a Chart.js script tag.
+**Project:** ollog v2.4
+**Milestone:** Live Log & Sound Alerts
+**Researched:** 2026-04-16
+**Scope:** Additions and changes ONLY. Validated v2.3 stack is not re-listed.
 
 ---
 
-## New Additions Needed
+## New Python Dependencies
 
-### Chart.js via CDN
+**None required.** All four v2.4 features can be implemented with the existing Python stack.
 
-**Recommendation:** Chart.js 4.5.1, loaded from jsDelivr CDN, pinned to the exact version.
+| Candidate | Decision | Rationale |
+|-----------|----------|-----------|
+| Any beanie notifications/events lib | Not needed | Change stream already wired in `app/feed/manager.py` |
+| Any audio Python library | Not applicable | Sound is pure browser-side Web Audio API |
+| Any new FastAPI dependency | Not needed | Profile field addition is a Beanie document field + Pydantic schema change |
 
-**Confidence:** HIGH — version confirmed directly from `https://cdn.jsdelivr.net/npm/chart.js@latest/package.json` returning `4.5.1`. Context7 docs and Chart.js official docs both confirm the CDN pattern.
+---
 
-**CDN tag to add in the stats template (not base.html):**
+## New JavaScript Dependencies
 
-```html
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+**None required.** Web Audio API is a browser built-in.
+
+| Candidate | Decision | Rationale |
+|-----------|----------|-----------|
+| `howler.js` | Rejected | Overkill for a single-tone notification; adds 100+ KB; no CDN audio files wanted |
+| `tone.js` | Rejected | Even heavier; synthesis library for full compositions |
+| `browser-beep` npm | Rejected | Thin wrapper around Web Audio API with no added value for this use case |
+| Web Audio API (built-in) | **Use this** | Zero-dependency, baseline widely available since April 2021, pure JS |
+
+---
+
+## Feature 1: UDP-Inserted QSOs Trigger SSE Reload
+
+### Root Cause Analysis (from code audit)
+
+The `watch_qsos` coroutine in `app/feed/manager.py` watches the `qsos` collection for
+`operationType: insert` events via a pymongo async change stream. Beanie's `qso.insert()`
+calls `insertOne` on the underlying `AsyncMongoClient` collection — this is a standard MongoDB
+write that DOES emit a change stream event. The chain is:
+
+```
+UDP datagram -> QSODatagramProtocol.datagram_received()
+  -> asyncio.create_task(_handle_datagram())
+    -> qso.insert()                      # Beanie -> pymongo insertOne
+      -> MongoDB oplog insert event
+        -> watch_qsos async for loop
+          -> manager.broadcast(html)
+            -> SSE event "new_qso" -> browser
 ```
 
-**Why this specific URL:**
-- `chart.umd.min.js` is the UMD bundle — no module bundler required, registers `Chart` as a global. This is what the Chart.js getting-started guide recommends for non-bundled usage.
-- `@4.5.1` is pinned, not `@latest`. Unpinned CDN tags break on major version bumps (v4 to v5 will be a breaking change). The existing htmx tag in base.html (`htmx.org@2.0.4`) and sse tag (`@2.2.4`) follow this same pinned pattern.
-- jsDelivr is already used in this codebase (htmx-ext-sse). Consistent CDN vendor.
+The chain is architecturally sound. The most likely reason UDP inserts do NOT trigger SSE
+in practice:
 
-**Where to add the tag:**
-- Add inside a `{% block extra_scripts %}{% endblock %}` block placed at the bottom of `base.html` just before `</body>`, then override in the stats template.
-- Do NOT add to `base.html` globally — Chart.js is ~200 KB min and only needed on the stats page. Load it only where used.
-- Chart.js has no FOUC-equivalent constraint — it can load at the bottom of the page body after the canvas elements exist.
+**`.env` missing replica set parameter.** `.env` has `MONGODB_URI=mongodb://mongodb:27017`
+(no `?replicaSet=rs0`). The `watch_qsos` task fails on startup with
+`PyMongoError: The $changeStream stage is only supported on replica sets`. The retry loop
+catches this, sleeps 1 second, and crashes again in a tight loop — it never broadcasts.
+Docker Compose has `?replicaSet=rs0` in the environment override, so the Docker path works.
+Local dev without Docker uses the `.env` file directly and is silently broken.
 
-**Pie chart data flow:**
-- FastAPI handler computes aggregation, serializes result to a JSON-safe Python dict.
-- Jinja2 renders the dict inline as a JavaScript variable using the `tojson` filter.
-- Chart.js reads the variable at page load — no async fetch needed, no separate JSON endpoint needed.
-- This is simpler and correct: the data is operator-scoped, already computed on the server, and a page refresh to see updated stats is acceptable (stats are a point-in-time snapshot, not a live feed).
+**Secondary behaviour (not a bug):** `manager.broadcast(html)` sends the same SSE event to
+every connected operator. Each operator's `htmx:sseMessage` handler checks `#auto-refresh-ok`
+and reloads `/log/view`, which is scoped to their own callsign via cookie JWT. A UDP insert
+for operator W1AW also triggers a reload for K1XY if both are on page 1. The reload is
+correct (harmless, no data leak), just a minor extra HTTP request. Do not fix in v2.4.
 
-### MongoDB Aggregation Pipelines (no new Python dependency)
+### Fix Required
 
-**Recommendation:** Use Beanie's `.aggregate()` method on `QSO` directly. No additional Python packages needed.
+Add a `logger.error` call (not just `logger.warning`) in `watch_qsos` when the change stream
+fails, with the full exception message. This makes the replica-set misconfiguration
+immediately visible in logs.
 
-**Confidence:** HIGH — Beanie 2.x `.aggregate()` is documented and takes a raw MongoDB aggregation pipeline list with an optional `projection_model`. Confirmed via Context7 for `/beanieodm/beanie`.
+The functional code path is already correct for Docker deployments. No logic changes needed
+to make UDP inserts trigger the SSE chain.
 
-**Pattern for band and mode breakdowns:**
+**Reuse:** existing `htmx:sseMessage` handler in `templates/log/log.html`. No changes
+to the handler logic for Feature 1.
+
+---
+
+## Feature 2: Dismissable "N new QSOs" Badge (Page 2+)
+
+### Implementation Approach
+
+Pure JavaScript counter in the existing `<script>` block in `templates/log/log.html`.
+No new dependencies. No server changes.
+
+**How it works:**
+
+The `htmx:sseMessage` handler fires for every `new_qso` event regardless of page.
+
+- When `#auto-refresh-ok` is present (page 1, default sort, no filters, no edit open):
+  fire `htmx.ajax()` reload as today.
+- When `#auto-refresh-ok` is absent (page 2+, filtered, edit open):
+  increment a JS counter `pendingCount`, then render/update a badge element.
+
+**Badge placement:** The badge must live OUTSIDE `#log-table` because `#log-table`'s
+`innerHTML` is replaced on every pagination/filter/sort swap. The correct anchor is the
+`#live-indicator` sibling in the page header flex row in `log.html` (lines 18–23). Add
+`id="new-qso-badge"` as a sibling `<div>` there. It persists across all table swaps.
+
+**Badge HTML (render once, show/hide via JS):**
+```html
+<div id="new-qso-badge" class="hidden items-center gap-2 px-3 py-1 rounded-md text-xs
+     font-semibold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400">
+  <span id="new-qso-count">0</span> new QSO<span id="new-qso-plural"></span>
+  <button onclick="dismissNewQsoBadge()" class="ml-1 hover:text-indigo-900 dark:hover:text-white">
+    &times;
+  </button>
+</div>
+```
+
+**Reset on navigation to page 1:** Hook `htmx:afterSwap` on the `#log-table` element.
+After a swap, if `document.getElementById('auto-refresh-ok')` exists, the operator returned
+to the default view — reset `pendingCount` to 0 and hide the badge.
+
+**SSE event data:** The current `new_qso` SSE event payload is rendered `feed_row.html`
+HTML. The badge only counts events; it does not parse the payload. No server changes needed.
+
+---
+
+## Feature 3: Web Audio API Tone Notification
+
+### Technology Decision
+
+**Use the Web Audio API directly.** No library. No CDN audio files.
+
+**Confidence: HIGH** — AudioContext and OscillatorNode are Baseline Widely Available
+(MDN designation since April 2021). Chrome 35+, Firefox 25+, Safari 14.1+, Edge 79+.
+
+### Canonical Pattern
+
+```javascript
+// Created once at page load, reused for all notifications.
+let _audioCtx = null;
+
+function _getAudioCtx() {
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _audioCtx;
+}
+
+// Call from ANY user interaction on the log page (filter submit, sort click,
+// pagination click). Unlocks the AudioContext once; it stays running for the
+// page lifetime after that.
+function _unlockAudio() {
+  const ctx = _getAudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+}
+
+// Called from htmx:sseMessage handler when new_qso fires
+// and notify_sound is true.
+function playNotificationTone() {
+  const ctx = _getAudioCtx();
+  if (ctx.state !== 'running') return; // Silent before first user gesture.
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'sine';
+  osc.frequency.value = 880;                                   // A5, sharp and audible
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.15);                            // Auto-GC after stop
+}
+```
+
+**Tone parameters:**
+- 880 Hz (A5): sharp enough to cut through a busy shack, not shrill
+- 150 ms duration: brief notification, not an alarm
+- Exponential gain ramp: clean stop, no click artifact at cutoff
+- Gain 0.3: moderate; browser cannot exceed the system volume level
+
+**Autoplay policy resolution:** All modern browsers block `AudioContext` from producing
+sound until the page has received at least one user gesture. After that initial gesture,
+the context stays in `running` state for the page's lifetime. SSE-triggered audio is
+permitted after that point — the gesture does not need to be contemporaneous with the
+sound. In practice, the operator will have clicked a filter, sort header, pagination link,
+or the form before any UDP insert arrives. The `ctx.state !== 'running'` guard makes
+the first few SSE events silent — this is acceptable and by design.
+
+`unlockAudio()` should be called from the existing interactive elements already in
+`log.html`: the filter form submit button, sort column anchors, and pagination links.
+The simplest approach: attach a single `htmx:beforeRequest` listener on `document.body`
+(fires on every HTMX request, which covers all user interactions in this page) to call
+`_unlockAudio()`.
+
+**Memory management:** `OscillatorNode.stop()` disconnects the node automatically after
+the scheduled stop time. Nodes created with `ctx.createOscillator()` are garbage-collected
+after they finish. No explicit cleanup required.
+
+**`webkitAudioContext` prefix:** Required for Safari pre-14.1 (pre-2020). The
+`window.AudioContext || window.webkitAudioContext` fallback is standard practice and
+costs nothing.
+
+---
+
+## Feature 4: `notify_sound` Profile Field
+
+### Model Change — `app/auth/models.py`
+
+Add one field to the User Beanie document:
 
 ```python
-from pydantic import BaseModel, Field
-
-class BucketResult(BaseModel):
-    id: str = Field(alias="_id")
-    count: int
-
-band_stats = await QSO.find(
-    {"_operator": operator, "_deleted": False}
-).aggregate(
-    [
-        {"$group": {"_id": "$BAND", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-    ],
-    projection_model=BucketResult,
-).to_list()
+notify_sound: bool = False   # Sound notification on new QSOs; opt-in
 ```
 
-Mode stats follow the identical pattern, changing `"$BAND"` to `"$MODE"`.
+Default `False` is intentional — opt-in, never surprises an operator after upgrade.
+No MongoDB migration needed: Beanie reads documents without the field as the default value.
+Existing users get `False` until they enable it in Profile Settings.
 
-**Pattern for DXCC top-8 + "Other":**
-DXCC entity name is derived at render time via `lookup_prefix(qso.CALL)` -> `pycountry.countries.get()` -> country name. This is computed in Python, not stored in the QSO document, consistent with the existing "render-time enrichment, not stored" decision.
+### Schema Changes — `app/profile/schemas.py`
 
-Approach: aggregate by `CALL` field in MongoDB (one `$group` stage), then in Python iterate the results calling `lookup_prefix()` on each unique callsign and accumulate counts per country name. Slice top 8, sum remainder into "Other". `len(unique_countries)` before slicing gives the unique DXCC count.
+```python
+# ProfileUpdateRequest — add:
+notify_sound: Optional[bool] = None
 
-No new Python library is needed. `lookup_prefix` and `pycountry` are already imported in `ui_router.py`.
+# ProfileResponse — add:
+notify_sound: bool = False
+```
 
-The number of unique CALLs per operator is bounded (hundreds to low thousands in a typical log) — a Python-side grouping step after the MongoDB aggregation is not a performance concern.
+### UI Form Change — `templates/log/profile.html`
+
+Add a checkbox toggle in the existing HTMX form. HTML checkboxes do not submit a value
+when unchecked — an absent field means `False`, not "unchanged". This differs from all
+other profile fields which are nullable strings. Handle in the route handler:
+
+```python
+# In profile_update() in ui_router.py — always include notify_sound:
+raw["notify_sound"] = notify_sound is not None
+```
+
+Where `notify_sound: Annotated[Optional[str], Form()] = None` is the new Form parameter
+(HTML checkbox submits `"on"` when checked, nothing when unchecked; treat any non-None
+value as `True`).
+
+### Passing `notify_sound` to Browser JavaScript
+
+The log view JS needs to know whether to play the tone. The cleanest approach is an
+inline JS constant injected in `log.html` from the template context:
+
+```html
+<!-- in log.html <script> block -->
+const NOTIFY_SOUND = {{ 'true' if user.notify_sound else 'false' }};
+```
+
+This requires changing the `log_view` endpoint to use
+`user: User = Depends(get_current_user_cookie)` instead of the current
+`callsign: str = Depends(get_current_operator_callsign_cookie)`, and passing
+`notify_sound: user.notify_sound` in the template context.
+
+`NOTIFY_SOUND` is a module-level constant that survives HTMX table swaps (the `<script>`
+block is in the outer page, not in `log_table.html`). The value is set at page load; if
+the operator changes the setting, they need to reload the log view page to pick it up —
+this is acceptable behaviour.
+
+---
+
+## Integration Points — What Changes vs What Stays
+
+| Component | Change | Details |
+|-----------|--------|---------|
+| `app/feed/manager.py` | Logging improvement only | Add `logger.error` for replica-set failure |
+| `app/feed/router.py` | No change | SSE event emission unchanged |
+| `app/udp/server.py` | No change | UDP inserts already trigger change stream |
+| `app/auth/models.py` | Add one field | `notify_sound: bool = False` |
+| `app/profile/schemas.py` | Add field to two schemas | `notify_sound` in request + response |
+| `app/profile/service.py` | No change | `update_profile()` passes any dict; handles new field automatically |
+| `app/qso/ui_router.py` | Two changes | `log_view`: use `get_current_user_cookie` dep, pass `notify_sound` in ctx; `profile_update`: add `notify_sound` Form param + always include in `raw` dict |
+| `templates/log/log.html` | Extend `<script>` block | Badge element; updated `htmx:sseMessage`; `playNotificationTone()`; `_unlockAudio()`; `NOTIFY_SOUND` constant |
+| `templates/log/profile.html` | Add checkbox field | `notify_sound` toggle in form |
+| `templates/log/log_table.html` | No change | `#auto-refresh-ok` sentinel logic unchanged |
+
+---
+
+## Patterns Reused From Prior Milestones
+
+| Pattern | Source Milestone | Applied To |
+|---------|-----------------|------------|
+| `htmx:sseMessage` event listener | v1.6 | Badge counter and sound trigger added to existing handler body |
+| Server-side `#auto-refresh-ok` sentinel span | v1.6 | Reused as-is for page 1 vs page 2+ discrimination |
+| `window.dispatchEvent(new CustomEvent(...))` | v1.9 | `htmx:beforeRequest` body listener for audio unlock |
+| `Optional[field] = None` in ProfileUpdateRequest | v1.1 | `notify_sound` uses `Optional[bool] = None` in schema |
+| HTTP 200 always for HTMX form fragments | v1.1 / v2.0 | Profile update response unchanged |
+| `model_construct()` in unit tests | v1.1 | Tests for `notify_sound` can reuse same pattern |
+| Badge element outside swap target | v1.6 (live indicator) | Badge placed as sibling of `#live-indicator` not inside `#log-table` |
 
 ---
 
 ## What NOT to Add
 
-| Candidate | Decision | Reason |
-|-----------|----------|--------|
-| Separate `/api/stats` JSON endpoint | Do not add | Data is operator-scoped and auth-required. Inline server-side rendering avoids a second authenticated request and matches the existing HTMX page pattern. Add a JSON endpoint only if a future mobile client needs it. |
-| Chart.js in base.html globally | Do not add | ~200 KB loaded on every page (login, form, log view, profile, tokens, import) with no benefit. Stats page only. |
-| chart.js npm package in package.json | Do not add | npm is used only for the Tailwind CSS build. No JS bundler is in the project. CDN is the correct delivery method. |
-| Alpine.js for chart reactivity | Do not add | Charts render a point-in-time snapshot. No reactive state management is needed. |
-| Server-Sent Events on stats page | Do not add | Stats are a snapshot. Wiring SSE to update pie charts on new QSOs adds significant complexity for marginal value. |
-| D3.js | Do not add | Substantially higher complexity for pie charts. Chart.js covers the requirement with no custom SVG math. |
-| Victory, Recharts, or other React-based libraries | Do not add | No React in this project. |
-| Any data-cube or OLAP middleware | Do not add | Three simple `$group` aggregations run directly on MongoDB. No intermediate data layer warranted. |
+| Item | Reason |
+|------|--------|
+| CDN audio files (.mp3, .wav) | Zero-dependency constraint; Web Audio synthesis covers the use case fully |
+| howler.js or tone.js | Overkill; no CDN audio files; plain Web Audio API is sufficient |
+| WebSocket upgrade | SSE is already working; no bidirectionality needed |
+| Any new Python package | No server-side audio; profile field change requires no new library |
+| `notify_sound` as a QSO field | It is a user preference, not QSO data; belongs in User document |
+| Per-operator SSE channels | Multi-operator broadcast is acceptable; each reload is scoped by JWT |
+| Service worker / Push API | Heavy overkill; SSE is already a persistent connection |
+| Separate `/api/notify-sound` endpoint | Setting is read at page load; inline template context is sufficient |
 
 ---
 
-## Integration Notes
+## Browser Compatibility
 
-### Script loading in Jinja2 template
+| Feature | Chrome | Firefox | Safari | Edge | Note |
+|---------|--------|---------|--------|------|------|
+| `AudioContext` | 35+ | 25+ | 14.1+ | 79+ | Baseline widely available since April 2021 |
+| `webkitAudioContext` prefix | 14–35 | No | 6–14 | No | Legacy fallback; keep in code for old Safari |
+| `OscillatorNode` | 35+ | 25+ | 14.1+ | 79+ | Same as AudioContext |
+| `GainNode` | 35+ | 25+ | 14.1+ | 79+ | Same |
+| Autoplay policy (gesture required) | 66+ | 70+ | 14.1+ | 79+ | `resume()` after any user click suffices |
+| `htmx:sseMessage` event | All modern | All modern | All modern | All modern | Fires from htmx-ext-sse 2.2.4 |
+| SSE (`EventSource`) | All modern | All modern | All modern | All modern | Already in use since v1.6 |
 
-`base.html` currently closes `</body>` immediately after `{% block body %}{% endblock %}` with no extension point for page-specific scripts. Add a `{% block extra_scripts %}{% endblock %}` block in `base.html` just before `</body>`:
-
-```html
-{% block extra_scripts %}{% endblock %}
-</body>
-```
-
-In `stats.html`, override it:
-
-```html
-{% block extra_scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-<script>
-  // chart initialization
-</script>
-{% endblock %}
-```
-
-This is clean Jinja2 template inheritance and does not affect any other page.
-
-### Dark mode compatibility
-
-Chart.js canvas does not automatically respect Tailwind dark mode. Pie chart slice colors must be explicit hex values in the JS config, not Tailwind class references. Use the existing Apple design token palette from the project (indigo-500 and family). The canvas element background is transparent by default and inherits the page background (`bg-canvas-light dark:bg-canvas-dark`), which is correct.
-
-To detect dark mode for conditional label/legend colors: `document.documentElement.classList.contains('dark')` reads the class applied by the FOUC-prevention inline script in `base.html`. Chart.js initialization code at the bottom of the page body runs after the FOUC script, so the dark class is always present before any Chart constructor call.
-
-### Data serialization from Python to Chart.js
-
-Pass aggregation results through the Jinja2 template context as Python dicts/lists. Use the Jinja2 `tojson` filter for safe inline serialization:
-
-```html
-<script>
-const bandData  = {{ band_data  | tojson }};
-const modeData  = {{ mode_data  | tojson }};
-const dxccData  = {{ dxcc_data  | tojson }};
-const uniqueDxcc = {{ unique_dxcc_count | tojson }};
-</script>
-```
-
-`tojson` escapes `<`, `>`, and `&`, which prevents XSS from crafted callsigns in the aggregation output.
-
-### Sidebar nav link
-
-Add a Statistics entry in `base_app.html`'s `{% block sidebar_nav %}` following the existing pattern: a Heroicon SVG (`chart-pie` or `chart-bar`) + "Statistics" label + `nav-item-active` conditional on `ap == 'stats'`.
-
-### Router placement
-
-The `/log/stats` GET route belongs in `app/qso/ui_router.py` alongside the other `/log/*` UI routes. Aggregation helper functions belong in `app/qso/service.py`, following the existing router -> service -> Beanie model layering.
+No polyfill or library needed. The `window.AudioContext || window.webkitAudioContext`
+one-liner covers all relevant browsers including old Safari.
 
 ---
 
 ## Sources
 
-- Chart.js current version confirmed: `https://cdn.jsdelivr.net/npm/chart.js@latest/package.json` (4.5.1, HIGH confidence)
-- Chart.js CDN and UMD bundle: `https://www.chartjs.org/docs/latest/getting-started/installation.html` (official docs, HIGH confidence)
-- Chart.js pie chart config: Context7 `/websites/chartjs`, HIGH confidence
-- Beanie `.aggregate()` with projection_model: Context7 `/beanieodm/beanie`, HIGH confidence
-- MongoDB `$group` / `$sort` pipeline: `https://www.mongodb.com/docs/languages/python/pymongo-driver/current/aggregation/` (official, MEDIUM confidence — Beanie wraps this)
+- MDN Web Docs — AudioContext (Baseline Widely Available): https://developer.mozilla.org/en-US/docs/Web/API/AudioContext
+- MDN Web Docs — Web Audio API Best Practices: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices
+- Chrome Developers — Web Audio Autoplay Policy: https://developer.chrome.com/blog/web-audio-autoplay
+- PyMongo Async Change Stream API: https://pymongo.readthedocs.io/en/stable/api/pymongo/asynchronous/change_stream.html
+- MongoDB Change Events Reference: https://www.mongodb.com/docs/manual/reference/change-events/
+- htmx-ext-sse extension: https://htmx.org/extensions/sse/
+- Code audit: `app/feed/manager.py`, `app/udp/server.py`, `app/auth/models.py`,
+  `app/qso/ui_router.py`, `templates/log/log.html`, `templates/log/log_table.html`,
+  `docker-compose.yml`, `.env`

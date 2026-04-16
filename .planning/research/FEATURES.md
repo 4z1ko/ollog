@@ -1,216 +1,335 @@
-# Features Research
+# Feature Landscape
 
-**Domain:** Operator statistics page — ham radio logbook (ollog v2.3)
-**Researched:** 2026-04-15
-**Confidence:** HIGH (cross-referenced QScope, QSL Buddy, Ham Radio Deluxe, ADIF spec, and direct codebase audit of existing `app/callsign/prefixes.py`)
-
----
-
-## Table Stakes
-
-Features that every ham radio stats page provides. An operator loading `/log/stats` for the first time expects all of these. Missing any of these makes the page feel incomplete or broken.
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| QSO count by band (pie chart) | First question every operator asks: "Which band have I used most?" QScope, QSL Buddy, and Logger32 all lead with band distribution. | LOW | MongoDB `$group` on `BAND` field with `$sum: 1`. BAND values are ADIF-standard lowercase strings ("20m", "40m", etc.). Render as pie chart. |
-| QSO count by mode (pie chart) | Second most common: "Do I mostly do FT8 or SSB?" All survey tools show mode breakdown. | LOW | MongoDB `$group` on `MODE` field. Modes are ADIF uppercase strings: FT8, SSB, CW, FM, etc. Render as pie chart. |
-| Top N DXCC entities by QSO count (pie chart) | "Who have I contacted most internationally?" is the core DX question. QScope's entity distribution chart and QSL Buddy's "top countries" are both table stakes in the genre. | MEDIUM | Requires `lookup_prefix(CALL)` at query time OR a MongoDB aggregation that post-processes CALL values. See domain notes below. |
-| Total unique DXCC entities worked (scalar) | Single number: "I've worked 47 DXCC entities." This is the ham radio equivalent of a leaderboard number — operators track this obsessively. Every logging app displays it prominently. | MEDIUM | Count of distinct resolved entity names (or ISO codes) across operator's log. Unresolvable calls (None from lookup_prefix) are excluded. |
-| Data scoped to authenticated operator | Log isolation is the entire premise of ollog. Stats must filter by `_operator == callsign` exactly as QSO queries do. | LOW | Use same `get_current_operator_callsign_cookie` dependency already used in all UI routes. Pass operator callsign into MongoDB `$match` at the start of each aggregation pipeline. |
-| Page linked from sidebar nav | No operator will find a stats page by guessing the URL. It must be in the nav alongside Log and Profile. | LOW | Add a nav item in `base_app.html` sidebar block pointing to `/log/stats`. Use a bar-chart Heroicon at `w-6 h-6` to match existing nav icon sizing. |
+**Domain:** Real-time web logging (ham radio QSO log, v2.4 Live Log & Sound Alerts)
+**Milestone:** v2.4
+**Researched:** 2026-04-16
+**Confidence:** HIGH — all findings grounded in direct code inspection of the existing codebase
 
 ---
 
-## Differentiators
+## Feature 1: UDP QSOs Triggering SSE Refresh (Bug Fix)
 
-Features found in better ham radio logging tools that set them apart. Not expected by a new user, but valued by experienced operators. These improve the page without being required for v2.3 MVP.
+### What "Done" Looks Like
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Total QSO count scalar | Headline number — "You have 1,247 QSOs." Provides context for all the charts. Trivial to add alongside the DXCC count. | LOW | Single `$match` + `$count` aggregation. Display at top of page before charts. |
-| "Other" bucket for DXCC entities beyond top N | When showing top 8 entities, grouping the remainder as "Other" prevents the pie from becoming unreadable. QScope does this natively for entity charts. Without it, a 47-entity operator gets a 47-slice pie chart. | LOW | Already in PROJECT.md as a target feature. Aggregate top 8 by count, sum the rest into a single "Other" slice. |
-| Empty log state | A new operator with zero QSOs gets a blank pie chart, which looks broken. A friendly message ("No QSOs yet — log a contact to see your stats") is expected. | LOW | Check total QSO count first; if 0, render an empty-state template instead of chart JS. |
-| Country name display (not ISO code) | Showing "United States" or "Germany" next to a pie slice is far more readable than "US" or "DE". Ham radio culture is callsign-country-aware — operators recognize entity names. | LOW | `lookup_prefix` returns an ISO alpha-2 code. Use `pycountry` (already a project dependency per `ui_router.py` imports) to convert ISO code → country name. For None-ISO entities (non-country ITU entities like 4U1ITU), show "Non-Country Entity" or skip. |
-| Bands ordered by frequency (not count) | Band charts are more readable when ordered by wavelength (160m → 10m → 6m → 2m → 70cm) rather than by QSO count. The former matches the mental model operators use. QScope uses this ordering. | LOW | Sort aggregation results client-side or server-side using a fixed ordered list matching ADIF BAND enumeration order before rendering. |
-| Responsive layout for mobile/tablet | Operators check stats from their phone. Pie charts at full desktop width are unreadable at 375px width. | LOW | Tailwind responsive grid (already used throughout the app) — stack charts vertically on mobile using `md:grid-cols-2` or similar. Chart.js charts are inherently responsive via `maintainAspectRatio: false` + container sizing. |
+A QSO inserted via UDP datagram causes the same SSE `new_qso` event as a QSO inserted via REST API or web form. No special handling needed in the UDP path — the fix lives in the SSE/change-stream layer.
 
----
+### Current Behavior (Diagnosis from Code)
 
-## Anti-Features
+The change-stream watcher (`app/feed/manager.py: watch_qsos`) uses this call pattern:
 
-Features that seem natural for a ham radio stats page but are wrong for this project's scope, scale, and complexity budget.
-
-| Anti-Feature | Why It Seems Natural | Why to Avoid | What to Do Instead |
-|--------------|---------------------|--------------|-------------------|
-| Per-band DXCC matrix (band × entity grid) | Log4OM and QScope show a band/entity matrix for DXCC Challenge tracking | Requires a 2D aggregation (band × entity), far more complex rendering, and is only useful to operators pursuing the DXCC Challenge award. Project scope explicitly defers award tracking. | Show entity totals across all bands. Per-band entity breakdown is a v3+ feature when award tracking is addressed. |
-| Award progress indicators (DXCC, WAS, WAZ) | "You need 53 more entities for DXCC" is a natural next step | Award tracking requires a reference list (CTY.DAT or ARRL DXCC entity list), confirmation status (LoTW), and significant business logic. PROJECT.md explicitly defers this to v2+. | Display raw worked count only — no progress bars, no "X more needed." |
-| Real-time stats refresh via SSE | The live log table already uses SSE — extending it to stats seems consistent | Stats aggregations are expensive relative to a log table row fetch. Running a full DXCC aggregation on every QSO insert would cause visible latency under burst logging (e.g. FT8 sessions). Stats are inherently a snapshot, not a stream. | Stats page is a static render on page load. Operator manually reloads to refresh. If wanted later, add a manual "Refresh" button. |
-| Date range filtering on stats | "Show me stats for just this year" or "stats for this contest weekend" | Adds filter state, URL params, and significantly more complex UI and query logic. Scope creep for v2.3. | Stats always cover the operator's entire log. Date filtering is a v3+ consideration. |
-| QSO rate charts (QSOs per hour/day) | QScope shows hourly rate charts; useful for contest operators | Contest analysis is not the use case for ollog. The app targets club station / multi-operator casual logging. Rate charts require time-series aggregation and a time-series chart type (not pie), adding rendering complexity. | Defer to a future "activity insights" phase if operators request it. |
-| Interactive/clickable pie slices | "Click this slice to see all 20m QSOs" — drill-down navigation | Requires deep linking into the QSO log with pre-set filters, which the filter system would need to support as URL params. Significant plumbing for modest UX gain. | Charts are display-only. The existing QSO log has its own filter controls. |
-| Gridsquare map / worked grids | QSL Buddy shows a gridsquare map; visually impressive | Requires a mapping library (Leaflet or similar) — a new dependency. Gridsquare data is rarely present in QSOs logged via this app's web UI (no MY_GRIDSQUARE capture per QSO, only MY_GRIDSQUARE on operator profile). Most QSOs would be unplotted. | Gridsquare stats require first building a gridsquare capture workflow, which is not part of v2.3. |
-| DX distance calculation | "Longest contact: 12,000 km to VK2ABC" | Requires lat/lon for both stations. Operator's lat/lon is derived from their gridsquare (profile), but the worked station's location is not stored — would require a callsign lookup API (QRZ/HamQTH). PROJECT.md explicitly defers callsign lookup to v2+. | Omit. No external API calls in v2.3. |
-| Export stats as PDF or CSV | QScope provides stats export | Significant rendering complexity (PDF generation in Python). QSO export to ADIF already exists for operators who want to analyze in external tools. | Document the ADIF export path as the way to run external analysis. |
-| Continent breakdown | QScope shows QSOs by continent (AF, AS, EU, NA, OC, SA, AN) | Continent → ITU entity mapping is a separate lookup from the existing prefix resolver. The existing `prefixes.py` resolves to ISO country code, not continent. Deriving continent from ISO code requires a second mapping table not present in the codebase. | DXCC entity breakdown already serves the geographic insight need. Continent breakdown adds a new dependency for marginal extra value. |
-
----
-
-## Ham Radio Domain Notes
-
-### What "Worked DXCC Entity" Means in ollog Context
-
-The formal DXCC program (ARRL) requires confirmed two-way contacts and uses the official ARRL DXCC entity list (340 current entities). ollog does NOT implement the formal DXCC award program — that is explicitly deferred.
-
-For the v2.3 stats page, "DXCC entity worked" means: **a unique resolved entity name derived from the CALL field of a QSO using the existing `lookup_prefix()` function.** Specifically:
-
-- `lookup_prefix(CALL)` returns an ISO 3166-1 alpha-2 code (e.g. "DE"), or `None`
-- ISO code `None` means the callsign resolved to a non-country ITU entity (4U1ITU, UN, etc.) or was unresolvable (maritime mobile, parse failure)
-- For stats purposes: count distinct non-None ISO codes as unique entities
-- Unresolvable calls (None) are excluded from the DXCC entity pie and count — they represent real contacts but cannot be attributed to an entity
-- The "unique entity count" scalar = count of distinct ISO codes (not distinct country names, since one country can have multiple ITU Series Ranges)
-
-This approach is intentionally simpler than CTY.DAT-based resolution (which the formal DXCC program uses). It is the correct trade-off for v2.3 because the callsign prefix resolver already exists, is tested, and is already used in the log table (flags). No new dependency is introduced.
-
-### What Counts as "Worked" vs "Confirmed"
-
-The stats page shows worked counts only (any QSO with a resolved entity = worked). Confirmed (QSL received, LoTW match) is not tracked in ollog. PROJECT.md defers LoTW integration to v2+. Do not add QSL status language to the stats page — it implies a confirmation workflow that does not exist.
-
-### DXCC "Top N + Other" Convention
-
-QScope uses this pattern. The convention in ham radio stats is:
-
-- Show the top 8 entities by QSO count (or whatever N fits the chart)
-- Group all remaining entities as "Other" with a combined count
-- If the operator has worked fewer than 8 entities, show all of them with no "Other"
-- The "Other" slice is typically rendered in a neutral gray
-
-PROJECT.md specifies "top 8 DXCC entities." This is a reasonable number — most pie chart libraries become unreadable beyond 8-10 slices.
-
-### Band Display Order
-
-ADIF band values are case-insensitive strings. The standard ordering in ham radio software (QScope, N1MM, Logger32, WSJT-X) goes from longest wavelength to shortest: 160m, 80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m, 10m, 6m, 4m, 2m, 1.25m, 70cm, 33cm, 23cm, and microwave bands beyond. For a pie chart, sorting by QSO count descending (largest slice first) is more visually useful than wavelength order. The legend alongside the pie chart can list bands in wavelength order if implemented, but this is a low-priority detail.
-
-### DXCC Aggregation Implementation Strategy
-
-The existing `lookup_prefix()` is a pure Python function — it cannot run inside a MongoDB aggregation pipeline. Two implementation approaches:
-
-**Option A — Python-side resolution (recommended for v2.3):**
-1. `$match` by `_operator` and `_deleted: false`
-2. `$group` by `CALL` to get unique callsigns and their counts
-3. Fetch the result set in Python (typically a few hundred unique callsigns at most)
-4. Call `lookup_prefix(call)` for each unique callsign
-5. Aggregate counts by ISO code
-6. Sort and take top 8, sum remainder as "Other"
-
-This avoids storing derived DXCC data in documents and keeps the resolver as the single source of truth. At typical ham radio logbook scale (hundreds to low thousands of QSOs, dozens to a few hundred unique callsigns), Python-side resolution is fast enough — sub-100ms for 500 unique callsigns.
-
-**Option B — Store resolved entity on QSO document:**
-Stamp a `_dxcc_iso` field at QSO insert time (REST API + UDP paths). Then aggregate directly in MongoDB. Risk: the prefix resolver can be updated; stored values become stale. Also requires a migration for existing QSOs. Avoid for v2.3.
-
-**Recommendation:** Use Option A. Do not modify the QSO data model for stats.
-
-### Dependency Map
-
-```
-Stats page (/log/stats)
-    └── GET /log/stats  (new route in app/qso/ui_router.py)
-        ├── get_current_operator_callsign_cookie  (exists)
-        ├── MongoDB aggregation ($match _operator + $group BAND, $group MODE)  (new)
-        ├── MongoDB aggregation ($match _operator + $group CALL)  (new)
-        ├── lookup_prefix(CALL)  (exists in app/callsign/prefixes.py)
-        ├── pycountry.countries.get(alpha_2=iso)  (pycountry already a dependency)
-        └── Chart.js (new JS dependency — CDN or bundled)
-            └── Note: Chart.js is the standard for lightweight browser charting
-                in HTMX/Jinja2 stacks. No npm build step needed if loaded from CDN.
-                Tailwind build does not need to change.
+```python
+async with await collection.watch(pipeline, full_document="updateLookup") as stream:
 ```
 
-### Chart Library Choice
+The `await collection.watch(...)` double-await mirrors the `(await collection.aggregate(pipeline)).to_list()` pattern discovered in v2.3 (see Key Decisions). Whether this is correct for `pymongo 4.16+` AsyncCollection's `.watch()` method is the primary investigation target. If `.watch()` is a coroutine, this is correct; if it returns a cursor directly, the extra `await` creates a coroutine object that the `async with` never actually opens as a real stream — silently producing an empty iterator.
 
-Chart.js is the correct choice for this project:
+Additionally: `watch_qsos` is started in lifespan using `get_client()`, which returns the shared `AsyncMongoClient`. Beanie also uses this same client for all QSO inserts. There is no connection isolation — UDP-inserted QSOs go through the same `_client` instance and thus the same MongoDB session, so the change stream should see them. If the stream is working for REST inserts but not UDP inserts, the bug is in the `watch_qsos` loop or a timing/reconnect issue, not in the UDP path itself.
 
-- No npm build pipeline change — load from CDN in the stats template (or copy to `static/js/`)
-- Pie chart type is built-in: `new Chart(ctx, { type: 'pie', data: {...} })`
-- Responsive out of the box — works with Tailwind container sizing
-- Dark mode support: pass `color` options via Chart.js `plugins.legend.labels.color` keyed on the existing `dark` class detection logic (already present in the app's theme toggle JS)
-- Well-documented, stable, widely used — not an exotic choice
+The watcher pipeline is:
+```python
+[{"$match": {"operationType": "insert"}}]
+```
+This is correct — inserts from all paths (REST, UI form, UDP) trigger `operationType: "insert"` on the change stream.
 
-Avoid D3.js (too complex for three pie charts), Highcharts (commercial license), ApexCharts (heavier than needed).
+### Table Stakes
+
+- Every insert path (REST, UI form, UDP) must trigger the SSE event. This is the core contract.
+- The fix must not break the existing REST/UI form path.
+- No new environment variable or configuration.
+
+### Complexity
+
+**Low** — isolated to `watch_qsos` call pattern. The fix is verifying the correct pymongo async API for `.watch()` and correcting if needed. One-line change or two at most.
+
+### Dependencies on Existing Architecture
+
+- `app/feed/manager.py` — `watch_qsos()` is the only change
+- `app/database.py` — no change; `get_client()` already returns the correct client
+- `app/udp/server.py` — no change; `await qso.insert()` is already correct
+- Must verify: does `AsyncCollection.watch()` in pymongo 4.16+ return a coroutine (requiring `await`) or an async context manager directly?
+
+---
+
+## Feature 2: "N New QSOs" Dismissable Badge on Page 2+
+
+### What "Done" Looks Like
+
+When the operator is on page 2 or higher (or has active filters), and a new QSO arrives via SSE:
+
+1. A badge appears in or near the log table header: "3 new QSOs" (incrementing counter)
+2. The badge is visually distinct but non-intrusive — it does not interrupt the current view, does not scroll, does not auto-jump to page 1
+3. Clicking the badge dismisses it (counter resets to zero, badge hides)
+4. No click action required beyond dismissal — it is informational only (no auto-navigation)
+5. Badge resets to zero if the operator manually navigates to page 1 (because the table will auto-refresh)
+
+### Table Stakes
+
+- Counter must only appear when `#auto-refresh-ok` is absent (i.e., page 2+, active filters, or non-default sort) — because on page 1 with defaults, the table auto-refreshes and the badge is redundant
+- Counter must increment for each SSE `new_qso` event received while the badge is visible
+- Single click dismisses the badge
+- Must survive HTMX partial swaps (because `#log-table` innerHTML is replaced by pagination navigation) — the badge must be outside the HTMX swap target or re-registered after swap
+- Must not appear simultaneously with the auto-refresh (mutually exclusive with `#auto-refresh-ok`)
+
+### Differentiators (Nice-to-Have, Not Required)
+
+- Badge color change at thresholds (e.g., turns amber at 10+ new QSOs) — skip
+- Click-to-navigate to page 1 — not required, adds complexity and can interrupt browsing
+
+### Anti-Features
+
+- Auto-jump to page 1 on new QSO — explicitly out of scope per milestone spec, would interrupt browsing
+- Toast/popup notification — too intrusive for a logging environment where QSOs arrive continuously during FT8 sessions; badge is the correct pattern
+
+### UX Behavior
+
+The badge lives in the log table card header area, rendered in a fixed position relative to the table (not absolutely positioned on the viewport). This keeps it contextually anchored without interfering with scroll position.
+
+```
+[ 3 new QSOs  x ]   <- appears in table header row, right-aligned; x = dismiss
+```
+
+State is entirely client-side: a JS counter variable incremented in the `htmx:sseMessage` handler when `#auto-refresh-ok` is absent.
+
+### Complexity
+
+**Low-Medium** — pure JavaScript + Jinja2/HTML changes.
+
+Key implementation decisions:
+- Badge element must live in `log.html` (outside `#log-table`), not in `log_table.html` (inside the swap target)
+- The `htmx:sseMessage` handler in `log.html` already distinguishes page-1/auto-refresh vs page-2+ via `#auto-refresh-ok`; the badge logic hangs off the `else` branch of that same check
+- Badge must be hidden by default (`hidden` class), shown when counter > 0
+- On dismiss: counter = 0, badge hidden
+- On HTMX swap of `#log-table` (pagination, filter, sort): if page 1 is now active, `#auto-refresh-ok` will appear in the new content; the badge should be dismissed in the `htmx:afterSettle` handler if `#auto-refresh-ok` is now present
+
+### Dependencies on Existing Architecture
+
+- `templates/log/log.html` — badge HTML and JS changes (same file as SSE handler)
+- `templates/log/log_table.html` — no change
+- `app/feed/router.py` — no change; `new_qso` event already fired
+- No backend changes required
+
+---
+
+## Feature 3: Web Audio API Tone on New QSO Arrival
+
+### What "Done" Looks Like
+
+When a new QSO SSE event arrives in the browser:
+
+1. A brief, clean audio tone plays (duration: ~200ms; frequency: ~880 Hz; envelope: short attack, short decay — sounds like a soft "beep")
+2. Sound only plays if the operator has opted in (per-operator preference)
+3. Sound respects browser autoplay policy: audio context is created/resumed on the first user gesture, not on page load
+4. Sound works without any external files — synthesized via Web Audio API oscillator
+
+### Table Stakes
+
+- Zero external audio file dependencies — must use `AudioContext` + `OscillatorNode`
+- Must not play on page load (browser autoplay policy will block it and log a console error)
+- Must not play on every SSE message from `new_qso` if sound is disabled
+- Must play once per `new_qso` event (not once per table row, not batched)
+- Must degrade gracefully if `AudioContext` is not supported (unlikely in 2026, but: `if (window.AudioContext)` guard)
+
+### Web Audio API Behavior (How It Works)
+
+```javascript
+// Pattern for zero-file audio notification:
+let audioCtx = null;
+
+function ensureAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    // Resume if suspended (browser may suspend on page load)
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playTone(freq, duration) {
+    ensureAudioContext();
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq || 880;
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (duration || 0.18));
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + (duration || 0.18));
+}
+```
+
+The `AudioContext` must be created (or resumed) inside a user gesture handler. The approach: initialize `audioCtx` on the first `click` or `keydown` event on `document.body`, then it is available for programmatic calls from SSE events thereafter.
+
+### Autoplay Policy Details
+
+Modern browsers (Chrome, Firefox, Safari) block `AudioContext` creation before user interaction. The fix is straightforward:
+
+```javascript
+// Initialize audio context on first user gesture
+document.body.addEventListener('click', function initAudio() {
+    ensureAudioContext();
+}, { once: true });
+```
+
+This fires once, primes the context, and `{ once: true }` self-removes. Subsequent programmatic calls to `playTone()` work because the context is now in `running` state.
+
+Safari requires `webkitAudioContext` fallback (already in the pattern above).
+
+### Differentiators (Nice-to-Have, Not Required)
+
+- Volume control slider in profile — skip for v2.4
+- Different tones for different modes (FT8 vs SSB) — skip
+- Tone customization (frequency picker) — skip
+
+### Anti-Features
+
+- External audio file (`.wav`, `.mp3`) — adds file to serve, MIME type handling, caching; no benefit over synthesized tone
+- `<audio>` element — worse fit for programmatic triggering; Web Audio API is the correct approach
+
+### Complexity
+
+**Low** — pure browser JavaScript, no backend changes. Approximately 30 lines of JavaScript added to `log.html`.
+
+### Dependencies on Existing Architecture
+
+- `templates/log/log.html` — JS added to existing `htmx:sseMessage` handler
+- No Tailwind changes (no new UI elements beyond the profile toggle)
+- No backend changes, no new routes
+- Feature 4 (profile toggle) controls whether `playTone()` is called
+
+---
+
+## Feature 4: Profile Toggle — Sound On/Off Persisted Per Operator
+
+### What "Done" Looks Like
+
+1. Profile Settings page (`/log/profile`) has a new "Sound Notifications" toggle switch (checkbox)
+2. Saving profile with the toggle on/off persists `sound_enabled: bool` to the operator's `User` document in MongoDB
+3. When the log view page loads, the server renders the page with the operator's sound preference included as a JS variable in the template
+4. The `playTone()` call in `htmx:sseMessage` checks this preference before playing
+
+### Table Stakes
+
+- Default: sound off (`sound_enabled = False`) — opt-in, not opt-out
+- Toggle must be saved with the existing Profile form submit (not a separate endpoint)
+- Server must pass the preference to `log.html` so the JS can read it on page load without a separate API call
+- The preference is per-operator (stored in `User` document), not per-browser (not `localStorage`) — correct scope for a shared station deployment where operators rotate
+
+### How Preference Reaches the Browser
+
+The log view GET route in `app/qso/ui_router.py` already has the `User` object (via `get_current_user_cookie`). Pass `sound_enabled` to the template context as a boolean. Render it into an inline JS variable:
+
+```html
+<!-- In log.html, inside the <script> block that already handles SSE -->
+var SOUND_ENABLED = {{ 'true' if sound_enabled else 'false' }};
+```
+
+The `htmx:sseMessage` handler then adds: `if (SOUND_ENABLED) { playTone(); }`
+
+### Model Changes Required
+
+`app/auth/models.py: User` — add one field:
+```python
+sound_enabled: bool = False  # sound notifications on new QSO arrival
+```
+Default `False` means existing operators are unaffected on upgrade.
+
+`app/profile/schemas.py: ProfileUpdateRequest` — add:
+```python
+sound_enabled: Optional[bool] = None
+```
+
+`app/profile/service.py: update_profile` — no code change needed; `"sound_enabled"` will be in `updates` dict and passed to `$set`.
+
+### UI Changes Required
+
+`templates/log/profile.html` — add a "Notifications" section (new card or appended to existing Operator Details card) with a toggle checkbox.
+
+### Checkbox Submission Behavior (Critical Detail)
+
+HTML checkbox submission: unchecked boxes are not submitted in the form POST body. The profile POST handler in `app/qso/ui_router.py` must handle this:
+
+- If `sound_enabled` key is absent from the POST body, treat as `False` (sound disabled)
+- This is different from other optional profile fields (`my_rig`, `name`, etc.) that use `None` to mean "field not changed"
+- The UI router POST for `/log/profile` must explicitly set `sound_enabled = "sound_enabled" in form_data`
+
+This is the one non-obvious implementation detail for this feature.
+
+### Complexity
+
+**Low-Medium** — primarily backend model and form changes. The checkbox normalization logic is the only subtle point.
+
+### Dependencies on Existing Architecture
+
+- `app/auth/models.py` — add `sound_enabled: bool = False` to `User`
+- `app/profile/schemas.py` — add `sound_enabled: Optional[bool] = None` to `ProfileUpdateRequest`
+- `app/qso/ui_router.py` — profile POST handler: normalize checkbox absence to `False`; log view GET handler: add `sound_enabled` to template context
+- `templates/log/profile.html` — add toggle UI
+- `templates/log/log.html` — read `sound_enabled` from template context; pass to `playTone()` guard
+
+---
+
+## Feature Summary Table
+
+| Feature | Category | Backend | Frontend | Complexity | Risk |
+|---------|----------|---------|----------|------------|------|
+| UDP -> SSE fix | Bug fix | `manager.py` 1-2 lines | None | Low | Low |
+| "N new QSOs" badge | New feature | None | `log.html` JS + HTML | Low-Med | Low |
+| Web Audio tone | New feature | None | `log.html` JS | Low | Low |
+| Sound profile toggle | New feature | `User`, schemas, UI router | `profile.html`, `log.html` | Low-Med | Low |
+
+---
+
+## Table Stakes vs Differentiators
+
+### Table Stakes (must ship in v2.4)
+
+- UDP-sourced QSOs trigger the live refresh — multi-op UDP (v2.2) is effectively broken without this
+- Badge on page 2+ — operators actively browsing history must know new QSOs arrived without a forced page jump
+- Sound toggle persisted to operator profile — per-operator, per-server, survives browser restarts
+- Default: sound off — shared station deployments must not start beeping unexpectedly on first deploy
+
+### Differentiators
+
+- Synthesized tone (no file) — cleaner than serving an audio file; immediate, no HTTP round-trip before first QSO
+- Badge auto-clears on navigate-to-page-1 — prevents stale counter confusing operators after manual navigation
+- User-gesture audio init pattern — correct browser API usage, no console errors, follows browser autoplay spec
+
+### Anti-Features (Explicitly Out of Scope for v2.4)
+
+| Anti-Feature | Why | What Instead |
+|--------------|-----|-------------|
+| Auto-jump to page 1 on new QSO | Interrupts browsing, especially during FT8 QSO review | Dismissable badge only |
+| Toast/popup overlay | Intrusive during continuous FT8 sessions | Badge in table header |
+| Volume slider | Adds form complexity; binary toggle is sufficient | `sound_enabled` bool |
+| Per-browser sound preference (localStorage) | Wrong scope for shared station | MongoDB User field |
+| Audio file (.wav/.mp3) | Dependency, MIME type config, serving complexity | Web Audio API oscillator |
 
 ---
 
 ## Feature Dependencies
 
 ```
-All stats features
-    └── require: GET /log/stats route (new)
-        └── require: operator callsign from cookie (exists)
-
-DXCC pie chart + unique entity count
-    └── require: lookup_prefix() (exists in app/callsign/prefixes.py)
-    └── require: pycountry.countries.get() for country name display (exists as project dep)
-    └── note: NO new dependencies — existing resolver is sufficient
-
-Band pie chart, Mode pie chart
-    └── require: MongoDB $group aggregation by BAND / MODE
-    └── no new dependencies
-
-Chart rendering
-    └── require: Chart.js (new JS dep — CDN load in stats template only)
-    └── no Tailwind build change required if loaded from CDN
-
-Sidebar nav link
-    └── require: base_app.html sidebar block edit (1 line)
-    └── require: Heroicon bar-chart SVG at w-6 h-6
-
-Country name display (differentiator)
-    └── require: pycountry (already a project dependency)
-    └── note: pycountry.countries.get(alpha_2=iso) — returns None for ITU non-country entities where iso is None (already handled by Option A pipeline)
+Feature 1 (UDP fix) -> independent; badge and audio work regardless of source
+Feature 4 (profile toggle) -> independent; stores bool in User document
+Feature 3 (audio tone) -> reads sound_enabled from Feature 4's model + template context
+Feature 2 (badge) -> relies on SSE events firing; Feature 1 fix ensures UDP triggers them
 ```
 
----
-
-## MVP Definition
-
-### v2.3 Launch With
-
-- [ ] `/log/stats` route rendering a Jinja2 template (new endpoint in `app/qso/ui_router.py`)
-- [ ] Band pie chart (QSO count by BAND)
-- [ ] Mode pie chart (QSO count by MODE)
-- [ ] DXCC entities pie chart (top 8 + "Other")
-- [ ] Total unique DXCC entities worked scalar
-- [ ] All data scoped to authenticated operator via `_operator` field
-- [ ] Sidebar nav link to `/log/stats`
-- [ ] Empty-state handling when operator has zero QSOs
-
-### Defer to v2.x
-
-- [ ] Total QSO count scalar (trivial addition, low priority)
-- [ ] Continent breakdown (requires a new ISO-to-continent mapping table)
-- [ ] Date range filtering
-- [ ] Per-band DXCC matrix
-- [ ] QSO rate / activity over time charts
-
-### Out of Scope (v3+ or never for this project)
-
-- Award progress tracking (deferred in PROJECT.md to v2+)
-- LoTW confirmation status in stats
-- Map/gridsquare visualization
-- Export to PDF/CSV
+Suggested build order within milestone:
+1. Feature 1 (UDP fix) — unblocks Feature 2 for UDP QSOs; confirms SSE chain is intact
+2. Feature 4 (profile toggle, model + form) — add field, update form, pass to template context
+3. Feature 3 (Web Audio tone) — reads preference from template context
+4. Feature 2 (badge) — purely additive JS/HTML change, no backend
 
 ---
 
 ## Sources
 
-- Codebase audit: `/Users/royco/ollog/app/callsign/prefixes.py` (confirmed `lookup_prefix()` returns ISO alpha-2 or None), `/Users/royco/ollog/app/qso/ui_router.py` (confirmed pycountry already imported)
-- PROJECT.md v2.3 requirements: active requirements list at lines 169-174
-- QScope.org feature set: https://www.qscope.org/public/ (confirmed band/mode/entity pie charts are table stakes in ham radio log analysis tools)
-- QSL Buddy features: https://www.qslbuddy.com/features (confirmed "top countries, band/mode distribution charts" pattern)
-- ADIF 3.1.6 BAND field enumeration: https://adif.org/316/ADIF_316.htm (confirmed band values are lowercase strings; case-insensitive per spec)
-- DXCC rules and entity definition: https://arrl.org/dxcc-rules (340 current entities; "worked" = two-way communication established; formal award program requires confirmation — intentionally not implemented in v2.3)
-- Club Log DXCC discrepancy explanation: https://clublog.freshdesk.com/support/solutions/articles/53208 (confirmed why prefix-based counting differs from formal DXCC — ollog's simpler approach is correct for non-award-tracking stats)
-- Chart.js: https://www.chartjs.org/ (confirmed pie chart type, CDN availability, responsive design, no build step required)
-
----
-*Feature research for: operator statistics page — ollog ham radio logbook v2.3*
-*Researched: 2026-04-15*
+- Direct inspection: `app/feed/manager.py`, `app/feed/router.py`, `app/udp/server.py`, `app/main.py`, `app/database.py`, `app/auth/models.py`, `app/profile/schemas.py`, `app/profile/service.py`
+- Direct inspection: `templates/log/log.html`, `templates/log/log_table.html`, `templates/log/profile.html`, `templates/log/form.html`, `templates/log/feed_row.html`
+- Key Decisions table in `.planning/PROJECT.md` — v1.6 SSE design decisions, v2.2 UDP routing decisions, v2.3 double-await pattern discovery
+- Web Audio API: HIGH confidence from knowledge base (AudioContext, OscillatorNode, GainNode, autoplay policy behavior in Chrome/Firefox/Safari 2026)
+- HTML checkbox submission behavior: HIGH confidence (well-established browser standard)

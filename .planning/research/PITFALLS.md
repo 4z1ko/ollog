@@ -1,369 +1,291 @@
-# Pitfalls Research: Chart.js Statistics Page on FastAPI/HTMX/Jinja2
+# Domain Pitfalls — v2.4 Live Log & Sound Alerts
 
-**Domain:** Adding Chart.js pie charts + MongoDB aggregation to an existing HTMX/Jinja2/Tailwind v3 app
-**Researched:** 2026-04-15
-**Overall confidence:** HIGH (Chart.js API), HIGH (MongoDB aggregation), MEDIUM (HTMX+Chart.js interaction)
-
----
-
-## Chart.js + HTMX Pitfalls
-
-### Pitfall 1: Stale Canvas — "Canvas is already in use"
-
-**What goes wrong:** Chart.js registers chart instances against canvas elements. When HTMX swaps new content into the DOM that includes a `<canvas>` with the same ID, and then the page navigates back and swaps the same canvas in again, the previous Chart.js instance is still registered. Attempting to `new Chart(canvas, ...)` on an already-owned canvas throws:
-
-```
-Error: Canvas is already in use. Chart with ID '0' must be destroyed before the canvas can be reused.
-```
-
-**Why it happens:** Chart.js stores a reference to every created chart instance keyed by canvas element. HTMX page transitions using `hx-push-url` or partial swaps do not automatically destroy JS objects — only the DOM is replaced. The canvas may be new DOM but the Chart.js internal registry retains the old binding if cleanup was skipped.
-
-**Consequences:** JS errors that silently kill chart rendering. Second visit to the stats page shows a broken canvas. No error visible to the user.
-
-**Prevention:** Guard every `new Chart(...)` call with a destroy check using `Chart.getChart()` (available Chart.js 3.x+). Store instances so they can be cleaned up:
-
-```javascript
-// Store instances at module scope
-const charts = {};
-
-function initCharts() {
-  ['band-chart', 'mode-chart', 'dxcc-chart'].forEach(function(id) {
-    var canvas = document.getElementById(id);
-    if (!canvas) return;
-    // Destroy any prior instance on this canvas before re-creating
-    var existing = Chart.getChart(canvas);
-    if (existing) existing.destroy();
-    charts[id] = new Chart(canvas, /* config */);
-  });
-}
-
-// Re-init on HTMX page transitions
-document.body.addEventListener('htmx:afterSettle', function() {
-  if (document.getElementById('band-chart')) initCharts();
-});
-```
-
-**Detection:** Open stats page, navigate away to Log View, navigate back. Open browser console and check for "Canvas is already in use" error.
-
-**Note:** `chart.destroy()` is confirmed as the correct cleanup in Chart.js v4.x docs. The `destroy` plugin hook was removed in v4; use `afterDestroy` in plugins instead.
+**Domain:** Adding SSE live-refresh fix + Web Audio notifications to existing FastAPI/HTMX/SSE/MongoDB app
+**Researched:** 2026-04-16
+**Scope:** v2.4 only — pitfalls specific to these four problem areas:
+1. Debugging the UDP → change-stream → SSE → HTMX table-refresh chain
+2. Building a client-side new-QSO counter badge for page 2+
+3. Web Audio API oscillator tone with autoplay constraints
+4. Adding `notify_sound: Optional[bool]` to the Beanie `User` document
 
 ---
 
-### Pitfall 2: Chart.js CDN Bundle Confusion — ESM vs UMD
+## Critical Pitfalls
 
-**What goes wrong:** Chart.js v4 ships two bundles. The ESM build at `dist/chart.js` cannot be loaded via a plain `<script>` tag without a bundler. Loading it via CDN produces `Chart is not defined` with no useful error.
+### Pitfall 1: SSE sse-connect Element Destroyed When Its Own outerHTML Is Replaced
 
-**Why it happens:** In Chart.js v4, the dist files were renamed: `dist/chart.js` is now ESM only; `dist/chart.umd.min.js` is the CDN-safe build. (The old `dist/chart.min.js` was removed.)
+**What goes wrong:** The `#log-table` div carries `hx-ext="sse" sse-connect="/feed/station"`. When an HTMX swap replaces the *contents* of `#log-table` (i.e., `hx-swap="innerHTML"`), the div element itself persists and the SSE connection survives. But if anything performs an `outerHTML` swap or `htmx.ajax()` call that targets `#log-table` with `outerHTML`, the element is removed from the DOM, the htmx-ext-sse extension fires `htmx:sseClose` with reason `nodeReplaced`, and the EventSource is permanently closed — silently, with no reconnect.
 
-**Prevention:** Use the UMD build explicitly and pin a version:
+**Root cause:** The current `htmx:sseMessage` handler correctly calls `htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' })`. This is safe. The risk is any future code that adds a badge counter or other SSE-triggered swap using `swap: 'outerHTML'` against the `#log-table` container itself.
 
-```html
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-```
+**Consequences:** After one misfired `outerHTML` swap on `#log-table`, live updates stop until page reload. The LIVE indicator may not reflect this because `htmx:sseClose` fires asynchronously and the indicator logic could miss it if the element was already removed before the event propagated.
 
-Avoid `@latest` — breaking minor versions happen. The last Chart.js version with available SRI hashes via jsdelivr is v3.9.1. For v4.x, pin a semver and skip SRI or compute the hash manually. Either way, pin the exact version in the template.
+**Prevention:**
+- The badge counter element must be a sibling of `#log-table`, never a child of it.
+- Never retarget `#log-table` with `swap: 'outerHTML'` from the `htmx:sseMessage` handler.
+- Verify SSE survival after pagination: DevTools → Network → EventStream tab should show continuous event flow after clicking Previous/Next.
 
----
+**Detection:** After any pagination click, confirm the SSE connection is still open in DevTools Network → EventStream. A closed stream appears as a grayed-out entry with no new events.
 
-### Pitfall 3: Chart.js Canvas Sizing Fails to Zero Inside Tailwind Flex/Grid Containers
-
-**What goes wrong:** Chart.js uses the parent container's computed dimensions to size the canvas. In a Tailwind `flex` or `grid` layout, the parent may report zero or unconstrained width during the first render frame, causing the chart to render at 0×0 or stretch to full viewport width.
-
-**Why it happens:** Chart.js documentation states: "Chart.js relies on its parent container to update both the canvas render and display sizes. This method requires the container to be relatively positioned and dedicated to the chart canvas only." Flexbox and grid cannot signal the canvas element to shrink via normal CSS resize.
-
-**Consequences:** Chart renders invisibly or at full viewport width. `maintainAspectRatio: true` (the default) will cause height to derive from zero width — resulting in a zero-height chart.
-
-**Prevention (from official docs):**
-- Wrap each `<canvas>` in a dedicated `<div>` with `position: relative` and an explicit height.
-- Use Tailwind classes that produce explicit dimensions on the wrapper: `relative h-64 w-full`.
-- Set `maintainAspectRatio: false` in Chart.js options when the container controls the height.
-- Do NOT apply margin or padding directly to the `<canvas>` element — apply it to the wrapper div.
-
-```html
-<!-- Correct: wrapper provides dimensions, canvas fills it -->
-<div class="relative h-64 w-full">
-  <canvas id="band-chart"></canvas>
-</div>
-```
-
-```javascript
-new Chart(canvas, {
-  type: 'pie',
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,  // required when container controls height
-  }
-});
-```
+**Phase:** First implementation phase (live refresh + badge). Must verify SSE connection survives every HTMX swap before considering the feature complete.
 
 ---
 
-### Pitfall 4: HTMX Intercepts Navigation Away From Stats Page Without Cleanup
+### Pitfall 2: Web Audio AudioContext Created on Page Load Is Permanently Suspended
 
-**What goes wrong:** If the stats page uses full-page HTMX navigation (hx-boost style) rather than a hard page load, the `<canvas>` elements and their Chart.js instances persist in memory until garbage collected. There is no automatic "page unload" cleanup event in HTMX partial-swap navigation.
+**What goes wrong:** Chrome, Firefox, and Safari all enforce the autoplay policy: an `AudioContext` created before any user gesture starts in `suspended` state. Calling `oscillator.start()` on a node connected to a suspended context plays nothing — no error is thrown. The SSE event handler that fires on QSO arrival is not a user gesture, so even calling `audioCtx.resume()` from inside it may have no effect if the context was never unlocked.
 
-**Why it matters for ollog specifically:** The ollog navigation uses plain `<a href>` links for sidebar nav items (confirmed from `base_app.html`). These trigger full-page navigation, not HTMX swaps. This means browsers DO fire unload events and the canvas IS destroyed. The stale-canvas problem (Pitfall 1) only applies on back-navigation when the browser restores a cached page from bfcache.
+**Root cause:** Browsers require audio to originate from — or be explicitly unlocked during — a user gesture (click, keydown, touchstart). An `AudioContext` created in a `<script>` tag or module-level code on page load will be `suspended`, regardless of subsequent non-gesture-triggered `resume()` calls.
 
-**Prevention:** Wrap chart init in the `htmx:afterSettle` listener AND in `DOMContentLoaded` to cover both fresh loads and cached restores. The destroy-before-init guard in Pitfall 1 is sufficient protection.
+**Consequences:** Sound toggle appears to save correctly (profile field updated), LIVE indicator shows QSOs arriving, but zero audio plays. The browser console shows no errors. `audioCtx.state` is the only diagnostic signal.
 
----
+**Prevention:**
+- Create `AudioContext` lazily on the first user interaction that enables the sound feature — the profile checkbox click is itself a valid user gesture.
+- Before every oscillator play, check `if (audioCtx.state === 'suspended') { await audioCtx.resume(); }`.
+- One `AudioContext` per page session: store it in a module-level variable, create only once, reuse for all subsequent oscillator nodes.
+- Add a visible "Test sound" button on the profile page. Clicking it creates/resumes the context and fires one test tone — this is the most reliable cross-platform unlock mechanism.
 
-## Dark Mode Pitfalls
+**Detection:** `console.log(audioCtx.state)` in the SSE handler. Expected value: `'running'`. Any other value means sound will not play.
 
-### Pitfall 1: Chart.js Colors Are Baked In at Creation Time
-
-**What goes wrong:** Chart.js does not natively observe CSS variables or Tailwind's `dark:` class at render time. Colors in `backgroundColor`, `borderColor`, `color` (legend/tooltip fonts), and grid line colors are evaluated once during `new Chart(...)`. When the user clicks the existing `toggleTheme()` button in `base_app.html`, existing charts do not update.
-
-**Why it happens:** The Chart.js maintainers explicitly confirmed that detecting dark mode dynamically is too slow to be included in the core update cycle. There is no CSS-variable binding mechanism in Chart.js options.
-
-**Consequences in ollog:** The existing `base_app.html` uses class-based dark mode (`darkMode: 'class'` in Tailwind config). The toggle adds/removes the `dark` class on `<html>`. After toggle, chart legend text and tooltip text remain at their creation-time colors — potentially invisible (dark text on dark background).
-
-**Prevention options (in order of preference for ollog):**
-
-**Option A — Read dark state at init, re-create charts on toggle (recommended):**
-```javascript
-function isDarkMode() {
-  return document.documentElement.classList.contains('dark');
-}
-
-function getChartDefaults() {
-  var dark = isDarkMode();
-  return {
-    legendColor: dark ? '#e5e7eb' : '#374151',
-    tooltipBg:   dark ? '#1c1c1e' : '#ffffff',
-    tooltipBody: dark ? '#f2f2f7' : '#111827',
-  };
-}
-
-// Extend the existing toggleTheme() to also re-init charts
-// Wrap, don't override — preserves the existing localStorage logic
-(function() {
-  var _orig = window.toggleTheme;
-  window.toggleTheme = function() {
-    _orig.call(this);
-    if (document.getElementById('band-chart')) initCharts();
-  };
-})();
-```
-
-**Option B — CSS filter inversion (not recommended for ollog):**
-The Chart.js community suggests `filter: invert(1) hue-rotate(180deg)` on canvas elements for dark mode. This inverts the pixel buffer. It is acceptable for monochrome charts but produces incorrect hues for the saturated pie slice colors ollog will use. Not appropriate here.
-
-**Option C — chart.update() with mutated dataset colors:**
-For pie charts (no scales), `chart.update()` after mutating `data.datasets[0].backgroundColor` works. However, legend label colors and tooltip colors require updating `options.plugins.legend.labels.color` and `options.plugins.tooltip.bodyColor` before calling `update()`. The destroy+recreate approach (Option A) is simpler and more reliable.
+**Phase:** Audio tone implementation phase.
 
 ---
 
-### Pitfall 2: Canvas Background Is Transparent; Dark Surface Shows Through Correctly
+### Pitfall 3: iOS Safari Requires touchstart (Not Just click) to Unlock AudioContext
 
-**What goes wrong:** Chart.js canvas backgrounds are transparent by default. This is actually correct behavior for ollog — the canvas sits on the `bg-surface-light dark:bg-surface-dark` card, so the dark mode card surface (`#1c1c1e`) shows through correctly.
+**What goes wrong:** Chrome and Firefox honour `click` as a sufficient gesture to unlock an `AudioContext`. On iOS Safari, the `click` event alone may not satisfy WebKit's audio unlock requirement — the context stays `suspended` after `audioCtx.resume()` is called from a click handler. Additionally, iOS's hardware silent switch blocks all Web Audio output regardless of `AudioContext` state; this is not a software issue and has no workaround.
 
-**When it becomes a problem:** If a chart card uses a pure white or pure black card surface, the legend text may be invisible. The ollog surface tokens are `#ffffff` (light) and `#1c1c1e` (dark) — mid-range values that contrast well with both dark and light chart colors.
+**Root cause:** Apple's WebKit WebAudio implementation has historically required `touchstart` (or a combined touch+click flow) for the initial unlock. The behaviour has been partially relaxed in newer iOS versions but remains inconsistent across iOS 16–18.
 
-**Prevention:** No action needed for display. Document for future: if chart PNG export is added, use the `customCanvasBackgroundColor` plugin to bake a background into exports.
+**Consequences:** Audio works on desktop Chrome/Firefox/Safari but fails silently on all iOS devices. The operator toggled sound on, the profile shows it enabled, but no tone plays.
 
----
+**Prevention:**
+- Listen on both `click` and `touchstart` when initializing the `AudioContext` unlock: `['click', 'touchstart'].forEach(ev => document.addEventListener(ev, initAudio, {once: true}))`.
+- The "Test sound" button (see Pitfall 2) provides the explicit interaction needed for iOS.
+- Document the iOS silent switch as a known hardware limitation in the profile toggle's help text.
 
-### Pitfall 3: Tailwind Purge Drops Dynamically Constructed Color Classes
+**Detection:** Test on a physical iOS device. If `audioCtx.state` remains `'suspended'` after toggle click, the `touchstart` listener is needed.
 
-**What goes wrong:** This is a known ollog pitfall documented in PROJECT.md decision log. Any Tailwind class constructed dynamically (via JavaScript or Jinja2 string concatenation) is invisible to the Tailwind scanner and is purged from `output.css`.
-
-**Specific risk for the stats page:** Stat summary numbers styled with conditional color classes. Example:
-
-```html
-<!-- Wrong: scanner cannot see "text-green-600" or "text-red-600" -->
-<span class="text-{{ 'green' if count > 0 else 'red' }}-600">{{ count }}</span>
-```
-
-**Prevention:** Write all Tailwind classes as complete literal strings. Use conditional blocks instead of string construction:
-
-```html
-{% if count > 0 %}
-<span class="text-green-600 dark:text-green-400">{{ count }}</span>
-{% else %}
-<span class="text-red-600 dark:text-red-400">{{ count }}</span>
-{% endif %}
-```
-
-Run `npm run verify` after adding new dark mode classes to confirm they appear in `output.css`.
+**Phase:** Audio tone implementation phase. Low extra effort if the unlock pattern is designed correctly from the start.
 
 ---
 
-## MongoDB Aggregation Pitfalls
+### Pitfall 4: Change Stream Watcher Task Has No Strong Reference — Silent GC Kill on Python 3.12+
 
-### Pitfall 1: Missing or Null BAND/MODE Fields Collapse Into a Single "null" Bucket
+**What goes wrong:** If the `watch_qsos` coroutine is started with `asyncio.create_task()` but the returned task object is not held by a strong reference (e.g., stored in a module-level set or the lifespan state), Python 3.12+'s garbage collector may collect the task mid-run. The task silently disappears with no exception, no log entry, and the SSE feed stops receiving change stream events.
 
-**What goes wrong:** In MongoDB aggregation, `$group` with `_id: "$BAND"` treats both missing fields and explicit `null` values as the same group key: `null`. The ollog `BAND` and `MODE` fields are declared `Optional[str] = None` in the Beanie model. ADIF records imported from other logging software may omit these fields entirely.
+**Root cause:** Python 3.12+ explicitly warns (and in some builds, enforces) that tasks without strong references are eligible for GC. The UDP server already handles this correctly with `self._background_tasks: set[asyncio.Task]`. The same pattern must be applied to the `watch_qsos` task in the lifespan.
 
-**Why it happens:** ADIF import stores only fields present in the source file. Historical imports may have incomplete band/mode data. MongoDB's aggregation treats missing fields as `null` in expression contexts.
+**Consequences:** The SSE change stream watcher stops silently. All operators see the LIVE indicator turn green (the SSE *connection* is alive) but no new QSOs trigger table refreshes. The symptom is identical to "no QSOs are being inserted," making diagnosis confusing.
 
-**Consequences:** A pie chart slice labeled `null` or `None` appears in the UI, confusing operators. This bucket may be large for imported logs.
+**Prevention:**
+- Store the `watch_qsos` task in the FastAPI lifespan `state` dict or a module-level strong reference: `app.state.watcher_task = asyncio.create_task(watch_qsos(...))`.
+- Add a startup log line from inside `watch_qsos` confirming the watcher entered its event loop (distinct from the startup banner that confirms the task was created).
 
-**Prevention:** Use `$ifNull` in the `$group _id` expression:
+**Detection:** `logger.debug("watch_qsos: waiting for next change stream event")` inside the `async for change in stream:` loop confirms the watcher is alive.
 
-```python
-pipeline = [
-    {"$match": {"_operator": operator_callsign, "_deleted": False}},
-    {"$group": {
-        "_id": {"$ifNull": ["$BAND", "Unknown"]},
-        "count": {"$sum": 1}
-    }},
-    {"$sort": {"count": -1}}
-]
-```
+**Phase:** This is the first thing to check in the live refresh fix phase.
 
 ---
 
-### Pitfall 2: Empty String and null Are Different Group Keys
+### Pitfall 5: UDP QSO Insert Does Not Reach the SSE Client — Diagnosis Order
 
-**What goes wrong:** Some logging software exports `BAND=""` (empty string) rather than omitting the field. MongoDB treats `""` and `null` as different group keys. A pipeline using `$ifNull` handles null/missing but leaves empty strings as a separate `""` bucket.
+**What goes wrong:** The symptom "UDP QSOs appear in `/log/view` after reload but do not trigger live refresh" means the insert reached MongoDB but the broadcast did not reach the SSE client. The failure can occur at any of four points in the chain.
 
-**Prevention:** Use `$cond` to collapse both null and empty string:
+**Diagnosis order (fastest to slowest):**
 
-```python
-"_id": {
-    "$cond": {
-        "if": {"$and": [
-            {"$ne": ["$BAND", None]},
-            {"$ne": ["$BAND", ""]}
-        ]},
-        "then": "$BAND",
-        "else": "Unknown"
-    }
-}
-```
+1. **Is `watch_qsos` alive?** Run `mongosh` and execute `db.qsos.watch([{$match: {operationType: "insert"}}])`, then send a test UDP datagram. If the mongosh watch fires, the replica set oplog is working and the issue is in the Python watcher. If mongosh watch does not fire, the issue is in MongoDB (replica set not running, wrong database, or insert is on a different connection's transaction that has not committed).
 
----
+2. **Is the watcher watching the correct collection?** The `watch_qsos` function receives a `collection` argument from the lifespan. Verify this is `await QSO.get_motor_collection()` — wait, this codebase uses `get_pymongo_collection()` (Motor EOL'd). Confirm the async collection object is correct: `collection = QSO.get_pymongo_collection()`.
 
-### Pitfall 3: $match Must Precede $group to Use the Compound Index
+3. **Is the broadcast reaching any queue?** Add `logger.debug("broadcasting to %d clients", len(mgr._queues))` in `ConnectionManager.broadcast()`. Zero clients means no SSE connections are open. Non-zero means the broadcast is sent but the client is not processing it.
 
-**What goes wrong:** If the aggregation pipeline starts with `$group` before `$match`, MongoDB performs a full collection scan and groups ALL documents before filtering by `_operator`. With a shared `qsos` collection (multi-operator), this scans every operator's data regardless of who is requesting.
+4. **Is the `htmx:sseMessage` handler filtering the event out?** The handler checks `e.detail.elt.id !== 'log-table'` and `e.detail.type !== 'new_qso'`. Log these values in the browser console during a test insert.
 
-**Why it happens:** MongoDB's query planner can use an index only when `$match` is the first stage. `$group` is a blocking stage and cannot be pushed earlier by the optimizer.
+**Consequences:** Without this diagnosis sequence, hours can be lost chasing the wrong layer.
 
-**The existing indexes in `QSO.Settings.indexes` are:**
-- `operator_idx` on `(_operator)` — single field
-- `operator_qso_compound` on `(_operator, CALL, qso_date_utc, BAND, MODE)`
+**Prevention:** Log the change stream event at DEBUG level on receipt. Log the number of broadcast targets. Log the SSE event type on the client side during development.
 
-Both indexes will be used only if `$match` on `_operator` is the first stage.
-
-**Prevention:** Always start stats pipelines with:
-```python
-{"$match": {"_operator": operator_callsign, "_deleted": False}}
-```
-
-Then `$group`, then `$sort`, then optional `$limit`.
+**Phase:** First phase of v2.4. This is the core bug to fix.
 
 ---
 
-### Pitfall 4: DXCC Lookup Performance — Python Loop vs. MongoDB-level Grouping
+## Moderate Pitfalls
 
-**What goes wrong:** DXCC entity grouping cannot be done in MongoDB because the ITU prefix resolver (`lookup_prefix()`) is a pure-Python bisect function on an in-memory prefix table. The aggregation must group by `CALL` in MongoDB, then resolve DXCC in Python, then re-aggregate by entity.
+### Pitfall 6: Counter Badge State Must Live Outside the HTMX Swap Target
 
-**Why it matters:** For a 5,000-QSO log with 1,000 unique callsigns, this is ~1,000 `lookup_prefix()` calls in a Python loop. The function is O(log n) on the ~313-entry prefix table. At ~1 µs per call, 1,000 calls takes ~1 ms — acceptable.
+**What goes wrong:** The "N new QSOs" badge counter for page 2+ must be maintained in a JavaScript variable and rendered in a DOM element that is never touched by HTMX swaps. If the badge element is placed inside `#log-table`, it is destroyed and re-created on every pagination or filter swap, resetting the count to zero.
 
-**At what scale does it become a problem:** At 50,000 unique callsigns (unlikely for a self-hosted club log), the loop takes ~50 ms. Not a blocker.
+**Root cause:** Every HTMX swap that targets `#log-table` with `innerHTML` replaces the entire inner content of the div, including any badge placed inside it.
 
-**Prevention:** No caching needed for v2.3. If profiling shows this is slow in a specific deployment, cache the `{CALL: dxcc_entity}` mapping in a dict keyed by callsign for the lifetime of the request. Do not add pre-emptive complexity.
+**The wrong approach:** A badge rendered inside `log_table.html` (the HTMX partial). The partial is replaced on every navigation event.
 
-**Fallback labeling:** When `lookup_prefix()` returns no match (maritime mobile `/MM`, aeronautical `/AM`, unknown prefix), use the label `"DX"` or `"Other"` rather than the raw callsign prefix.
+**Prevention:**
+- Place the badge element as a direct sibling of `#log-table` in `log.html`, outside the partial template.
+- Manage badge visibility entirely in JavaScript: increment on `htmx:sseMessage` when `#auto-refresh-ok` is absent, reset on any `htmx:afterSwap` targeting `#log-table`, and on the dismiss click.
+- The badge state does not need to survive page reload — a reload shows the current table.
 
----
+**Detection:** Navigate to page 2, watch for a UDP QSO insert, confirm the badge appears. Then click Previous/Next and confirm the badge resets to zero.
 
-### Pitfall 5: The "Top 8 + Other" Grouping Has Edge Case Failures
-
-**What goes wrong:** Grouping the top 8 DXCC entities and collapsing the rest into "Other" has three failure modes:
-1. Fewer than 8 entities → appending "Other" with count 0 creates a zero-slice in the pie chart.
-2. All QSOs unresolvable → all land in "Other," and the top 8 are empty.
-3. Zero QSOs total → empty arrays → Chart.js renders an empty pie (no error, but confusing).
-
-**Prevention — guard all edge cases in the service layer:**
-
-```python
-sorted_entities = sorted(entity_counts.items(), key=lambda x: x[1], reverse=True)
-top8 = sorted_entities[:8]
-rest = sorted_entities[8:]
-
-labels = [e[0] for e in top8]
-values = [e[1] for e in top8]
-
-# Only add "Other" if there are remaining entities to collapse
-if rest:
-    labels.append("Other")
-    values.append(sum(e[1] for e in rest))
-
-# Return empty lists gracefully — Chart.js handles empty pie without error
-```
+**Phase:** Badge counter implementation, same phase as live refresh fix.
 
 ---
 
-## JSON Data Injection Pitfall
+### Pitfall 7: HTML Checkbox Does Not Send Value When Unchecked — Toggle Cannot Be Turned Off
 
-### Pitfall 1: Unsafe Jinja2 Variable Embedding in `<script>` Tags
+**What goes wrong:** HTML checkbox inputs send their value in the form body only when checked. When unchecked, the browser sends nothing — the key is absent from the POST body. If the `profile_update` endpoint treats an absent `notify_sound` key as "no change," the user can enable sound notifications but can never disable them via the form.
 
-**What goes wrong:** Passing server data to Chart.js via direct Jinja2 variable substitution inside `<script>` blocks breaks in two ways:
-- With autoescaping on: `"` becomes `&quot;`, `<` becomes `&lt;` — the JSON is syntactically invalid JavaScript.
-- With `| safe` to suppress autoescaping: user-controlled data (e.g., callsign names or DXCC entity names with special characters) can inject `</script>` and break out of the script block (XSS).
+**Root cause:** This is standard HTML form behavior, not a bug. Every framework that handles checkboxes must account for it.
 
-**Prevention:** Use the `| tojson` filter. In FastAPI/Jinja2 (Starlette), `tojson` produces a JSON-safe string that is marked as `Markup` (bypasses autoescaping safely) and properly escapes `</script>` sequences:
+**Consequences:** Profile toggle is one-directional: on → permanently on, with no way to turn off without direct database manipulation.
 
-```html
-<script>
-  var bandData = {{ band_data | tojson }};
-  var modeData = {{ mode_data | tojson }};
-  var dxccData = {{ dxcc_data | tojson }};
-</script>
-```
+**Prevention:**
+- Add a hidden input immediately before the checkbox:
+  ```html
+  <input type="hidden" name="notify_sound" value="false">
+  <input type="checkbox" name="notify_sound" value="true" ...>
+  ```
+  When unchecked, the hidden field sends `false`. When checked, the checkbox value `true` overrides it (last value wins in standard form encoding — verify FastAPI form parsing behaviour; if it takes the first value, reverse the order).
+- In the handler, coerce `notify_sound` explicitly: `"true"` → `True`, `"false"` → `False`, `None`/absent → `None` (no change).
+- Add `notify_sound: Optional[bool] = None` to `ProfileUpdateRequest` with a validator that accepts string `"true"`/`"false"` as well as booleans.
 
-Where `band_data` is a Python dict like `{"labels": [...], "values": [...]}` returned from the service layer.
+**Phase:** Profile toggle implementation phase. This must be tested explicitly.
 
-**Alternative — data attribute + JSON.parse:**
-```html
-<div id="chart-data"
-     data-bands="{{ band_data | tojson }}"
-     data-modes="{{ mode_data | tojson }}">
-</div>
-<script>
-  var el = document.getElementById('chart-data');
-  var bandData = JSON.parse(el.dataset.bands);
-</script>
-```
+---
 
-Both are safe. `| tojson` inline in `<script>` is simpler and standard for FastAPI/Jinja2.
+### Pitfall 8: `Optional[bool]` Field in Beanie User Document — `None` is Not `False` in MongoDB Queries
+
+**What goes wrong:** Adding `notify_sound: Optional[bool] = None` to the `User` document means every existing user document in MongoDB has no `notify_sound` field at all. Beanie reads missing fields as the Python default (`None`). The template check `if user.notify_sound:` correctly returns `False` for both `None` and `False` — no migration is needed for the display path.
+
+**The risk:** If any service code queries users with `User.find({User.notify_sound == False})` (Beanie query syntax) or the raw MongoDB filter `{notify_sound: False}`, it will match documents where the field is explicitly `false` but *not* documents where the field is missing or `null`. For a query that means "find operators who have NOT enabled sound," this query misses every pre-existing user.
+
+**Root cause:** MongoDB distinguishes between a field being absent, `null`, and `false`. `{notify_sound: False}` matches only explicit `false`.
+
+**Consequences for v2.4:** Low risk. No service-layer code needs to query by `notify_sound`. The risk is in future milestones that might send a "QSO alert" to all operators with sound enabled.
+
+**Prevention:**
+- `Optional[bool] = None` in `User` — correct, matches existing optional field pattern.
+- If ever querying "sound NOT enabled," use `{notify_sound: {"$ne": True}}` — this matches `False`, `None`, and missing field.
+- No migration script needed for v2.4 since `None` correctly defaults to sound off.
+- Document the `None` vs `False` semantics as a comment next to the field in the model.
+
+**Phase:** Profile toggle model addition. One-line addition to `User` and `ProfileUpdateRequest`.
+
+---
+
+### Pitfall 9: AudioContext Instance Limit — Do Not Create Per-Event
+
+**What goes wrong:** Browsers limit concurrent `AudioContext` instances (Chrome: ~6 per tab, lower on mobile). If the `htmx:sseMessage` handler creates a new `AudioContext` for each QSO arrival, the limit is hit after a few QSOs and subsequent `new AudioContext()` calls throw `DOMException` or silently return a broken context.
+
+**Root cause:** `AudioContext` objects are not automatically garbage-collected until `audioCtx.close()` is called. Unclosed contexts accumulate.
+
+**Consequences:** After 6 QSOs with sound enabled, sound stops working. The error in the console is obscure (`DOMException: Failed to construct 'AudioContext'`).
+
+**Prevention:**
+- One `AudioContext` per page session. Store in a module-level variable. Create only once (lazily on first user gesture). Reuse for all subsequent oscillator nodes.
+- `OscillatorNode` and `GainNode` are single-use by design (`start()` can be called only once on each). Create new nodes per tone, but always connect them to the *same* `AudioContext`.
+- Use `oscillator.stop(audioCtx.currentTime + duration)` — the browser garbage-collects stopped nodes automatically.
+
+**Phase:** Audio tone implementation phase. Design the single-context pattern from the start.
+
+---
+
+### Pitfall 10: FT8 Burst Creates SSE Event Flood — Table Refresh Stampede
+
+**What goes wrong:** FT8 produces QSOs in roughly 15-second cycles. A busy station may log 5–20 QSOs per cycle. Each insert triggers a change stream event → SSE broadcast → `htmx:sseMessage` → `htmx.ajax('GET', '/log/view')`. With 5 operators connected and a burst of 10 QSOs, the server receives up to 50 concurrent `GET /log/view` requests.
+
+**Root cause:** The current `htmx:sseMessage` handler fires one `htmx.ajax()` per SSE event with no debounce.
+
+**Consequences:** At home-station scale (1–2 operators), harmless. At contest scale (6+ operators, heavy FT8), unnecessary server load and potential visual flicker from repeated DOM swaps.
+
+**Prevention:**
+- Debounce the `htmx.ajax()` call: `clearTimeout(refreshTimer); refreshTimer = setTimeout(() => htmx.ajax(...), 400);`
+- The badge counter increment should *not* be debounced — it should fire on every event. Only the full table re-fetch is debounced.
+- 400ms is sufficient to collapse an entire FT8 burst into one refresh.
+
+**Note:** This is not blocking for v2.4 at ollog's typical scale, but the debounce should be added in the same commit as the refresh fix — it is a one-liner addition.
+
+**Phase:** Live refresh fix phase.
+
+---
+
+## Minor Pitfalls
+
+### Pitfall 11: `ProfileUpdateRequest` Schema Must Include `notify_sound`
+
+**What goes wrong:** `ProfileUpdateRequest` in `app/profile/schemas.py` is the gatekeeper for what fields reach `update_profile()`. If `notify_sound` is not added to this schema, the router discards it before validation and it is never written to MongoDB.
+
+**Prevention:** Add `notify_sound: Optional[bool] = None` to `ProfileUpdateRequest`. Add a corresponding parameter in the `profile_update` endpoint's function signature in `app/qso/ui_router.py`. Two-line change.
+
+**Phase:** Profile toggle implementation phase.
+
+---
+
+### Pitfall 12: Jinja2 Checkbox `checked` Attribute for `Optional[bool]`
+
+**What goes wrong:** `{{ 'checked' if profile.notify_sound == True else '' }}` handles `True` but renders no `checked` for both `None` and `False` — correct behavior. However, using `{{ 'checked' if profile.notify_sound else '' }}` is equally correct and simpler: both `None` and `False` are falsy in Python/Jinja2.
+
+**The wrong approach:** `{{ 'checked' if profile.notify_sound is not None and profile.notify_sound else '' }}` — overly complex and still equivalent.
+
+**Prevention:** Use `{{ 'checked' if profile.notify_sound else '' }}`. Test with a fresh user (field is `None`) and a user who explicitly disabled sound (field is `False`) — both should render an unchecked checkbox.
+
+**Phase:** Profile toggle template.
+
+---
+
+### Pitfall 13: `htmx:sseMessage` detail.type Is the Correct Property Name
+
+**What goes wrong:** The SSE extension's `htmx:sseMessage` event detail object is the native `MessageEvent` from the browser's `EventSource`. The event type name is accessed as `e.detail.type`. Attempting `e.detail.event` (as some informal docs suggest) returns `undefined` in htmx-ext-sse 2.2.4.
+
+**Prevention:** The existing code correctly uses `e.detail.type !== 'new_qso'`. For the badge counter, reuse the same `htmx:sseMessage` listener — no new event type is needed.
+
+**Phase:** Awareness only. No action needed if the existing pattern is reused.
+
+---
+
+### Pitfall 14: `update_profile` Already Uses `$set` — `notify_sound=False` Is Stored Correctly
+
+**What goes wrong:** Concern that `model_dump(exclude_unset=True)` might drop `False` values because they look "falsy." This is not how Pydantic works: `exclude_unset=True` excludes fields that were not explicitly provided to the constructor, not fields with falsy values. If `notify_sound=False` is passed to `ProfileUpdateRequest`, it will appear in `model_dump(exclude_unset=True)`.
+
+**Prevention:** As long as the hidden-field checkbox trick (Pitfall 7) sends `"false"` to the endpoint, and the endpoint coerces it to `bool(False)` before passing to `ProfileUpdateRequest`, the `$set` will write `false` to MongoDB. No special handling in `update_profile()` is needed.
+
+**Phase:** Verify in the first integration test for the toggle.
 
 ---
 
 ## Phase-Specific Warnings
 
 | Phase Topic | Likely Pitfall | Mitigation |
-|-------------|----------------|------------|
-| MongoDB aggregation service | Missing/null BAND or MODE creates "null" bucket | Use `$cond` in `$group._id` to map null and `""` to "Unknown" |
-| MongoDB aggregation service | `$match` not first → full collection scan | Always place `$match` on `_operator` as the first pipeline stage |
-| MongoDB aggregation service | Empty string distinct from null | Use `$cond` checking both `$ne: null` and `$ne: ""` |
-| DXCC entity aggregation service | Python loop over unique CALLs | Acceptable for <50K unique callsigns; no pre-emptive caching |
-| DXCC top-8 collapsing | Fewer than 8 entities → zero-value "Other" slice | Guard: only append "Other" if `rest` is non-empty |
-| DXCC top-8 collapsing | Zero QSOs → empty arrays | Chart.js handles empty pie gracefully; add a "no data" message in the template |
-| Chart.js CDN loading | ESM vs UMD bundle confusion | Use `chart.umd.min.js`; pin exact semver version |
-| Chart.js canvas sizing | Zero width in Tailwind flex/grid | Wrap `<canvas>` in `<div class="relative h-64 w-full">`; set `maintainAspectRatio: false` |
-| Chart.js dark mode | Colors baked at creation time | Read `isDarkMode()` at init; re-init charts on `toggleTheme()` |
-| Chart.js + HTMX navigation | Stale canvas on back-navigation | Use `Chart.getChart(canvas)` + `.destroy()` guard before every `new Chart()` |
-| Jinja2 data injection | `| safe` filter + user data → XSS | Use `| tojson` filter exclusively for JSON data in `<script>` tags |
-| Tailwind purge | Dynamic class construction in templates | Write all dark-mode and color classes as complete literal strings |
+|-------------|---------------|------------|
+| Live refresh fix | `watch_qsos` task has no strong reference, silently GC'd | Store task in `app.state.watcher_task` or module-level set; add startup debug log |
+| Live refresh fix | Wrong collection object passed to watcher | Log collection name and DB name on watcher startup |
+| Live refresh fix | Change stream not firing (replica set not running) | Test with `mongosh` change stream watch before debugging Python layer |
+| Live refresh fix | Debounce missing during FT8 burst | Add 400ms debounce on `htmx.ajax` call in same commit |
+| Badge counter | Badge element inside `#log-table` (destroyed on swap) | Badge must be a sibling of `#log-table`, outside the partial template |
+| Badge counter | Counter not reset on pagination | Listen on `htmx:afterSwap` targeting `#log-table` to reset counter |
+| Badge counter | SSE connection killed by outerHTML swap | Verify SSE connection survives in DevTools after pagination |
+| Web Audio init | AudioContext created at page load, permanently suspended | Lazy-init on first user gesture; check `audioCtx.state` before playing |
+| Web Audio init | iOS Safari not unlocked by click alone | Listen on both `touchstart` and `click`; provide visible "Test sound" button |
+| Web Audio init | Multiple contexts from per-event creation | One context per page session; new OscillatorNode per tone |
+| Profile toggle form | Unchecked checkbox sends no value | Hidden input `value="false"` before checkbox (last-field-wins in form encoding) |
+| Profile toggle model | `notify_sound` missing from `ProfileUpdateRequest` | Add `Optional[bool]` to schema and handler signature |
+| Profile toggle model | Future DB query `{notify_sound: false}` misses old users | Use `{notify_sound: {$ne: True}}` if ever querying by this field |
+| Profile toggle template | `checked` attribute rendering for `None` | Use `{{ 'checked' if profile.notify_sound else '' }}` |
 
 ---
 
 ## Sources
 
-- Chart.js Responsive Configuration (canvas sizing, container requirements): https://www.chartjs.org/docs/latest/configuration/responsive.html
-- Chart.js API (.destroy(), .getChart()): https://www.chartjs.org/docs/latest/developers/api.html
-- Chart.js v4 Migration Guide (dist bundle renames, destroy hook removal): https://www.chartjs.org/docs/latest/migration/v4-migration.html
-- Chart.js Colors: https://www.chartjs.org/docs/latest/general/colors.html
-- Chart.js Canvas Background: https://www.chartjs.org/docs/latest/configuration/canvas-background.html
-- Chart.js Dark Mode Discussion (maintainer confirmed no native support): https://github.com/chartjs/Chart.js/discussions/9214
-- "Canvas is already in use" error pattern: https://github.com/reactchartjs/react-chartjs-2/issues/1037
-- MongoDB $group documentation: https://www.mongodb.com/docs/manual/reference/operator/aggregation/group/
-- MongoDB $ifNull documentation: https://www.mongodb.com/docs/manual/reference/operator/aggregation/ifNull/
-- MongoDB Aggregation Pipeline Optimization ($match first for index use): https://www.mongodb.com/docs/manual/core/aggregation-pipeline-optimization/
-- Jinja2 XSS via script-context variable injection: https://semgrep.dev/docs/cheat-sheets/flask-xss
-- HTMX Events reference (htmx:afterSettle, htmx:beforeCleanupElement): https://htmx.org/events/
-- jsDelivr SRI usage and version pinning: https://www.jsdelivr.com/using-sri-with-dynamic-files
+- [Web Audio API best practices — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices)
+- [Autoplay policy in Chrome — Chrome for Developers](https://developer.chrome.com/blog/autoplay)
+- [Web Audio, Autoplay Policy and Games — Chrome for Developers](https://developer.chrome.com/blog/web-audio-autoplay)
+- [Unlock JavaScript Web Audio in Safari for iOS — Matt Montag](https://www.mattmontag.com/web/unlock-web-audio-in-safari-for-ios-and-macos)
+- [htmx SSE Extension documentation — htmx.org](https://htmx.org/extensions/sse/)
+- [htmx SSE Extension source — GitHub bigskysoftware/htmx-extensions](https://github.com/bigskysoftware/htmx-extensions/blob/main/src/sse/sse.js)
+- [Removing DOM element using SSE does not close the SSE connection — htmx issue #2510](https://github.com/bigskysoftware/htmx/issues/2510)
+- [Swapping via SSE not working when content has same id — htmx issue #295](https://github.com/bigskysoftware/htmx/issues/295)
+- [PyMongo async change stream documentation](https://pymongo.readthedocs.io/en/stable/api/pymongo/asynchronous/change_stream.html)
+- [MongoDB Change Streams — official documentation](https://www.mongodb.com/docs/manual/changestreams/)
+- [Change stream fullDocument on delete — MongoDB community forum](https://www.mongodb.com/community/forums/t/change-stream-fulldocument-on-delete/15963)
+- [Query for Null or Missing Fields — MongoDB documentation](https://www.mongodb.com/docs/manual/tutorial/query-for-null-fields/)
+- [Beanie Migrations documentation](https://beanie-odm.dev/tutorial/migrations/)

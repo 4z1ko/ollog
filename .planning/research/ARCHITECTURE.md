@@ -1,266 +1,271 @@
-# Architecture Research
+# Architecture Patterns: v2.4 Live Log & Sound Alerts
 
-**Domain:** Operator statistics page — FastAPI/Jinja2/HTMX integration
-**Researched:** 2026-04-15
-**Confidence:** HIGH (fully code-verified against live codebase)
-
----
-
-## Summary
-
-The stats page is a straightforward extension of the existing request flow. One new route in `app/qso/ui_router.py`, one new service function in `app/qso/service.py`, and one new template `templates/log/stats.html`. No new routers, no new modules, no new dependencies except Chart.js loaded via CDN `<script>` tag in the template.
-
-The only technically non-obvious decision is DXCC entity aggregation: MongoDB cannot resolve callsign → DXCC entity natively. The aggregation pipeline groups by `CALL`, returns per-callsign counts, and Python post-processes each callsign through the existing `lookup_prefix()` + `pycountry` stack (identical to `_qso_to_view_dict`). The result is a `dict[str, int]` of entity label → count, built in Python before template rendering.
-
-JSON injection into Chart.js uses `tojson` (Jinja2's built-in, output is HTML-escaped) in a `<script>` block. This is XSS-safe and is the established pattern for server-rendered chart data.
+**Milestone:** v2.4 Live Log & Sound Alerts
+**Researched:** 2026-04-16
+**Based on:** Direct codebase reading (no inference)
 
 ---
 
-## New Files
+## Current SSE/HTMX Architecture (as-built)
 
-| File | Purpose |
-|------|---------|
-| `templates/log/stats.html` | Stats page — extends `base_app.html`, contains three `<canvas>` elements and a `<script>` block that initializes Chart.js pie charts from server-rendered JSON |
-
----
-
-## Modified Files
-
-| File | Change |
-|------|--------|
-| `app/qso/service.py` | Add `get_stats(operator: str) -> dict` — runs three MongoDB aggregation pipelines, post-processes DXCC entities in Python, returns structured data dict |
-| `app/qso/ui_router.py` | Add `GET /log/stats` route — cookie-auth, calls `get_stats()`, passes result to `templates/log/stats.html` |
-| `templates/base_app.html` | Add "Stats" nav item to `{% block sidebar_nav %}` with `ap == 'stats'` active check |
-
-No new router file, no new module, no changes to `app/main.py` (route is inside the existing `ui_router` which is already mounted at `/log`).
-
----
-
-## Data Flow
-
-### MongoDB Aggregation → Python Post-Processing → Template → Chart.js
+### Complete Data Flow for a Successful Auto-Refresh (Page 1, No Filters)
 
 ```
-GET /log/stats  (cookie: access_token=<JWT>)
-        │
-        ▼
-get_current_operator_callsign_cookie(request)
-        │  reads HttpOnly cookie, decodes JWT
-        │  returns: operator callsign string  (e.g. "W1AW")
-        │
-        ▼
-get_stats(operator="W1AW")  [app/qso/service.py]
-        │
-        │  Pipeline 1 — band counts:
-        │    db.qsos.aggregate([
-        │      {"$match": {"_operator": "W1AW", "_deleted": False, "BAND": {"$ne": None}}},
-        │      {"$group": {"_id": "$BAND", "count": {"$sum": 1}}},
-        │      {"$sort": {"count": -1}}
-        │    ])
-        │    → [{"_id": "20M", "count": 412}, {"_id": "40M", "count": 307}, ...]
-        │    → dict: {"20M": 412, "40M": 307, ...}
-        │
-        │  Pipeline 2 — mode counts:
-        │    db.qsos.aggregate([
-        │      {"$match": {"_operator": "W1AW", "_deleted": False, "MODE": {"$ne": None}}},
-        │      {"$group": {"_id": "$MODE", "count": {"$sum": 1}}},
-        │      {"$sort": {"count": -1}}
-        │    ])
-        │    → dict: {"FT8": 891, "SSB": 203, "CW": 87, ...}
-        │
-        │  Pipeline 3 — per-callsign counts (for DXCC):
-        │    db.qsos.aggregate([
-        │      {"$match": {"_operator": "W1AW", "_deleted": False, "CALL": {"$ne": None}}},
-        │      {"$group": {"_id": "$CALL", "count": {"$sum": 1}}}
-        │    ])
-        │    → [{"_id": "DL1ABC", "count": 3}, {"_id": "JA1YWX", "count": 1}, ...]
-        │
-        │  Python post-processing — DXCC entity rollup:
-        │    entity_counts: dict[str, int] = {}
-        │    for doc in per_callsign_results:
-        │        iso = lookup_prefix(doc["_id"])          # existing app/callsign/prefixes.py
-        │        if iso:
-        │            country = pycountry.countries.get(alpha_2=iso)
-        │            label = country.name if country else iso
-        │        else:
-        │            label = "Unknown"
-        │        entity_counts[label] = entity_counts.get(label, 0) + doc["count"]
-        │
-        │    Top 8 + "Other" rollup:
-        │    sorted_entities = sorted(entity_counts.items(), key=lambda x: x[1], reverse=True)
-        │    top8 = sorted_entities[:8]
-        │    other_count = sum(count for _, count in sorted_entities[8:])
-        │    if other_count > 0:
-        │        top8.append(("Other", other_count))
-        │    dxcc_counts = dict(top8)
-        │
-        │    unique_dxcc = len(entity_counts)  -- count BEFORE the top-8 truncation
-        │
-        │  Returns:
-        │    {
-        │      "band_counts":   {"20M": 412, "40M": 307, ...},
-        │      "mode_counts":   {"FT8": 891, "SSB": 203, ...},
-        │      "dxcc_counts":   {"United States": 412, "Germany": 87, ..., "Other": 23},
-        │      "unique_dxcc":   47,
-        │      "total_qsos":    1181,
-        │    }
-        │
-        ▼
-stats_page route handler  [app/qso/ui_router.py]
-        │  ctx = {"callsign": callsign, "stats": stats_data}
-        │  return templates.TemplateResponse(request, "log/stats.html", ctx)
-        │
-        ▼
-templates/log/stats.html
-        │  Jinja2 renders:
-        │    var bandData = {{ stats.band_counts | tojson }};
-        │    var modeData = {{ stats.mode_counts | tojson }};
-        │    var dxccData = {{ stats.dxcc_counts | tojson }};
-        │  (tojson calls json.dumps with HTML escaping — XSS-safe)
-        │
-        │  Chart.js (CDN) initialises three PieChart instances
-        │  using these inline JSON objects as data sources
-        │
-        ▼
-Browser renders three pie charts + stat cards
+QSO.insert()                         [any source: REST API, UI form, UDP]
+  -> MongoDB oplog write
+    -> change stream fires             [app/feed/manager.py: watch_qsos()]
+      -> feed_row.html rendered        [Jinja2, operator-agnostic HTML]
+        -> mgr.broadcast(html)         [puts html string into all connected queues]
+          -> station_feed() yields     [app/feed/router.py: ServerSentEvent(data=html, event="new_qso")]
+            -> browser receives SSE    [htmx-ext-sse 2.2.4 on #log-table]
+              -> htmx:sseMessage fires [log.html inline script]
+                -> checks event.type == 'new_qso'
+                -> checks document.getElementById('auto-refresh-ok')
+                -> checks !document.querySelector('#log-table input')
+                -> htmx.ajax('GET', '/log/view', {target:'#log-table', swap:'innerHTML'})
+                  -> log_view() re-renders log_table.html with fresh page 1 data
 ```
 
-### Operator Isolation
+### The #auto-refresh-ok Sentinel
 
-`get_stats(operator=callsign)` passes `callsign` from the JWT directly into every `$match` filter as `"_operator": operator`. The compound index `operator_active_idx` (`_operator`, `_deleted`) is hit by all three pipelines. Isolation is enforced at the aggregation layer — identical to how `get_qso_page` works.
+Rendered in `log_table.html` only when ALL of:
+- `page == 1`
+- `sort == '-qso_date_utc'`
+- No `call`, `band`, `mode`, `date_from`, `date_to` filters active
+
+The sentinel is a `<span id="auto-refresh-ok" hidden></span>`. Its presence or absence is the server's single source of truth about whether auto-refresh is permitted. It lives inside `#log-table` (the HTMX swap target), so every pagination or filter navigation atomically updates its presence.
+
+### The SSE Connection Lifecycle
+
+The `hx-ext="sse"` and `sse-connect="/feed/station"` attributes are on `#log-table` (the outer container div in `log.html`), NOT inside `log_table.html` (the partial). This is load-bearing: the partial is the HTMX swap target — its innerHTML is replaced on every navigation, but `#log-table` itself persists, keeping the SSE connection alive across all pagination and filter interactions.
+
+### The Operator Isolation Gap in the Change Stream
+
+`watch_qsos()` fires for every insert into the `qsos` collection from every operator. It broadcasts the rendered `feed_row.html` to all connected SSE clients regardless of which operator owns the new QSO. The client-side `htmx:sseMessage` handler never inspects the operator field in the SSE payload — it only checks `#auto-refresh-ok` and the edit-row guard.
+
+This is already operator-safe: the `/log/view` re-fetch enforces operator isolation via JWT. The broadcast being unscoped is intentional and correct.
+
+### The Likely SSE Bug
+
+For UDP QSOs: `QSO.insert()` is called identically in `_handle_datagram()` as in the REST API path. The change stream pipeline `[{"$match": {"operationType": "insert"}}]` matches all inserts regardless of source. The UDP insert MUST trigger the change stream.
+
+The most probable failure mode: a Jinja2 render error inside `watch_qsos()` that is not caught. The current exception handler only catches `PyMongoError`. A `TypeError` or `AttributeError` from `feed_row.html` attempting `qso_date_utc.strftime(...)` when `qso_date_utc` is `None` would propagate out of the `async for` body and kill the watcher task entirely. Once dead, the watcher does not restart. All subsequent inserts (UDP or REST) produce no SSE events. The LIVE indicator stays green (the SSE connection is still open — the watcher dying does not close client connections), so operators see no signal that live updates have stopped.
+
+Secondary suspect: `change.get("fullDocument", {})` returns `{}` for some change events, causing broadcast of empty HTML. The client still receives the event, fires `htmx.ajax()`, and the table reloads correctly — but this would appear as "works fine" not "not working."
 
 ---
 
-## Build Order
+## v2.4 Component Map
 
-Steps are sequenced by dependency. Each step is a complete, testable unit.
+### Modified Components
 
-**Step 1 — `app/qso/service.py`: add `get_stats()`**
+| Component | File | What Changes |
+|-----------|------|--------------|
+| Change stream watcher | `app/feed/manager.py` | Wrap Jinja2 render in `try/except Exception` with `logger.error` + `continue`; add debug logging around broadcast |
+| SSE message handler | `templates/log/log.html` | Add badge counter logic; add Web Audio tone trigger; add `htmx:afterSettle` handler for badge re-sync |
+| Log table partial | `templates/log/log_table.html` | Add badge HTML element (hidden by default) |
+| User model | `app/auth/models.py` | Add `notify_sound: bool = False` |
+| Profile schema | `app/profile/schemas.py` | Add `notify_sound: Optional[bool]` to `ProfileUpdateRequest` and `ProfileResponse` |
+| Profile service | `app/profile/service.py` | No logic change — `update_profile()` already passes arbitrary dict keys to `$set` |
+| Profile UI handler | `app/qso/ui_router.py` | Add `notify_sound` Form param to `profile_update()`; change `log_view()` dependency from `get_current_operator_callsign_cookie` to `get_current_user_cookie`; add `notify_sound` to log_view context |
+| Profile template | `templates/log/profile.html` | Add "Notifications" section with sound toggle checkbox |
 
-The aggregation logic has no UI dependency. Write and unit-test this function first. It is the hardest part of this feature (DXCC rollup logic). Testable with a mock MongoDB or a real test DB.
+### New Components
 
-Key implementation note: use `QSO.get_motor_collection().aggregate([...])` or equivalently call raw pymongo via Beanie's `get_motor_collection()` — Beanie does not wrap `aggregate()` directly, but `Document.get_motor_collection()` returns the raw Motor collection where `aggregate()` is available. Alternatively, inject the MongoDB collection via `get_client()[settings.mongodb_db]["qsos"]` as done in `feed/manager.py`. Either pattern is consistent with the codebase.
-
-**Step 2 — `app/qso/ui_router.py`: add `GET /log/stats` route**
-
-Import `get_stats` from service. The route is two lines of logic: call `get_stats(callsign)`, return `TemplateResponse`. This unblocks template work.
-
-```python
-@ui_router.get("/stats", response_class=HTMLResponse)
-async def stats_page(
-    request: Request,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
-):
-    stats = await get_stats(callsign)
-    return templates.TemplateResponse(
-        request,
-        "log/stats.html",
-        {"callsign": callsign, "stats": stats},
-    )
-```
-
-**Step 3 — `templates/log/stats.html`: build the template**
-
-Extend `base_app.html`. Set `{% block active_page %}stats{% endblock %}`. Use three `<canvas>` elements (one per chart). Initialize Chart.js in a `<script>` block at the bottom of `{% block content %}`. Load Chart.js via CDN `<script src>` tag in a `{% block extra_scripts %}` block (or inline in the template's content block — the base template has no extra_scripts block so inline is simplest).
-
-**Step 4 — `templates/base_app.html`: add Stats nav item**
-
-Insert the Stats nav link between "Log View" and "Import" (or between "Import" and "Export" — position is a UX preference). Add a chart/bar-chart Heroicon at `w-6 h-6`. Use the same `nav-item` + active class pattern as every other nav item.
-
-**Step 5 — Integration smoke test**
-
-Navigate to `/log/stats` with a seeded operator account. Verify three charts render, DXCC "Other" bucket works, total count matches, dark mode applies correctly.
+None. All v2.4 features fit within existing files. No new Python modules, routers, or MongoDB collections.
 
 ---
 
-## Integration Notes
+## Feature Integration Points
 
-### XSS-Safe JSON Injection into Chart.js
+### 1. SSE Bug Fix
 
-Jinja2's `tojson` filter calls `json.dumps` with HTML-escaping enabled by default in Jinja2's `Environment`. This means `<`, `>`, `&`, `'`, and `"` inside string values are escaped as `\u003c`, `\u003e`, etc. These are valid JSON escape sequences — JavaScript's JSON parser handles them correctly. The output is safe to embed directly in a `<script>` block.
+**Integration point:** `app/feed/manager.py` `watch_qsos()` inner loop body.
 
-**Correct pattern:**
+Two changes:
+
+1. Wrap the render call: `try: html = templates.get_template(...).render(ctx) except Exception as e: logger.error("feed_row render failed: %s", e); continue`
+2. Add: `logger.debug("SSE broadcast call=%s operator=%s", ctx["call"], ctx["operator"])` before `mgr.broadcast(html)`.
+
+The `while True` / `PyMongoError` reconnect logic is already correct for MongoDB connectivity failures. The fix extends it to cover template render failures without crashing the watcher.
+
+### 2. "N New QSOs" Badge
+
+**Integration points:**
+
+`templates/log/log_table.html` — add badge HTML at top of file (before the empty-state check):
+
+```html
+<div id="new-qso-badge" class="hidden ...">
+  <span id="new-qso-count">0</span> new QSO<span id="new-qso-plural">s</span>
+  <button onclick="dismissBadge()">Dismiss</button>
+</div>
+```
+
+`templates/log/log.html` script block — add:
+
+```javascript
+var qsoCounter = 0;
+
+function updateBadge() {
+  var badge = document.getElementById('new-qso-badge');
+  if (!badge) return;
+  if (qsoCounter > 0) {
+    document.getElementById('new-qso-count').textContent = qsoCounter;
+    document.getElementById('new-qso-plural').textContent = qsoCounter === 1 ? '' : 's';
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function dismissBadge() {
+  qsoCounter = 0;
+  updateBadge();
+}
+```
+
+Modify the existing `htmx:sseMessage` handler:
+- When `#auto-refresh-ok` present: call `htmx.ajax()` then `qsoCounter = 0; updateBadge()` (reset on reload).
+- When `#auto-refresh-ok` absent: `qsoCounter++; updateBadge()`.
+
+Add `htmx:afterSettle` handler: after every HTMX DOM swap (pagination, filter navigation, SSE-triggered reload), call `updateBadge()` to re-sync the freshly-rendered badge element with the current `qsoCounter`.
+
+**Why counter lives in JS, not DOM:** The badge element is inside `log_table.html` (the HTMX swap target). Every HTMX swap replaces the element, resetting its text content. The JS variable `qsoCounter` is in the outer `log.html` scope and survives all swaps. The `htmx:afterSettle` handler bridges the gap by re-applying `qsoCounter` to the newly-rendered badge after each swap.
+
+### 3. Web Audio Tone
+
+**Integration point:** `templates/log/log.html` only. Zero server changes.
+
+Pattern for AudioContext init (browser autoplay policy compliance):
+
+```javascript
+var audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playTone() {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.3);
+}
+
+document.addEventListener('click', initAudio, { once: true });
+document.addEventListener('keydown', initAudio, { once: true });
+```
+
+In `htmx:sseMessage` handler, add: `if (NOTIFY_SOUND) playTone();`
+
+`NOTIFY_SOUND` is a template variable baked in by the server (see below).
+
+### 4. notify_sound Gating in log.html
+
+**Problem:** `log_view()` currently depends on `get_current_operator_callsign_cookie` which returns a string. The `notify_sound` preference lives on the User document. To pass it to the template, the handler must load the full User.
+
+**Solution:** Change the dependency from `get_current_operator_callsign_cookie` to `get_current_user_cookie` in `log_view()`. Extract `callsign = user.callsign` for existing usage. Add `"notify_sound": user.notify_sound` to `ctx`.
+
+This is a 3-line change in `ui_router.py`. `get_current_user_cookie` is already imported in the same file (used by `profile_update()` and `submit_qso()`). The extra DB read per page load is one indexed lookup by `_id` — negligible.
+
+In `log.html`, emit before the existing script:
+
 ```html
 <script>
-  var bandData = {{ stats.band_counts | tojson }};
-  new Chart(document.getElementById('band-chart'), {
-    type: 'pie',
-    data: {
-      labels: Object.keys(bandData),
-      datasets: [{ data: Object.values(bandData) }]
-    }
-  });
+  var NOTIFY_SOUND = {{ 'true' if notify_sound else 'false' }};
 </script>
 ```
 
-**What not to do:** Do not use `| safe` on raw Python dicts serialized with `str()`. `str({"<script>": 1})` produces literal `<script>` in output — XSS. Always use `tojson`.
+### 5. notify_sound Profile Toggle
 
-**Confidence:** HIGH — this is Jinja2's documented pattern for safe JSON injection. The `tojson` filter is available in Jinja2 2.x and above (used in this project). FastAPI's `Jinja2Templates` uses the standard Jinja2 `Environment` which enables HTML autoescaping for `.html` templates.
+**Checkbox encoding issue:** HTML checkboxes send the named field only when checked. If unchecked, the field is absent from the form POST body. FastAPI Form() parameter with `Optional[bool] = None` receives `None` when the checkbox is unchecked. The `model_dump(exclude_unset=True)` call in `profile_update()` will then omit `notify_sound` from the update dict, leaving the stored value unchanged instead of setting it to False.
 
-### Chart.js CDN Loading
-
-Chart.js is not in `package.json` (Tailwind is the only NPM dependency). Load via CDN `<script>` tag inside `templates/log/stats.html`. Do not add Chart.js to `package.json` — the build pipeline is Tailwind-only and adding a bundler would be over-engineering for a single-page library inclusion.
+**Fix:** Use the hidden-input override pattern in the template:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<input type="hidden" name="notify_sound" value="false">
+<input type="checkbox" name="notify_sound" value="true" {{ 'checked' if profile.notify_sound else '' }}>
 ```
 
-Place this `<script>` before the chart initialization `<script>` block. Both must be in the page body (after DOMContentLoaded) or the canvas elements must exist before initialization.
+FastAPI receives both values; `Form()` with a list-capable type gets both. Simpler: just read the raw form data in `profile_update()` for this field: `notify_sound_raw = (await request.form()).get("notify_sound")` and convert `"true"` -> `True`, anything else -> `False`. But this bypasses Pydantic validation.
 
-Because `base.html` uses `<script src="https://unpkg.com/htmx.org@2.0.4">` in `<head>` without `defer`, adding Chart.js inline in the template content block (which renders after `<body>` is parsed) is fine — canvas elements exist in DOM when Chart.js initializes.
-
-**Confidence:** HIGH — Chart.js is the standard browser charting library, CDN delivery is its documented primary install path for non-bundled use.
-
-### Dark Mode Compatibility
-
-The `stats.html` template renders inside `base_app.html`'s main content area which already has `bg-canvas-light dark:bg-canvas-dark`. Chart.js uses canvas elements which do not inherit CSS color. Chart colors must be set explicitly in Chart.js config.
-
-Use light-neutral colors for chart segments that work on both light and dark backgrounds. The chart background and grid lines can be transparent. The canvas element should have an explicit background (`bg-white dark:bg-gray-800` via Tailwind, applied as a `class` on the `<canvas>` wrapper `<div>`, not the canvas itself — canvas does not support Tailwind via CSS class the same way).
-
-Alternatively, wrap each canvas in a `.card` div (existing Apple-design-system component) — cards already handle dark mode background correctly.
-
-### DXCC Aggregation: Why Python, Not MongoDB
-
-MongoDB's `$group` can only group on fields that exist in the document. The DXCC entity name is not stored in the QSO document — only the raw `CALL` field is. Computing entity names requires the ITU prefix resolver (`lookup_prefix`), which is a Python function wrapping a bisect lookup over 313 ITU ranges. There is no practical way to replicate this in a MongoDB `$addFields` expression.
-
-The correct approach: aggregate by `CALL` (MongoDB handles efficiently — uses `_operator` leading index), then post-process in Python. For a typical ham radio logbook (hundreds to low-thousands of unique callsigns), this is fast. A 1,000-callsign post-process loop runs in under 5ms in Python.
-
-### Empty Log Edge Case
-
-If an operator has no QSOs, all three aggregation pipelines return empty cursors. `get_stats()` returns `{"band_counts": {}, "mode_counts": {}, "dxcc_counts": {}, "unique_dxcc": 0, "total_qsos": 0}`. The template must handle empty dicts — Chart.js renders an empty pie chart without error when given empty data arrays. Add a conditional `{% if stats.total_qsos == 0 %}` guard in the template to show a friendly "No QSOs logged yet" message instead of three empty charts.
-
-### Beanie Aggregation Access Pattern
-
-Beanie's `Document` class does not expose a `.aggregate()` method as a class method (it wraps Motor's `find`, `find_one`, `insert`, `save`, etc. but not raw aggregation). Use `QSO.get_motor_collection().aggregate([...])` to access the underlying Motor collection. This is the established internal pattern — `watch_qsos` in `app/feed/manager.py` uses `collection` directly obtained from `get_client()[settings.mongodb_db]["qsos"]`, which is equivalent.
-
-The recommended call inside `get_stats`:
-```python
-from app.qso.models import QSO
-
-collection = QSO.get_motor_collection()
-cursor = collection.aggregate([...])
-results = await cursor.to_list(length=None)
-```
-
-`length=None` on Motor aggregation cursors returns all results — appropriate since band/mode result sets are bounded (tens of distinct values at most) and callsign result sets are bounded by the operator's unique-CALL count (typically hundreds to low thousands).
+Cleanest approach: keep the `Annotated[Optional[str], Form()]` type for `notify_sound`, coerce `"true"` -> `True` / anything else -> `False` explicitly in the handler body before passing to `ProfileUpdateRequest`. Always include `notify_sound` in `raw` dict (never skip it), so `exclude_unset=True` always includes it and the DB value is always updated on every profile save.
 
 ---
 
-## Sources
+## Build Order (Recommended Phases)
 
-- `/Users/royco/ollog/app/qso/ui_router.py` — existing route patterns, `_qso_to_view_dict` DXCC enrichment logic, cookie auth dependency usage (code verified, HIGH confidence)
-- `/Users/royco/ollog/app/qso/service.py` — service layer conventions, `get_qso_page` pattern for operator-isolated queries (code verified, HIGH confidence)
-- `/Users/royco/ollog/app/qso/models.py` — QSO field structure, `_operator`/`_deleted` aliases, compound indexes (code verified, HIGH confidence)
-- `/Users/royco/ollog/app/callsign/prefixes.py` — `lookup_prefix()` signature and return type (ISO alpha-2 or None), `_ITU_NAME_TO_ISO` mapping (code verified, HIGH confidence)
-- `/Users/royco/ollog/app/main.py` — router mounting (ui_router at `/log`, `include_in_schema=False`), exception handler for 401/403 on `/log/` (code verified, HIGH confidence)
-- `/Users/royco/ollog/templates/base_app.html` — sidebar nav pattern, `{% block active_page %}` convention, `{% block content %}`, no `extra_scripts` block (code verified, HIGH confidence)
-- `/Users/royco/ollog/templates/log/about.html` — confirmed template extension pattern, `card`/`card-header`/`card-body` component usage (code verified, HIGH confidence)
-- `/Users/royco/ollog/templates/base.html` — HTMX + SSE CDN `<script>` tags in `<head>`, FOUC prevention inline script (code verified, HIGH confidence)
-- `/Users/royco/ollog/.planning/PROJECT.md` — v2.3 active requirements: band pie, mode pie, DXCC top-8 pie, unique DXCC count, JWT isolation (code verified, HIGH confidence)
-- [Jinja2 `tojson` docs](https://jinja.palletsprojects.com/en/3.1.x/templates/#tojson) — HTML-safe JSON serialization in templates (HIGH confidence)
-- [Chart.js installation docs](https://www.chartjs.org/docs/latest/getting-started/installation.html) — CDN delivery pattern for non-bundled use (HIGH confidence)
+The features have a strict dependency chain. Phases must be executed in order.
+
+### Phase 1 — Diagnose and Fix SSE Watcher (prerequisite)
+
+**Files:** `app/feed/manager.py`
+
+Add defensive error handling around the Jinja2 render call. Add debug logging for each broadcast. Optionally add a test that inserts via the UDP path and asserts the change stream watcher does not die.
+
+Do not build any new UI until this is confirmed working. Rationale: badge and tone are meaningless if the SSE event never arrives.
+
+### Phase 2 — Add notify_sound to User Model and Schemas
+
+**Files:** `app/auth/models.py`, `app/profile/schemas.py`
+
+Add the field. Run existing profile API tests (`test_profile_api.py`) to confirm no regressions. No migration needed — Beanie defaults handle existing documents.
+
+### Phase 3 — Wire notify_sound into log_view Context
+
+**Files:** `app/qso/ui_router.py`, `templates/log/log.html`
+
+Change `log_view()` dependency. Pass `notify_sound` to template. Emit `NOTIFY_SOUND` JS constant. At this point the constant is always `false` for all users (field defaults to False), which is correct.
+
+### Phase 4 — Badge Counter
+
+**Files:** `templates/log/log_table.html`, `templates/log/log.html`
+
+Add badge HTML. Add `qsoCounter` JS, `updateBadge()`, `dismissBadge()`. Modify `htmx:sseMessage` handler. Add `htmx:afterSettle` handler.
+
+### Phase 5 — Web Audio Tone
+
+**Files:** `templates/log/log.html`
+
+Add `initAudio()`, `playTone()`. Add gesture listeners. Wire into `htmx:sseMessage` handler behind `NOTIFY_SOUND` guard. No server changes.
+
+### Phase 6 — Profile Toggle UI
+
+**Files:** `app/qso/ui_router.py`, `app/profile/schemas.py`, `templates/log/profile.html`
+
+Add `notify_sound` form parameter to `profile_update()`. Add checkbox to profile form. Handle the checkbox encoding correctly (hidden input + explicit coercion). Test that toggling on/off persists correctly and is reflected in `NOTIFY_SOUND` on the next page load.
 
 ---
 
-*Architecture research for: v2.3 Operator Statistics page*
-*Researched: 2026-04-15*
+## What Does NOT Change
+
+- SSE event name (`new_qso`) — no changes to event shape or name.
+- `sse-connect="/feed/station"` endpoint — unchanged.
+- `#auto-refresh-ok` sentinel conditions — no new server-side conditions.
+- `ConnectionManager` broadcast model — no per-operator filtering. Operator isolation is enforced by the JWT on the `/log/view` re-fetch, not at the broadcast level.
+- `feed_row.html` template — not used by badge or tone features.
+- MongoDB QSO schema — unchanged.
+- No new collections, no new API endpoints, no new Python modules.
+
+---
+
+## Risk Flags
+
+**AudioContext autoplay policy:** Chrome and Firefox require a user gesture before `AudioContext` creation succeeds. The `{ once: true }` listener approach is correct. If the SSE event arrives before any gesture (operator leaves the page open after login without clicking), `playTone()` silently no-ops because `audioCtx` is null. This is acceptable behavior — tone starts working after the first interaction.
+
+**Badge re-application after HTMX swap:** `htmx:afterSettle` fires synchronously after DOM insertion, before the next paint. The `updateBadge()` call in the afterSettle handler will find the fresh badge element and apply `qsoCounter`. No race condition. Verify this handles the case where `qsoCounter === 0` correctly (badge stays hidden on page 1 auto-refresh reloads).
+
+**notify_sound checkbox form encoding:** The hidden-input override pattern is standard HTML and works correctly with FastAPI Form(). The key invariant: `notify_sound` must always be present in the `raw` dict passed to `ProfileUpdateRequest`, even when the checkbox is unchecked, so that `$set` always writes the current value to MongoDB. If it is ever absent from `exclude_unset=True` output, a user who unchecks the box will see no change on next page load — a silent bug.
+
+**SSE watcher task death on unhandled exception:** After the Phase 1 fix, any exception in the render path logs and continues. Any exception outside the inner loop (e.g., from the `collection.watch()` call) already reconnects via `PyMongoError` catch. After the fix, the only remaining risk is `asyncio.CancelledError` being re-raised by `continue` inside the cancel handler — ensure `except asyncio.CancelledError: break` comes before `except Exception`.
+
+**HTMX ajax() after SSE-triggered reload resets scroll position:** The `htmx.ajax()` call swaps `#log-table` innerHTML, which may cause a scroll jump. This is existing behavior from v1.6, not a v2.4 regression. The badge feature on page 2+ explicitly avoids triggering `htmx.ajax()`, which is the correct mitigation.
