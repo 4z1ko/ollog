@@ -167,7 +167,7 @@ Full archive: `.planning/milestones/v2.1-ROADMAP.md`
 **Milestone Goal:** Each operator can view a dedicated statistics page at `/log/stats` with pie charts for band, mode, and DXCC entity breakdowns — all data scoped to their own log.
 
 - [x] **Phase 42: Stats Aggregation Backend** — `get_stats()` service function, `GET /log/stats` route handler, JWT-isolated MongoDB aggregations, DXCC Python-side rollup, empty-state data shape (completed 2026-04-16)
-- [ ] **Phase 43: Stats UI** — `templates/log/stats.html` with three Chart.js pie charts, dark/light theme adaptation, `{% block extra_scripts %}` in `base.html`, Stats sidebar nav link in `base_app.html`
+- [x] **Phase 43: Stats UI** — `templates/log/stats.html` with three Chart.js pie charts, dark/light theme adaptation, `{% block extra_scripts %}` in `base.html`, Stats sidebar nav link in `base_app.html` (completed 2026-04-16)
 
 ---
 
@@ -559,7 +559,7 @@ Plans:
   3. The DXCC chart shows at most 8 named entity slices; when more than 8 entities are present, the remainder appears as a single "Other" slice with the correct summed count — and "Other" is absent when 8 or fewer entities exist
   4. A scalar count of unique DXCC entities worked is displayed on the page (e.g. "42 entities") — this number equals the total distinct entities before the top-8 truncation
   5. Toggling between dark and light mode without a page reload causes all three charts to re-initialize with mode-appropriate colors — no chart displays stale light-mode colors in dark mode or vice versa
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [x] 43-01-PLAN.md — base.html extra_scripts block, base_app.html Stats nav link + toggleTheme CustomEvent, stats.html Chart.js pie charts
@@ -612,7 +612,7 @@ Plans:
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
 | 42. Stats Aggregation Backend | v2.3 | 1/1 | Complete    | 2026-04-16 |
-| 43. Stats UI | v2.3 | 1/1 | Complete   | 2026-04-16 |
+| 43. Stats UI | v2.3 | 1/1 | Complete    | 2026-04-16 |
 
 ---
 
