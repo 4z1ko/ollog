@@ -188,18 +188,18 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.2 Multi-Operator UDP (shipped 2026-04-15)
+**Version:** v2.3 Operator Statistics (in progress — Phase 42 complete)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
 **Codebase:** ~8,800+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.2):**
-All v2.1 features (custom ADIF parser, QSO REST API, operator profiles, callsign flags, typed OpenAPI, MkDocs docs, UDP listener, live log table, API tokens, admin container isolation, backup CLI+scheduler, Apple design token system, dark mode, glass card login, admin backup/restore pages) plus:
-- `app/udp/operator_cache.py` — UDPOperatorCache with `load()/resolve()/notify_refresh()` dirty-flag singleton; O(1) callsign→User lookup; zero per-datagram MongoDB queries
-- `_handle_datagram` routes via OPERATOR ADIF field — pops field, resolves via operator_cache, drops+WARNs on unknown callsign; stale early guard replaced by post-resolution guard
-- Cache invalidation wired to all 4 operator mutation sites (create/enable/disable) in both admin/router.py and admin/ui_router.py
-- UDP_OPERATOR env var demoted to optional fallback — docs updated across deployment.md, udp-adif.md, environment-variables.md; Multi-Operator Routing section added to udp-adif.md
+**Shipped features (cumulative, v1.0–v2.3 Phase 42):**
+All v2.2 features plus (Phase 42 complete):
+- `app/stats/service.py` — `get_stats(callsign)` with 3 JWT-isolated MongoDB aggregation pipelines (band, mode, CALL-level); Python-side DXCC rollup via `lookup_prefix()` + pycountry; top-8 truncation with "Other" guard; empty-state dict shape for operators with no QSOs (STATS-06, STATS-07)
+- `app/stats/router.py` — `stats_router` with `GET /log/stats` cookie-auth endpoint; registered in `app/main.py` with `include_in_schema=False`
+- `templates/log/stats.html` — Phase 42 stub template (Chart.js pie charts added in Phase 43)
+- `tests/test_stats.py` — 7 integration tests covering operator isolation, soft-delete exclusion, DXCC resolution, empty-state, route auth enforcement
 
 **Known tech debt:**
 - `QSO.find_active()` in models.py — dead production code
@@ -312,4 +312,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-15 after v2.3 milestone started*
+*Last updated: 2026-04-16 after Phase 42 (stats aggregation backend) complete*
