@@ -164,14 +164,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Unrecognized OPERATOR callsigns are dropped with a WARNING log — v2.2
 - ✓ UDP_OPERATOR env var is an optional fallback — if absent and datagram has no OPERATOR field, QSO is dropped with WARNING — v2.2
 
-### Active (v2.3)
+### Validated (v2.3)
 
-- [ ] Operator can view a dedicated statistics page at `/log/stats` linked from the sidebar nav
-- [ ] Stats page shows a pie chart of QSO count by band
-- [ ] Stats page shows a pie chart of QSO count by mode
-- [ ] Stats page shows a pie chart of top 8 DXCC entities by QSO count (remaining grouped as "Other")
-- [ ] Stats page displays total count of unique DXCC entities worked
-- [ ] All statistics are scoped to the authenticated operator's log (JWT-isolated)
+- ✓ Operator can view a dedicated statistics page at `/log/stats` linked from the sidebar nav — v2.3
+- ✓ Stats page shows a pie chart of QSO count by band — v2.3
+- ✓ Stats page shows a pie chart of QSO count by mode — v2.3
+- ✓ Stats page shows a pie chart of top 8 DXCC entities by QSO count (remaining grouped as "Other") — v2.3
+- ✓ Stats page displays total count of unique DXCC entities worked — v2.3
+- ✓ All statistics are scoped to the authenticated operator's log (JWT-isolated) — v2.3
 
 ### Out of Scope
 
@@ -188,17 +188,19 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.3 Operator Statistics (in progress — Phase 42 complete)
+**Version:** v2.3 Operator Statistics (complete — Phase 43 complete)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
 **Codebase:** ~8,800+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.3 Phase 42):**
-All v2.2 features plus (Phase 42 complete):
+**Shipped features (cumulative, v1.0–v2.3):**
+All v2.2 features plus (Phases 42–43 complete):
 - `app/stats/service.py` — `get_stats(callsign)` with 3 JWT-isolated MongoDB aggregation pipelines (band, mode, CALL-level); Python-side DXCC rollup via `lookup_prefix()` + pycountry; top-8 truncation with "Other" guard; empty-state dict shape for operators with no QSOs (STATS-06, STATS-07)
 - `app/stats/router.py` — `stats_router` with `GET /log/stats` cookie-auth endpoint; registered in `app/main.py` with `include_in_schema=False`
-- `templates/log/stats.html` — Phase 42 stub template (Chart.js pie charts added in Phase 43)
+- `templates/log/stats.html` — full Chart.js 4.5.1 stats page: 3 pie charts (By Band, By Mode, By DXCC Entity), dark/light palette switching via `themechange` CustomEvent, empty-state card, responsive 2-col grid, `| tojson` XSS-safe inline data (STATS-01–05, STATS-08)
+- `templates/base.html` — `{% block extra_scripts %}` extension point for page-specific scripts
+- `templates/base_app.html` — Stats sidebar nav link (between Log View and Import); `CustomEvent('themechange')` dispatch in `toggleTheme()`
 - `tests/test_stats.py` — 7 integration tests covering operator isolation, soft-delete exclusion, DXCC resolution, empty-state, route auth enforcement
 
 **Known tech debt:**
