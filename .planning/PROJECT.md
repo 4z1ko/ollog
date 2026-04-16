@@ -8,17 +8,9 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
-## Current Milestone: v2.3 Operator Statistics
+## Shipped: v2.3 Operator Statistics (2026-04-16)
 
-**Goal:** Give each operator a visual breakdown of their log activity via a dedicated stats page with pie charts.
-
-**Target features:**
-- Dedicated `/log/stats` page linked from the operator sidebar nav
-- Pie chart: QSO count by band
-- Pie chart: QSO count by mode
-- Pie chart: top 8 DXCC entities by QSO count (remainder as "Other")
-- Total unique DXCC entities worked count
-- All data JWT-isolated to the authenticated operator
+**Goal achieved:** Each operator has a dedicated `/log/stats` page with three interactive pie charts (band, mode, DXCC entity), a unique entity count scalar, dark/light theme adaptation, and operator isolation via JWT — all backed by 7 integration tests.
 
 ## Requirements
 
@@ -172,6 +164,8 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Stats page shows a pie chart of top 8 DXCC entities by QSO count (remaining grouped as "Other") — v2.3
 - ✓ Stats page displays total count of unique DXCC entities worked — v2.3
 - ✓ All statistics are scoped to the authenticated operator's log (JWT-isolated) — v2.3
+- ✓ Stats page shows an empty-state message when the operator has no QSOs logged — v2.3
+- ✓ Charts adapt to dark/light theme toggle without a page reload (re-initialized on theme change) — v2.3
 
 ### Out of Scope
 
@@ -188,7 +182,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.3 Operator Statistics (complete — Phase 43 complete)
+**Version:** v2.3 Operator Statistics (shipped 2026-04-16)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -295,6 +289,12 @@ All v2.2 features plus (Phases 42–43 complete):
 | `#restore-modal` div is a sibling of `#restore-result` (not nested in form) | Cancel button targets `#restore-modal` with `hx-swap="outerHTML"` — element must be independently addressable in the DOM | ✓ Good — modal clears cleanly; upload form and result div unaffected |
 | GET `/admin/ui/restore` returns bare `<div id="restore-modal"></div>` on HTMX request | Cancel button fires `hx-get="/admin/ui/restore"` — dual-render pattern returns empty div to clear modal without page reload | ✓ Good — modal dismissal is a pure DOM swap; no data lost |
 | `.modal-backdrop` uses raw `-webkit-backdrop-filter: blur(4px)` (not `@apply`) | Consistent with glass-card Safari fix: fixed pixel values required; CSS variable references ignored by Safari | ✓ Good — backdrop blur renders across Safari, Chrome, Firefox |
+| `get_pymongo_collection()` (not `get_motor_collection()`) for raw MongoDB aggregation | Motor was EOL'd May 2025; Beanie now exposes `get_pymongo_collection()` as the official raw-collection accessor | ✓ Good — correct API; Motor import would fail in current dependency set |
+| `(await collection.aggregate(pipeline)).to_list()` double-await pattern | `AsyncCollection.aggregate()` is a coroutine returning a cursor — must await it to get the cursor, then call `.to_list()` | ✓ Good — single-await pattern silently returned a coroutine object instead of results |
+| `unique_entity_count` computed from `iso_seen` set before top-8 truncation | Scalar must reflect total distinct entities worked, not just the visible top-8 slice | ✓ Good — count is accurate regardless of "Other" grouping |
+| Chart.js 4.5.1 UMD bundle via jsDelivr CDN, loaded only in `{% block extra_scripts %}` override | ESM-only build fails silently; CDN avoids bundling; loading in base.html penalizes all pages with Chart.js parse cost | ✓ Good — stats page loads Chart.js; all other pages unaffected |
+| `themechange` CustomEvent broadcast from `toggleTheme()` (zero-coupling) | `toggleTheme()` does not know about charts; event listener pattern lets any future chart page opt in independently | ✓ Good — pattern established; any future chart page just adds `window.addEventListener('themechange', ...)` |
+| `{% if total_qsos > 0 %}{% block extra_scripts %}...{% endblock %}{% endif %}` conditional block | Prevents Chart.js script tag from loading on empty-state render; Jinja2 evaluates block declarations at parse time so the conditional only guards render-time output | ✓ Good — no Chart.js CDN request on empty log |
 
 ## Evolution
 
@@ -314,4 +314,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after Phase 42 (stats aggregation backend) complete*
+*Last updated: 2026-04-16 after v2.3 milestone (Operator Statistics)*

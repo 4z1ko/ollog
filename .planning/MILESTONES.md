@@ -1,11 +1,28 @@
 # Milestones
 
+## v2.3 Operator Statistics (Shipped: 2026-04-16)
+
+**Phases:** 42–43 (2 phases) | **Plans:** 2 | **Timeline:** 2026-04-16 (single session)
+**Files changed:** 10 source files | **Tests:** 7 integration tests (100% pass)
+
+**Key accomplishments:**
+
+- `app/stats/service.py` — `get_stats()` with 3 JWT-isolated MongoDB aggregation pipelines (band, mode, CALL-level); Python-side DXCC rollup via `lookup_prefix()` + pycountry; top-8 truncation with "Other" guard; empty-state shape (STATS-06, STATS-07)
+- `app/stats/router.py` — `stats_router` with `GET /log/stats` cookie-auth endpoint; registered in `app/main.py` with `include_in_schema=False`
+- `templates/log/stats.html` — full Chart.js 4.5.1 stats page: 3 pie charts (By Band, By Mode, By DXCC Entity), dark/light palette switching via `themechange` CustomEvent, empty-state card, responsive 2-col grid (STATS-01–05, STATS-08)
+- `templates/base.html` — `{% block extra_scripts %}` extension point established for page-specific scripts
+- `templates/base_app.html` — Stats sidebar nav link; `CustomEvent('themechange')` broadcast in `toggleTheme()`
+- Fixed `get_motor_collection()` → `get_pymongo_collection()` (Motor EOL May 2025); fixed `await collection.aggregate()` coroutine double-await pattern
+
+---
+
 ## v1.0 MVP (Shipped: 2026-04-04)
 
 **Phases:** 6 | **Plans:** 19 | **Timeline:** 2 days (2026-04-03 → 2026-04-04)
 **LOC:** ~6,611 (Python + HTML) | **Files:** 122 | **Git commits:** 27+ feat
 
 **Key accomplishments:**
+
 - Custom ADIF tag-stream parser and serializer — UTF-8 byte-length handling, lossless APP_/USERDEF passthrough, full round-trip fidelity
 - FastAPI + MongoDB (Beanie/pymongo async) multi-operator QSO logbook — JWT auth, soft-delete, ±2 min duplicate detection
 - Admin HTMX UI — operator account management (create, enable/disable, reset password), role-enforced via JWT
@@ -17,13 +34,13 @@
 
 ---
 
-
 ## v1.1 Operator & Station Profiles (Shipped: 2026-04-04)
 
 **Phases:** 7–10 (4 phases) | **Plans:** 7 | **Timeline:** 1 day (2026-04-04)
 **LOC:** ~7,465 (Python + HTML) | **Git commits:** 10+ feat
 
 **Key accomplishments:**
+
 - Extended User document with 12 Optional profile fields (personal info, station equipment, grid/location) — no migration required
 - `grid_to_latlon()` Maidenhead utility with `center=True` — 17 unit tests, correct center-of-square coordinates (avoids up to 80 km SW-corner error)
 - Profile REST API: GET/PATCH `/api/profile` with JWT-only operator derivation, lat/lon auto-sync on grid change, and full operator isolation (8 integration tests)
@@ -35,13 +52,13 @@
 
 ---
 
-
 ## v1.2 Callsign Entity Lookup & Country Flags (Shipped: 2026-04-04)
 
 **Phases:** 11–12 (2 phases) | **Plans:** 2 | **Timeline:** 1 day (2026-04-04)
 **LOC:** ~8,264 (Python + HTML) | **Git commits:** 3 feat
 
 **Key accomplishments:**
+
 - `app/callsign/prefixes.py` — pure-Python ITU prefix resolver: 313 Series Range entries, bisect-based longest-prefix-match, suffix stripping (`/MM`/`/AM` unresolvable, `/P`/`/7`/`/QRP` stripped, `EA3/G3YWX` prefix/callsign format)
 - Solved ASCII digit/letter ordering problem with truncated bisect comparison + `_NOTFOUND` sentinel (ITU ranges use letter-padded keys like `WAA-WZZ` while callsigns contain digits like `W1AW`)
 - 28-test suite covering PRFX-01–04 — common DX prefixes, overlapping sub-ranges (Eswatini vs Fiji), maritime/aeronautical mobile, non-country entities
@@ -53,13 +70,13 @@
 
 ---
 
-
 ## v1.3 Documentation (Shipped: 2026-04-05)
 
 **Phases:** 13–15 (3 phases) | **Plans:** 8 | **Timeline:** 2 days (2026-04-03 → 2026-04-05)
 **LOC:** +18,033 lines (89 files, mostly `site/` static build) | **Git commits:** 20+ feat/docs
 
 **Key accomplishments:**
+
 - All 16 REST endpoints annotated with typed Pydantic response models — QSOResponse (alias-aware `_operator`/`_deleted`), ADIFImportReport (per-record typed sub-models), StreamingResponse export; Swagger UI now shows complete schemas
 - HTMX browser routes and SSE feed excluded from OpenAPI schema via `include_in_schema=False` — `/docs` shows only REST endpoints, no HTML fragment routes
 - MkDocs Material 9.x build pipeline: `site_url` trailing-slash sub-path config, dev-only dep, `site/` committed and served via `StaticFiles(html=True)` at `/guide` — no MkDocs in production Docker image
@@ -70,12 +87,12 @@
 
 ---
 
-
 ## v1.4 UDP Interface (Shipped: 2026-04-06)
 
 **Phases:** 16–18 (3 phases) | **Plans:** 4 | **Timeline:** 1 day (2026-04-06)
 
 **Key accomplishments:**
+
 - `asyncio.DatagramProtocol` UDP listener (`app/udp/server.py`): configurable port (default 2399), bind host, operator; starts/stops with FastAPI lifespan
 - `_handle_datagram` pipeline: `parse_adi()` → validate `_REQUIRED_FIELDS` → `build_qso_dict(profile=user)` → `find_duplicate` → `QSO.insert()` — identical auto-stamping and duplicate detection as REST API path
 - Operator `User` document cached once at startup; `UDP_OPERATOR` config pins identity — never derived from datagram ADIF content, preventing spoofing across overnight FT8 sessions
@@ -85,13 +102,13 @@
 
 ---
 
-
 ## v1.5 Documentation Update (Shipped: 2026-04-08)
 
 **Phases:** 19–22 (4 phases) | **Plans:** 4 | **Timeline:** 1 day (2026-04-08)
 **Files changed:** 22 | **Lines:** +2,439 / -15
 
 **Key accomplishments:**
+
 - `docs/deployment.md` — 4 UDP env var rows (corrected port 2399, not 2237 from stale requirements) + "Enabling the UDP Listener" section with Docker Compose snippet calling out `UDP_BIND_HOST=0.0.0.0` for Docker
 - `docs/getting-started.md` — Step 8 "Send QSOs via UDP": nc one-liner, Log4OM direct ADIF UDP steps, honest WSJT-X/N1MM+ incompatibility notes (binary/XML formats) with file-import workarounds
 - `docs/troubleshooting.md` — 4 UDP troubleshooting entries with verbatim log strings from `app/udp/server.py` so operators can grep-match against live output; covers socket binding, both UDP_OPERATOR sub-cases, QSO disposition, and UDP_ENABLED
@@ -101,13 +118,13 @@
 
 ---
 
-
 ## v1.6 Live Log Table (Shipped: 2026-04-08)
 
 **Phases:** 23–24 (2 phases) | **Plans:** 2 | **Timeline:** 1 day (2026-04-08)
 **Files changed:** 5 | **Lines:** +343 / -10
 
 **Key accomplishments:**
+
 - `htmx:sseMessage` listener on `#log-table` fires `htmx.ajax('GET', '/log/view')` on `new_qso` events — new QSOs appear in log table within seconds, no page reload required
 - Server-side `#auto-refresh-ok` sentinel span rendered only at page 1 + default sort + no filters — auto-refresh silently suppressed during pagination, filtering, and sorting
 - Client-side `#log-table input` guard blocks refresh while any inline edit row is open — unsaved edits are never destroyed
@@ -118,16 +135,15 @@
 
 ---
 
-
 ## v1.9 Admin & Login UI Redesign (Shipped: 2026-04-13)
 
 **Phases completed:** 36 phases, 62 plans, 0 tasks
 
 **Key accomplishments:**
+
 - (none recorded)
 
 ---
-
 
 ## v2.0 Database Backup (Shipped: 2026-04-14)
 
@@ -135,6 +151,7 @@
 **Files changed:** 5 core files | **Lines:** +113 / -34
 
 **Key accomplishments:**
+
 - Wired existing `run_backup()` engine to `GET /admin/ui/backup/download` — cookie-protected, streams timestamped `.gz` file directly to browser
 - Sync/async split in `dump.py`: sync `_write_backup` (MongoClient) + async `run_backup` orchestrator via `asyncio.to_thread` — event loop never blocked during backup I/O
 - Added `./backups:/app/backups` Docker volume mount to `admin` service — backup files persist across container restarts
@@ -145,13 +162,13 @@
 
 ---
 
-
 ## v2.1 Database Restore (Shipped: 2026-04-14)
 
 **Phases:** 39–40 (2 phases) | **Plans:** 2 | **Timeline:** 2026-04-14 (single session)
 **Files changed:** 24 files | **Lines:** +2647 / -11
 
 **Key accomplishments:**
+
 - `app/backup/restore.py` — sync `_restore_from_file` (MongoClient + `bson.json_util.loads`) + async `run_restore` via `asyncio.to_thread`, mirroring `dump.py` pattern exactly
 - `POST /restore/upload` validates gzip decompressibility + NDJSON structure, writes tempfile, returns password modal fragment on success or inline error at HTTP 200
 - `POST /restore/confirm` enforces path traversal guard, password verification, auto-backup before any `db.drop()`, full drop+restore all collections, finally-block tempfile cleanup
@@ -162,13 +179,13 @@
 
 ---
 
-
 ## v2.2 Multi-Operator UDP (Shipped: 2026-04-15)
 
 **Phases:** 41 (1 phase) | **Plans:** 2 | **Timeline:** 2026-04-15 (single session)
 **Files changed:** 18 files | **Lines:** +485 / -66
 
 **Key accomplishments:**
+
 - `app/udp/operator_cache.py` — UDPOperatorCache class with `load()/resolve()/notify_refresh()` dirty-flag singleton, mirroring token_cache.py pattern exactly; O(1) callsign lookup, zero per-datagram MongoDB queries
 - `_handle_datagram` routes via OPERATOR ADIF field: `record.pop()` → resolve via operator_cache → drop+WARN if unknown callsign; stale early guard replaced by post-resolution no-operator guard
 - `operator_cache.load()` wired at startup in main.py alongside token_cache; `notify_refresh()` hooks added to all 4 operator mutation sites in admin/router.py and admin/ui_router.py
@@ -178,4 +195,3 @@
 **Archive:** `.planning/milestones/v2.2-ROADMAP.md` | `.planning/milestones/v2.2-REQUIREMENTS.md`
 
 ---
-

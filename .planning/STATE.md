@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: API Token Auth
-status: executing
-stopped_at: Phase 43 UI-SPEC approved
-last_updated: "2026-04-16T14:03:03.146Z"
+milestone: v2.3
+milestone_name: Operator Statistics
+status: milestone_complete
+stopped_at: v2.3 milestone archived
+last_updated: "2026-04-16T00:00:00.000Z"
 last_activity: 2026-04-16
 progress:
   total_phases: 2
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 43 — stats-ui
+**Current focus:** Planning next milestone (v2.4)
 
 ## Current Position
 
-Phase: 43
-Plan: Not started
-Milestone: v2.3 Operator Statistics
-Status: Executing Phase 43
+Phase: —
+Plan: —
+Milestone: v2.3 Operator Statistics — COMPLETE
+Status: Ready for next milestone
 Last activity: 2026-04-16
 
 ## Performance Metrics
