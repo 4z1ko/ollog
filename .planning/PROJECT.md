@@ -12,6 +12,17 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 **Goal achieved:** Each operator has a dedicated `/log/stats` page with three interactive pie charts (band, mode, DXCC entity), a unique entity count scalar, dark/light theme adaptation, and operator isolation via JWT — all backed by 7 integration tests.
 
+## Current Milestone: v2.4 Live Log & Sound Alerts
+
+**Goal:** The operator log view table updates in place as QSOs arrive (including UDP-sourced QSOs), with a dismissable new-QSO counter badge on page 2+, and an optional audio tone notification toggled per-operator in Profile Settings.
+
+**Target features:**
+- Fix: UDP-inserted QSOs trigger the SSE live table refresh (same as REST API QSOs)
+- Page 1: new rows appear live as QSOs arrive, no manual reload needed
+- Page 2+: dismissable "N new QSOs" badge — no auto-jump, no scroll interruption
+- Audio tone: brief notification sound plays on each new QSO arrival
+- Profile toggle: sound notifications on/off, persisted per operator
+
 ## Requirements
 
 ### Validated (v1.0)
@@ -314,4 +325,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after v2.3 milestone (Operator Statistics)*
+*Last updated: 2026-04-16 — milestone v2.4 started (Live Log & Sound Alerts)*

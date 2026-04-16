@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.3
-milestone_name: Operator Statistics
-status: milestone_complete
-stopped_at: v2.3 milestone archived
+milestone: v2.4
+milestone_name: Live Log & Sound Alerts
+status: defining_requirements
+stopped_at: ~
 last_updated: "2026-04-16T00:00:00.000Z"
 last_activity: 2026-04-16
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone (v2.4)
+**Current focus:** v2.4 — defining requirements
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Milestone: v2.3 Operator Statistics — COMPLETE
-Status: Ready for next milestone
-Last activity: 2026-04-16
+Milestone: v2.4 Live Log & Sound Alerts
+Status: Defining requirements
+Last activity: 2026-04-16 — Milestone v2.4 started
 
 ## Performance Metrics
 
