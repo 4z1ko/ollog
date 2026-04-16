@@ -541,7 +541,10 @@ Plans:
   2. An operator with QSOs logged sees data shaped for all three charts (band counts, mode counts, DXCC counts) and a non-zero unique entity count in the template context — no KeyError or empty dict
   3. An operator with zero QSOs logged sees template context with `total_qsos == 0` — the route does not error out or raise an exception on an empty log
   4. Viewing `/log/stats` as operator A never returns QSO data belonging to operator B — each operator's stats are isolated by `_operator` from the JWT cookie
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 42-01-PLAN.md — stats service (get_stats), stats router (GET /log/stats), stub template, tests
 
 ---
 
@@ -556,7 +559,10 @@ Plans:
   3. The DXCC chart shows at most 8 named entity slices; when more than 8 entities are present, the remainder appears as a single "Other" slice with the correct summed count — and "Other" is absent when 8 or fewer entities exist
   4. A scalar count of unique DXCC entities worked is displayed on the page (e.g. "42 entities") — this number equals the total distinct entities before the top-8 truncation
   5. Toggling between dark and light mode without a page reload causes all three charts to re-initialize with mode-appropriate colors — no chart displays stale light-mode colors in dark mode or vice versa
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 42-01-PLAN.md — stats service (get_stats), stats router (GET /log/stats), stub template, tests
 **UI hint**: yes
 
 ---
@@ -606,7 +612,7 @@ Plans:
 | 39. Restore Backend | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
-| 42. Stats Aggregation Backend | v2.3 | 0/? | Not started | - |
+| 42. Stats Aggregation Backend | v2.3 | 0/1 | Planning complete | - |
 | 43. Stats UI | v2.3 | 0/? | Not started | - |
 
 ---
