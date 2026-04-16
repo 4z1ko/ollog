@@ -166,7 +166,7 @@ Full archive: `.planning/milestones/v2.1-ROADMAP.md`
 
 **Milestone Goal:** Each operator can view a dedicated statistics page at `/log/stats` with pie charts for band, mode, and DXCC entity breakdowns — all data scoped to their own log.
 
-- [ ] **Phase 42: Stats Aggregation Backend** — `get_stats()` service function, `GET /log/stats` route handler, JWT-isolated MongoDB aggregations, DXCC Python-side rollup, empty-state data shape
+- [x] **Phase 42: Stats Aggregation Backend** — `get_stats()` service function, `GET /log/stats` route handler, JWT-isolated MongoDB aggregations, DXCC Python-side rollup, empty-state data shape (completed 2026-04-16)
 - [ ] **Phase 43: Stats UI** — `templates/log/stats.html` with three Chart.js pie charts, dark/light theme adaptation, `{% block extra_scripts %}` in `base.html`, Stats sidebar nav link in `base_app.html`
 
 ---
@@ -541,7 +541,7 @@ Plans:
   2. An operator with QSOs logged sees data shaped for all three charts (band counts, mode counts, DXCC counts) and a non-zero unique entity count in the template context — no KeyError or empty dict
   3. An operator with zero QSOs logged sees template context with `total_qsos == 0` — the route does not error out or raise an exception on an empty log
   4. Viewing `/log/stats` as operator A never returns QSO data belonging to operator B — each operator's stats are isolated by `_operator` from the JWT cookie
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [x] 42-01-PLAN.md — stats service (get_stats), stats router (GET /log/stats), stub template, tests
@@ -562,7 +562,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 42-01-PLAN.md — stats service (get_stats), stats router (GET /log/stats), stub template, tests
+- [x] 42-01-PLAN.md — stats service (get_stats), stats router (GET /log/stats), stub template, tests
 **UI hint**: yes
 
 ---
@@ -612,7 +612,7 @@ Plans:
 | 39. Restore Backend | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
-| 42. Stats Aggregation Backend | v2.3 | 1/1 | Complete   | 2026-04-16 |
+| 42. Stats Aggregation Backend | v2.3 | 1/1 | Complete    | 2026-04-16 |
 | 43. Stats UI | v2.3 | 0/? | Not started | - |
 
 ---
