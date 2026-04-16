@@ -200,3 +200,66 @@ async def test_stats_route_empty_log(stats_test_db, http_client):
     resp = await http_client.get("/log/stats", follow_redirects=False)
     assert resp.status_code == 200
     assert "0" in resp.text  # total_qsos == 0 appears in stub template
+    assert 'href="/log/stats"' in resp.text  # STATS-01: stats nav link present in sidebar
+    assert "No data yet" in resp.text  # STATS-04: empty-state card message rendered
+
+
+# ---------------------------------------------------------------------------
+# STATS-02: Three pie chart canvas elements rendered for non-empty log
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_stats_route_with_data(stats_test_db, http_client):
+    """GET /log/stats renders three canvas elements when operator has QSOs (STATS-02)."""
+    user = User(
+        username="chartop",
+        hashed_password=hash_password("chartpass"),
+        callsign="CHARTOP",
+    )
+    await user.insert()
+
+    # Insert QSOs across different bands and modes so charts have data
+    await _make_qso_doc("CHARTOP", "W1AW", BAND="20M", MODE="SSB").insert()
+    await _make_qso_doc("CHARTOP", "DL1ABC", BAND="40M", MODE="FT8").insert()
+    await _make_qso_doc("CHARTOP", "JA1YWX", BAND="15M", MODE="CW").insert()
+
+    token = create_access_token(data={"sub": "chartop", "callsign": "CHARTOP"})
+    http_client.cookies.set("access_token", token)
+
+    resp = await http_client.get("/log/stats", follow_redirects=False)
+    assert resp.status_code == 200
+    assert 'id="chart-band"' in resp.text    # STATS-02: Band pie chart canvas present
+    assert 'id="chart-mode"' in resp.text    # STATS-02: Mode pie chart canvas present
+    assert 'id="chart-entity"' in resp.text  # STATS-02: DXCC entity pie chart canvas present
+
+
+# ---------------------------------------------------------------------------
+# STATS-03: entity_counts capped at 8 named + optional Other for >8 entities
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_stats_dxcc_top8_truncation(stats_test_db):
+    """get_stats() caps entity_counts to at most 9 entries (8 named + Other) for >8 unique DXCC entities (STATS-03)."""
+    # Insert 9 QSOs with callsigns from distinct DXCC entities.
+    # Prefixes chosen so lookup_prefix resolves them to different countries:
+    # W=US, DL=Germany, JA=Japan, VK=Australia, PA=Netherlands, OZ=Denmark,
+    # SM=Sweden, OH=Finland, EA=Spain
+    distinct_calls = [
+        ("W1AW", "20M", "SSB"),    # United States
+        ("DL1ABC", "20M", "FT8"),  # Germany
+        ("JA1YWX", "20M", "CW"),   # Japan
+        ("VK2KGT", "20M", "SSB"),  # Australia
+        ("PA3ABC", "20M", "FT8"),  # Netherlands
+        ("OZ1ABC", "20M", "CW"),   # Denmark
+        ("SM5ABC", "20M", "SSB"),  # Sweden
+        ("OH2ABC", "20M", "FT8"),  # Finland
+        ("EA3ABC", "20M", "CW"),   # Spain
+    ]
+    for call, band, mode in distinct_calls:
+        await _make_qso_doc("DXCCOP", call, BAND=band, MODE=mode).insert()
+
+    result = await get_stats("DXCCOP")
+    # Must have at least 9 unique source callsigns seeded
+    assert result["total_qsos"] == 9
+    # Service must cap to ≤9 entries: at most 8 named + 1 "Other"
+    assert len(result["entity_counts"]) <= 9
