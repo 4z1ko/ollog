@@ -1,12 +1,11 @@
-{# Phase 42 stub -- charts and full stats UI added in Phase 43 #}
 {% extends "base_app.html" %}
 {% block title %}ollog -- Stats{% endblock %}
 {% block active_page %}stats{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto space-y-6">
+<div class="max-w-5xl mx-auto space-y-6">
   <div>
-    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Statistics</h1>
+    <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Statistics</h1>
     <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
       Operator log statistics for {{ callsign }}
     </p>
@@ -15,19 +14,121 @@
   {% if total_qsos == 0 %}
   <div class="card">
     <div class="p-6 text-center text-gray-500 dark:text-gray-400">
-      No QSOs logged yet. Start logging to see your statistics.
+      No data yet. Start logging QSOs to see your statistics here.
     </div>
   </div>
   {% else %}
+  <!-- Summary card -->
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Summary</h2>
     </div>
-    <div class="p-4">
+    <div class="card-body">
       <p class="text-gray-700 dark:text-gray-300">Total QSOs: {{ total_qsos }}</p>
-      <p class="text-gray-700 dark:text-gray-300">Unique DXCC entities: {{ unique_entity_count }}</p>
+    </div>
+  </div>
+
+  <!-- Top row: Band + Mode charts in 2-column responsive grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">By Band</h2>
+      </div>
+      <div class="card-body">
+        <div class="relative h-64 w-full">
+          <canvas id="chart-band" role="img" aria-label="QSO count by band — pie chart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">By Mode</h2>
+      </div>
+      <div class="card-body">
+        <div class="relative h-64 w-full">
+          <canvas id="chart-mode" role="img" aria-label="QSO count by mode — pie chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom row: DXCC Entity chart full-width with scalar subtitle -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">By DXCC Entity &middot; {{ unique_entity_count }} entities</h2>
+    </div>
+    <div class="card-body">
+      <div class="relative h-64 w-full">
+        <canvas id="chart-entity" role="img" aria-label="QSO count by DXCC entity — pie chart"></canvas>
+      </div>
     </div>
   </div>
   {% endif %}
 </div>
 {% endblock %}
+
+{% if total_qsos > 0 %}
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<script>
+  var PALETTES = {
+    dark:  ['#818cf8','#34d399','#fbbf24','#60a5fa','#f472b6','#a78bfa','#2dd4bf','#fb923c'],
+    light: ['#4f46e5','#059669','#d97706','#2563eb','#db2777','#7c3aed','#0d9488','#ea580c']
+  };
+
+  var bandData   = {{ band_counts   | tojson }};
+  var modeData   = {{ mode_counts   | tojson }};
+  var entityData = {{ entity_counts | tojson }};
+
+  function makeChart(canvasId, labels, values, palette, textColor) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var existing = Chart.getChart(canvas);
+    if (existing) existing.destroy();
+    return new Chart(canvas, {
+      type: 'pie',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: values.map(function(_, i) { return palette[i % palette.length]; }),
+          borderWidth: 2,
+          borderColor: 'transparent'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { color: textColor, padding: 16 }
+          }
+        }
+      }
+    });
+  }
+
+  function initCharts() {
+    var isDark = document.documentElement.classList.contains('dark');
+    var palette = isDark ? PALETTES.dark : PALETTES.light;
+    var textColor = isDark ? '#9ca3af' : '#6b7280';
+
+    makeChart('chart-band',
+      Object.keys(bandData), Object.values(bandData), palette, textColor);
+    makeChart('chart-mode',
+      Object.keys(modeData), Object.values(modeData), palette, textColor);
+    makeChart('chart-entity',
+      entityData.map(function(e) { return e.name; }),
+      entityData.map(function(e) { return e.count; }),
+      palette, textColor);
+  }
+
+  function reinitCharts() { initCharts(); }
+
+  document.addEventListener('DOMContentLoaded', initCharts);
+  window.addEventListener('themechange', reinitCharts);
+</script>
+{% endblock %}
+{% endif %}
