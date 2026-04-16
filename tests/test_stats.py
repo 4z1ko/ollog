@@ -71,8 +71,13 @@ async def stats_test_db():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def http_client():
-    """ASGI test client for route-level tests."""
+async def http_client(stats_test_db):
+    """ASGI test client for route-level tests.
+
+    Requires stats_test_db to have initialized Beanie first (WR-03).
+    The explicit dependency ensures correct fixture ordering and prevents
+    silent DB misconfiguration if pytest changes fixture evaluation order.
+    """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
