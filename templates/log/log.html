@@ -114,20 +114,35 @@
 <script>
   (function () {
     var indicator = document.getElementById('live-indicator');
+    var eventsFlowing = false;
 
     document.body.addEventListener('htmx:sseOpen', function (e) {
       if (e.detail.elt && e.detail.elt.id === 'log-table') {
+        // Connection opened -- do NOT set green. Wait for first actual event.
+        // A dead watcher keeps the HTTP connection alive but sends no events.
+      }
+    });
+
+    document.body.addEventListener('htmx:sseMessage', function (e) {
+      if (!e.detail || !e.detail.elt || e.detail.elt.id !== 'log-table') return;
+      if (e.detail.type !== 'new_qso') return;
+      if (!eventsFlowing) {
+        eventsFlowing = true;
         indicator.classList.remove('hidden');
         indicator.classList.add('flex');
         indicator.querySelector('span:last-child').textContent = 'LIVE';
-        indicator.className = indicator.className
-          .replace('bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400', '')
-          + ' bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400';
+        indicator.classList.remove('bg-rose-100', 'text-rose-700');
+        indicator.classList.add('bg-emerald-100', 'dark:bg-emerald-900/40',
+                                'text-emerald-700', 'dark:text-emerald-400');
       }
+      if (!document.getElementById('auto-refresh-ok')) return;
+      if (document.querySelector('#log-table input')) return;
+      htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
     });
 
     document.body.addEventListener('htmx:sseError', function (e) {
       if (e.detail.elt && e.detail.elt.id === 'log-table') {
+        eventsFlowing = false;
         indicator.classList.remove('hidden');
         indicator.classList.add('flex');
         indicator.querySelector('span:last-child').textContent = 'OFFLINE';
@@ -136,17 +151,10 @@
 
     document.body.addEventListener('htmx:sseClose', function (e) {
       if (e.detail.elt && e.detail.elt.id === 'log-table') {
+        eventsFlowing = false;
         indicator.classList.add('hidden');
         indicator.classList.remove('flex');
       }
-    });
-
-    document.body.addEventListener('htmx:sseMessage', function (e) {
-      if (!e.detail || !e.detail.elt || e.detail.elt.id !== 'log-table') return;
-      if (e.detail.type !== 'new_qso') return;
-      if (!document.getElementById('auto-refresh-ok')) return;
-      if (document.querySelector('#log-table input')) return;
-      htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
     });
   })();
 </script>
