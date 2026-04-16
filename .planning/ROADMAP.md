@@ -562,8 +562,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [x] 42-01-PLAN.md — stats service (get_stats), stats router (GET /log/stats), stub template, tests
-**UI hint**: yes
+- [ ] 43-01-PLAN.md — base.html extra_scripts block, base_app.html Stats nav link + toggleTheme CustomEvent, stats.html Chart.js pie charts
 
 ---
 
@@ -613,7 +612,7 @@ Plans:
 | 40. Restore UI | v2.1 | 1/1 | ✓ Complete | 2026-04-14 |
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
 | 42. Stats Aggregation Backend | v2.3 | 1/1 | Complete    | 2026-04-16 |
-| 43. Stats UI | v2.3 | 0/? | Not started | - |
+| 43. Stats UI | v2.3 | 0/1 | Planning | - |
 
 ---
 
