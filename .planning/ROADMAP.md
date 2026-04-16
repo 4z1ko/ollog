@@ -592,7 +592,11 @@ Plans:
   2. The watcher task is stored as `app.state.watcher_task` (strong reference) at startup — inspecting `app.state` after startup confirms the attribute is set and not None
   3. The LIVE indicator turns green only after at least one SSE event has been received in the current browser session — it does not display green immediately on SSE connection open before any events have flowed
   4. The LIVE indicator returns to grey/offline if the SSE connection drops or the event stream goes silent — it does not remain green after a disconnect
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
+- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
 **UI hint**: yes
 
 ---
@@ -607,7 +611,11 @@ Plans:
   2. Checking the toggle and saving the profile form stores `notify_sound: true` in the operator's MongoDB user document — confirmed by reloading the profile page and seeing the checkbox still checked
   3. Unchecking the toggle and saving stores `notify_sound: false` in MongoDB — the preference is not silently ignored when the checkbox is unchecked (hidden input precedes checkbox in form HTML)
   4. The preference survives a browser session restart — logging out and back in and navigating to Profile Settings shows the previously saved toggle state
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
+- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
 **UI hint**: yes
 
 ---
@@ -622,7 +630,11 @@ Plans:
   2. Opening the log view in a fresh browser tab and waiting for a UDP QSO does not produce a tone until the operator has clicked or typed somewhere on the page — autoplay policy is respected
   3. With sound disabled (toggle off in Profile Settings), no tone plays when new QSOs arrive — the preference is read correctly from the `NOTIFY_SOUND` JS constant injected by the server
   4. The tone is synthesized via the Web Audio API with no external audio file requests — confirmed by the browser network tab showing no audio file fetches on QSO arrival
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
+- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
 **UI hint**: yes
 
 ---
@@ -638,7 +650,11 @@ Plans:
   3. Clicking the badge removes it and resets the counter to zero — the page does not jump, scroll, or reload
   4. Navigating to page 1 (or clearing all filters) while a badge is visible dismisses the badge automatically — it does not persist after the operator returns to the live-updating view
   5. The badge HTML element is a sibling of `#log-table`, not a child — HTMX SSE swaps of `#log-table` do not destroy the badge
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
+- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
 **UI hint**: yes
 
 ---
@@ -690,7 +706,7 @@ Plans:
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
 | 42. Stats Aggregation Backend | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 43. Stats UI | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
-| 44. SSE Watcher Hardening | v2.4 | 0/1 | Not started | - |
+| 44. SSE Watcher Hardening | v2.4 | 0/2 | Not started | - |
 | 45. Sound Preference Model | v2.4 | 0/1 | Not started | - |
 | 46. Sound Playback Wiring | v2.4 | 0/1 | Not started | - |
 | 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
