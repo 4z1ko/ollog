@@ -31,13 +31,25 @@ async def get_stats(callsign: str) -> dict:
     mode_results = await (await collection.aggregate(mode_pipeline)).to_list(length=None)
     mode_counts = {doc["_id"]: doc["count"] for doc in mode_results if doc["_id"]}
 
-    # --- CALL-level counts for DXCC rollup ---
+    # --- Total QSO count (includes QSOs with null BAND/MODE — WR-02) ---
+    # Use a dedicated $count pipeline so total_qsos is independent of BAND/MODE
+    # completeness. band_counts and mode_counts already exclude null-field docs
+    # via their `if doc["_id"]` guards, so computing total from call_pipeline
+    # (which groups by CALL and sums all docs) would include null-BAND QSOs and
+    # create a discrepancy. A $count pipeline makes the intent explicit.
+    count_pipeline = [
+        match_stage,
+        {"$count": "total"},
+    ]
+    count_result = await (await collection.aggregate(count_pipeline)).to_list(length=None)
+    total_qsos = count_result[0]["total"] if count_result else 0
+
+    # --- CALL-level counts for DXCC rollup (kept separate from total_qsos) ---
     call_pipeline = [
         match_stage,
         {"$group": {"_id": "$CALL", "count": {"$sum": 1}}},
     ]
     call_results = await (await collection.aggregate(call_pipeline)).to_list(length=None)
-    total_qsos = sum(doc["count"] for doc in call_results)
 
     # Early return for empty log (STATS-07)
     if total_qsos == 0:
@@ -63,7 +75,12 @@ async def get_stats(callsign: str) -> dict:
 
         entity_totals[name] = entity_totals.get(name, 0) + doc["count"]
 
-    unique_entity_count = len(iso_seen)  # Computed BEFORE truncation per STATE.md
+    # Count unique countries from iso_seen, then add 1 if "Unknown" bucket exists
+    # so that non-country ITU entities (UN, WMO, ICAO) and unresolvable callsigns
+    # are represented in the count — not silently excluded (WR-01).
+    unique_entity_count = len(iso_seen)
+    if "Unknown" in entity_totals:
+        unique_entity_count += 1  # WR-01: Unknown/Other bucket counts as one entity
 
     # Sort and truncate to top-8 + optional "Other"
     sorted_entities = sorted(entity_totals.items(), key=lambda x: x[1], reverse=True)
