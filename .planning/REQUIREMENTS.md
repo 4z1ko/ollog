@@ -55,21 +55,21 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LIVE-01 | TBD | Pending |
-| LIVE-02 | TBD | Pending |
-| LIVE-03 | TBD | Pending |
-| LIVE-04 | TBD | Pending |
-| SND-01 | TBD | Pending |
-| SND-02 | TBD | Pending |
-| SND-03 | TBD | Pending |
-| SND-04 | TBD | Pending |
-| SND-05 | TBD | Pending |
+| LIVE-01 | Phase 44 | Pending |
+| LIVE-02 | Phase 44 | Pending |
+| LIVE-03 | Phase 47 | Pending |
+| LIVE-04 | Phase 47 | Pending |
+| SND-01 | Phase 46 | Pending |
+| SND-02 | Phase 46 | Pending |
+| SND-03 | Phase 45 | Pending |
+| SND-04 | Phase 45 | Pending |
+| SND-05 | Phase 45 | Pending |
 
 **Coverage:**
 - v2.4 requirements: 9 total
-- Mapped to phases: TBD (roadmapper assigns)
+- Mapped to phases: 9/9 ✓
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-16*
-*Last updated: 2026-04-16 after requirements confirmed*
+*Last updated: 2026-04-16 — phase assignments added by roadmapper*

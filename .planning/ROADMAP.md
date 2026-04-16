@@ -16,6 +16,7 @@
 - ✅ **v2.1 Database Restore** — Phases 39–40 (shipped 2026-04-14)
 - ✅ **v2.2 Multi-Operator UDP** — Phase 41 (shipped 2026-04-15)
 - ✅ **v2.3 Operator Statistics** — Phases 42–43 (shipped 2026-04-16)
+- [ ] **v2.4 Live Log & Sound Alerts** — Phases 44–47 (in progress)
 
 
 ## Phases
@@ -175,6 +176,16 @@ Full archive: `.planning/milestones/v2.3-ROADMAP.md`
 </details>
 
 ---
+
+### v2.4 Live Log & Sound Alerts (Phases 44–47)
+
+**Milestone Goal:** The SSE live feed is reliable across UDP inserts and page navigation, operators on page 2+ see a badge when new QSOs arrive, and operators can opt into a synthesized audio tone on each new QSO — with the preference stored in MongoDB.
+
+- [ ] **Phase 44: SSE Watcher Hardening** — strong reference in `app.state`, exception recovery loop, LIVE indicator accuracy
+- [ ] **Phase 45: Sound Preference Model** — `notify_sound` field on User, ProfileUpdateRequest, ProfileResponse; profile settings toggle UI
+- [ ] **Phase 46: Sound Playback Wiring** — `NOTIFY_SOUND` constant in log view, Web Audio API tone on `new_qso` SSE event, autoplay-policy-compliant lazy init
+- [ ] **Phase 47: New QSO Badge** — badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
+
 
 ## Phase Details
 
@@ -571,6 +582,67 @@ Plans:
 
 ---
 
+### Phase 44: SSE Watcher Hardening
+
+**Goal:** The SSE change-stream watcher survives any unhandled exception and Python 3.12+ garbage collection — so UDP-inserted QSOs reliably trigger live table refreshes, and the LIVE indicator accurately reflects whether events are flowing.
+**Depends on:** Phase 43 (v2.3 complete)
+**Requirements:** LIVE-01, LIVE-02
+**Success Criteria** (what must be TRUE):
+  1. A UDP-inserted QSO causes the live log table to refresh within a few seconds — the SSE connection does not silently stop delivering events after the first unhandled exception in the watcher
+  2. The watcher task is stored as `app.state.watcher_task` (strong reference) at startup — inspecting `app.state` after startup confirms the attribute is set and not None
+  3. The LIVE indicator turns green only after at least one SSE event has been received in the current browser session — it does not display green immediately on SSE connection open before any events have flowed
+  4. The LIVE indicator returns to grey/offline if the SSE connection drops or the event stream goes silent — it does not remain green after a disconnect
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
+### Phase 45: Sound Preference Model
+
+**Goal:** The User model stores a `notify_sound` boolean field, the Profile Settings page shows a "Sound notifications" on/off toggle, and saving the form persists the preference to MongoDB — with sound off by default for all operators.
+**Depends on:** Phase 44
+**Requirements:** SND-03, SND-04, SND-05
+**Success Criteria** (what must be TRUE):
+  1. The Profile Settings page displays a "Sound notifications" checkbox that is unchecked by default for a new operator — sound is off unless explicitly enabled
+  2. Checking the toggle and saving the profile form stores `notify_sound: true` in the operator's MongoDB user document — confirmed by reloading the profile page and seeing the checkbox still checked
+  3. Unchecking the toggle and saving stores `notify_sound: false` in MongoDB — the preference is not silently ignored when the checkbox is unchecked (hidden input precedes checkbox in form HTML)
+  4. The preference survives a browser session restart — logging out and back in and navigating to Profile Settings shows the previously saved toggle state
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
+### Phase 46: Sound Playback Wiring
+
+**Goal:** Operators with `notify_sound` enabled hear a brief synthesized tone on each `new_qso` SSE event — and the tone never plays unless the operator has interacted with the page, complying with browser autoplay policy.
+**Depends on:** Phase 45
+**Requirements:** SND-01, SND-02
+**Success Criteria** (what must be TRUE):
+  1. With sound enabled, a new QSO arriving via SSE produces an audible tone in the browser — verifiable by logging a QSO via UDP while on the log view page
+  2. Opening the log view in a fresh browser tab and waiting for a UDP QSO does not produce a tone until the operator has clicked or typed somewhere on the page — autoplay policy is respected
+  3. With sound disabled (toggle off in Profile Settings), no tone plays when new QSOs arrive — the preference is read correctly from the `NOTIFY_SOUND` JS constant injected by the server
+  4. The tone is synthesized via the Web Audio API with no external audio file requests — confirmed by the browser network tab showing no audio file fetches on QSO arrival
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
+### Phase 47: New QSO Badge
+
+**Goal:** Operators browsing page 2+ or using active filters see a "N new QSO(s)" badge when new QSOs arrive via SSE — and can dismiss it with a single click without a page jump or scroll interruption.
+**Depends on:** Phase 44
+**Requirements:** LIVE-03, LIVE-04
+**Success Criteria** (what must be TRUE):
+  1. While viewing page 2 of the log, a UDP-inserted QSO causes a badge reading "1 new QSO" to appear in the log view header — the badge is absent when on page 1 with no active filters
+  2. Each additional new QSO increments the counter — a badge reading "3 new QSOs" appears after three UDP inserts while on page 2+
+  3. Clicking the badge removes it and resets the counter to zero — the page does not jump, scroll, or reload
+  4. Navigating to page 1 (or clearing all filters) while a badge is visible dismisses the badge automatically — it does not persist after the operator returns to the live-updating view
+  5. The badge HTML element is a sibling of `#log-table`, not a child — HTMX SSE swaps of `#log-table` do not destroy the badge
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -618,6 +690,10 @@ Plans:
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
 | 42. Stats Aggregation Backend | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 43. Stats UI | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
+| 44. SSE Watcher Hardening | v2.4 | 0/1 | Not started | - |
+| 45. Sound Preference Model | v2.4 | 0/1 | Not started | - |
+| 46. Sound Playback Wiring | v2.4 | 0/1 | Not started | - |
+| 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
 
 ---
 

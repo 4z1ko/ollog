@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.4
 milestone_name: Live Log & Sound Alerts
-status: defining_requirements
-stopped_at: ~
+status: executing
+stopped_at: phase-44
 last_updated: "2026-04-16T00:00:00.000Z"
 last_activity: 2026-04-16
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -21,21 +21,25 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.4 — defining requirements
+**Current focus:** v2.4 — Phase 44: SSE Watcher Hardening
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 44 — SSE Watcher Hardening
 Plan: —
 Milestone: v2.4 Live Log & Sound Alerts
-Status: Defining requirements
-Last activity: 2026-04-16 — Milestone v2.4 started
+Status: Executing — Phase 44 next
+Last activity: 2026-04-16 — Roadmap created, Phase 44 starting
+
+```
+v2.4 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases)
+```
 
 ## Performance Metrics
 
 **Velocity (historical):**
 
-- Total plans completed: 54 plans across v1.0–v2.2
+- Total plans completed: 56 plans across v1.0–v2.3
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -55,9 +59,8 @@ Last activity: 2026-04-16 — Milestone v2.4 started
 | v2.0 | 37–38 | 2 |
 | v2.1 | 39–40 | 2 |
 | v2.2 | 41 | 2 |
-| v2.3 | 42–43 | TBD |
-
-**Phase 41 metrics:** Plan 01 — 2 min, 2 tasks, 5 files modified; Plan 02 — 3 min, 2 tasks, 11 files modified — COMPLETE
+| v2.3 | 42–43 | 2 |
+| v2.4 | 44–47 | TBD |
 
 ## Accumulated Context
 
@@ -70,22 +73,29 @@ Last activity: 2026-04-16 — Milestone v2.4 started
 - **FastAPI sub-app StaticFiles:** Every FastAPI sub-app that serves HTML must have its own `StaticFiles` mount for `/static`. The main app mount does not propagate.
 - **apscheduler<4 upper bound is load-bearing:** Do not touch `pyproject.toml` APScheduler constraints.
 
-### v2.3 Architecture Decisions (pre-decided from research)
+### v2.4 Architecture Decisions (pre-decided from research)
 
-- **Chart.js delivery:** CDN UMD bundle `chart.umd.min.js@4.5.1` via jsDelivr — loaded only in `stats.html`, never in `base.html`. ESM-only build silently fails with "Chart is not defined".
-- **MongoDB aggregation access:** `QSO.get_motor_collection().aggregate([...])` with `await cursor.to_list(length=None)` — Beanie does not expose `aggregate()` directly; `get_motor_collection()` is the established pattern (see `app/feed/manager.py`).
-- **Pipeline guard:** `$match` with `{"_operator": callsign, "_deleted": False}` must be the FIRST stage in every aggregation pipeline — otherwise a full collection scan occurs across all operators.
-- **DXCC rollup is Python-side:** `lookup_prefix()` is pure-Python bisect — cannot run inside MongoDB. Pattern: aggregate by CALL in MongoDB, then resolve DXCC in Python, then re-aggregate by entity.
-- **"Other" bucket guard:** Only append "Other" slice when more than 8 DXCC entities exist. A zero-value "Other" must never appear.
-- **unique_dxcc computed before truncation:** Count distinct entity ISO codes before taking the top-8 subset.
-- **Inline JSON safety:** Use `| tojson` filter on every single inline data variable — never `| safe`, never bare substitution. Entity names contain commas and quotes; `| safe` is an XSS vector.
-- **Canvas sizing:** Wrap each `<canvas>` in `<div class="relative h-64 w-full">` and set `maintainAspectRatio: false` in Chart.js options to prevent zero-width collapse in Tailwind flex/grid.
-- **Stale canvas guard:** Call `Chart.getChart(canvas)?.destroy()` before every `new Chart(...)` call — required on bfcache restore and theme re-init.
-- **Dark mode chart re-init:** Read `document.documentElement.classList.contains('dark')` at chart creation time to pick color palettes. On `toggleTheme()`, destroy and recreate all three charts.
-- **`{% block extra_scripts %}`:** Add to `templates/base.html` immediately before `</body>`. Confirm exact closing-tag structure of `base.html` before editing to avoid double-`</body>`.
-- **`toggleTheme()` location:** Confirm exact function name and location in `base_app.html` before wiring dark mode re-init wrapper.
-- **No new Python dependencies:** All aggregation uses existing Motor collection access and existing `lookup_prefix()` + `pycountry`. `requirements.txt` does not change.
-- **Files to change (complete list):** `app/qso/service.py`, `app/qso/ui_router.py`, `templates/log/stats.html` (new), `templates/base_app.html`, `templates/base.html`
+- **SSE watcher strong reference:** Store watcher task in `app.state.watcher_task` to prevent Python 3.12+ GC. Without this, the task can be collected silently and events stop flowing.
+- **SSE exception recovery:** Wrap the watcher's inner loop in a `try/except Exception` with a short sleep before retry — not a bare `except BaseException` which would suppress `CancelledError`.
+- **LIVE indicator accuracy:** Do not set the indicator green on SSE connection open (`EventSource` readyState == OPEN). Set it green only on first `message` event received; set it grey on `error` event.
+- **notify_sound field default:** `notify_sound: bool = False` on the `User` Beanie model. Existing users without the field read as `False` via Pydantic default — no migration needed.
+- **Hidden input before checkbox (load-bearing):** `<input type="hidden" name="notify_sound" value="false">` must precede `<input type="checkbox" name="notify_sound" value="true">`. Unchecked checkbox sends nothing; hidden input provides the `false` fallback.
+- **Web Audio lazy init:** Create `AudioContext` on first user gesture (click/keydown), not at page load. Store as module-level variable. Check `context.state === 'suspended'` and call `context.resume()` before playing.
+- **webkitAudioContext fallback:** `const AudioContext = window.AudioContext || window.webkitAudioContext;` — required for Safari.
+- **NOTIFY_SOUND JS constant:** Injected by `log_view()` as a Jinja2 template variable. Value is the string `"true"` or `"false"` derived from `current_user.notify_sound`. Compare as `NOTIFY_SOUND === "true"` in JS.
+- **Badge placement:** Badge `<div id="new-qso-badge">` must be a sibling of `#log-table` in the DOM — not a child. HTMX SSE swaps target `#log-table` and destroy its innerHTML, which would delete the badge if nested inside.
+- **Badge htmx:afterSettle re-sync:** On `htmx:afterSettle`, if the swap target is `#log-table` and the user is on page 1 with no filters, reset the badge counter to zero and hide the badge.
+- **No new Python packages:** `requirements.txt` and `pyproject.toml` do not change for v2.4.
+- **No new JS dependencies:** Web Audio API is native browser. No npm installs.
+
+### Files modified in v2.4 (complete list)
+
+- `app/feed/manager.py` — Phase 44 (strong reference + exception loop)
+- `app/auth/models.py` — Phase 45 (notify_sound field)
+- `app/auth/schemas.py` — Phase 45 (ProfileUpdateRequest + ProfileResponse)
+- `app/qso/ui_router.py` — Phase 46 (log_view dependency swap + NOTIFY_SOUND + profile_update Form param)
+- `templates/log/log.html` — Phase 46/47 (badge HTML + audio JS)
+- `templates/log/profile.html` — Phase 45/46 (sound toggle UI)
 
 ### Known Tech Debt
 
@@ -99,7 +109,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-16T12:46:27.896Z
-Stopped at: Phase 43 UI-SPEC approved
-Resume file: .planning/phases/43-stats-ui/43-UI-SPEC.md
-Next: `/gsd-plan-phase 42` to plan Phase 42 (Stats Aggregation Backend)
+Last session: 2026-04-16
+Stopped at: Roadmap created for v2.4
+Resume file: .planning/ROADMAP.md
+Next: `/gsd-plan-phase 44` to plan Phase 44 (SSE Watcher Hardening)
