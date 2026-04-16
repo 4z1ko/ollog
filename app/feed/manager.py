@@ -34,18 +34,25 @@ async def watch_qsos(collection, mgr: ConnectionManager, templates) -> None:
             async with await collection.watch(pipeline, full_document="updateLookup") as stream:
                 async for change in stream:
                     doc = change.get("fullDocument", {})
-                    if doc:
-                        ctx = {
-                            "call": doc.get("CALL", ""),
-                            "band": doc.get("BAND", ""),
-                            "mode": doc.get("MODE", ""),
-                            "freq": doc.get("FREQ", ""),
-                            "operator": doc.get("_operator", ""),
-                            "qso_date_utc": doc.get("qso_date_utc"),
-                        }
-                        # Render HTML partial — no Request object needed
+                    if not doc:
+                        continue
+                    ctx = {
+                        "call": doc.get("CALL", ""),
+                        "band": doc.get("BAND", ""),
+                        "mode": doc.get("MODE", ""),
+                        "freq": doc.get("FREQ", ""),
+                        "operator": doc.get("_operator", ""),
+                        "qso_date_utc": doc.get("qso_date_utc"),
+                    }
+                    try:
                         html = templates.get_template("log/feed_row.html").render(ctx)
+                        logger.debug("SSE broadcast call=%s operator=%s", ctx["call"], ctx["operator"])
                         await mgr.broadcast(html)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        logger.error("feed_row render/broadcast failed: %s", e)
+                        continue
         except PyMongoError as e:
             logger.warning("Change stream error, reconnecting: %s", e)
             await asyncio.sleep(1)

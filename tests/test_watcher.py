@@ -25,10 +25,13 @@ def _make_mock_collection(changes: list[dict]):
     mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
     mock_stream.__aexit__ = AsyncMock(return_value=False)
 
-    async def _anext_impl():
+    async def _anext_impl(_self=None):
         if changes:
             return changes.pop(0)
-        raise StopAsyncIteration
+        # Simulate an idle change stream — block until the task is cancelled.
+        # Raising StopAsyncIteration here would cause watch_qsos to loop tight
+        # (no actual yield) so task.cancel() would never be delivered.
+        await asyncio.get_running_loop().create_future()
 
     mock_stream.__aiter__ = MagicMock(return_value=mock_stream)
     mock_stream.__anext__ = _anext_impl
