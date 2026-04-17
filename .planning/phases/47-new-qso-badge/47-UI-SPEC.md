@@ -47,6 +47,8 @@ Exceptions:
 - Badge gap between elements: `gap-1.5` (6px) — matches existing LIVE indicator gap. Source: `log.html` line 19.
 - Close button padding: none (inline `×` character with `ml-1.5` margin). Total touch area: text-xs element, acceptable for desktop-primary UI.
 
+**Inherited values note:** The fractional Tailwind values `px-2.5` (10px), `gap-1.5` (6px), and `ml-1.5` (6px) are copied verbatim from the existing LIVE indicator component in production HTML (`log.html` lines 18–23). They are not new spacing choices introduced by Phase 47. This phase inherits them to maintain visual parity with the existing pill element.
+
 ---
 
 ## Typography
@@ -56,9 +58,10 @@ Exceptions:
 | Badge label | 12px (`text-xs`) | 600 (`font-semibold`) | 1.5 (Tailwind default for text-xs) |
 | Body / table cell | 14px (`text-sm`) | 400 (`font-normal`) | 1.5 |
 | Card title / label | 12px (`text-xs`) | 600 (`font-semibold`) | 1.25 |
-| Page heading | 20px (`text-xl`) | 700 (`font-bold`) | 1.2 |
 
 Source: `input.css` `.badge-*` and `.card-title` classes; `log.html` heading classes. No new type sizes introduced — badge uses `text-xs font-semibold` matching the LIVE indicator.
+
+Note: Page heading (`font-bold` 700) is existing, not declared here. This phase introduces no elements at weight 700; the two declared weights for Phase 47 are 400 and 600 only.
 
 ---
 
@@ -80,6 +83,12 @@ Accent reserved for:
 Source: CONTEXT.md D-02; `tailwind.config.js` color tokens; `input.css` `.badge-blue` class.
 
 Note: The badge color matches `.badge-blue` semantically, but the badge uses `rounded-full` (pill shape) rather than `rounded-md` (existing badge shape), to match the LIVE indicator pill. This is intentional per CONTEXT.md D-02.
+
+---
+
+## Visuals
+
+Primary focal point: `#log-table` (existing, unchanged). The badge (`#new-qso-badge`) is a secondary, subordinate element — visually quiet relative to the table. The badge is compact, left-aligned, and positioned immediately above the table; it notifies without competing for attention.
 
 ---
 
