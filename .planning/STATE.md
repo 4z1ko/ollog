@@ -65,6 +65,10 @@ v2.4 Progress: [█████░░░░░░░░░░░░░░░] 25
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 46 added: Web Audio sound alerts
+
 ### Critical Build Rules (carried forward)
 
 - **FOUC prevention:** The inline IIFE in `base.html` `<head>` is load-bearing. Never move it, add `defer`/`async`, or extract it to an external file.

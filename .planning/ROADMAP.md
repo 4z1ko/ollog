@@ -710,6 +710,16 @@ Plans:
 | 46. Sound Playback Wiring | v2.4 | 0/1 | Not started | - |
 | 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
 
+### Phase 46: Web Audio sound alerts
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 45
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 46 to break down)
+
 ---
 
 <details>
