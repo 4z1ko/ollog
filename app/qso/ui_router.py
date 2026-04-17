@@ -256,7 +256,7 @@ async def log_view(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     sort: str = Query("-qso_date_utc"),
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Render the paginated QSO log view.
 
@@ -265,6 +265,7 @@ async def log_view(
     HTMX requests (HX-Request header) return only the table partial.
     Full page requests return the complete log.html page.
     """
+    callsign = user.callsign
     # Parse optional date range strings (YYYYMMDD) to UTC-aware datetimes
     date_from_dt: Optional[datetime] = None
     date_to_dt: Optional[datetime] = None
@@ -312,6 +313,7 @@ async def log_view(
         },
         "sort": sort,
         "callsign": callsign,
+        "notify_sound": user.notify_sound,
     }
 
     # HTMX partial swap: return only the table, not the full page
