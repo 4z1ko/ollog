@@ -183,7 +183,7 @@ Full archive: `.planning/milestones/v2.3-ROADMAP.md`
 
 - [ ] **Phase 44: SSE Watcher Hardening** — strong reference in `app.state`, exception recovery loop, LIVE indicator accuracy
 - [x] **Phase 45: Sound Preference Model** — `notify_sound` field on User, ProfileUpdateRequest, ProfileResponse; profile settings toggle UI (completed 2026-04-17)
-- [ ] **Phase 46: Sound Playback Wiring** — `NOTIFY_SOUND` constant in log view, Web Audio API tone on `new_qso` SSE event, autoplay-policy-compliant lazy init
+- [x] **Phase 46: Sound Playback Wiring** — `NOTIFY_SOUND` constant in log view, Web Audio API tone on `new_qso` SSE event, autoplay-policy-compliant lazy init (completed 2026-04-17)
 - [ ] **Phase 47: New QSO Badge** — badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
 
 
@@ -629,10 +629,10 @@ Plans:
   2. Opening the log view in a fresh browser tab and waiting for a UDP QSO does not produce a tone until the operator has clicked or typed somewhere on the page — autoplay policy is respected
   3. With sound disabled (toggle off in Profile Settings), no tone plays when new QSOs arrive — the preference is read correctly from the `NOTIFY_SOUND` JS constant injected by the server
   4. The tone is synthesized via the Web Audio API with no external audio file requests — confirmed by the browser network tab showing no audio file fetches on QSO arrival
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 46-01-PLAN.md — Backend dependency swap (log_view get_current_user_cookie), NOTIFY_SOUND Jinja2 constant, Web Audio IIFE (440 Hz tone + autoplay gate), integration tests
+- [x] 46-01-PLAN.md — Backend dependency swap (log_view get_current_user_cookie), NOTIFY_SOUND Jinja2 constant, Web Audio IIFE (440 Hz tone + autoplay gate), integration tests
 **UI hint**: yes
 
 ---
@@ -706,7 +706,7 @@ Plans:
 | 43. Stats UI | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 44. SSE Watcher Hardening | v2.4 | 0/2 | Not started | - |
 | 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
-| 46. Sound Playback Wiring | v2.4 | 0/1 | Planned | - |
+| 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
 
 ### Phase 46: Web Audio sound alerts
