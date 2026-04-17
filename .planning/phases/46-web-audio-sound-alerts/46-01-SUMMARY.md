@@ -3,10 +3,9 @@ phase: 46-web-audio-sound-alerts
 plan: "01"
 subsystem: audio-notifications
 tags: [web-audio, sse, frontend, backend, sound-alerts]
-status: partial-checkpoint
-completed_tasks: 2
+status: complete
+completed_tasks: 3
 total_tasks: 3
-pending_checkpoint: human-verify
 
 dependency_graph:
   requires:
@@ -92,17 +91,18 @@ tests/test_log_view_notify_sound.py::test_notify_sound_true_injected PASSED
 tests/test_profile_api.py (11 tests) — all PASSED (no regression)
 ```
 
-## Task 3: Browser Verification (PENDING)
+## Task 3: Browser Verification (APPROVED)
 
 **Type:** checkpoint:human-verify (blocking)
+**Outcome:** Approved by operator 2026-04-17
 
-The operator must verify in a browser:
-1. Enable sound in Profile Settings, navigate to log view, click on page, log a QSO via UDP — verify 440 Hz tone plays
-2. Open log view in fresh tab WITHOUT clicking, log a QSO — verify no tone (autoplay gate)
-3. Click on page, log another QSO — verify tone now plays
-4. Disable sound in Profile Settings, log a QSO — verify no tone
-5. DevTools Network > Media tab — verify zero audio file requests
-6. Regression: LIVE indicator green on first SSE event, HTMX table reload works, no JS console errors
+Results:
+1. ✓ Tone plays after page interaction — 440 Hz synthesized tone heard via Web Audio API
+2. ✓ Autoplay gate confirmed — no tone in fresh tab before any click
+3. ✓ Tone plays after clicking — autoplay gate cleared correctly
+4. ✓ Sound disabled — no tone when notify_sound is off
+5. ✓ No audio file requests — DevTools Network/Media tab shows zero entries
+6. ✓ LIVE indicator turns green on first SSE event; no JS console errors
 
 ## Deviations from Plan
 
