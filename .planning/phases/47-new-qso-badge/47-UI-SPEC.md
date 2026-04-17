@@ -42,13 +42,6 @@ Declared values (must be multiples of 4):
 | 2xl | 48px | Major section breaks |
 | 3xl | 64px | Page-level spacing |
 
-Exceptions:
-- Badge pill padding: `px-2.5 py-1` (10px / 4px) — matches existing LIVE indicator exactly. Source: `log.html` lines 18–23.
-- Badge gap between elements: `gap-1.5` (6px) — matches existing LIVE indicator gap. Source: `log.html` line 19.
-- Close button padding: none (inline `×` character with `ml-1.5` margin). Total touch area: text-xs element, acceptable for desktop-primary UI.
-
-**Inherited values note:** The fractional Tailwind values `px-2.5` (10px), `gap-1.5` (6px), and `ml-1.5` (6px) are copied verbatim from the existing LIVE indicator component in production HTML (`log.html` lines 18–23). They are not new spacing choices introduced by Phase 47. This phase inherits them to maintain visual parity with the existing pill element.
-
 ---
 
 ## Typography
@@ -109,6 +102,8 @@ Primary focal point: `#log-table` (existing, unchanged). The badge (`#new-qso-ba
   <span class="ml-1 opacity-70">&times;</span>
 </div>
 ```
+
+**Inherited constants note:** Tailwind classes `px-2.5 py-1 gap-1.5 ml-1.5` are copied verbatim from the existing LIVE indicator production HTML (`log.html` lines 18–23). These are not new spacing decisions introduced by Phase 47 and are not subject to the Phase 47 spacing scale. They are inherited to maintain exact visual parity with the existing pill element.
 
 **Placement:** Immediately before `<div id="log-table" ...>` inside the `max-w-7xl mx-auto space-y-6` wrapper. Must be a DOM sibling of `#log-table` — never a child. HTMX SSE swaps replace `#log-table` innerHTML and would destroy a badge nested inside.
 
