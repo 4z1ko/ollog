@@ -629,11 +629,10 @@ Plans:
   2. Opening the log view in a fresh browser tab and waiting for a UDP QSO does not produce a tone until the operator has clicked or typed somewhere on the page — autoplay policy is respected
   3. With sound disabled (toggle off in Profile Settings), no tone plays when new QSOs arrive — the preference is read correctly from the `NOTIFY_SOUND` JS constant injected by the server
   4. The tone is synthesized via the Web Audio API with no external audio file requests — confirmed by the browser network tab showing no audio file fetches on QSO arrival
-**Plans:** 2 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
-- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
+- [ ] 46-01-PLAN.md — Backend dependency swap (log_view get_current_user_cookie), NOTIFY_SOUND Jinja2 constant, Web Audio IIFE (440 Hz tone + autoplay gate), integration tests
 **UI hint**: yes
 
 ---
@@ -707,18 +706,18 @@ Plans:
 | 43. Stats UI | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 44. SSE Watcher Hardening | v2.4 | 0/2 | Not started | - |
 | 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
-| 46. Sound Playback Wiring | v2.4 | 0/1 | Not started | - |
+| 46. Sound Playback Wiring | v2.4 | 0/1 | Planned | - |
 | 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
 
 ### Phase 46: Web Audio sound alerts
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Operators with `notify_sound` enabled hear a brief synthesized tone on each `new_qso` SSE event — and the tone never plays unless the operator has interacted with the page, complying with browser autoplay policy.
+**Requirements**: SND-01, SND-02
 **Depends on:** Phase 45
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 46 to break down)
+- [ ] 46-01-PLAN.md — Backend dependency swap + NOTIFY_SOUND constant + Web Audio IIFE + integration tests
 
 ---
 
