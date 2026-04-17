@@ -611,11 +611,10 @@ Plans:
   2. Checking the toggle and saving the profile form stores `notify_sound: true` in the operator's MongoDB user document — confirmed by reloading the profile page and seeing the checkbox still checked
   3. Unchecking the toggle and saving stores `notify_sound: false` in MongoDB — the preference is not silently ignored when the checkbox is unchecked (hidden input precedes checkbox in form HTML)
   4. The preference survives a browser session restart — logging out and back in and navigating to Profile Settings shows the previously saved toggle state
-**Plans:** 2 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
-- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
+- [ ] 45-01-PLAN.md — notify_sound field on User model + schemas, profile_update Form handler, checkbox toggle in profile.html, integration tests
 **UI hint**: yes
 
 ---
