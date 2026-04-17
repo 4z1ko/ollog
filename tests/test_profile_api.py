@@ -73,6 +73,7 @@ async def test_get_profile_empty(client, operator, operator_token):
         "my_gridsquare", "latitude", "longitude", "my_rig", "my_antenna", "tx_pwr",
     ]:
         assert data[field] is None, f"Expected {field} to be null, got {data[field]!r}"
+    assert data["notify_sound"] is False
 
 
 @pytest.mark.asyncio
@@ -199,3 +200,48 @@ async def test_patch_invalid_grid_rejected(client, operator, operator_token):
         headers={"Authorization": f"Bearer {operator_token}"},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_notify_sound_default_false(client, operator, operator_token):
+    """SND-03: notify_sound is False for a new operator."""
+    resp = await client.get(
+        "/api/profile/",
+        headers={"Authorization": f"Bearer {operator_token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["notify_sound"] is False
+
+
+@pytest.mark.asyncio
+async def test_notify_sound_patch_true(client, operator, operator_token):
+    """SND-05: patching notify_sound=True persists and is readable."""
+    headers = {"Authorization": f"Bearer {operator_token}"}
+    resp = await client.patch(
+        "/api/profile/",
+        json={"notify_sound": True},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["notify_sound"] is True
+    # Verify persistence via GET
+    get_resp = await client.get("/api/profile/", headers=headers)
+    assert get_resp.json()["notify_sound"] is True
+
+
+@pytest.mark.asyncio
+async def test_notify_sound_patch_false(client, operator, operator_token):
+    """SND-05: patching notify_sound=False after True persists correctly."""
+    headers = {"Authorization": f"Bearer {operator_token}"}
+    await client.patch(
+        "/api/profile/",
+        json={"notify_sound": True},
+        headers=headers,
+    )
+    resp = await client.patch(
+        "/api/profile/",
+        json={"notify_sound": False},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["notify_sound"] is False

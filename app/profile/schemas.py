@@ -17,6 +17,7 @@ class ProfileUpdateRequest(BaseModel):
     my_rig: Optional[str] = None
     my_antenna: Optional[str] = None
     tx_pwr: Optional[float] = None
+    notify_sound: bool = False
 
     @field_validator("my_gridsquare")
     @classmethod
@@ -47,3 +48,4 @@ class ProfileResponse(BaseModel):
     my_rig: Optional[str] = None
     my_antenna: Optional[str] = None
     tx_pwr: Optional[float] = None
+    notify_sound: bool = False

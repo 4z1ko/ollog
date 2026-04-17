@@ -544,6 +544,23 @@ async def qso_delete(
 
 
 # ---------------------------------------------------------------------------
+# About page
+# ---------------------------------------------------------------------------
+
+@ui_router.get("/about", response_class=HTMLResponse)
+async def about_page(
+    request: Request,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Render the About page."""
+    return templates.TemplateResponse(
+        request,
+        "log/about.html",
+        {"callsign": callsign},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Profile settings
 # ---------------------------------------------------------------------------
 
@@ -574,6 +591,7 @@ async def profile_update(
     my_rig: Annotated[Optional[str], Form()] = None,
     my_antenna: Annotated[Optional[str], Form()] = None,
     tx_pwr: Annotated[Optional[str], Form()] = None,
+    notify_sound: Annotated[Optional[str], Form()] = None,
 ):
     """Process profile settings form submission via HTMX.
 
@@ -601,6 +619,8 @@ async def profile_update(
                 raw[field_name] = float(stripped) if stripped else None
             else:
                 raw[field_name] = stripped if stripped else None
+
+    raw["notify_sound"] = (notify_sound == "true")
 
     try:
         validated = ProfileUpdateRequest(**raw)
