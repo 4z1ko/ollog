@@ -112,20 +112,56 @@
 </div>
 
 <script>
+  const NOTIFY_SOUND = "{{ 'true' if notify_sound else 'false' }}";
   (function () {
     var indicator = document.getElementById('live-indicator');
     var eventsFlowing = false;
+    var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    var audioCtx = null;
+    var userInteracted = false;
 
-    document.body.addEventListener('htmx:sseOpen', function (e) {
-      if (e.detail.elt && e.detail.elt.id === 'log-table') {
-        // Connection opened -- do NOT set green. Wait for first actual event.
-        // A dead watcher keeps the HTTP connection alive but sends no events.
+    function onFirstInteraction() {
+      if (userInteracted) return;
+      userInteracted = true;
+      if (AudioCtxClass) {
+        audioCtx = new AudioCtxClass();
       }
-    });
+    }
+
+    document.addEventListener('click', onFirstInteraction);
+    document.addEventListener('keydown', onFirstInteraction);
+
+    async function playTone(ctx) {
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      var now = ctx.currentTime;
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.08);
+      gain.gain.linearRampToValueAtTime(0, now + 0.11);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+
+    // htmx:sseOpen detail has {source} but no .elt -- use e.target instead.
+    // Do NOT set green on open; wait for the first actual new_qso event.
 
     document.body.addEventListener('htmx:sseMessage', function (e) {
-      if (!e.detail || !e.detail.elt || e.detail.elt.id !== 'log-table') return;
-      if (e.detail.type !== 'new_qso') return;
+      // e.detail is the raw MessageEvent; e.target is the element that has
+      // hx-trigger="sse:new_qso" (i.e. #log-table).
+      if (!e.target || e.target.id !== 'log-table') return;
+      if (!e.detail || e.detail.type !== 'new_qso') return;
       if (!eventsFlowing) {
         eventsFlowing = true;
         indicator.classList.remove('hidden');
@@ -135,13 +171,18 @@
         indicator.classList.add('bg-emerald-100', 'dark:bg-emerald-900/40',
                                 'text-emerald-700', 'dark:text-emerald-400');
       }
+      // Sound notification -- BEFORE auto-refresh guards so tone fires
+      // independently of page/filter state (SND-01 + RESEARCH.md Open Question)
+      if (NOTIFY_SOUND === 'true' && userInteracted && audioCtx) {
+        playTone(audioCtx);
+      }
       if (!document.getElementById('auto-refresh-ok')) return;
       if (document.querySelector('#log-table input')) return;
       htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
     });
 
     document.body.addEventListener('htmx:sseError', function (e) {
-      if (e.detail.elt && e.detail.elt.id === 'log-table') {
+      if (e.target && e.target.id === 'log-table') {
         eventsFlowing = false;
         indicator.classList.remove('hidden');
         indicator.classList.add('flex');
@@ -150,7 +191,7 @@
     });
 
     document.body.addEventListener('htmx:sseClose', function (e) {
-      if (e.detail.elt && e.detail.elt.id === 'log-table') {
+      if (e.target && e.target.id === 'log-table') {
         eventsFlowing = false;
         indicator.classList.add('hidden');
         indicator.classList.remove('flex');
