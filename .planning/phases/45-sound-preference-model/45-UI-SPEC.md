@@ -35,15 +35,15 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding (`gap-1`) |
 | sm | 8px | Compact element spacing (`gap-2`, `mb-1.5` on form-label) |
+| xs-plus | 12px | Checkbox row gap (`gap-3`) — established profile form pattern; must match existing `gap-3` to preserve visual rhythm |
 | md | 16px | Default element spacing (`gap-4`, `px-4`) |
+| md-minus | 20px | Form field grid gap (`gap-5`) — established profile form pattern; must match existing `gap-5` to preserve visual rhythm |
 | lg | 24px | Section padding (`px-6`, `py-5` card-body) |
-| xl | 32px | Layout gaps (`mt-6`, `gap-5` form grid) |
+| xl | 32px | Layout gaps (`mt-6`) |
 | 2xl | 48px | Major section breaks |
 | 3xl | 64px | Page-level spacing |
 
-Exceptions: The profile form grid uses `gap-5` (20px) between fields — this is the established pattern in `profile.html` and must be followed for the new Sound Notifications section.
-
-The new Sound Notifications section uses `mt-1` (4px) between label and control row, and `gap-3` (12px) between checkbox and span text — matching the existing profile form visual rhythm.
+The new Sound Notifications section uses `mt-1` (4px) between label and control row, and `gap-3` (12px) between checkbox and span text — matching the existing profile form visual rhythm. The profile form grid uses `gap-5` (20px) between fields — followed for the Sound Notifications section placement.
 
 Source: `templates/log/profile.html` (codebase inspection)
 
@@ -51,14 +51,15 @@ Source: `templates/log/profile.html` (codebase inspection)
 
 ## Typography
 
+This phase introduces 2 weights only. The page heading (700/bold) is inherited from the pre-existing template and is not introduced by this phase.
+
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px (text-sm) | 400 (regular) | 1.5 |
 | Label | 12px (text-xs) | 600 (semibold) | 1 (tracking-wider, uppercase) |
 | Hint | 12px (text-xs) | 400 (regular) | 1.5 |
-| Page heading | 20px (text-xl) | 700 (bold) | 1.2 |
 
-Source: `static/css/input.css` `.form-label`, `.form-hint`; `templates/log/profile.html` `<h1>` (codebase inspection)
+Source: `static/css/input.css` `.form-label`, `.form-hint`; `templates/log/profile.html` (codebase inspection)
 
 ---
 
