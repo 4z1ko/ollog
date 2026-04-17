@@ -182,7 +182,7 @@ Full archive: `.planning/milestones/v2.3-ROADMAP.md`
 **Milestone Goal:** The SSE live feed is reliable across UDP inserts and page navigation, operators on page 2+ see a badge when new QSOs arrive, and operators can opt into a synthesized audio tone on each new QSO — with the preference stored in MongoDB.
 
 - [ ] **Phase 44: SSE Watcher Hardening** — strong reference in `app.state`, exception recovery loop, LIVE indicator accuracy
-- [ ] **Phase 45: Sound Preference Model** — `notify_sound` field on User, ProfileUpdateRequest, ProfileResponse; profile settings toggle UI
+- [x] **Phase 45: Sound Preference Model** — `notify_sound` field on User, ProfileUpdateRequest, ProfileResponse; profile settings toggle UI (completed 2026-04-17)
 - [ ] **Phase 46: Sound Playback Wiring** — `NOTIFY_SOUND` constant in log view, Web Audio API tone on `new_qso` SSE event, autoplay-policy-compliant lazy init
 - [ ] **Phase 47: New QSO Badge** — badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
 
@@ -611,10 +611,10 @@ Plans:
   2. Checking the toggle and saving the profile form stores `notify_sound: true` in the operator's MongoDB user document — confirmed by reloading the profile page and seeing the checkbox still checked
   3. Unchecking the toggle and saving stores `notify_sound: false` in MongoDB — the preference is not silently ignored when the checkbox is unchecked (hidden input precedes checkbox in form HTML)
   4. The preference survives a browser session restart — logging out and back in and navigating to Profile Settings shows the previously saved toggle state
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 45-01-PLAN.md — notify_sound field on User model + schemas, profile_update Form handler, checkbox toggle in profile.html, integration tests
+- [x] 45-01-PLAN.md — notify_sound field on User model + schemas, profile_update Form handler, checkbox toggle in profile.html, integration tests
 **UI hint**: yes
 
 ---
@@ -706,7 +706,7 @@ Plans:
 | 42. Stats Aggregation Backend | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 43. Stats UI | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 44. SSE Watcher Hardening | v2.4 | 0/2 | Not started | - |
-| 45. Sound Preference Model | v2.4 | 0/1 | Not started | - |
+| 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 46. Sound Playback Wiring | v2.4 | 0/1 | Not started | - |
 | 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
 
