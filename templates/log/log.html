@@ -105,7 +105,8 @@
   <!-- Log table (SSE + HTMX swap target) -->
   <div id="log-table"
        hx-ext="sse"
-       sse-connect="/feed/station">
+       sse-connect="/feed/station"
+       hx-trigger="sse:new_qso">
     {% include "log/log_table.html" %}
   </div>
 
@@ -154,7 +155,7 @@
       osc.stop(now + 0.12);
     }
 
-    // htmx:sseOpen detail has {source} but no .elt -- use e.target instead.
+    // htmx:sseOpen detail has {source} but no .elt — use e.target instead.
     // Do NOT set green on open; wait for the first actual new_qso event.
 
     document.body.addEventListener('htmx:sseMessage', function (e) {
