@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: API Token Auth
+milestone: v2.4
+milestone_name: Live Log & Sound Alerts
 status: executing
 stopped_at: Phase 47 context gathered
 last_updated: "2026-04-17T19:28:45.030Z"
