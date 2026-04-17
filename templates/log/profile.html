@@ -125,6 +125,25 @@
                    class="form-input">
           </div>
 
+          <!-- Sound Notifications (SND-04) -->
+          <div class="sm:col-span-2">
+            <label class="form-label">Sound Notifications</label>
+            <div class="flex items-center gap-3 mt-1">
+              <input type="checkbox"
+                     name="notify_sound"
+                     value="true"
+                     {{ 'checked' if profile.notify_sound else '' }}
+                     class="w-4 h-4 rounded border-gray-300 dark:border-gray-600
+                            text-indigo-600 focus:ring-indigo-500
+                            dark:bg-gray-800 dark:checked:bg-indigo-600">
+              <input type="hidden" name="notify_sound" value="false">
+              <span class="text-sm text-gray-700 dark:text-gray-300">
+                Play a tone when a new QSO arrives
+              </span>
+            </div>
+            <p class="form-hint">Requires at least one page interaction (browser autoplay policy)</p>
+          </div>
+
         </div>
 
         <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-800">
