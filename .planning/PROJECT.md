@@ -191,9 +191,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
 - Multiple station profiles per operator — deferred (v2)
 
+### Validated (v2.4 — Phase 45)
+
+- ✓ `User.notify_sound: bool = False` field on User model — off by default, no migration needed (SND-03)
+- ✓ `ProfileUpdateRequest` and `ProfileResponse` both include `notify_sound: bool = False`
+- ✓ Profile Settings page shows a "Sound Notifications" checkbox, unchecked by default (SND-04)
+- ✓ Sound preference persists per-operator via `update_profile()` → MongoDB `$set` (SND-05)
+
 ## Current State
 
-**Version:** v2.3 Operator Statistics (shipped 2026-04-16)
+**Version:** v2.4 Sound Preference Model (Phase 45 complete, 2026-04-17)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
