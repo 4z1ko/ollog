@@ -137,6 +137,7 @@
     var badge = document.getElementById('new-qso-badge');
     var badgeText = document.getElementById('new-qso-badge-text');
     var newQsoCount = 0;
+    var pendingSseRefresh = false;
 
     function onFirstInteraction() {
       if (userInteracted) return;
@@ -218,6 +219,7 @@
         return;
       }
       if (document.querySelector('#log-table input')) return;
+      pendingSseRefresh = true;
       htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
     });
 
@@ -240,7 +242,8 @@
     });
 
     document.body.addEventListener('htmx:afterSettle', function () {
-      if (document.getElementById('auto-refresh-ok')) {
+      if (pendingSseRefresh && document.getElementById('auto-refresh-ok')) {
+        pendingSseRefresh = false;
         dismissBadge();
       }
     });
