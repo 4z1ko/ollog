@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.4
-milestone_name: Live Log & Sound Alerts
+milestone: v1.7
+milestone_name: API Token Auth
 status: executing
-stopped_at: Phase 47 context gathered
-last_updated: "2026-04-17T19:28:45.030Z"
-last_activity: 2026-04-17
+stopped_at: Phase 47 UI-SPEC approved
+last_updated: "2026-04-18T19:54:23.582Z"
+last_activity: 2026-04-18
 progress:
-  total_phases: 23
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 2
-  percent: 50
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 5
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 46 — web-audio-sound-alerts
+**Current focus:** Phase 47 — new-qso-badge
 
 ## Current Position
 
-Phase: 46
+Phase: 47
 Plan: Not started
 Next: Phase 45 (notify-sound-model)
 Milestone: v2.4 Live Log & Sound Alerts
-Status: Executing Phase 46
-Last activity: 2026-04-17
+Status: Executing Phase 47
+Last activity: 2026-04-18
 
 ```
 v2.4 Progress: [█████░░░░░░░░░░░░░░░] 25% (1/4 phases)
@@ -40,7 +40,7 @@ v2.4 Progress: [█████░░░░░░░░░░░░░░░] 25
 
 **Velocity (historical):**
 
-- Total plans completed: 58 plans across v1.0–v2.3
+- Total plans completed: 59 plans across v1.0–v2.3
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -114,7 +114,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-17T19:28:45.024Z
-Stopped at: Phase 47 context gathered
-Resume file: .planning/phases/47-new-qso-badge/47-CONTEXT.md
+Last session: 2026-04-17T19:42:41.496Z
+Stopped at: Phase 47 UI-SPEC approved
+Resume file: .planning/phases/47-new-qso-badge/47-UI-SPEC.md
 Next: `/gsd-plan-phase 45` to plan Phase 45 (notify-sound-model)

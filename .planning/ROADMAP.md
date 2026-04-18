@@ -184,7 +184,7 @@ Full archive: `.planning/milestones/v2.3-ROADMAP.md`
 - [ ] **Phase 44: SSE Watcher Hardening** — strong reference in `app.state`, exception recovery loop, LIVE indicator accuracy
 - [x] **Phase 45: Sound Preference Model** — `notify_sound` field on User, ProfileUpdateRequest, ProfileResponse; profile settings toggle UI (completed 2026-04-17)
 - [x] **Phase 46: Sound Playback Wiring** — `NOTIFY_SOUND` constant in log view, Web Audio API tone on `new_qso` SSE event, autoplay-policy-compliant lazy init (completed 2026-04-17)
-- [ ] **Phase 47: New QSO Badge** — badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
+- [x] **Phase 47: New QSO Badge** — badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss (completed 2026-04-18)
 
 
 ## Phase Details
@@ -648,10 +648,10 @@ Plans:
   3. Clicking the badge removes it and resets the counter to zero — the page does not jump, scroll, or reload
   4. Navigating to page 1 (or clearing all filters) while a badge is visible dismisses the badge automatically — it does not persist after the operator returns to the live-updating view
   5. The badge HTML element is a sibling of `#log-table`, not a child — HTMX SSE swaps of `#log-table` do not destroy the badge
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 47-01-PLAN.md — New QSO badge: badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
+- [x] 47-01-PLAN.md — New QSO badge: badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
 **UI hint**: yes
 
 ---
@@ -706,7 +706,7 @@ Plans:
 | 44. SSE Watcher Hardening | v2.4 | 0/2 | Not started | - |
 | 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
-| 47. New QSO Badge | v2.4 | 0/1 | Not started | - |
+| 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
 
 ### Phase 46: Web Audio sound alerts
 
