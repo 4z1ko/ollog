@@ -648,11 +648,10 @@ Plans:
   3. Clicking the badge removes it and resets the counter to zero — the page does not jump, scroll, or reload
   4. Navigating to page 1 (or clearing all filters) while a badge is visible dismisses the badge automatically — it does not persist after the operator returns to the live-updating view
   5. The badge HTML element is a sibling of `#log-table`, not a child — HTMX SSE swaps of `#log-table` do not destroy the badge
-**Plans:** 2 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
-- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
+- [ ] 47-01-PLAN.md — New QSO badge: badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
 **UI hint**: yes
 
 ---
