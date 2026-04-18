@@ -211,11 +211,12 @@
         playTone(audioCtx);
       }
       // Badge increment -- fires when page 2+ or filters active (D-04, D-06)
-      if (!document.getElementById('auto-refresh-ok')) {
+      var canAutoRefresh = !!document.getElementById('auto-refresh-ok');
+      if (!canAutoRefresh) {
         newQsoCount++;
         updateBadge();
+        return;
       }
-      if (!document.getElementById('auto-refresh-ok')) return;
       if (document.querySelector('#log-table input')) return;
       htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
     });
