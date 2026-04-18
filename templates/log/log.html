@@ -224,8 +224,9 @@
     document.body.addEventListener('htmx:sseError', function (e) {
       if (e.target && e.target.id === 'log-table') {
         eventsFlowing = false;
-        indicator.classList.remove('hidden');
-        indicator.classList.add('flex');
+        indicator.classList.remove('hidden', 'bg-emerald-100', 'dark:bg-emerald-900/40',
+                                   'text-emerald-700', 'dark:text-emerald-400');
+        indicator.classList.add('flex', 'bg-rose-100', 'text-rose-700');
         indicator.querySelector('span:last-child').textContent = 'OFFLINE';
       }
     });
