@@ -198,6 +198,13 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Profile Settings page shows a "Sound Notifications" checkbox, unchecked by default (SND-04)
 - ✓ Sound preference persists per-operator via `update_profile()` → MongoDB `$set` (SND-05)
 
+### Validated (v2.4 — Phase 47)
+
+- ✓ When new QSOs arrive while the operator is on page 2+ or has active filters, a "N new QSO(s)" indigo pill badge appears above the log table — counter increments with each SSE event, singular/plural text correct (LIVE-03)
+- ✓ Clicking the badge dismisses it and resets the counter to zero — no page jump, no auto-scroll (LIVE-04)
+- ✓ Badge is a DOM sibling of #log-table so HTMX SSE innerHTML swaps cannot destroy it — badge survives all page navigations (LIVE-03)
+- ✓ Badge auto-dismisses when operator navigates to page 1 with no filters (htmx:afterSettle + auto-refresh-ok sentinel) (LIVE-03)
+
 ### Validated (v2.4 — Phase 46)
 
 - ✓ `log_view()` uses `get_current_user_cookie` and injects `notify_sound` into Jinja2 context (SND-01)
@@ -208,7 +215,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.4 Sound Playback Wiring (Phase 46 complete, 2026-04-17)
+**Version:** v2.4 New QSO Badge (Phase 47 complete, 2026-04-18)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -340,4 +347,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-17 — Phase 46 complete (Sound Playback Wiring)*
+*Last updated: 2026-04-18 — Phase 47 complete (New QSO Badge)*
