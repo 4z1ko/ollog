@@ -19,10 +19,10 @@ decisions:
 metrics:
   duration: "5m"
   completed: "2026-04-19"
-  tasks_completed: 1
+  tasks_completed: 2
   tasks_total: 2
   files_changed: 0
-status: awaiting-checkpoint
+status: complete
 ---
 
 # Phase 44 Plan 02: LIVE Indicator Message-First State Machine Summary
@@ -38,7 +38,7 @@ Task 1 verified that `templates/log/log.html` already contains the correct LIVE 
 | Task | Name | Status | Commit | Files |
 |------|------|--------|--------|-------|
 | 1 | Replace LIVE indicator IIFE with message-first state machine | Complete (already present) | N/A — no change needed | templates/log/log.html |
-| 2 | Verify LIVE indicator behavior in browser | Awaiting human verification | — | — |
+| 2 | Verify LIVE indicator behavior in browser | Complete — human verified | approved | — |
 
 ## Acceptance Criteria Verification
 
@@ -78,16 +78,9 @@ No new trust boundaries introduced. The LIVE indicator is purely cosmetic client
 
 ## Checkpoint Status
 
-**Task 2 (human-verify) is awaiting human browser verification.**
+**Task 2 (human-verify) approved by user on 2026-04-20.**
 
-Human verification steps:
-1. Start the app: `docker-compose up -d` or `uvicorn app.main:app --reload`
-2. Open `/log/view` in Chrome with DevTools open (Network tab)
-3. Verify the LIVE indicator is NOT visible (hidden) even though the SSE connection to `/feed/station` is open in the Network tab
-4. Insert a QSO (via form, REST API POST, or UDP)
-5. Verify the LIVE indicator turns green with "LIVE" text after the SSE event frame appears in the EventStream tab
-6. Stop the server
-7. Verify the indicator shows "OFFLINE" text on SSE error, then hides on SSE close
+Human confirmed: indicator hidden before first event, green after first new_qso message, OFFLINE on error, hidden on close.
 
 ## Self-Check: PASSED
 
