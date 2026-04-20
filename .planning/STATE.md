@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.4
-milestone_name: Live Log & Sound Alerts
-status: shipped
-stopped_at: Milestone v2.4 archived
+milestone: v2.5
+milestone_name: QSO Sorting & Entry Timestamp
+status: in-progress
+stopped_at: Defining requirements
 last_updated: "2026-04-20T00:00:00.000Z"
 last_activity: 2026-04-20
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,17 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-20)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone — run `/gsd-new-milestone`
+**Current focus:** Milestone v2.5 — QSO Sorting & Entry Timestamp
 
 ## Current Position
 
-Milestone: v2.4 Live Log & Sound Alerts — SHIPPED 2026-04-20
-All phases complete (44–47, 5/5 plans)
-Next: `/gsd-new-milestone` to start next milestone
-
-```
-v2.4 Progress: [████████████████████] 100% (4/4 phases)
-```
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-20 — Milestone v2.5 started
 
 ## Performance Metrics
 
@@ -58,13 +55,13 @@ v2.4 Progress: [████████████████████] 10
 | v2.1 | 39–40 | 2 |
 | v2.2 | 41 | 2 |
 | v2.3 | 42–43 | 2 |
-| v2.4 | 44–47 | TBD |
+| v2.4 | 44–47 | 5 |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
-- Phase 46 added: Web Audio sound alerts
+- v2.5 milestone started: QSO Sorting & Entry Timestamp
 
 ### Critical Build Rules (carried forward)
 
@@ -74,30 +71,6 @@ v2.4 Progress: [████████████████████] 10
 - **PostCSS autoprefixer:** Always configure `postcss.config.js` with `autoprefixer({ remove: false })` when writing explicit webkit prefixes in source CSS.
 - **FastAPI sub-app StaticFiles:** Every FastAPI sub-app that serves HTML must have its own `StaticFiles` mount for `/static`. The main app mount does not propagate.
 - **apscheduler<4 upper bound is load-bearing:** Do not touch `pyproject.toml` APScheduler constraints.
-
-### v2.4 Architecture Decisions (pre-decided from research)
-
-- **SSE watcher strong reference:** Store watcher task in `app.state.watcher_task` to prevent Python 3.12+ GC. Without this, the task can be collected silently and events stop flowing.
-- **SSE exception recovery:** Wrap the watcher's inner loop in a `try/except Exception` with a short sleep before retry — not a bare `except BaseException` which would suppress `CancelledError`.
-- **LIVE indicator accuracy:** Do not set the indicator green on SSE connection open (`EventSource` readyState == OPEN). Set it green only on first `message` event received; set it grey on `error` event.
-- **notify_sound field default:** `notify_sound: bool = False` on the `User` Beanie model. Existing users without the field read as `False` via Pydantic default — no migration needed.
-- **Hidden input before checkbox (load-bearing):** `<input type="hidden" name="notify_sound" value="false">` must precede `<input type="checkbox" name="notify_sound" value="true">`. Unchecked checkbox sends nothing; hidden input provides the `false` fallback.
-- **Web Audio lazy init:** Create `AudioContext` on first user gesture (click/keydown), not at page load. Store as module-level variable. Check `context.state === 'suspended'` and call `context.resume()` before playing.
-- **webkitAudioContext fallback:** `const AudioContext = window.AudioContext || window.webkitAudioContext;` — required for Safari.
-- **NOTIFY_SOUND JS constant:** Injected by `log_view()` as a Jinja2 template variable. Value is the string `"true"` or `"false"` derived from `current_user.notify_sound`. Compare as `NOTIFY_SOUND === "true"` in JS.
-- **Badge placement:** Badge `<div id="new-qso-badge">` must be a sibling of `#log-table` in the DOM — not a child. HTMX SSE swaps target `#log-table` and destroy its innerHTML, which would delete the badge if nested inside.
-- **Badge htmx:afterSettle re-sync:** On `htmx:afterSettle`, if the swap target is `#log-table` and the user is on page 1 with no filters, reset the badge counter to zero and hide the badge.
-- **No new Python packages:** `requirements.txt` and `pyproject.toml` do not change for v2.4.
-- **No new JS dependencies:** Web Audio API is native browser. No npm installs.
-
-### Files modified in v2.4 (complete list)
-
-- `app/feed/manager.py` — Phase 44 (strong reference + exception loop)
-- `app/auth/models.py` — Phase 45 (notify_sound field)
-- `app/auth/schemas.py` — Phase 45 (ProfileUpdateRequest + ProfileResponse)
-- `app/qso/ui_router.py` — Phase 46 (log_view dependency swap + NOTIFY_SOUND + profile_update Form param)
-- `templates/log/log.html` — Phase 46/47 (badge HTML + audio JS)
-- `templates/log/profile.html` — Phase 45/46 (sound toggle UI)
 
 ### Known Tech Debt
 
@@ -111,7 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-20T13:28:43.910Z
-Stopped at: Phase 45 context gathered
-Resume file: .planning/phases/45-sound-preference-model/45-CONTEXT.md
-Next: `/gsd-plan-phase 45` to plan Phase 45 (notify-sound-model)
+Last session: 2026-04-20
+Stopped at: Milestone v2.5 started, defining requirements
+Next: `/gsd-new-milestone` requirements definition in progress
