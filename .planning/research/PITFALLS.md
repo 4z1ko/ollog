@@ -1,291 +1,381 @@
-# Domain Pitfalls — v2.4 Live Log & Sound Alerts
+# Domain Pitfalls — v2.5 QSO Sorting & Entry Timestamp
 
-**Domain:** Adding SSE live-refresh fix + Web Audio notifications to existing FastAPI/HTMX/SSE/MongoDB app
-**Researched:** 2026-04-16
-**Scope:** v2.4 only — pitfalls specific to these four problem areas:
-1. Debugging the UDP → change-stream → SSE → HTMX table-refresh chain
-2. Building a client-side new-QSO counter badge for page 2+
-3. Web Audio API oscillator tone with autoplay constraints
-4. Adding `notify_sound: Optional[bool]` to the Beanie `User` document
+**Domain:** Adding `_created_at` timestamp + column sorting to existing FastAPI/Beanie/HTMX/MongoDB logbook
+**Researched:** 2026-04-20
+**Confidence:** HIGH — all findings verified against live codebase and Beanie docs
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: SSE sse-connect Element Destroyed When Its Own outerHTML Is Replaced
+### Pitfall 1: `default_factory` Fires on Every Instantiation, Including Updates — Double-Stamping
 
-**What goes wrong:** The `#log-table` div carries `hx-ext="sse" sse-connect="/feed/station"`. When an HTMX swap replaces the *contents* of `#log-table` (i.e., `hx-swap="innerHTML"`), the div element itself persists and the SSE connection survives. But if anything performs an `outerHTML` swap or `htmx.ajax()` call that targets `#log-table` with `outerHTML`, the element is removed from the DOM, the htmx-ext-sse extension fires `htmx:sseClose` with reason `nodeReplaced`, and the EventSource is permanently closed — silently, with no reconnect.
+**What goes wrong:**
+`_created_at: datetime = Field(default_factory=datetime.utcnow)` on the `QSO` Beanie document fires the factory every time a `QSO(...)` object is constructed, not only on `.insert()`. The `qso_update` handler in `ui_router.py` (and `patch_qso` in `router.py`) fetch the existing document with `await QSO.get(oid)`, then call `await qso.update({"$set": update_dict})`. This path never touches `_created_at`. However, if any code path ever calls `QSO(**qso_dict)` on an existing document dict (e.g., rebuilding from a stored dict), the factory overwrites the original timestamp.
 
-**Root cause:** The current `htmx:sseMessage` handler correctly calls `htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' })`. This is safe. The risk is any future code that adds a badge counter or other SSE-triggered swap using `swap: 'outerHTML'` against the `#log-table` container itself.
+The immediate risk: if `build_qso_dict()` is extended to include `_created_at` in the returned dict and `import_qsos_from_bytes` passes that dict to `QSO(**qso_dict)`, the import path will always receive an import-time stamp, not a QSO date stamp. This is correct for imports — but only if the field is not also included in `build_qso_dict` where a caller might strip it or leave it out, causing the factory to fire a second time on re-insertion.
 
-**Consequences:** After one misfired `outerHTML` swap on `#log-table`, live updates stop until page reload. The LIVE indicator may not reflect this because `htmx:sseClose` fires asynchronously and the indicator logic could miss it if the element was already removed before the event propagated.
+**Root cause:**
+Pydantic/Beanie `default_factory` is a *construction* hook, not an *insert* hook. It is re-evaluated every time the Python object is constructed.
 
-**Prevention:**
-- The badge counter element must be a sibling of `#log-table`, never a child of it.
-- Never retarget `#log-table` with `swap: 'outerHTML'` from the `htmx:sseMessage` handler.
-- Verify SSE survival after pagination: DevTools → Network → EventStream tab should show continuous event flow after clicking Previous/Next.
+**How to avoid:**
+Use the Beanie `@before_event(Insert)` hook pattern instead of `default_factory`:
 
-**Detection:** After any pagination click, confirm the SSE connection is still open in DevTools Network → EventStream. A closed stream appears as a grayed-out entry with no new events.
+```python
+from beanie import Document, Insert, before_event
+from datetime import datetime, timezone
 
-**Phase:** First implementation phase (live refresh + badge). Must verify SSE connection survives every HTMX swap before considering the feature complete.
+class QSO(Document):
+    _created_at: Optional[datetime] = None
 
----
+    @before_event(Insert)
+    def set_created_at(self):
+        self._created_at = datetime.now(timezone.utc)
+```
 
-### Pitfall 2: Web Audio AudioContext Created on Page Load Is Permanently Suspended
+OR: use `default_factory` but set it on the field with `Optional[datetime] = Field(default=None)` and set it explicitly only in `build_qso_dict()`. The rule is: one place sets it, never set it in `build_qso_dict()`, never touch it in the update path.
 
-**What goes wrong:** Chrome, Firefox, and Safari all enforce the autoplay policy: an `AudioContext` created before any user gesture starts in `suspended` state. Calling `oscillator.start()` on a node connected to a suspended context plays nothing — no error is thrown. The SSE event handler that fires on QSO arrival is not a user gesture, so even calling `audioCtx.resume()` from inside it may have no effect if the context was never unlocked.
+The simpler, safer pattern for this codebase (which uses raw `$set` dicts rather than Beanie save/replace): add `_created_at` to `build_qso_dict()` explicitly (`result["_created_at"] = datetime.now(timezone.utc)`), and ensure the update handlers in `qso_update` (ui_router) and `patch_qso` (router) include `_created_at` in the list of protected fields that get stripped from `update_dict`:
 
-**Root cause:** Browsers require audio to originate from — or be explicitly unlocked during — a user gesture (click, keydown, touchstart). An `AudioContext` created in a `<script>` tag or module-level code on page load will be `suspended`, regardless of subsequent non-gesture-triggered `resume()` calls.
+```python
+for protected in ("_operator", "_deleted", "operator_callsign", "is_deleted", "_id", "_created_at"):
+    update_dict.pop(protected, None)
+```
 
-**Consequences:** Sound toggle appears to save correctly (profile field updated), LIVE indicator shows QSOs arriving, but zero audio plays. The browser console shows no errors. `audioCtx.state` is the only diagnostic signal.
+**Warning signs:**
+- `_created_at` on an updated QSO is newer than the QSO was inserted (the update path accidentally re-stamped it).
+- Two QSOs inserted at the same time appear to have different `_created_at` values that match their respective edit times, not insert times.
 
-**Prevention:**
-- Create `AudioContext` lazily on the first user interaction that enables the sound feature — the profile checkbox click is itself a valid user gesture.
-- Before every oscillator play, check `if (audioCtx.state === 'suspended') { await audioCtx.resume(); }`.
-- One `AudioContext` per page session: store it in a module-level variable, create only once, reuse for all subsequent oscillator nodes.
-- Add a visible "Test sound" button on the profile page. Clicking it creates/resumes the context and fires one test tone — this is the most reliable cross-platform unlock mechanism.
-
-**Detection:** `console.log(audioCtx.state)` in the SSE handler. Expected value: `'running'`. Any other value means sound will not play.
-
-**Phase:** Audio tone implementation phase.
-
----
-
-### Pitfall 3: iOS Safari Requires touchstart (Not Just click) to Unlock AudioContext
-
-**What goes wrong:** Chrome and Firefox honour `click` as a sufficient gesture to unlock an `AudioContext`. On iOS Safari, the `click` event alone may not satisfy WebKit's audio unlock requirement — the context stays `suspended` after `audioCtx.resume()` is called from a click handler. Additionally, iOS's hardware silent switch blocks all Web Audio output regardless of `AudioContext` state; this is not a software issue and has no workaround.
-
-**Root cause:** Apple's WebKit WebAudio implementation has historically required `touchstart` (or a combined touch+click flow) for the initial unlock. The behaviour has been partially relaxed in newer iOS versions but remains inconsistent across iOS 16–18.
-
-**Consequences:** Audio works on desktop Chrome/Firefox/Safari but fails silently on all iOS devices. The operator toggled sound on, the profile shows it enabled, but no tone plays.
-
-**Prevention:**
-- Listen on both `click` and `touchstart` when initializing the `AudioContext` unlock: `['click', 'touchstart'].forEach(ev => document.addEventListener(ev, initAudio, {once: true}))`.
-- The "Test sound" button (see Pitfall 2) provides the explicit interaction needed for iOS.
-- Document the iOS silent switch as a known hardware limitation in the profile toggle's help text.
-
-**Detection:** Test on a physical iOS device. If `audioCtx.state` remains `'suspended'` after toggle click, the `touchstart` listener is needed.
-
-**Phase:** Audio tone implementation phase. Low extra effort if the unlock pattern is designed correctly from the start.
+**Phase to address:** Model + service layer phase (first implementation phase).
 
 ---
 
-### Pitfall 4: Change Stream Watcher Task Has No Strong Reference — Silent GC Kill on Python 3.12+
+### Pitfall 2: Sorting `model_extra` Fields (FREQ, QSO_DATE, TIME_ON) — String Comparison, Not Numeric
 
-**What goes wrong:** If the `watch_qsos` coroutine is started with `asyncio.create_task()` but the returned task object is not held by a strong reference (e.g., stored in a module-level set or the lifespan state), Python 3.12+'s garbage collector may collect the task mid-run. The task silently disappears with no exception, no log entry, and the SSE feed stops receiving change stream events.
+**What goes wrong:**
+`FREQ` is stored as a string (e.g., `"14.225"`, `"7.1"`, `"144.200"`). MongoDB's `sort()` on a string field uses lexicographic order. Lexicographic sort of `"14.225"` vs `"7.1"` places `"14.225"` before `"7.1"` because `"1" < "7"`. A user sorting by frequency ascending will see `14 MHz` entries before `7 MHz` entries — which is wrong.
 
-**Root cause:** Python 3.12+ explicitly warns (and in some builds, enforces) that tasks without strong references are eligible for GC. The UDP server already handles this correctly with `self._background_tasks: set[asyncio.Task]`. The same pattern must be applied to the `watch_qsos` task in the lifespan.
+`QSO_DATE` and `TIME_ON` are stored as ADIF strings (`"20260420"` and `"1430"`). String sort is correct for these two fields because the ADIF date/time format is lexicographically monotone (YYYYMMDD sorts correctly as a string). However, this is a coincidence of the format, not a guarantee — mixing 4-char (`HHMM`) and 6-char (`HHMMSS`) `TIME_ON` values can cause unexpected ordering.
 
-**Consequences:** The SSE change stream watcher stops silently. All operators see the LIVE indicator turn green (the SSE *connection* is alive) but no new QSOs trigger table refreshes. The symptom is identical to "no QSOs are being inserted," making diagnosis confusing.
+**Root cause:**
+`model_config = ConfigDict(extra="allow")` stores all non-declared ADIF fields verbatim in `model_extra`. These fields are not typed; MongoDB stores them as whatever type was inserted (string). Beanie's `.sort("-FREQ")` passes the field name directly to PyMongo, which sorts by whatever the stored type is.
 
-**Prevention:**
-- Store the `watch_qsos` task in the FastAPI lifespan `state` dict or a module-level strong reference: `app.state.watcher_task = asyncio.create_task(watch_qsos(...))`.
-- Add a startup log line from inside `watch_qsos` confirming the watcher entered its event loop (distinct from the startup banner that confirms the task was created).
+**How to avoid:**
+Do not expose `FREQ`, `QSO_DATE`, or `TIME_ON` as sort options in `get_qso_page()`. The correct sort for date/time is `qso_date_utc` (a declared `datetime` field, sorts correctly). The correct sort for frequency is also `qso_date_utc` or band — frequency sorting is rarely useful in a ham logbook context and adds complexity without user value.
 
-**Detection:** `logger.debug("watch_qsos: waiting for next change stream event")` inside the `async for change in stream:` loop confirms the watcher is alive.
+If FREQ sorting is added in the future, the fix requires a migration that converts the string `FREQ` field to a float in MongoDB, or a computed `FREQ_MHZ: Optional[float]` declared field. Do not add FREQ as a sort target in v2.5.
 
-**Phase:** This is the first thing to check in the live refresh fix phase.
+**Warning signs:**
+- Sort-by-frequency produces results in unexpected order (14 MHz before 7 MHz).
+- Users report that "sort by date" and "sort by time" give different orderings for QSOs logged on the same UTC date with mixed TIME_ON formats.
+
+**Phase to address:** Service layer sort allowlist phase. Exclude `FREQ`, `QSO_DATE`, `TIME_ON` from the sort allowlist.
 
 ---
 
-### Pitfall 5: UDP QSO Insert Does Not Reach the SSE Client — Diagnosis Order
+### Pitfall 3: Sort Field Injection — No Allowlist in `get_qso_page()`
 
-**What goes wrong:** The symptom "UDP QSOs appear in `/log/view` after reload but do not trigger live refresh" means the insert reached MongoDB but the broadcast did not reach the SSE client. The failure can occur at any of four points in the chain.
+**What goes wrong:**
+`get_qso_page()` passes `sort_by` directly to `.sort(sort_by)` with no validation:
 
-**Diagnosis order (fastest to slowest):**
+```python
+items = await QSO.find(query).sort(sort_by).skip(...).limit(...)
+```
 
-1. **Is `watch_qsos` alive?** Run `mongosh` and execute `db.qsos.watch([{$match: {operationType: "insert"}}])`, then send a test UDP datagram. If the mongosh watch fires, the replica set oplog is working and the issue is in the Python watcher. If mongosh watch does not fire, the issue is in MongoDB (replica set not running, wrong database, or insert is on a different connection's transaction that has not committed).
+The `sort` query param in `log_view()` is also unvalidated. An operator can pass `sort=_operator` or `sort=-_id` or `sort=nonexistent_field` via the URL and the query will execute against MongoDB. While operator isolation prevents cross-operator data leakage, arbitrary sort fields expose MongoDB field structure and cause unpredictable ordering.
 
-2. **Is the watcher watching the correct collection?** The `watch_qsos` function receives a `collection` argument from the lifespan. Verify this is `await QSO.get_motor_collection()` — wait, this codebase uses `get_pymongo_collection()` (Motor EOL'd). Confirm the async collection object is correct: `collection = QSO.get_pymongo_collection()`.
+**Root cause:**
+The current implementation (pre-v2.5) accepts any string. This was acceptable when the only sort was `qso_date_utc`, `CALL`, and `BAND`, but adding `_created_at` as a valid option requires a proper allowlist to prevent `_deleted`, `_operator`, or invented field names from being used as sort keys.
 
-3. **Is the broadcast reaching any queue?** Add `logger.debug("broadcasting to %d clients", len(mgr._queues))` in `ConnectionManager.broadcast()`. Zero clients means no SSE connections are open. Non-zero means the broadcast is sent but the client is not processing it.
+**How to avoid:**
+Add a module-level allowlist set in `service.py` and validate at the top of `get_qso_page()`:
 
-4. **Is the `htmx:sseMessage` handler filtering the event out?** The handler checks `e.detail.elt.id !== 'log-table'` and `e.detail.type !== 'new_qso'`. Log these values in the browser console during a test insert.
+```python
+_ALLOWED_SORT_FIELDS = {
+    "qso_date_utc", "-qso_date_utc",
+    "CALL", "-CALL",
+    "BAND", "-BAND",
+    "MODE", "-MODE",
+    "_created_at", "-_created_at",
+}
 
-**Consequences:** Without this diagnosis sequence, hours can be lost chasing the wrong layer.
+async def get_qso_page(..., sort_by: str = "-qso_date_utc") -> ...:
+    if sort_by not in _ALLOWED_SORT_FIELDS:
+        sort_by = "-qso_date_utc"  # fallback to default
+    ...
+```
 
-**Prevention:** Log the change stream event at DEBUG level on receipt. Log the number of broadcast targets. Log the SSE event type on the client side during development.
+**Warning signs:**
+- Any user can craft a URL with `?sort=_deleted` or `?sort=_operator` and get a valid response (though not exploitable, it is a leak of internal field names).
+- Adding new sort fields in a future phase requires updating the allowlist — without the allowlist, no such audit point exists.
 
-**Phase:** First phase of v2.4. This is the core bug to fix.
+**Phase to address:** First phase (service allowlist). Must be in place before the template exposes new sort icons.
+
+---
+
+### Pitfall 4: `_created_at` as Hidden Sort Column — Table Semantic Validity and `<th>` Placement
+
+**What goes wrong:**
+The requirement is: "timestamp sort icon in the table header allows sorting by `_created_at` even though the column is hidden." There is no `<td>` data column for `_created_at` in each `<tr>`, but the `<th>` for the sort icon must exist. An extra `<th>` in the `<thead>` without a corresponding `<td>` in every `<tbody>` row creates an HTML table with mismatched column counts. While browsers render this without visible error, it breaks screen readers, automated scraping, and `table-layout: fixed` styles if ever applied.
+
+**Root cause:**
+Attempting to add a sort control to a column that has no visible data requires choosing between: (a) an out-of-band sort button (outside the table entirely), (b) an empty `<td>` in every row (extra space in each row), or (c) accepting the semantic mismatch (fragile).
+
+**How to avoid:**
+The cleanest solution is (b): add an empty `<td></td>` in every `qso_row.html` and `qso_row_edit.html` at the same column position as the `<th>` sort icon. The cell is visually empty and has zero width via CSS (`width: 0; padding: 0;`). This preserves correct column count semantics.
+
+An alternative is placing the `_created_at` sort icon outside the `<table>` entirely — e.g., as a sort control above the table header row. This avoids the semantic issue and is better UX since the column is conceptually "hidden."
+
+Do not add a `<th>` without a matching `<td>` count in every row.
+
+**Warning signs:**
+- Developer tools accessibility audit flags "table header has no corresponding data cells."
+- The `Actions` column shifts horizontally when the `_created_at` `<th>` is present on some renders and absent on others.
+
+**Phase to address:** Template implementation phase (log_table.html, qso_row.html, qso_row_edit.html changes together in one commit).
+
+---
+
+### Pitfall 5: Auto-Refresh Sentinel Condition Must Include New `_created_at` Sort Value
+
+**What goes wrong:**
+The SSE auto-refresh sentinel in `log_table.html` suppresses live refresh whenever the sort is not the default:
+
+```jinja
+{% if page == 1 and sort == '-qso_date_utc' and not filters.call and ... %}
+<span id="auto-refresh-ok" hidden></span>
+{% endif %}
+```
+
+When `_created_at` sort is added, users can be on page 1 with no filters but with `sort='-_created_at'`. The sentinel will be absent, so every new QSO inserts only the badge counter instead of triggering a table refresh. This is technically correct (the table is sorted by entry time, not QSO date, so auto-refresh is appropriate). However: if the intent is to also suppress auto-refresh when sorted by `_created_at`, the condition remains correct. If the intent is to allow auto-refresh when sorted by `_created_at` (since new entries will naturally appear at the top), the condition must be extended:
+
+```jinja
+{% if page == 1 and sort in ('-qso_date_utc', '-_created_at') and not filters.call and ... %}
+```
+
+**Root cause:**
+The sentinel condition hardcodes the default sort value as the only allowed auto-refresh case. Adding `_created_at` as a valid sort target requires a deliberate decision about whether it should also enable auto-refresh.
+
+**How to avoid:**
+Decide explicitly during implementation: auto-refresh triggers for `-qso_date_utc` only (default sort only), or for all descending sorts where new items naturally appear at the top. Document the decision as a comment in the template.
+
+**Warning signs:**
+- Users sorting by entry time (`_created_at` descending) get badge counter increments instead of live table refresh — unexpected behavior if they expect new entries to appear automatically.
+
+**Phase to address:** Template phase. The condition change is one line; the decision must be made before writing the line.
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 6: Counter Badge State Must Live Outside the HTMX Swap Target
+### Pitfall 6: HTMX Sort Header Clicks Lose Filter Params — URL Construction Must Thread All Active Filters
 
-**What goes wrong:** The "N new QSOs" badge counter for page 2+ must be maintained in a JavaScript variable and rendered in a DOM element that is never touched by HTMX swaps. If the badge element is placed inside `#log-table`, it is destroyed and re-created on every pagination or filter swap, resetting the count to zero.
+**What goes wrong:**
+Each sort header `<a>` in `log_table.html` constructs the `hx-get` URL by hand:
 
-**Root cause:** Every HTMX swap that targets `#log-table` with `innerHTML` replaces the entire inner content of the div, including any badge placed inside it.
+```jinja
+hx-get="/log/view?sort=...&call={{ filters.call or '' }}&band=..."
+```
 
-**The wrong approach:** A badge rendered inside `log_table.html` (the HTMX partial). The partial is replaced on every navigation event.
+If a new filter param is added to `log_view()` in the future (e.g., a "worked before" toggle), the sort header URL construction must be updated in every `<th>` element individually. The current template already handles all five existing filter params. Adding the `_created_at` sort icon as a sixth `<th>` requires adding the same five filter params to its URL. Forgetting even one drops that filter when the user clicks the sort icon.
 
-**Prevention:**
-- Place the badge element as a direct sibling of `#log-table` in `log.html`, outside the partial template.
-- Manage badge visibility entirely in JavaScript: increment on `htmx:sseMessage` when `#auto-refresh-ok` is absent, reset on any `htmx:afterSwap` targeting `#log-table`, and on the dismiss click.
-- The badge state does not need to survive page reload — a reload shows the current table.
+**Root cause:**
+Manual URL construction in Jinja2 templates is not DRY — every sort link duplicates the full parameter list. Changing any filter param name requires touching every sort header.
 
-**Detection:** Navigate to page 2, watch for a UDP QSO insert, confirm the badge appears. Then click Previous/Next and confirm the badge resets to zero.
+**How to avoid:**
+In v2.5, use the existing pattern (all five params appear in every sort URL). If this pattern is ever refactored, a Jinja2 macro or URL builder helper would centralize it. For now, the risk is low — five params is manageable. The key discipline is: add the `_created_at` sort `<th>` using the exact same URL template as the existing sort headers — copy-paste the full URL fragment and change only the `sort=` value.
 
-**Phase:** Badge counter implementation, same phase as live refresh fix.
+**Warning signs:**
+- Clicking the entry-time sort icon while a band filter is active clears the band filter (it was omitted from the sort URL).
+- Integration test: apply a filter, then click each sort header, confirm filter params are preserved in the updated URL.
 
----
-
-### Pitfall 7: HTML Checkbox Does Not Send Value When Unchecked — Toggle Cannot Be Turned Off
-
-**What goes wrong:** HTML checkbox inputs send their value in the form body only when checked. When unchecked, the browser sends nothing — the key is absent from the POST body. If the `profile_update` endpoint treats an absent `notify_sound` key as "no change," the user can enable sound notifications but can never disable them via the form.
-
-**Root cause:** This is standard HTML form behavior, not a bug. Every framework that handles checkboxes must account for it.
-
-**Consequences:** Profile toggle is one-directional: on → permanently on, with no way to turn off without direct database manipulation.
-
-**Prevention:**
-- Add a hidden input immediately before the checkbox:
-  ```html
-  <input type="hidden" name="notify_sound" value="false">
-  <input type="checkbox" name="notify_sound" value="true" ...>
-  ```
-  When unchecked, the hidden field sends `false`. When checked, the checkbox value `true` overrides it (last value wins in standard form encoding — verify FastAPI form parsing behaviour; if it takes the first value, reverse the order).
-- In the handler, coerce `notify_sound` explicitly: `"true"` → `True`, `"false"` → `False`, `None`/absent → `None` (no change).
-- Add `notify_sound: Optional[bool] = None` to `ProfileUpdateRequest` with a validator that accepts string `"true"`/`"false"` as well as booleans.
-
-**Phase:** Profile toggle implementation phase. This must be tested explicitly.
+**Phase to address:** Template phase. Test by applying a filter and cycling through all sort icons.
 
 ---
 
-### Pitfall 8: `Optional[bool]` Field in Beanie User Document — `None` is Not `False` in MongoDB Queries
+### Pitfall 7: Beanie Aliased Fields — `_created_at` Must Use the Same Alias Pattern as `_operator` and `_deleted`
 
-**What goes wrong:** Adding `notify_sound: Optional[bool] = None` to the `User` document means every existing user document in MongoDB has no `notify_sound` field at all. Beanie reads missing fields as the Python default (`None`). The template check `if user.notify_sound:` correctly returns `False` for both `None` and `False` — no migration is needed for the display path.
+**What goes wrong:**
+The existing QSO model uses `Field(alias="_operator", serialization_alias="_operator")` because MongoDB requires the leading-underscore field name, but Python attribute names cannot start with underscore (without a name-mangling side effect in Python classes). If `_created_at` is added as a plain field name (e.g., `created_at: Optional[datetime]`), the MongoDB document will have the key `created_at`, not `_created_at`. This mismatches the naming convention for system fields and breaks any code or MongoDB query that expects `_created_at`.
 
-**The risk:** If any service code queries users with `User.find({User.notify_sound == False})` (Beanie query syntax) or the raw MongoDB filter `{notify_sound: False}`, it will match documents where the field is explicitly `false` but *not* documents where the field is missing or `null`. For a query that means "find operators who have NOT enabled sound," this query misses every pre-existing user.
+Conversely, if `created_at` (without underscore) is used as the Python attribute, adding `Field(alias="_created_at", serialization_alias="_created_at")` correctly stores the field as `_created_at` in MongoDB. Beanie `.sort("-_created_at")` string sort uses the MongoDB field name, so this is the correct approach.
 
-**Root cause:** MongoDB distinguishes between a field being absent, `null`, and `false`. `{notify_sound: False}` matches only explicit `false`.
+**Root cause:**
+The existing alias pattern for `_operator` and `_deleted` is the established convention for internal/system fields in this codebase. Deviating from it for `_created_at` creates an inconsistency and breaks the expected field naming.
 
-**Consequences for v2.4:** Low risk. No service-layer code needs to query by `notify_sound`. The risk is in future milestones that might send a "QSO alert" to all operators with sound enabled.
+**How to avoid:**
+Follow the established pattern exactly:
 
-**Prevention:**
-- `Optional[bool] = None` in `User` — correct, matches existing optional field pattern.
-- If ever querying "sound NOT enabled," use `{notify_sound: {"$ne": True}}` — this matches `False`, `None`, and missing field.
-- No migration script needed for v2.4 since `None` correctly defaults to sound off.
-- Document the `None` vs `False` semantics as a comment next to the field in the model.
+```python
+created_at: Optional[datetime] = Field(
+    default=None,
+    alias="_created_at",
+    serialization_alias="_created_at"
+)
+```
 
-**Phase:** Profile toggle model addition. One-line addition to `User` and `ProfileUpdateRequest`.
+with `populate_by_name=True` already set in `model_config`. Access as `qso.created_at` in Python; stored as `_created_at` in MongoDB. The sort string `"-_created_at"` in `get_qso_page()` uses the MongoDB alias name, which Beanie passes directly to PyMongo.
 
----
+Add `"_created_at"` to the protected fields list in both update handlers:
+- `ui_router.py` `qso_update()` protected list
+- `router.py` `patch_qso()` protected list
 
-### Pitfall 9: AudioContext Instance Limit — Do Not Create Per-Event
+**Warning signs:**
+- `qso._created_at` attribute access raises `AttributeError` — the Python attribute name is `created_at` (no underscore), not `_created_at`.
+- MongoDB documents have `created_at` field (no underscore) instead of `_created_at`.
+- Sorting by `"-_created_at"` returns results in insertion order (because the field is actually stored as `created_at` without underscore, so the sort field `_created_at` does not exist and MongoDB uses natural order).
 
-**What goes wrong:** Browsers limit concurrent `AudioContext` instances (Chrome: ~6 per tab, lower on mobile). If the `htmx:sseMessage` handler creates a new `AudioContext` for each QSO arrival, the limit is hit after a few QSOs and subsequent `new AudioContext()` calls throw `DOMException` or silently return a broken context.
-
-**Root cause:** `AudioContext` objects are not automatically garbage-collected until `audioCtx.close()` is called. Unclosed contexts accumulate.
-
-**Consequences:** After 6 QSOs with sound enabled, sound stops working. The error in the console is obscure (`DOMException: Failed to construct 'AudioContext'`).
-
-**Prevention:**
-- One `AudioContext` per page session. Store in a module-level variable. Create only once (lazily on first user gesture). Reuse for all subsequent oscillator nodes.
-- `OscillatorNode` and `GainNode` are single-use by design (`start()` can be called only once on each). Create new nodes per tone, but always connect them to the *same* `AudioContext`.
-- Use `oscillator.stop(audioCtx.currentTime + duration)` — the browser garbage-collects stopped nodes automatically.
-
-**Phase:** Audio tone implementation phase. Design the single-context pattern from the start.
-
----
-
-### Pitfall 10: FT8 Burst Creates SSE Event Flood — Table Refresh Stampede
-
-**What goes wrong:** FT8 produces QSOs in roughly 15-second cycles. A busy station may log 5–20 QSOs per cycle. Each insert triggers a change stream event → SSE broadcast → `htmx:sseMessage` → `htmx.ajax('GET', '/log/view')`. With 5 operators connected and a burst of 10 QSOs, the server receives up to 50 concurrent `GET /log/view` requests.
-
-**Root cause:** The current `htmx:sseMessage` handler fires one `htmx.ajax()` per SSE event with no debounce.
-
-**Consequences:** At home-station scale (1–2 operators), harmless. At contest scale (6+ operators, heavy FT8), unnecessary server load and potential visual flicker from repeated DOM swaps.
-
-**Prevention:**
-- Debounce the `htmx.ajax()` call: `clearTimeout(refreshTimer); refreshTimer = setTimeout(() => htmx.ajax(...), 400);`
-- The badge counter increment should *not* be debounced — it should fire on every event. Only the full table re-fetch is debounced.
-- 400ms is sufficient to collapse an entire FT8 burst into one refresh.
-
-**Note:** This is not blocking for v2.4 at ollog's typical scale, but the debounce should be added in the same commit as the refresh fix — it is a one-liner addition.
-
-**Phase:** Live refresh fix phase.
+**Phase to address:** Model phase. Verify with a quick `mongosh` query after first insert.
 
 ---
 
-## Minor Pitfalls
+### Pitfall 8: ADIF Import Gets Import-Time Timestamp, Not QSO-Date Timestamp — Intentional But Easy to Confuse
 
-### Pitfall 11: `ProfileUpdateRequest` Schema Must Include `notify_sound`
+**What goes wrong:**
+When `import_qsos_from_bytes()` inserts QSOs via `QSO(**qso_dict)` and `_created_at` is set at construction time (whether by `default_factory` or by explicit set in `build_qso_dict()`), all imported QSOs receive the timestamp of the import operation. A logbook imported on 2026-04-20 will have `_created_at = 2026-04-20T...` for QSOs that were originally made in 2020. Sorting by `_created_at` descending then shows the most recently *imported* QSOs, not the most recently *worked* QSOs.
 
-**What goes wrong:** `ProfileUpdateRequest` in `app/profile/schemas.py` is the gatekeeper for what fields reach `update_profile()`. If `notify_sound` is not added to this schema, the router discards it before validation and it is never written to MongoDB.
+This is the correct behavior for the stated requirement ("entry timestamp — system field auto-set on QSO insert"). But it creates confusion when:
+1. Users sort by entry time and see their entire imported logbook at the top.
+2. A user re-imports a file after clearing duplicates — the re-imported QSOs all get new `_created_at` timestamps.
+3. The SSE feed's auto-refresh sentinel, which uses `_created_at` sort, triggers a full table refresh for every bulk-imported QSO (if import-time inserts fire change stream events, which they do).
 
-**Prevention:** Add `notify_sound: Optional[bool] = None` to `ProfileUpdateRequest`. Add a corresponding parameter in the `profile_update` endpoint's function signature in `app/qso/ui_router.py`. Two-line change.
+**Root cause:**
+`_created_at` is a database insertion timestamp (MongoDB `$currentDate` equivalent), not an ADIF QSO date field. The distinction must be documented and users must understand that "entry time" means "when this record entered this database," not "when the QSO was made."
 
-**Phase:** Profile toggle implementation phase.
+**How to avoid:**
+- In the log table UI, label the `_created_at` sort icon as "Entry order" or "Logged order," not "Time logged" or "QSO time" (which suggests QSO date).
+- This is a UX documentation issue, not a code issue. The implementation is correct.
+- If import-heavy usage causes SSE refresh storms during bulk import, the debounce on `htmx.ajax` (from v2.4 pitfall research) becomes critical. Ensure it is in place.
 
----
-
-### Pitfall 12: Jinja2 Checkbox `checked` Attribute for `Optional[bool]`
-
-**What goes wrong:** `{{ 'checked' if profile.notify_sound == True else '' }}` handles `True` but renders no `checked` for both `None` and `False` — correct behavior. However, using `{{ 'checked' if profile.notify_sound else '' }}` is equally correct and simpler: both `None` and `False` are falsy in Python/Jinja2.
-
-**The wrong approach:** `{{ 'checked' if profile.notify_sound is not None and profile.notify_sound else '' }}` — overly complex and still equivalent.
-
-**Prevention:** Use `{{ 'checked' if profile.notify_sound else '' }}`. Test with a fresh user (field is `None`) and a user who explicitly disabled sound (field is `False`) — both should render an unchecked checkbox.
-
-**Phase:** Profile toggle template.
+**Phase to address:** Template phase (label the icon correctly). Architecture decision phase (acknowledge the semantic in comments).
 
 ---
 
-### Pitfall 13: `htmx:sseMessage` detail.type Is the Correct Property Name
+### Pitfall 9: `_qso_to_view_dict()` Does Not Expose `_created_at` — Template Gets None
 
-**What goes wrong:** The SSE extension's `htmx:sseMessage` event detail object is the native `MessageEvent` from the browser's `EventSource`. The event type name is accessed as `e.detail.type`. Attempting `e.detail.event` (as some informal docs suggest) returns `undefined` in htmx-ext-sse 2.2.4.
+**What goes wrong:**
+`_qso_to_view_dict()` in `ui_router.py` constructs the dict that Jinja2 templates receive. It currently populates `id`, `CALL`, `BAND`, `MODE`, `qso_date_utc`, plus `model_extra` fields (`FREQ`, `RST_SENT`, `RST_RCVD`, `QSO_DATE`, `TIME_ON`). It does not include `created_at` (the Python attribute for `_created_at`).
 
-**Prevention:** The existing code correctly uses `e.detail.type !== 'new_qso'`. For the badge counter, reuse the same `htmx:sseMessage` listener — no new event type is needed.
+If the `_created_at` sort icon is added to the template and a tooltip or data attribute wants to show the entry timestamp, `qso.created_at` must be explicitly added to the view dict. Without this, the template gets `None` (key missing) or a Jinja2 `UndefinedError`.
 
-**Phase:** Awareness only. No action needed if the existing pattern is reused.
+The sort itself does not require `_created_at` in the view dict — sorting happens in `get_qso_page()` before the dicts are built. But any template that references `qso.created_at` or `qso['created_at']` will fail.
+
+**Root cause:**
+`model_extra` is the grab-bag for arbitrary ADIF fields. `created_at` is a declared field but NOT in `model_extra` — it is accessed as `qso.created_at` (the Python attribute). Extra fields must be pulled from `model_extra`; declared fields must be pulled directly from the Beanie document attributes.
+
+**How to avoid:**
+Explicitly add `created_at` to `_qso_to_view_dict()`:
+
+```python
+d["created_at"] = qso.created_at  # alias for _created_at
+```
+
+Only needed if any template renders it. For the v2.5 requirement (invisible column, sort-only), this is optional. Add it anyway for completeness and future use.
+
+**Phase to address:** Service/template integration phase.
 
 ---
 
-### Pitfall 14: `update_profile` Already Uses `$set` — `notify_sound=False` Is Stored Correctly
+### Pitfall 10: Existing QSOs Have No `_created_at` — `None` Sort Behavior in MongoDB
 
-**What goes wrong:** Concern that `model_dump(exclude_unset=True)` might drop `False` values because they look "falsy." This is not how Pydantic works: `exclude_unset=True` excludes fields that were not explicitly provided to the constructor, not fields with falsy values. If `notify_sound=False` is passed to `ProfileUpdateRequest`, it will appear in `model_dump(exclude_unset=True)`.
+**What goes wrong:**
+All existing QSO documents in MongoDB have no `_created_at` field. When sorted by `"_created_at"` ascending, MongoDB places documents with a `null` or missing field *before* documents with a value (nulls sort first in ascending order, last in descending). Sorting by `"-_created_at"` descending places the oldest (null) records at the end, which is acceptable for the default use case (users want newest entries first). But sorting ascending puts all pre-migration records at the top, which is confusing.
 
-**Prevention:** As long as the hidden-field checkbox trick (Pitfall 7) sends `"false"` to the endpoint, and the endpoint coerces it to `bool(False)` before passing to `ProfileUpdateRequest`, the `$set` will write `false` to MongoDB. No special handling in `update_profile()` is needed.
+**Root cause:**
+MongoDB sort behavior for missing fields: `null` values sort before any non-null value in ascending order. Documents missing the field entirely behave the same as `null`.
 
-**Phase:** Verify in the first integration test for the toggle.
+**How to avoid:**
+Accept this behavior as correct for the descending case (which is the primary use case). For ascending sort, consider filtering out null `_created_at` documents or document the known limitation.
+
+No migration is required for v2.5. Beanie reads the missing field as `None` (the Python default), which is correct.
+
+**Warning signs:**
+- Sort by `_created_at` ascending shows all imported/pre-v2.5 QSOs first, then QSOs inserted after the feature was deployed.
+- This is expected behavior, not a bug.
+
+**Phase to address:** No action required. Document as known behavior in comments.
 
 ---
 
-## Phase-Specific Warnings
+## Technical Debt Patterns
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Live refresh fix | `watch_qsos` task has no strong reference, silently GC'd | Store task in `app.state.watcher_task` or module-level set; add startup debug log |
-| Live refresh fix | Wrong collection object passed to watcher | Log collection name and DB name on watcher startup |
-| Live refresh fix | Change stream not firing (replica set not running) | Test with `mongosh` change stream watch before debugging Python layer |
-| Live refresh fix | Debounce missing during FT8 burst | Add 400ms debounce on `htmx.ajax` call in same commit |
-| Badge counter | Badge element inside `#log-table` (destroyed on swap) | Badge must be a sibling of `#log-table`, outside the partial template |
-| Badge counter | Counter not reset on pagination | Listen on `htmx:afterSwap` targeting `#log-table` to reset counter |
-| Badge counter | SSE connection killed by outerHTML swap | Verify SSE connection survives in DevTools after pagination |
-| Web Audio init | AudioContext created at page load, permanently suspended | Lazy-init on first user gesture; check `audioCtx.state` before playing |
-| Web Audio init | iOS Safari not unlocked by click alone | Listen on both `touchstart` and `click`; provide visible "Test sound" button |
-| Web Audio init | Multiple contexts from per-event creation | One context per page session; new OscillatorNode per tone |
-| Profile toggle form | Unchecked checkbox sends no value | Hidden input `value="false"` before checkbox (last-field-wins in form encoding) |
-| Profile toggle model | `notify_sound` missing from `ProfileUpdateRequest` | Add `Optional[bool]` to schema and handler signature |
-| Profile toggle model | Future DB query `{notify_sound: false}` misses old users | Use `{notify_sound: {$ne: True}}` if ever querying by this field |
-| Profile toggle template | `checked` attribute rendering for `None` | Use `{{ 'checked' if profile.notify_sound else '' }}` |
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| URL construction per sort header (no DRY macro) | Simple to understand, easy to debug | Every new filter param requires updating every sort URL | Acceptable for v2.5 (5 params). Refactor to Jinja2 macro if filter count exceeds 7. |
+| No index on `_created_at` | Zero index setup | Sort-by-entry-time scans all documents | Acceptable until logbook > 10,000 QSOs. Add `IndexModel([("_operator", ASC), ("_created_at", DESC)])` in same commit as field addition. |
+| Sort allowlist as a Python set (not enum) | Simple to add values | No documentation of valid values, no IDE autocomplete | Acceptable for v2.5. Add a comment listing all valid sort strings. |
+| `_created_at` labeled "entry order" in UI only | No migration, no renaming | Users may confuse with QSO date if tooltip is absent | Never omit the tooltip or label — UX debt if label is absent. |
+
+---
+
+## Integration Gotchas
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| Beanie `default_factory` | Set on field declaration — fires on every construction | Set explicitly in `build_qso_dict()` or use `@before_event(Insert)` |
+| `qso.update({"$set": ...})` | Forget to add `_created_at` to protected fields strip list | Add `"_created_at"` to the protected fields list in both update handlers |
+| `model_extra` vs declared fields | Pull `created_at` from `model_extra` (it isn't there) | Access as `qso.created_at` (declared field) |
+| Beanie `.sort("-_created_at")` | Use Python attribute name `"-created_at"` | Use MongoDB alias name `"-_created_at"` (with underscore) |
+| `_qso_to_view_dict()` | Forget to include `created_at` in the view dict | Add explicitly; it is not in `model_extra` |
+| HTMX sort URL | Omit one filter param from new sort icon URL | Copy the full URL template from an existing sort icon, change only the sort value |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+- [ ] **`_created_at` double-stamp prevention:** Verify `_created_at` is in the protected fields strip list in `qso_update()` (ui_router.py) AND `patch_qso()` (router.py). Run a test: insert QSO, edit CALL, confirm `_created_at` is unchanged in MongoDB after edit.
+- [ ] **Sort allowlist active:** Confirm `get_qso_page()` returns `sort_by="-qso_date_utc"` results when called with `sort_by="nonexistent_field"`. Confirm `sort_by="_deleted"` falls back to default.
+- [ ] **FREQ excluded from sort options:** Confirm `FREQ` and `QSO_DATE` are not in the sort allowlist and not exposed as sort icons in the template.
+- [ ] **Column count semantic validity:** Every `<tr>` in `<tbody>` has the same number of `<td>` elements as `<th>` elements in `<thead>`. Run HTML validation or count manually.
+- [ ] **Filter params preserved on sort click:** Apply a band filter + mode filter, then click each sort header. Confirm the URL retains `band=` and `mode=` params. Confirm the table shows filtered results after sort.
+- [ ] **Auto-refresh sentinel decision documented:** The template comment explicitly states which sort values enable the sentinel. The decision (default sort only, or all descending sorts) is stated in the comment.
+- [ ] **Index added for `_created_at`:** `Settings.indexes` in `QSO` model includes a compound index on `(_operator ASC, _created_at DESC)`.
+- [ ] **`_created_at` in view dict:** `_qso_to_view_dict()` returns `created_at` key (even if `None` for pre-migration documents) so templates can safely reference it without `UndefinedError`.
+- [ ] **Import path gets insert-time stamp:** After importing a test ADIF file, confirm all imported QSOs have `_created_at` close to the import time (not `None`, not the ADIF QSO_DATE value).
+- [ ] **UDP path gets insert-time stamp:** After sending a test UDP datagram, confirm the inserted QSO has `_created_at` set (not `None`).
+
+---
+
+## Recovery Strategies
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| `_created_at` stamped on update | MEDIUM | MongoDB update: `db.qsos.updateMany({_created_at: {$gt: ISODate("2026-04-21")}}, [{$set: {_created_at: "$_id.getTimestamp()"}}])` — MongoDB ObjectIds encode insert time, can recover approximate `_created_at` from `_id` |
+| Field stored as `created_at` (no underscore) | LOW | Rename field in MongoDB: `db.qsos.updateMany({created_at: {$exists: true}}, [{$rename: {created_at: "_created_at"}}])` |
+| Filter param dropped by sort icon | LOW | Purely a template fix — no data impact, user navigates back, re-applies filter |
+| Sort allowlist missing (injection) | LOW | Code-only fix, no data impact — no operator can see another operator's data regardless |
+| No index on `_created_at` (performance) | LOW | Add index online via `db.qsos.createIndex({_operator: 1, _created_at: -1})` — MongoDB builds indexes in background without downtime |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| Double-stamp on update | Model + service layer | Edit a QSO after insert; confirm `_created_at` is unchanged in DB |
+| FREQ string sort | Sort allowlist phase | Confirm `FREQ` not in `_ALLOWED_SORT_FIELDS` |
+| Sort field injection | Sort allowlist phase | Call `get_qso_page(sort_by="_deleted")`, confirm fallback to default |
+| `<th>` without `<td>` mismatch | Template phase | HTML validation; count `<th>` vs `<td>` in rendered output |
+| Auto-refresh sentinel missing new sort | Template phase | Sort by `_created_at`, trigger new QSO, confirm expected refresh/badge behavior |
+| Filter params lost on sort click | Template phase | Apply filter, click each sort icon, confirm filter preserved |
+| Alias mismatch (`created_at` vs `_created_at`) | Model phase | Inspect MongoDB doc after insert; field must be `_created_at` |
+| `_created_at` missing from view dict | Template integration | Access `{{ qso.created_at }}` in template; no `UndefinedError` |
+| Import gets insert-time stamp | Service phase | Import test file; all records have `_created_at` near import time, not `None` |
+| Missing `_created_at` index | Model phase | Check `Settings.indexes` before merging model change |
 
 ---
 
 ## Sources
 
-- [Web Audio API best practices — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices)
-- [Autoplay policy in Chrome — Chrome for Developers](https://developer.chrome.com/blog/autoplay)
-- [Web Audio, Autoplay Policy and Games — Chrome for Developers](https://developer.chrome.com/blog/web-audio-autoplay)
-- [Unlock JavaScript Web Audio in Safari for iOS — Matt Montag](https://www.mattmontag.com/web/unlock-web-audio-in-safari-for-ios-and-macos)
-- [htmx SSE Extension documentation — htmx.org](https://htmx.org/extensions/sse/)
-- [htmx SSE Extension source — GitHub bigskysoftware/htmx-extensions](https://github.com/bigskysoftware/htmx-extensions/blob/main/src/sse/sse.js)
-- [Removing DOM element using SSE does not close the SSE connection — htmx issue #2510](https://github.com/bigskysoftware/htmx/issues/2510)
-- [Swapping via SSE not working when content has same id — htmx issue #295](https://github.com/bigskysoftware/htmx/issues/295)
-- [PyMongo async change stream documentation](https://pymongo.readthedocs.io/en/stable/api/pymongo/asynchronous/change_stream.html)
-- [MongoDB Change Streams — official documentation](https://www.mongodb.com/docs/manual/changestreams/)
-- [Change stream fullDocument on delete — MongoDB community forum](https://www.mongodb.com/community/forums/t/change-stream-fulldocument-on-delete/15963)
-- [Query for Null or Missing Fields — MongoDB documentation](https://www.mongodb.com/docs/manual/tutorial/query-for-null-fields/)
-- [Beanie Migrations documentation](https://beanie-odm.dev/tutorial/migrations/)
+- Beanie `@before_event(Insert)` pattern — verified against Beanie docs via Context7 (/beanieodm/beanie)
+- Beanie `.sort()` string syntax — verified: string sort uses MongoDB field name (alias), not Python attribute name
+- MongoDB sort behavior for null/missing fields — MongoDB documentation, behavior confirmed in current docs
+- Existing codebase alias pattern: `operator_callsign = Field(alias="_operator", serialization_alias="_operator")` — `app/qso/models.py`
+- `model_extra` access pattern for ADIF fields — `_qso_to_view_dict()` in `app/qso/ui_router.py`
+- Protected fields strip list — `qso_update()` in `app/qso/ui_router.py` and `patch_qso()` in `app/qso/router.py`
+- Auto-refresh sentinel condition — `templates/log/log_table.html` line 1
+- HTMX sort URL construction pattern — `templates/log/log_table.html` existing sort headers
+
+---
+*Pitfalls research for: v2.5 QSO Sorting & Entry Timestamp*
+*Researched: 2026-04-20*

@@ -1,335 +1,171 @@
-# Feature Landscape
+# Feature Research
 
-**Domain:** Real-time web logging (ham radio QSO log, v2.4 Live Log & Sound Alerts)
-**Milestone:** v2.4
-**Researched:** 2026-04-16
-**Confidence:** HIGH — all findings grounded in direct code inspection of the existing codebase
-
----
-
-## Feature 1: UDP QSOs Triggering SSE Refresh (Bug Fix)
-
-### What "Done" Looks Like
-
-A QSO inserted via UDP datagram causes the same SSE `new_qso` event as a QSO inserted via REST API or web form. No special handling needed in the UDP path — the fix lives in the SSE/change-stream layer.
-
-### Current Behavior (Diagnosis from Code)
-
-The change-stream watcher (`app/feed/manager.py: watch_qsos`) uses this call pattern:
-
-```python
-async with await collection.watch(pipeline, full_document="updateLookup") as stream:
-```
-
-The `await collection.watch(...)` double-await mirrors the `(await collection.aggregate(pipeline)).to_list()` pattern discovered in v2.3 (see Key Decisions). Whether this is correct for `pymongo 4.16+` AsyncCollection's `.watch()` method is the primary investigation target. If `.watch()` is a coroutine, this is correct; if it returns a cursor directly, the extra `await` creates a coroutine object that the `async with` never actually opens as a real stream — silently producing an empty iterator.
-
-Additionally: `watch_qsos` is started in lifespan using `get_client()`, which returns the shared `AsyncMongoClient`. Beanie also uses this same client for all QSO inserts. There is no connection isolation — UDP-inserted QSOs go through the same `_client` instance and thus the same MongoDB session, so the change stream should see them. If the stream is working for REST inserts but not UDP inserts, the bug is in the `watch_qsos` loop or a timing/reconnect issue, not in the UDP path itself.
-
-The watcher pipeline is:
-```python
-[{"$match": {"operationType": "insert"}}]
-```
-This is correct — inserts from all paths (REST, UI form, UDP) trigger `operationType: "insert"` on the change stream.
-
-### Table Stakes
-
-- Every insert path (REST, UI form, UDP) must trigger the SSE event. This is the core contract.
-- The fix must not break the existing REST/UI form path.
-- No new environment variable or configuration.
-
-### Complexity
-
-**Low** — isolated to `watch_qsos` call pattern. The fix is verifying the correct pymongo async API for `.watch()` and correcting if needed. One-line change or two at most.
-
-### Dependencies on Existing Architecture
-
-- `app/feed/manager.py` — `watch_qsos()` is the only change
-- `app/database.py` — no change; `get_client()` already returns the correct client
-- `app/udp/server.py` — no change; `await qso.insert()` is already correct
-- Must verify: does `AsyncCollection.watch()` in pymongo 4.16+ return a coroutine (requiring `await`) or an async context manager directly?
+**Domain:** Sortable log table columns + entry timestamp for a server-rendered HTMX ham radio logbook
+**Milestone:** v2.5 QSO Sorting & Entry Timestamp
+**Researched:** 2026-04-20
+**Confidence:** HIGH — grounded in direct codebase inspection plus verified UX research
 
 ---
 
-## Feature 2: "N New QSOs" Dismissable Badge on Page 2+
+## Current State Snapshot
 
-### What "Done" Looks Like
+The existing `log_table.html` already implements sortable column headers for three columns:
 
-When the operator is on page 2 or higher (or has active filters), and a new QSO arrives via SSE:
+| Column | Sort key | Status |
+|--------|----------|--------|
+| Date / Time UTC | `qso_date_utc` | Already sortable (asc/desc toggle) |
+| Callsign | `CALL` | Already sortable |
+| Band | `BAND` | Already sortable |
+| Mode | `MODE` | Header exists but not sortable |
+| Freq (MHz) | `FREQ` | Header exists but not sortable |
+| RST S/R | (composite) | Header exists, not applicable |
+| Actions | (buttons) | Not applicable |
 
-1. A badge appears in or near the log table header: "3 new QSOs" (incrementing counter)
-2. The badge is visually distinct but non-intrusive — it does not interrupt the current view, does not scroll, does not auto-jump to page 1
-3. Clicking the badge dismisses it (counter resets to zero, badge hides)
-4. No click action required beyond dismissal — it is informational only (no auto-navigation)
-5. Badge resets to zero if the operator manually navigates to page 1 (because the table will auto-refresh)
+Default sort: `-qso_date_utc` (most recent first).
 
-### Table Stakes
-
-- Counter must only appear when `#auto-refresh-ok` is absent (i.e., page 2+, active filters, or non-default sort) — because on page 1 with defaults, the table auto-refreshes and the badge is redundant
-- Counter must increment for each SSE `new_qso` event received while the badge is visible
-- Single click dismisses the badge
-- Must survive HTMX partial swaps (because `#log-table` innerHTML is replaced by pagination navigation) — the badge must be outside the HTMX swap target or re-registered after swap
-- Must not appear simultaneously with the auto-refresh (mutually exclusive with `#auto-refresh-ok`)
-
-### Differentiators (Nice-to-Have, Not Required)
-
-- Badge color change at thresholds (e.g., turns amber at 10+ new QSOs) — skip
-- Click-to-navigate to page 1 — not required, adds complexity and can interrupt browsing
-
-### Anti-Features
-
-- Auto-jump to page 1 on new QSO — explicitly out of scope per milestone spec, would interrupt browsing
-- Toast/popup notification — too intrusive for a logging environment where QSOs arrive continuously during FT8 sessions; badge is the correct pattern
-
-### UX Behavior
-
-The badge lives in the log table card header area, rendered in a fixed position relative to the table (not absolutely positioned on the viewport). This keeps it contextually anchored without interfering with scroll position.
-
-```
-[ 3 new QSOs  x ]   <- appears in table header row, right-aligned; x = dismiss
-```
-
-State is entirely client-side: a JS counter variable incremented in the `htmx:sseMessage` handler when `#auto-refresh-ok` is absent.
-
-### Complexity
-
-**Low-Medium** — pure JavaScript + Jinja2/HTML changes.
-
-Key implementation decisions:
-- Badge element must live in `log.html` (outside `#log-table`), not in `log_table.html` (inside the swap target)
-- The `htmx:sseMessage` handler in `log.html` already distinguishes page-1/auto-refresh vs page-2+ via `#auto-refresh-ok`; the badge logic hangs off the `else` branch of that same check
-- Badge must be hidden by default (`hidden` class), shown when counter > 0
-- On dismiss: counter = 0, badge hidden
-- On HTMX swap of `#log-table` (pagination, filter, sort): if page 1 is now active, `#auto-refresh-ok` will appear in the new content; the badge should be dismissed in the `htmx:afterSettle` handler if `#auto-refresh-ok` is now present
-
-### Dependencies on Existing Architecture
-
-- `templates/log/log.html` — badge HTML and JS changes (same file as SSE handler)
-- `templates/log/log_table.html` — no change
-- `app/feed/router.py` — no change; `new_qso` event already fired
-- No backend changes required
+The `auto-refresh-ok` sentinel in `log_table.html` already gates SSE auto-refresh on `sort == '-qso_date_utc'`, so any new sort value (including `_created_at`) automatically suppresses SSE auto-refresh with no additional logic.
 
 ---
 
-## Feature 3: Web Audio API Tone on New QSO Arrival
+## Feature Landscape
 
-### What "Done" Looks Like
+### Table Stakes (Users Expect These)
 
-When a new QSO SSE event arrives in the browser:
+Features users assume exist. Missing these = product feels incomplete.
 
-1. A brief, clean audio tone plays (duration: ~200ms; frequency: ~880 Hz; envelope: short attack, short decay — sounds like a soft "beep")
-2. Sound only plays if the operator has opted in (per-operator preference)
-3. Sound respects browser autoplay policy: audio context is created/resumed on the first user gesture, not on page load
-4. Sound works without any external files — synthesized via Web Audio API oscillator
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Visual sort indicator on active column | Every sortable table shows which column is sorted and in which direction | LOW | Already done for date/call/band using filled chevron SVGs. Must be extended to MODE. |
+| Clickable header triggers sort | Standard interaction — clicking a column header sorts by that column | LOW | Already implemented via `hx-get` on `<a>` wrappers in `<th>`. Pattern is established. |
+| Sort state preserved through pagination | Page 2 must remain sorted the same way | LOW | Already works: `sort` param threaded through all pagination `hx-get` URLs in `log_table.html`. |
+| Sort state preserved through filter changes | Applying a band filter must not reset the sort | LOW | Already works: filter form has `<input type="hidden" name="sort" value="{{ sort }}">` in `log.html`. |
+| Default sort is most recent QSO first | Ham operators always want chronological reverse order by default | NONE | Already `-qso_date_utc`. No change needed. |
+| `_created_at` field auto-set on all insert paths | System timestamp recording when the record entered the database; user must never set it | LOW | New `Optional[datetime]` field on `QSO` Beanie document with `default_factory=lambda: datetime.now(timezone.utc)`. Beanie sets it on `.insert()` — no change to `build_qso_dict()` required. |
+| `_created_at` invisible in table display | It is system metadata, not an ADIF field that belongs in the log view | LOW | Do not add it as a `<td>` in `qso_row.html`. |
+| Dedicated sort icon for `_created_at` in header | Users need a way to sort by insertion order without an explicit table column | MEDIUM | A small clock or stack icon in the `<thead>` row. Not a `<th>` with a data column below it — instead placed at the end of the existing header row as a standalone sortable icon. Cycles `-_created_at` (newest insert first) ↔ `_created_at` (oldest insert first). |
+| `asc → desc` cycle on clicking the same column | Users expect a second click on the active column to reverse direction | LOW | Already implemented for date/call/band. Pattern: `if sort == '-FIELD'` then go to `FIELD`; else go to `-FIELD`. Extend to MODE. |
+| Sort state visible in URL | Deep-linkable; browser back button returns to previous sort | LOW | Already works via `hx-push-url="true"` on all sort-triggering links. |
 
-### Table Stakes
+### Differentiators (Competitive Advantage)
 
-- Zero external audio file dependencies — must use `AudioContext` + `OscillatorNode`
-- Must not play on page load (browser autoplay policy will block it and log a console error)
-- Must not play on every SSE message from `new_qso` if sound is disabled
-- Must play once per `new_qso` event (not once per table row, not batched)
-- Must degrade gracefully if `AudioContext` is not supported (unlikely in 2026, but: `if (window.AudioContext)` guard)
+Features that set the product apart. Not required, but valuable.
 
-### Web Audio API Behavior (How It Works)
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Hollow/outline double-chevron on sortable-but-unsorted columns | Makes it immediately obvious which columns can be sorted, reducing discovery friction. W3C ARIA Authoring Practices recommend a visually distinct unsorted icon (e.g. outline double-chevron) vs the active sort icon. | LOW | Apply to all sortable columns (date, call, band, mode, `_created_at` icon) when they are not the active sort. Currently the template shows nothing on unsorted columns — adding the hollow icon is a small, impactful improvement. Requires adding one SVG variant to existing `{% if sort == ... %}` blocks. |
+| `aria-sort` attribute on active `<th>` | WCAG 2.2 AA accessibility compliance; European Accessibility Act 2025 mandates this for EU-served digital products. Screen readers announce sort state. | LOW | `aria-sort="ascending"` or `aria-sort="descending"` on the active `<th>`. Omit attribute entirely on unsorted columns (W3C recommendation: do not use `aria-sort="none"` as it generates verbose screen reader output). |
+| MODE column sortable | Third most-useful sort for ham operators (after date and callsign). Lets operators review all FT8, all CW, all SSB QSOs grouped together. | LOW | Identical pattern to CALL/BAND. One additional `<a hx-get="...">` wrapper in the MODE `<th>`. MongoDB string sort on `MODE` is semantically correct (FT8, CW, SSB, etc. are comparable strings). |
 
-```javascript
-// Pattern for zero-file audio notification:
-let audioCtx = null;
+### Anti-Features (Commonly Requested, Often Problematic)
 
-function ensureAudioContext() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    // Resume if suspended (browser may suspend on page load)
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-}
-
-function playTone(freq, duration) {
-    ensureAudioContext();
-    var osc = audioCtx.createOscillator();
-    var gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.type = 'sine';
-    osc.frequency.value = freq || 880;
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (duration || 0.18));
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + (duration || 0.18));
-}
-```
-
-The `AudioContext` must be created (or resumed) inside a user gesture handler. The approach: initialize `audioCtx` on the first `click` or `keydown` event on `document.body`, then it is available for programmatic calls from SSE events thereafter.
-
-### Autoplay Policy Details
-
-Modern browsers (Chrome, Firefox, Safari) block `AudioContext` creation before user interaction. The fix is straightforward:
-
-```javascript
-// Initialize audio context on first user gesture
-document.body.addEventListener('click', function initAudio() {
-    ensureAudioContext();
-}, { once: true });
-```
-
-This fires once, primes the context, and `{ once: true }` self-removes. Subsequent programmatic calls to `playTone()` work because the context is now in `running` state.
-
-Safari requires `webkitAudioContext` fallback (already in the pattern above).
-
-### Differentiators (Nice-to-Have, Not Required)
-
-- Volume control slider in profile — skip for v2.4
-- Different tones for different modes (FT8 vs SSB) — skip
-- Tone customization (frequency picker) — skip
-
-### Anti-Features
-
-- External audio file (`.wav`, `.mp3`) — adds file to serve, MIME type handling, caching; no benefit over synthesized tone
-- `<audio>` element — worse fit for programmatic triggering; Web Audio API is the correct approach
-
-### Complexity
-
-**Low** — pure browser JavaScript, no backend changes. Approximately 30 lines of JavaScript added to `log.html`.
-
-### Dependencies on Existing Architecture
-
-- `templates/log/log.html` — JS added to existing `htmx:sseMessage` handler
-- No Tailwind changes (no new UI elements beyond the profile toggle)
-- No backend changes, no new routes
-- Feature 4 (profile toggle) controls whether `playTone()` is called
-
----
-
-## Feature 4: Profile Toggle — Sound On/Off Persisted Per Operator
-
-### What "Done" Looks Like
-
-1. Profile Settings page (`/log/profile`) has a new "Sound Notifications" toggle switch (checkbox)
-2. Saving profile with the toggle on/off persists `sound_enabled: bool` to the operator's `User` document in MongoDB
-3. When the log view page loads, the server renders the page with the operator's sound preference included as a JS variable in the template
-4. The `playTone()` call in `htmx:sseMessage` checks this preference before playing
-
-### Table Stakes
-
-- Default: sound off (`sound_enabled = False`) — opt-in, not opt-out
-- Toggle must be saved with the existing Profile form submit (not a separate endpoint)
-- Server must pass the preference to `log.html` so the JS can read it on page load without a separate API call
-- The preference is per-operator (stored in `User` document), not per-browser (not `localStorage`) — correct scope for a shared station deployment where operators rotate
-
-### How Preference Reaches the Browser
-
-The log view GET route in `app/qso/ui_router.py` already has the `User` object (via `get_current_user_cookie`). Pass `sound_enabled` to the template context as a boolean. Render it into an inline JS variable:
-
-```html
-<!-- In log.html, inside the <script> block that already handles SSE -->
-var SOUND_ENABLED = {{ 'true' if sound_enabled else 'false' }};
-```
-
-The `htmx:sseMessage` handler then adds: `if (SOUND_ENABLED) { playTone(); }`
-
-### Model Changes Required
-
-`app/auth/models.py: User` — add one field:
-```python
-sound_enabled: bool = False  # sound notifications on new QSO arrival
-```
-Default `False` means existing operators are unaffected on upgrade.
-
-`app/profile/schemas.py: ProfileUpdateRequest` — add:
-```python
-sound_enabled: Optional[bool] = None
-```
-
-`app/profile/service.py: update_profile` — no code change needed; `"sound_enabled"` will be in `updates` dict and passed to `$set`.
-
-### UI Changes Required
-
-`templates/log/profile.html` — add a "Notifications" section (new card or appended to existing Operator Details card) with a toggle checkbox.
-
-### Checkbox Submission Behavior (Critical Detail)
-
-HTML checkbox submission: unchecked boxes are not submitted in the form POST body. The profile POST handler in `app/qso/ui_router.py` must handle this:
-
-- If `sound_enabled` key is absent from the POST body, treat as `False` (sound disabled)
-- This is different from other optional profile fields (`my_rig`, `name`, etc.) that use `None` to mean "field not changed"
-- The UI router POST for `/log/profile` must explicitly set `sound_enabled = "sound_enabled" in form_data`
-
-This is the one non-obvious implementation detail for this feature.
-
-### Complexity
-
-**Low-Medium** — primarily backend model and form changes. The checkbox normalization logic is the only subtle point.
-
-### Dependencies on Existing Architecture
-
-- `app/auth/models.py` — add `sound_enabled: bool = False` to `User`
-- `app/profile/schemas.py` — add `sound_enabled: Optional[bool] = None` to `ProfileUpdateRequest`
-- `app/qso/ui_router.py` — profile POST handler: normalize checkbox absence to `False`; log view GET handler: add `sound_enabled` to template context
-- `templates/log/profile.html` — add toggle UI
-- `templates/log/log.html` — read `sound_enabled` from template context; pass to `playTone()` guard
-
----
-
-## Feature Summary Table
-
-| Feature | Category | Backend | Frontend | Complexity | Risk |
-|---------|----------|---------|----------|------------|------|
-| UDP -> SSE fix | Bug fix | `manager.py` 1-2 lines | None | Low | Low |
-| "N new QSOs" badge | New feature | None | `log.html` JS + HTML | Low-Med | Low |
-| Web Audio tone | New feature | None | `log.html` JS | Low | Low |
-| Sound profile toggle | New feature | `User`, schemas, UI router | `profile.html`, `log.html` | Low-Med | Low |
-
----
-
-## Table Stakes vs Differentiators
-
-### Table Stakes (must ship in v2.4)
-
-- UDP-sourced QSOs trigger the live refresh — multi-op UDP (v2.2) is effectively broken without this
-- Badge on page 2+ — operators actively browsing history must know new QSOs arrived without a forced page jump
-- Sound toggle persisted to operator profile — per-operator, per-server, survives browser restarts
-- Default: sound off — shared station deployments must not start beeping unexpectedly on first deploy
-
-### Differentiators
-
-- Synthesized tone (no file) — cleaner than serving an audio file; immediate, no HTTP round-trip before first QSO
-- Badge auto-clears on navigate-to-page-1 — prevents stale counter confusing operators after manual navigation
-- User-gesture audio init pattern — correct browser API usage, no console errors, follows browser autoplay spec
-
-### Anti-Features (Explicitly Out of Scope for v2.4)
-
-| Anti-Feature | Why | What Instead |
-|--------------|-----|-------------|
-| Auto-jump to page 1 on new QSO | Interrupts browsing, especially during FT8 QSO review | Dismissable badge only |
-| Toast/popup overlay | Intrusive during continuous FT8 sessions | Badge in table header |
-| Volume slider | Adds form complexity; binary toggle is sufficient | `sound_enabled` bool |
-| Per-browser sound preference (localStorage) | Wrong scope for shared station | MongoDB User field |
-| Audio file (.wav/.mp3) | Dependency, MIME type config, serving complexity | Web Audio API oscillator |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Three-state sort cycle (asc → desc → reset-to-default) | Some table libraries (TanStack, Tabulator) support this tristate toggle | For a personal logbook, "reset to default" is already handled by the existing Clear button in the filter bar. Third state adds URL parameter ambiguity (must distinguish "no sort specified" vs "sort=-qso_date_utc") and triple-click muscle memory is unusual. | Keep two-state toggle (asc ↔ desc). Clear button already resets everything to default. |
+| Multi-column sort (shift+click secondary sort) | Power users in spreadsheet tools expect secondary sort keys | Significant URL parameter complexity, server-side sort complexity in `get_qso_page()`, and confusing UX without persistent sort-key indicators. Single-column sort covers all practical ham log review needs. | Single-column sort only. |
+| Client-side sort (JavaScript, no server round-trip) | Feels faster for small datasets | Breaks for large logs (500+ QSOs), breaks pagination, breaks filter interaction, creates a second source of truth separate from MongoDB's sort. This app is server-rendered HTMX — client-side sort fights the architecture fundamentally. | Server sort via `get_qso_page(sort_by=...)` using Beanie's `.sort()`. Already works. |
+| Freq (MHz) sortable | FREQ is a visible column; users might expect it | `FREQ` is stored in `model_extra` as a string (ADIF verbatim: "14.074", "144.200"). MongoDB string sort is lexicographic, not numeric: "9.0" sorts after "144.200". Correct sort requires either a `FREQ_numeric: float` derived field stored on insert, or an aggregation pipeline — significant complexity for low operational value. Band filter already groups by frequency range. | Not sortable. Users who want frequency-oriented views use the Band filter. |
+| RST S/R sortable | RST is a visible column | RST values are signal reports (e.g. "599", "59"). No ham operator has ever needed to review their log sorted by signal quality. Zero practical value. | Not sortable. RST column keeps its current plain `<th>RST S / R</th>`. |
+| Actions column sortable | N/A | Actions column contains edit/delete buttons, not data. Conceptually nonsensical. | Remains a plain non-interactive header. |
+| Sticky column header (frozen `<thead>` on scroll) | Long log tables require scrolling; sticky header makes column context visible | Log table has no horizontal scroll. Vertical scroll is handled by page-level browser scroll. Adding `position: sticky` to `<thead>` adds CSS complexity with minimal benefit at personal-log scale (50 rows per page). | Pagination at 50 rows per page keeps tables short. Not needed. |
+| Sort preference persisted in localStorage | Sort choice survives a hard page reload | Adds JS complexity and creates confusion when URLs (bookmarks, shared links) override localStorage. URL-based sort state is already persistent via `hx-push-url="true"` and survives hard reloads. | URL state is sufficient and shareable. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Feature 1 (UDP fix) -> independent; badge and audio work regardless of source
-Feature 4 (profile toggle) -> independent; stores bool in User document
-Feature 3 (audio tone) -> reads sound_enabled from Feature 4's model + template context
-Feature 2 (badge) -> relies on SSE events firing; Feature 1 fix ensures UDP triggers them
+_created_at field on QSO Beanie Document
+    └──required by──> _created_at sort icon in log_table.html <thead>
+                          └──requires──> sort_by='_created_at' handled in get_qso_page()
+                                             └──requires──> MongoDB index on (_operator, _created_at)
+
+Existing sort pattern (CALL, BAND, qso_date_utc in log_table.html)
+    └──extended by──> MODE column sort (identical pattern, zero new dependencies)
+                      └──requires nothing new beyond the template change
+
+auto-refresh-ok sentinel in log_table.html (existing v1.6 feature)
+    └──automatically gates──> any non-default sort including _created_at
+       (sentinel renders only when sort == '-qso_date_utc'; all other sort values
+        already suppress SSE auto-refresh with zero new logic)
 ```
 
-Suggested build order within milestone:
-1. Feature 1 (UDP fix) — unblocks Feature 2 for UDP QSOs; confirms SSE chain is intact
-2. Feature 4 (profile toggle, model + form) — add field, update form, pass to template context
-3. Feature 3 (Web Audio tone) — reads preference from template context
-4. Feature 2 (badge) — purely additive JS/HTML change, no backend
+### Dependency Notes
+
+- **`_created_at` Beanie field must be declared before anything else:** The `QSO` document needs `_created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))`. Beanie respects `default_factory` on `.insert()`. No migration needed for existing documents — `Optional` with `None` default means old documents remain valid; sorting by `_created_at` on old documents puts `None`-valued QSOs at the low end (MongoDB treats `null` as less than all values), which is acceptable legacy-QSOs-first behavior.
+- **ADIF import path behavior:** `import_qsos_from_bytes()` calls `build_qso_dict()` then `QSO(**qso_dict).insert()`. The `_created_at` field is NOT set in `build_qso_dict()` — it is set by the Beanie model's `default_factory` at document construction time. This is correct: imported historical QSOs get a `_created_at` reflecting when they were imported into this system, not the original QSO date. Do not set `_created_at` inside `build_qso_dict()`.
+- **MongoDB index:** Add `(_operator, _created_at)` compound index to `QSO.Settings.indexes`. Without it, sorting by `_created_at` on large logs requires a collection scan. Low risk for personal-scale deployments, but adding the index is the correct approach.
+- **MODE sort has zero backend dependencies:** `MODE` is a declared field on `QSO` (not in `model_extra`), so Beanie's `.sort('MODE')` works without any model or service changes. The only change is in `log_table.html`.
+- **`_created_at` must be excluded from ADIF export:** It is an internal system field, not an ADIF field. The existing `_qso_to_adif_dict()` in `app/adif/router.py` explicitly maps known fields — `_created_at` will not be in the output unless explicitly added. Verify this to avoid ADIF spec violations.
+
+---
+
+## MVP Definition (for this milestone, v2.5)
+
+### Launch With (required to ship v2.5)
+
+- [ ] `_created_at: Optional[datetime]` field on `QSO` Beanie document with `default_factory`
+- [ ] MongoDB compound index on `(_operator, _created_at)` in `QSO.Settings.indexes`
+- [ ] `get_qso_page()` handles `sort_by='_created_at'` and `sort_by='-_created_at'` (currently only validates that the value passes through to `.sort()`; verify Beanie handles underscore-prefixed fields — the stored MongoDB field name is `_created_at`, need to confirm Beanie translates this correctly)
+- [ ] MODE column header in `log_table.html` becomes sortable (same pattern as CALL/BAND)
+- [ ] `_created_at` sort icon in `log_table.html` `<thead>` row — dedicated icon (clock or timestamp glyph), positioned as a non-data header element, cycles `-_created_at` ↔ `_created_at`
+
+### Add After Core Is Working (v2.5 stretch goals)
+
+- [ ] Hollow/outline double-chevron on all sortable-but-unsorted columns — improves discoverability; low effort once core sort is working
+- [ ] `aria-sort` attributes on active `<th>` elements
+
+### Future Consideration (v2.6+)
+
+- [ ] Sort by FREQ with numeric coercion — requires `FREQ_numeric` derived field stored on insert, migration of existing records, potential breaking changes to `build_qso_dict()`; deferred until there is clear user demand
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| `_created_at` system field | HIGH — unambiguous insert order, no QSO_DATE backdating ambiguity | LOW | P1 |
+| `_created_at` sort icon | HIGH — the reason `_created_at` exists | MEDIUM | P1 |
+| MODE column sortable | MEDIUM — FT8/CW/SSB review use case | LOW | P1 |
+| MongoDB index on `_created_at` | HIGH (correctness for large logs) | LOW | P1 |
+| Hollow icon on unsorted sortable columns | LOW-MEDIUM — discoverability | LOW | P2 |
+| `aria-sort` on active `<th>` | LOW (personal tool) | LOW | P2 |
+| FREQ sortable with numeric coercion | LOW | HIGH | P3 (defer) |
+| Multi-column sort | LOW | HIGH | skip |
+| Three-state sort cycle | LOW | MEDIUM | skip |
+| RST sortable | NONE | LOW | skip |
+
+---
+
+## Ham Radio Domain Notes on Sort Usefulness
+
+Based on domain research into how ham operators actually use logbooks (Ham Radio Deluxe, Log4OM, Xlog, QRZ Logbook) and the QSO confirmation matching criteria used by LoTW/eQSL:
+
+**Most useful sorts (in priority order):**
+1. **Date/Time descending** (default) — "what did I just work?" — most recent first
+2. **Callsign ascending** — "have I worked this station before?" — alphabetical lookup
+3. **Band ascending** — "what did I work on 20M?" — band review (or use Band filter)
+4. **Mode ascending** — "show all FT8 QSOs together" — mode review
+5. **Entry timestamp (`_created_at`) descending** — "which QSOs were most recently entered into this system?" — useful to verify UDP auto-logging worked, or to find QSOs inserted by import vs manual entry when `QSO_DATE` was backdated
+
+**Confirms anti-feature decisions:**
+- Frequency sorting: the Band filter is a more precise tool for frequency-range review; FREQ string sort is semantically incorrect
+- RST sorting: no ham operator reviews logs sorted by signal report; zero practical use
+- Secondary/multi-column sort: ham log review is always single-dimension (find contacts on a band, find contacts by callsign, etc.)
 
 ---
 
 ## Sources
 
-- Direct inspection: `app/feed/manager.py`, `app/feed/router.py`, `app/udp/server.py`, `app/main.py`, `app/database.py`, `app/auth/models.py`, `app/profile/schemas.py`, `app/profile/service.py`
-- Direct inspection: `templates/log/log.html`, `templates/log/log_table.html`, `templates/log/profile.html`, `templates/log/form.html`, `templates/log/feed_row.html`
-- Key Decisions table in `.planning/PROJECT.md` — v1.6 SSE design decisions, v2.2 UDP routing decisions, v2.3 double-await pattern discovery
-- Web Audio API: HIGH confidence from knowledge base (AudioContext, OscillatorNode, GainNode, autoplay policy behavior in Chrome/Firefox/Safari 2026)
-- HTML checkbox submission behavior: HIGH confidence (well-established browser standard)
+- Direct codebase inspection: `templates/log/log_table.html`, `templates/log/log.html`, `app/qso/ui_router.py`, `app/qso/service.py`, `app/qso/models.py` — HIGH confidence
+- HTMX table sorting pattern: https://dev.to/vladkens/table-sorting-and-pagination-with-htmx-3dh8 — MEDIUM confidence (community article, verified against existing implementation)
+- W3C WAI-ARIA sortable table example: https://www.w3.org/WAI/ARIA/apg/patterns/table/examples/sortable-table/ — HIGH confidence (official spec)
+- Adrian Roselli sortable table columns UX: https://adrianroselli.com/2021/04/sortable-table-columns.html — HIGH confidence (authoritative accessibility source)
+- MDN aria-sort reference: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-sort — HIGH confidence (official spec)
+- TanStack Table sort cycle documentation: https://tanstack.com/table/latest/docs/guide/sorting — MEDIUM confidence (confirms three-state cycle is a known anti-feature for simple use cases)
+- Ham Radio Deluxe QSO fields: https://support.hamradiodeluxe.com/support/solutions/articles/51000052691-creating-and-managing-qsos — MEDIUM confidence
+- Ham radio logging common sort fields: https://hamradioplayground.com/digital-modes-tech/logging-software/log-organize-qso-contacts — MEDIUM confidence (community article)
+
+---
+*Feature research for: v2.5 QSO Sorting & Entry Timestamp (ollog)*
+*Researched: 2026-04-20*
