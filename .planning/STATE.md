@@ -4,14 +4,14 @@ milestone: v1.7
 milestone_name: API Token Auth
 status: executing
 stopped_at: Phase 47 UI-SPEC approved
-last_updated: "2026-04-18T19:54:23.582Z"
-last_activity: 2026-04-18
+last_updated: "2026-04-20T10:49:52.699Z"
+last_activity: 2026-04-20
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-15)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 47 — new-qso-badge
+**Current focus:** Phase 44 — sse-watcher-hardening
 
 ## Current Position
 
-Phase: 47
+Phase: 45
 Plan: Not started
 Next: Phase 45 (notify-sound-model)
 Milestone: v2.4 Live Log & Sound Alerts
-Status: Executing Phase 47
-Last activity: 2026-04-18
+Status: Executing Phase 44
+Last activity: 2026-04-20
 
 ```
 v2.4 Progress: [█████░░░░░░░░░░░░░░░] 25% (1/4 phases)
@@ -40,7 +40,7 @@ v2.4 Progress: [█████░░░░░░░░░░░░░░░] 25
 
 **Velocity (historical):**
 
-- Total plans completed: 59 plans across v1.0–v2.3
+- Total plans completed: 61 plans across v1.0–v2.3
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**

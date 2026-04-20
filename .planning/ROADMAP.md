@@ -181,7 +181,7 @@ Full archive: `.planning/milestones/v2.3-ROADMAP.md`
 
 **Milestone Goal:** The SSE live feed is reliable across UDP inserts and page navigation, operators on page 2+ see a badge when new QSOs arrive, and operators can opt into a synthesized audio tone on each new QSO — with the preference stored in MongoDB.
 
-- [ ] **Phase 44: SSE Watcher Hardening** — strong reference in `app.state`, exception recovery loop, LIVE indicator accuracy
+- [x] **Phase 44: SSE Watcher Hardening** — strong reference in `app.state`, exception recovery loop, LIVE indicator accuracy (completed 2026-04-20)
 - [x] **Phase 45: Sound Preference Model** — `notify_sound` field on User, ProfileUpdateRequest, ProfileResponse; profile settings toggle UI (completed 2026-04-17)
 - [x] **Phase 46: Sound Playback Wiring** — `NOTIFY_SOUND` constant in log view, Web Audio API tone on `new_qso` SSE event, autoplay-policy-compliant lazy init (completed 2026-04-17)
 - [x] **Phase 47: New QSO Badge** — badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss (completed 2026-04-18)
@@ -592,11 +592,11 @@ Plans:
   2. The watcher task is stored as `app.state.watcher_task` (strong reference) at startup — inspecting `app.state` after startup confirms the attribute is set and not None
   3. The LIVE indicator turns green only after at least one SSE event has been received in the current browser session — it does not display green immediately on SSE connection open before any events have flowed
   4. The LIVE indicator returns to grey/offline if the SSE connection drops or the event stream goes silent — it does not remain green after a disconnect
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
-- [ ] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
+- [x] 44-01-PLAN.md — Backend watcher hardening: test stubs, exception isolation in manager.py, strong reference in main.py
+- [x] 44-02-PLAN.md — LIVE indicator fix: message-first state machine in log.html
 **UI hint**: yes
 
 ---
@@ -703,7 +703,7 @@ Plans:
 | 41. Multi-Operator UDP Routing | v2.2 | 2/2 | ✓ Complete | 2026-04-15 |
 | 42. Stats Aggregation Backend | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
 | 43. Stats UI | v2.3 | 1/1 | ✓ Complete | 2026-04-16 |
-| 44. SSE Watcher Hardening | v2.4 | 0/2 | Not started | - |
+| 44. SSE Watcher Hardening | v2.4 | 2/2 | Complete    | 2026-04-20 |
 | 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
