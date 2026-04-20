@@ -1,5 +1,22 @@
 # Milestones
 
+## v2.4 Live Log & Sound Alerts (Shipped: 2026-04-20)
+
+**Phases:** 44–47 (4 phases) | **Plans:** 5 | **Timeline:** 2026-04-16 → 2026-04-20 (4 days)
+**Files changed:** ~32 files | **Commits:** 75
+
+**Key accomplishments:**
+
+- SSE watcher hardened — exception isolation (`try/except Exception`) in inner loop + `app.state.watcher_task` strong reference prevents Python 3.12+ GC from silently killing the live feed
+- LIVE indicator message-first state machine — `eventsFlowing` sentinel turns green only on first `new_qso` SSE event, OFFLINE on error/close (not on bare connection open)
+- `notify_sound: bool = False` on User model — per-operator sound preference persisted in MongoDB via profile form; hidden-input + checkbox pattern; no migration needed
+- Web Audio API 440 Hz synthesized tone wired to SSE `new_qso` events with lazy `AudioContext` init on first user gesture — autoplay-policy compliant, zero external audio files
+- Indigo pill badge above log table counts and dismisses new QSOs arriving while operator is on page 2+ or filtered view — DOM sibling placement survives HTMX SSE innerHTML swaps
+
+**Archive:** `.planning/milestones/v2.4-ROADMAP.md` | `.planning/milestones/v2.4-REQUIREMENTS.md`
+
+---
+
 ## v2.3 Operator Statistics (Shipped: 2026-04-16)
 
 **Phases:** 42–43 (2 phases) | **Plans:** 2 | **Timeline:** 2026-04-16 (single session)

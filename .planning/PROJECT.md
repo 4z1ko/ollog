@@ -8,20 +8,13 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
-## Shipped: v2.3 Operator Statistics (2026-04-16)
+## Shipped: v2.4 Live Log & Sound Alerts (2026-04-20)
 
-**Goal achieved:** Each operator has a dedicated `/log/stats` page with three interactive pie charts (band, mode, DXCC entity), a unique entity count scalar, dark/light theme adaptation, and operator isolation via JWT — all backed by 7 integration tests.
+**Goal achieved:** SSE watcher hardened against Python 3.12+ GC and runtime exceptions; LIVE indicator accuracy fixed to message-first state machine; per-operator sound notifications (Web Audio 440 Hz tone, autoplay-policy compliant) wired to SSE events with persistent MongoDB preference; dismissable new-QSO badge for page 2+/filtered views.
 
-## Current Milestone: v2.4 Live Log & Sound Alerts
+## Next Milestone
 
-**Goal:** The operator log view table updates in place as QSOs arrive (including UDP-sourced QSOs), with a dismissable new-QSO counter badge on page 2+, and an optional audio tone notification toggled per-operator in Profile Settings.
-
-**Target features:**
-- Fix: UDP-inserted QSOs trigger the SSE live table refresh (same as REST API QSOs)
-- Page 1: new rows appear live as QSOs arrive, no manual reload needed
-- Page 2+: dismissable "N new QSOs" badge — no auto-jump, no scroll interruption
-- Audio tone: brief notification sound plays on each new QSO arrival
-- Profile toggle: sound notifications on/off, persisted per operator
+Planning next milestone with `/gsd-new-milestone`.
 
 ## Requirements
 
@@ -224,20 +217,23 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.4 SSE Watcher Hardening (Phase 44 complete, 2026-04-20)
+**Version:** v2.4 Live Log & Sound Alerts (shipped 2026-04-20)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
-**Codebase:** ~8,800+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
+**Codebase:** ~9,000+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.3):**
-All v2.2 features plus (Phases 42–43 complete):
-- `app/stats/service.py` — `get_stats(callsign)` with 3 JWT-isolated MongoDB aggregation pipelines (band, mode, CALL-level); Python-side DXCC rollup via `lookup_prefix()` + pycountry; top-8 truncation with "Other" guard; empty-state dict shape for operators with no QSOs (STATS-06, STATS-07)
-- `app/stats/router.py` — `stats_router` with `GET /log/stats` cookie-auth endpoint; registered in `app/main.py` with `include_in_schema=False`
-- `templates/log/stats.html` — full Chart.js 4.5.1 stats page: 3 pie charts (By Band, By Mode, By DXCC Entity), dark/light palette switching via `themechange` CustomEvent, empty-state card, responsive 2-col grid, `| tojson` XSS-safe inline data (STATS-01–05, STATS-08)
-- `templates/base.html` — `{% block extra_scripts %}` extension point for page-specific scripts
-- `templates/base_app.html` — Stats sidebar nav link (between Log View and Import); `CustomEvent('themechange')` dispatch in `toggleTheme()`
-- `tests/test_stats.py` — 7 integration tests covering operator isolation, soft-delete exclusion, DXCC resolution, empty-state, route auth enforcement
+**Shipped features (cumulative, v1.0–v2.4):**
+All v2.3 features plus (Phases 44–47 complete):
+- `app/feed/manager.py` — `try/except Exception` wrapper in `watch_qsos` inner loop; render/broadcast failures log and continue instead of killing the watcher task
+- `app/main.py` — `app.state.watcher_task` strong reference prevents Python 3.12+ GC from silently reclaiming the watcher between event loop ticks
+- `app/auth/models.py` — `notify_sound: bool = False` field on User Beanie model; Pydantic default eliminates migration for existing documents
+- `app/auth/schemas.py` — `notify_sound` in `ProfileUpdateRequest` and `ProfileResponse`
+- `app/qso/ui_router.py` — `log_view()` dependency swapped to `get_current_user_cookie`; `notify_sound` injected into Jinja2 context as `NOTIFY_SOUND` string (`"true"/"false"`)
+- `templates/log/log.html` — `eventsFlowing` sentinel state machine (LIVE indicator message-first); Web Audio IIFE (440 Hz sine, 120ms, lazy `AudioContext` on first gesture); `#new-qso-badge` DOM sibling of `#log-table` with JS counter, click-dismiss, and `htmx:afterSettle` auto-dismiss
+- `templates/log/profile.html` — Sound Notifications checkbox with hidden-input fallback pattern
+- `tests/test_watcher.py` — 3 tests: exception isolation, strong reference, null-date handling
+- `tests/test_log_view_notify_sound.py` — 2 tests: `NOTIFY_SOUND` false/true injection
 
 **Known tech debt:**
 - `QSO.find_active()` in models.py — dead production code
@@ -337,6 +333,13 @@ All v2.2 features plus (Phases 42–43 complete):
 | Chart.js 4.5.1 UMD bundle via jsDelivr CDN, loaded only in `{% block extra_scripts %}` override | ESM-only build fails silently; CDN avoids bundling; loading in base.html penalizes all pages with Chart.js parse cost | ✓ Good — stats page loads Chart.js; all other pages unaffected |
 | `themechange` CustomEvent broadcast from `toggleTheme()` (zero-coupling) | `toggleTheme()` does not know about charts; event listener pattern lets any future chart page opt in independently | ✓ Good — pattern established; any future chart page just adds `window.addEventListener('themechange', ...)` |
 | `{% if total_qsos > 0 %}{% block extra_scripts %}...{% endblock %}{% endif %}` conditional block | Prevents Chart.js script tag from loading on empty-state render; Jinja2 evaluates block declarations at parse time so the conditional only guards render-time output | ✓ Good — no Chart.js CDN request on empty log |
+| `app.state.watcher_task` strong reference (not local variable) | Python 3.12+ GCs asyncio tasks without a strong reference; local variable in lifespan `yield` block is not sufficient | ✓ Good — watcher task survives GC cycles between event loop ticks |
+| `try/except Exception` in watch_qsos inner loop (not outer) | Catching at the inner loop level lets the watcher continue after a single bad event; outer-level catch would restart the entire change stream | ✓ Good — watcher survives Jinja2 render errors and null-field documents |
+| `eventsFlowing` sentinel for LIVE indicator (not sseOpen) | `htmx:sseOpen` fires when the HTTP connection opens, before any events flow; green on open is premature and misleading when the watcher is unhealthy | ✓ Good — indicator only turns green after first confirmed `new_qso` event |
+| `NOTIFY_SOUND` as Jinja2 string `"true"/"false"` (not Python bool) | Python `True`/`False` renders as `"True"`/`"False"` in templates — JS strict comparison `=== "true"` would silently fail | ✓ Good — explicit string rendering with `'true' if x else 'false'` pattern |
+| Sound check fires BEFORE auto-refresh-ok guard in htmx:sseMessage | Badge and tone should work on page 2+ and with active filters — placing sound/badge logic after the `return` guard would silence them on all non-page-1 views | ✓ Good — tone and badge both work on page 2+ and filtered views |
+| `#new-qso-badge` as DOM sibling of `#log-table` (not child) | HTMX SSE innerHTML swap replaces all children of the swap target; badge nested inside would be destroyed on every SSE refresh | ✓ Good — badge persists across all HTMX SSE swaps and pagination |
+| `classList.remove('hidden')` before `classList.add('flex')` for badge show | Tailwind `hidden` compiles to `display: none !important`; adding `flex` without removing `hidden` has no visible effect | ✓ Good — badge appears correctly on first increment |
 
 ## Evolution
 
@@ -356,4 +359,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-20 — Phase 44 complete (SSE Watcher Hardening)*
+*Last updated: 2026-04-20 after v2.4 milestone*

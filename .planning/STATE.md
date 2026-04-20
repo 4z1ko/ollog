@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: API Token Auth
-status: executing
-stopped_at: Phase 45 context gathered
-last_updated: "2026-04-20T13:28:43.918Z"
+milestone: v2.4
+milestone_name: Live Log & Sound Alerts
+status: shipped
+stopped_at: Milestone v2.4 archived
+last_updated: "2026-04-20T00:00:00.000Z"
 last_activity: 2026-04-20
 progress:
   total_phases: 4
@@ -18,22 +18,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-15)
+See: .planning/PROJECT.md (updated 2026-04-20)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 44 — sse-watcher-hardening
+**Current focus:** Planning next milestone — run `/gsd-new-milestone`
 
 ## Current Position
 
-Phase: 45
-Plan: Not started
-Next: Phase 45 (notify-sound-model)
-Milestone: v2.4 Live Log & Sound Alerts
-Status: Executing Phase 44
-Last activity: 2026-04-20
+Milestone: v2.4 Live Log & Sound Alerts — SHIPPED 2026-04-20
+All phases complete (44–47, 5/5 plans)
+Next: `/gsd-new-milestone` to start next milestone
 
 ```
-v2.4 Progress: [█████░░░░░░░░░░░░░░░] 25% (1/4 phases)
+v2.4 Progress: [████████████████████] 100% (4/4 phases)
 ```
 
 ## Performance Metrics

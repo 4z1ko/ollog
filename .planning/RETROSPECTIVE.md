@@ -51,6 +51,56 @@
 
 ---
 
+## Milestone: v2.4 — Live Log & Sound Alerts
+
+**Shipped:** 2026-04-20
+**Phases:** 4 (44–47) | **Plans:** 5 | **Sessions:** ~4
+
+### What Was Built
+
+- `app/feed/manager.py` — `try/except Exception` in `watch_qsos` inner loop; watcher continues on any per-event failure
+- `app/main.py` — `app.state.watcher_task` strong reference; GC-safe task lifetime for Python 3.12+
+- `templates/log/log.html` — `eventsFlowing` sentinel state machine (LIVE indicator message-first); Web Audio IIFE (440 Hz sine tone, 120ms, lazy `AudioContext` on first user gesture, webkitAudioContext fallback); `#new-qso-badge` sibling div with counter, click-dismiss, and htmx:afterSettle auto-dismiss
+- `app/auth/models.py` + `app/auth/schemas.py` — `notify_sound: bool = False` on User model; no migration needed
+- `app/qso/ui_router.py` — `log_view()` dependency swap from callsign string to full User object; `NOTIFY_SOUND` Jinja2 constant injection
+- `tests/test_watcher.py` — 3 tests: exception isolation, strong reference, null-date handling
+- `tests/test_log_view_notify_sound.py` — 2 tests: NOTIFY_SOUND false/true injection
+
+### What Worked
+
+- **Research-driven architecture decisions**: All v2.4 arch decisions (strong reference, message-first state machine, hidden-input checkbox pattern, badge sibling placement) were captured in STATE.md before any code was written — zero mid-execution surprises
+- **Plan 44-02 auto-detection**: The executor detected that phases 46 and 47 had already implemented the LIVE indicator fix before plan 44-02 ran; correctly verified acceptance criteria without overwriting existing work
+- **Web Audio zero-dependency**: Native browser Web Audio API eliminated any npm install friction; the tone synthesis (OscillatorNode + GainNode + ramp envelope) is ~20 lines and fully self-contained
+- **badge DOM sibling pattern**: Placing `#new-qso-badge` as a sibling of `#log-table` (not inside it) is a generalizable pattern for any persistent UI element that coexists with HTMX SSE swap targets
+
+### What Was Inefficient
+
+- **Phase execution order confusion**: Phases 45, 46, 47 were executed before phase 44-02 was formally completed, causing the plan to find its target already implemented. The execution order was correct for the code but required careful deviation handling in the SUMMARY.
+- **REQUIREMENTS.md traceability not updated post-execution**: All 9 requirements validated in PROJECT.md but traceability table left as "Pending" throughout the milestone. Required manual update at archival time.
+- **STATE.md front matter stale**: Front matter still showed `milestone: v1.7` throughout v2.4 execution — only fixed at milestone close.
+
+### Patterns Established
+
+- **`app.state.<task>` for all long-running asyncio tasks**: Any task that must survive for the app lifetime should be stored on `app.state`, not in a local variable. Prevents Python 3.12+ GC reclamation.
+- **Message-first SSE indicator**: Set indicator green only on first confirmed event message, not on connection open. Generic pattern for any SSE health indicator.
+- **Hidden input before checkbox**: `<input type="hidden" name="field" value="false">` before `<input type="checkbox" name="field" value="true">` — ensures unchecked checkbox sends `false` instead of nothing. Required any time a checkbox submits to a server-side form handler.
+- **SSE-safe persistent UI elements**: Any element that must survive HTMX SSE innerHTML swaps must be a DOM sibling of the swap target, never a child.
+- **`classList.remove('hidden')` before `classList.add('flex')`**: Tailwind `hidden` compiles to `display: none !important`; always remove it before adding a display class.
+
+### Key Lessons
+
+1. **Strong references are required for any asyncio task that must outlive a function scope.** Local variables are GC candidates in Python 3.12+. `app.state` is the correct lifetime anchor for app-scoped tasks.
+2. **SSE event detail shape matters.** `htmx:sseMessage` `e.detail` is the raw `MessageEvent`; `e.detail.type` is the SSE event type string. `e.target` gives the listening element. Confirmed and saved to memory.
+3. **Update REQUIREMENTS.md traceability table at phase completion, not milestone close.** Leaving all rows as "Pending" until archival requires manual bulk-update and creates misleading stale state during the milestone.
+
+### Cost Observations
+
+- Model: claude-sonnet-4-6 throughout
+- Sessions: 4 execution sessions across 4 phases (some phases had prior-session pre-commits)
+- Notable: Phase 44-01 code was already committed from a prior session — the execution session only produced SUMMARY.md; demonstrates value of atomic commits at plan completion
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -62,11 +112,13 @@
 | v1.9 | 5 | 8 | UI redesign milestone — CSS component system established |
 | v2.2 | 1 | 2 | Single-phase milestone — narrow well-scoped feature |
 | v2.3 | 2 | 2 | Two-phase data+UI split — backend first, frontend second |
+| v2.4 | 4 | 5 | Hardening + new UX features; arch decisions pre-loaded in STATE.md |
 
 ### Cumulative Quality
 
 | Milestone | Tests Added | Zero New Prod Deps |
 |-----------|-------------|-------------------|
+| v2.4 | 5 integration tests | ✓ (Web Audio native browser) |
 | v2.3 | 7 integration tests | ✓ (Chart.js CDN only) |
 | v2.2 | 12 integration tests | ✓ |
 | v2.1 | 8 integration tests | ✓ |
@@ -76,3 +128,4 @@
 1. **Backend-first two-phase split works well for data+UI features.** v2.3 proved this: Phase 42 defined the exact context dict shape, which made Phase 43 a nearly mechanical implementation.
 2. **Jinja2 template bugs surface at render time, not compile time.** Both WR-01 (stats block/if nesting) and earlier template issues required a live render to catch — invest in a quick browser smoke-test step.
 3. **In-memory caches (token_cache, operator_cache, now chart data via JSON) eliminate per-request DB round-trips for read-heavy UI endpoints.**
+4. **Pre-loading arch decisions into STATE.md before execution eliminates mid-execution surprises.** v2.4 had zero blocked decisions during execution — all tricky patterns (strong reference, message-first indicator, hidden-input checkbox, badge DOM placement) were decided at research/context time.
