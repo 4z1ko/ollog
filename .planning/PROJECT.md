@@ -191,6 +191,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - Per-activation fields (MY_SOTA_REF, MY_POTA_REF) — session-level overrides, deferred (v2)
 - Multiple station profiles per operator — deferred (v2)
 
+### Validated (v2.4 — Phase 44)
+
+- ✓ The SSE change-stream watcher survives a Jinja2 render exception and continues broadcasting subsequent change events (LIVE-01a)
+- ✓ The watcher task is stored in `app.state.watcher_task` (strong reference) — Python 3.12+ GC cannot reclaim it (LIVE-01b)
+- ✓ A QSO document with `qso_date_utc=None` does not kill the watcher (LIVE-01c)
+- ✓ The LIVE indicator does NOT turn green on bare SSE connection open (`htmx:sseOpen`) (LIVE-02)
+- ✓ The LIVE indicator turns green only after the first `htmx:sseMessage` with `type='new_qso'` is received (LIVE-02)
+- ✓ The LIVE indicator shows OFFLINE on `htmx:sseError` and hides on `htmx:sseClose` (LIVE-02)
+
 ### Validated (v2.4 — Phase 45)
 
 - ✓ `User.notify_sound: bool = False` field on User model — off by default, no migration needed (SND-03)
@@ -215,7 +224,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.4 New QSO Badge (Phase 47 complete, 2026-04-18)
+**Version:** v2.4 SSE Watcher Hardening (Phase 44 complete, 2026-04-20)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -347,4 +356,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 — Phase 47 complete (New QSO Badge)*
+*Last updated: 2026-04-20 — Phase 44 complete (SSE Watcher Hardening)*
