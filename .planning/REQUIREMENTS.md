@@ -36,14 +36,14 @@
 
 ## Traceability
 
-| REQ-ID | Phase | Plans |
-|--------|-------|-------|
-| TS-01  | TBD   | TBD   |
-| TS-02  | TBD   | TBD   |
-| TS-03  | TBD   | TBD   |
-| SORT-01 | TBD  | TBD   |
-| SORT-02 | TBD  | TBD   |
-| SORT-03 | TBD  | TBD   |
-| SORT-04 | TBD  | TBD   |
-| UX-01  | TBD   | TBD   |
-| UX-02  | TBD   | TBD   |
+| REQ-ID  | Phase    | Plans |
+|---------|----------|-------|
+| TS-01   | Phase 48 | TBD   |
+| TS-02   | Phase 48 | TBD   |
+| TS-03   | Phase 48 | TBD   |
+| SORT-04 | Phase 49 | TBD   |
+| SORT-03 | Phase 49 | TBD   |
+| SORT-01 | Phase 50 | TBD   |
+| SORT-02 | Phase 50 | TBD   |
+| UX-01   | Phase 50 | TBD   |
+| UX-02   | Phase 50 | TBD   |

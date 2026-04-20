@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v2.5
 milestone_name: QSO Sorting & Entry Timestamp
 status: in-progress
-stopped_at: Defining requirements
+stopped_at: Phase 48 not started
 last_updated: "2026-04-20T00:00:00.000Z"
 last_activity: 2026-04-20
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,16 +25,23 @@ See: .planning/PROJECT.md (updated 2026-04-20)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 48 — Model Foundation (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-20 — Milestone v2.5 started
+Status: Roadmap created, ready to plan Phase 48
+Last activity: 2026-04-20 — v2.5 roadmap written (Phases 48–50)
+
+```
+v2.5 Progress: [░░░░░░░░░░] 0% (0/3 phases)
+Phase 48: Model Foundation      [ ] Not started
+Phase 49: Service Layer         [ ] Not started
+Phase 50: Sort UI               [ ] Not started
+```
 
 ## Performance Metrics
 
 **Velocity (historical):**
 
-- Total plans completed: 61 plans across v1.0–v2.3
+- Total plans completed: 66 plans across v1.0–v2.4
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -56,12 +63,31 @@ Last activity: 2026-04-20 — Milestone v2.5 started
 | v2.2 | 41 | 2 |
 | v2.3 | 42–43 | 2 |
 | v2.4 | 44–47 | 5 |
+| v2.5 | 48–50 | TBD |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - v2.5 milestone started: QSO Sorting & Entry Timestamp
+- v2.5 roadmap finalized 2026-04-20: 3 phases (48–50), 9 requirements mapped
+
+### v2.5 Phase Summary
+
+| Phase | Name | Requirements | Key Work |
+|-------|------|--------------|----------|
+| 48 | Model Foundation | TS-01, TS-02, TS-03 | `_created_at` field + `default_factory`, compound index, protected fields strip |
+| 49 | Service Layer | SORT-03, SORT-04 | `_ALLOWED_SORT_FIELDS` allowlist, view dict enrichment, SSE sentinel extended |
+| 50 | Sort UI | SORT-01, SORT-02, UX-01, UX-02 | MODE header, clock icon in DATE header, hollow/solid chevrons |
+
+### Key Decisions for v2.5
+
+- `_created_at` clock icon goes INSIDE the DATE column header — no new `<th>`/`<td>` column
+- SSE auto-refresh sentinel extends to include `-_created_at` sort (Phase 49)
+- FREQ and RST columns are NOT sortable — excluded from `_ALLOWED_SORT_FIELDS`
+- No three-state sort cycle — existing Clear button handles reset to default
+- `default_factory=lambda: datetime.now(timezone.utc)` on model (not in `build_qso_dict()`) ensures all 4 insert paths get the timestamp automatically
+- Sort string uses MongoDB alias name (`_created_at`), not Python attribute name (`created_at`)
 
 ### Critical Build Rules (carried forward)
 
@@ -85,5 +111,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-20
-Stopped at: Milestone v2.5 started, defining requirements
-Next: `/gsd-new-milestone` requirements definition in progress
+Stopped at: v2.5 roadmap complete — Phases 48–50 defined
+Next: `/gsd-plan-phase 48`
