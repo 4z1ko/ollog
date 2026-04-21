@@ -680,10 +680,10 @@ Plans:
   2. A QSO inserted via the UI form, UDP datagram, and ADIF import each also carry `_created_at` — no code change is needed in any of those four callers
   3. Editing an existing QSO (via REST PATCH or UI inline edit) does not modify the original `_created_at` value — the field is unchanged after a save
   4. The compound index `(_operator, _created_at DESC)` exists on the `qsos` collection after app startup — verifiable via `db.qsos.getIndexes()`
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 48-01-PLAN.md — TBD
+- [ ] 48-01-PLAN.md — _created_at field + index, PATCH protection, API/ADIF exclusion, startup backfill migration, tests
 
 ---
 
