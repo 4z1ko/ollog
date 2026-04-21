@@ -437,7 +437,8 @@ async def qso_update(
             update_dict["TIME_ON"] = TIME_ON.strip()
 
     # Strip any protected fields that might have snuck in via hx-include
-    for protected in ("_operator", "_deleted", "operator_callsign", "is_deleted", "_id"):
+    for protected in ("_operator", "_deleted", "operator_callsign", "is_deleted", "_id",
+                      "_created_at", "created_at"):
         update_dict.pop(protected, None)
 
     if update_dict:

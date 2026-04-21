@@ -78,7 +78,8 @@ async def import_adif(
 # Fields that are internal to the application and must NOT appear in exported ADIF.
 # operator_callsign and is_deleted are declared Beanie fields (not in model_extra)
 # so they won't surface during model_extra iteration — but listed here as a safety net.
-_SKIP_FIELDS = {"qso_date_utc", "_operator", "_deleted", "_id", "id", "revision_id"}
+_SKIP_FIELDS = {"qso_date_utc", "_operator", "_deleted", "_id", "id", "revision_id",
+                "_created_at"}
 
 
 def _qso_to_adif_dict(qso: QSO) -> dict:

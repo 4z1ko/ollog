@@ -92,6 +92,7 @@ def _qso_to_dict(qso: QSO) -> dict:
     d["id"] = str(qso.id)
     # Remove the raw _id key to avoid duplicate / non-serialisable values
     d.pop("_id", None)
+    d.pop("_created_at", None)      # D-06: internal field, not for API consumers
     # Convert qso_date_utc datetime to ISO string
     if d.get("qso_date_utc") is not None:
         dt = d["qso_date_utc"]
@@ -236,7 +237,8 @@ async def patch_qso(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     # Strip protected / immutable fields
-    for protected in ("_operator", "operator_callsign", "_deleted", "is_deleted", "_id"):
+    for protected in ("_operator", "operator_callsign", "_deleted", "is_deleted", "_id",
+                      "_created_at", "created_at"):
         body.pop(protected, None)
 
     # Normalise BAND/MODE to uppercase
