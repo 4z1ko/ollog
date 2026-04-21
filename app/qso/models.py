@@ -3,7 +3,7 @@ from pymongo import IndexModel
 from beanie import Document
 from pydantic import ConfigDict, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class QSO(Document):
@@ -28,6 +28,11 @@ class QSO(Document):
     MODE: Optional[str] = None
     qso_date_utc: Optional[datetime] = None
     is_deleted: bool = Field(default=False, alias="_deleted", serialization_alias="_deleted")
+    created_at: datetime = Field(
+        alias="_created_at",
+        serialization_alias="_created_at",
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
 
     @classmethod
     async def find_active(cls, operator: str) -> list["QSO"]:
@@ -58,5 +63,12 @@ class QSO(Document):
             IndexModel(
                 [("_operator", pymongo.ASCENDING), ("_deleted", pymongo.ASCENDING)],
                 name="operator_active_idx",
+            ),
+            IndexModel(
+                [
+                    ("_operator", pymongo.ASCENDING),
+                    ("_created_at", pymongo.DESCENDING),
+                ],
+                name="operator_created_at_idx",
             ),
         ]

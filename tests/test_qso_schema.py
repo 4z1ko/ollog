@@ -34,9 +34,9 @@ def test_qso_collection_name():
     assert QSO.Settings.name == "qsos"
 
 
-def test_qso_has_three_indexes():
-    """QSO model declares exactly 3 indexes."""
-    assert len(QSO.Settings.indexes) == 3
+def test_qso_has_four_indexes():
+    """QSO model declares exactly 4 indexes."""
+    assert len(QSO.Settings.indexes) == 4
 
 
 def test_qso_compound_index_definition():
@@ -81,6 +81,23 @@ def test_qso_deleted_field_has_serialization_alias():
     """is_deleted field uses serialization_alias '_deleted'."""
     field_info = QSO.model_fields["is_deleted"]
     assert field_info.serialization_alias == "_deleted"
+
+
+def test_qso_created_at_field_has_serialization_alias():
+    """created_at field uses serialization_alias '_created_at'."""
+    field_info = QSO.model_fields["created_at"]
+    assert field_info.serialization_alias == "_created_at"
+
+
+def test_qso_created_at_default_factory():
+    """created_at field has a default_factory that produces a UTC-aware datetime."""
+    from datetime import datetime, timezone
+    qso = QSO(operator_callsign="W1AW", CALL="VK2XYZ", BAND="20M", MODE="SSB")
+    assert qso.created_at is not None
+    assert qso.created_at.tzinfo is not None
+    # Should be very close to now (within 5 seconds)
+    delta = abs((datetime.now(timezone.utc) - qso.created_at).total_seconds())
+    assert delta < 5, f"created_at is {delta}s from now, expected < 5s"
 
 
 def test_qso_has_find_active_method():
@@ -234,6 +251,27 @@ async def test_qso_deleted_field_in_mongodb(test_db, sample_qso_data):
     assert raw_doc["_deleted"] is False
     # Must NOT have the Python field name
     assert "is_deleted" not in raw_doc
+
+
+@pytest.mark.asyncio
+async def test_created_at_in_mongodb(test_db, sample_qso_data):
+    """Raw MongoDB document has '_created_at' as field name after insert."""
+    qso = QSO(**sample_qso_data)
+    await qso.insert()
+    raw_doc = await test_db["qsos"].find_one({"_id": qso.id})
+    assert "_created_at" in raw_doc, (
+        f"Expected '_created_at' in raw MongoDB doc. Keys found: {list(raw_doc.keys())}"
+    )
+    assert "created_at" not in raw_doc
+
+
+@pytest.mark.asyncio
+async def test_operator_created_at_index_exists(test_db):
+    """After init_beanie, the operator_created_at_idx index exists in MongoDB."""
+    indexes = await test_db["qsos"].index_information()
+    assert "operator_created_at_idx" in indexes, (
+        f"operator_created_at_idx index not found. Available indexes: {list(indexes.keys())}"
+    )
 
 
 @pytest.mark.asyncio
