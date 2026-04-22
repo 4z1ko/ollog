@@ -206,6 +206,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Profile Settings page shows a "Sound Notifications" checkbox, unchecked by default (SND-04)
 - ✓ Sound preference persists per-operator via `update_profile()` → MongoDB `$set` (SND-05)
 
+### Validated (v2.5 — Phase 48)
+
+- ✓ QSO records are automatically stamped with `_created_at` (UTC datetime) via `default_factory` when first inserted — applies to REST API, UI, UDP, and ADIF import paths with no service-layer changes required (TS-01)
+- ✓ `_created_at` is stripped from PATCH/update handlers in both REST API and UI routers so it is never overwritten after initial insert (TS-02)
+- ✓ MongoDB compound index `operator_created_at_idx` on `(_operator ASC, _created_at DESC)` is declared in `QSO.Settings.indexes` and synced at app startup via Beanie `init_beanie()` (TS-03)
+- ✓ `_created_at` is excluded from REST API `GET /api/qsos` responses (popped in `_qso_to_dict`) and from ADIF `.adi` export files (`_SKIP_FIELDS`)
+- ✓ Pre-existing QSO documents that lack `_created_at` are backfilled from their ObjectId timestamp at app startup via `backfill_created_at()` idempotent migration
+
 ### Validated (v2.4 — Phase 47)
 
 - ✓ When new QSOs arrive while the operator is on page 2+ or has active filters, a "N new QSO(s)" indigo pill badge appears above the log table — counter increments with each SSE event, singular/plural text correct (LIVE-03)
@@ -223,23 +231,26 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.4 Live Log & Sound Alerts (shipped 2026-04-20)
+**Version:** v2.5 QSO Sorting & Entry Timestamp — Phase 48 complete (2026-04-22)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
 **Codebase:** ~9,000+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.4):**
-All v2.3 features plus (Phases 44–47 complete):
-- `app/feed/manager.py` — `try/except Exception` wrapper in `watch_qsos` inner loop; render/broadcast failures log and continue instead of killing the watcher task
-- `app/main.py` — `app.state.watcher_task` strong reference prevents Python 3.12+ GC from silently reclaiming the watcher between event loop ticks
-- `app/auth/models.py` — `notify_sound: bool = False` field on User Beanie model; Pydantic default eliminates migration for existing documents
-- `app/auth/schemas.py` — `notify_sound` in `ProfileUpdateRequest` and `ProfileResponse`
-- `app/qso/ui_router.py` — `log_view()` dependency swapped to `get_current_user_cookie`; `notify_sound` injected into Jinja2 context as `NOTIFY_SOUND` string (`"true"/"false"`)
-- `templates/log/log.html` — `eventsFlowing` sentinel state machine (LIVE indicator message-first); Web Audio IIFE (440 Hz sine, 120ms, lazy `AudioContext` on first gesture); `#new-qso-badge` DOM sibling of `#log-table` with JS counter, click-dismiss, and `htmx:afterSettle` auto-dismiss
-- `templates/log/profile.html` — Sound Notifications checkbox with hidden-input fallback pattern
-- `tests/test_watcher.py` — 3 tests: exception isolation, strong reference, null-date handling
-- `tests/test_log_view_notify_sound.py` — 2 tests: `NOTIFY_SOUND` false/true injection
+**Shipped features (cumulative, v1.0–v2.5 Phase 48):**
+All v2.4 features plus (Phase 48 complete):
+- `app/qso/models.py` — `created_at: datetime` field with `alias="_created_at"`, `serialization_alias="_created_at"`, `default_factory=lambda: datetime.now(timezone.utc)`; `operator_created_at_idx` compound index `(_operator ASC, _created_at DESC)` added as 4th entry in `Settings.indexes`
+- `app/qso/router.py` — PATCH handler strips `_created_at`/`created_at` from update body; `_qso_to_dict` pops `_created_at` from API responses
+- `app/qso/ui_router.py` — PATCH handler strips `_created_at`/`created_at` from update body
+- `app/adif/router.py` — `_created_at` added to `_SKIP_FIELDS` to exclude from ADIF exports
+- `app/main.py` — `backfill_created_at()` idempotent startup migration: stamps `_created_at` from ObjectId timestamp on pre-existing documents lacking the field
+- `tests/test_qso_schema.py` — 7 new/updated tests: index count, field alias, default_factory, MongoDB storage, compound index existence, PATCH immutability, backfill correctness and idempotency
+- `tests/test_watcher.py` — updated lifespan mock to include `backfill_created_at`
+
+**Known tech debt:**
+- `QSO.find_active()` in models.py — dead production code
+- `from_mongo_dt()` in utils.py — tested, not called in production
+- Docker end-to-end verification pending (requires live Docker environment)
 
 **Known tech debt:**
 - `QSO.find_active()` in models.py — dead production code
