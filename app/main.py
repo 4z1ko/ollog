@@ -1,7 +1,10 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
+from bson import ObjectId
+from pymongo import UpdateOne
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,10 +19,39 @@ _templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger(__name__)
 
 
+async def backfill_created_at():
+    """One-time idempotent migration: stamp _created_at on QSOs that lack it.
+
+    For each document missing _created_at, derives the timestamp from the
+    ObjectId's embedded creation time. Falls back to now(UTC) for non-ObjectId _id values.
+    """
+    from app.qso.models import QSO
+    collection = QSO.get_pymongo_collection()
+    cursor = collection.find(
+        {"_created_at": {"$exists": False}},
+        {"_id": 1},
+    )
+    ops = []
+    async for doc in cursor:
+        oid = doc["_id"]
+        if isinstance(oid, ObjectId):
+            ts = oid.generation_time.replace(tzinfo=timezone.utc)
+        else:
+            ts = datetime.now(timezone.utc)
+        ops.append(UpdateOne({"_id": oid}, {"$set": {"_created_at": ts}}))
+
+    if ops:
+        result = await collection.bulk_write(ops, ordered=False)
+        logger.info("_created_at backfill: %d documents updated", result.modified_count)
+    else:
+        logger.info("_created_at backfill: 0 documents — already up to date")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await _bootstrap_admin()
+    await backfill_created_at()   # D-05: one-time idempotent migration
     # Start change stream watcher for live feed
     client = get_client()
     app.state.watcher_task = None

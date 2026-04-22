@@ -90,9 +90,20 @@ def test_qso_created_at_field_has_serialization_alias():
 
 
 def test_qso_created_at_default_factory():
-    """created_at field has a default_factory that produces a UTC-aware datetime."""
+    """created_at field has a default_factory that produces a UTC-aware datetime.
+
+    Uses model_construct() to bypass Beanie's __init__ (which calls get_pymongo_collection()
+    and requires DB init), following the established pattern for unit tests that only
+    need to verify Pydantic field defaults.
+    """
     from datetime import datetime, timezone
-    qso = QSO(operator_callsign="W1AW", CALL="VK2XYZ", BAND="20M", MODE="SSB")
+    qso = QSO.model_construct(
+        operator_callsign="W1AW",
+        CALL="VK2XYZ",
+        BAND="20M",
+        MODE="SSB",
+        created_at=QSO.model_fields["created_at"].default_factory(),
+    )
     assert qso.created_at is not None
     assert qso.created_at.tzinfo is not None
     # Should be very close to now (within 5 seconds)
@@ -272,6 +283,74 @@ async def test_operator_created_at_index_exists(test_db):
     assert "operator_created_at_idx" in indexes, (
         f"operator_created_at_idx index not found. Available indexes: {list(indexes.keys())}"
     )
+
+
+@pytest.mark.asyncio
+async def test_patch_does_not_overwrite_created_at(test_db, sample_qso_data):
+    """REST PATCH with _created_at in body does not modify the stored value."""
+    qso = QSO(**sample_qso_data)
+    await qso.insert()
+    raw_before = await test_db["qsos"].find_one({"_id": qso.id})
+    original_ts = raw_before["_created_at"]
+
+    # Simulate a PATCH with _created_at — strip it, then update
+    body = {"BAND": "40M", "_created_at": datetime(2000, 1, 1, tzinfo=timezone.utc), "created_at": datetime(2000, 1, 1, tzinfo=timezone.utc)}
+    for protected in ("_operator", "operator_callsign", "_deleted", "is_deleted", "_id",
+                      "_created_at", "created_at"):
+        body.pop(protected, None)
+    if body:
+        await qso.update({"$set": body})
+
+    raw_after = await test_db["qsos"].find_one({"_id": qso.id})
+    assert raw_after["_created_at"] == original_ts, (
+        f"_created_at was modified: {original_ts} -> {raw_after['_created_at']}"
+    )
+    assert raw_after["BAND"] == "40M"
+
+
+@pytest.mark.asyncio
+async def test_backfill_stamps_missing_created_at(test_db, sample_qso_data):
+    """backfill_created_at sets _created_at from ObjectId timestamp for docs that lack it."""
+    # Insert a QSO, then manually remove its _created_at to simulate a pre-migration doc
+    qso = QSO(**sample_qso_data)
+    await qso.insert()
+    await test_db["qsos"].update_one(
+        {"_id": qso.id}, {"$unset": {"_created_at": ""}}
+    )
+    raw = await test_db["qsos"].find_one({"_id": qso.id})
+    assert "_created_at" not in raw, "Setup: _created_at should be absent"
+
+    # Run the backfill
+    from app.main import backfill_created_at
+    await backfill_created_at()
+
+    raw_after = await test_db["qsos"].find_one({"_id": qso.id})
+    assert "_created_at" in raw_after, "_created_at should be present after backfill"
+    # The backfilled timestamp should come from the ObjectId.
+    # Normalize both sides to naive UTC for comparison: MongoDB test client uses
+    # tz_aware=False so stored values are naive; generation_time may be aware or naive.
+    def _to_naive_utc(dt):
+        if dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
+    expected_ts = _to_naive_utc(qso.id.generation_time)
+    stored_ts = _to_naive_utc(raw_after["_created_at"])
+    assert stored_ts == expected_ts
+
+
+@pytest.mark.asyncio
+async def test_backfill_is_idempotent(test_db, sample_qso_data):
+    """Running backfill_created_at twice does not modify already-stamped documents."""
+    qso = QSO(**sample_qso_data)
+    await qso.insert()
+    raw_before = await test_db["qsos"].find_one({"_id": qso.id})
+    original_ts = raw_before["_created_at"]
+
+    from app.main import backfill_created_at
+    await backfill_created_at()
+
+    raw_after = await test_db["qsos"].find_one({"_id": qso.id})
+    assert raw_after["_created_at"] == original_ts, "Backfill should not modify existing _created_at"
 
 
 @pytest.mark.asyncio

@@ -103,6 +103,7 @@ async def test_watcher_task_stored_in_app_state():
     with (
         patch.object(_main, "init_db", new=AsyncMock()),
         patch.object(_main, "_bootstrap_admin", new=AsyncMock()),
+        patch.object(_main, "backfill_created_at", new=AsyncMock()),
         patch.object(_main, "get_client", return_value=None),
         patch.object(_main, "close_db", new=AsyncMock()),
         patch("app.main.settings") as mock_settings,
