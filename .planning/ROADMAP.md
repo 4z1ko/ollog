@@ -774,6 +774,6 @@ Plans:
 | 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
-| 48. Model Foundation | v2.5 | 1/1 | Complete   | 2026-04-22 |
+| 48. Model Foundation | v2.5 | 1/1 | Complete    | 2026-04-22 |
 | 49. Service Layer | v2.5 | 0/1 | Not started | - |
 | 50. Sort UI | v2.5 | 0/1 | Not started | - |
