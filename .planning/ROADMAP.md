@@ -196,7 +196,7 @@ Full archive: `.planning/milestones/v2.4-ROADMAP.md`
 
 **Milestone Goal:** Every QSO record carries a `_created_at` entry timestamp auto-set at insert time, and every visible log table column is sortable — with a hidden-but-sortable entry timestamp accessible via a clock icon in the DATE header.
 
-- [ ] **Phase 48: Model Foundation** — `_created_at` field on QSO model with `default_factory`, compound index `(_operator, _created_at)`, field protected from updates in both update handlers
+- [x] **Phase 48: Model Foundation** — `_created_at` field on QSO model with `default_factory`, compound index `(_operator, _created_at)`, field protected from updates in both update handlers (completed 2026-04-22)
 - [ ] **Phase 49: Service Layer** — `_ALLOWED_SORT_FIELDS` allowlist in `get_qso_page()` with fallback to default sort, `created_at` exposed in view dict, SSE auto-refresh sentinel extended to include `-_created_at`
 - [ ] **Phase 50: Sort UI** — MODE column sort header, clock icon in DATE header for `_created_at` sort, hollow double-chevron on all unsorted sortable columns, solid directional chevron on active sort column
 
@@ -680,10 +680,10 @@ Plans:
   2. A QSO inserted via the UI form, UDP datagram, and ADIF import each also carry `_created_at` — no code change is needed in any of those four callers
   3. Editing an existing QSO (via REST PATCH or UI inline edit) does not modify the original `_created_at` value — the field is unchanged after a save
   4. The compound index `(_operator, _created_at DESC)` exists on the `qsos` collection after app startup — verifiable via `db.qsos.getIndexes()`
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 48-01-PLAN.md — _created_at field + index, PATCH protection, API/ADIF exclusion, startup backfill migration, tests
+- [x] 48-01-PLAN.md — _created_at field + index, PATCH protection, API/ADIF exclusion, startup backfill migration, tests
 
 ---
 
@@ -774,6 +774,6 @@ Plans:
 | 45. Sound Preference Model | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
-| 48. Model Foundation | v2.5 | 0/1 | Not started | - |
+| 48. Model Foundation | v2.5 | 1/1 | Complete   | 2026-04-22 |
 | 49. Service Layer | v2.5 | 0/1 | Not started | - |
 | 50. Sort UI | v2.5 | 0/1 | Not started | - |
