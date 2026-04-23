@@ -59,9 +59,11 @@ Carried forward from Phase 49 — no new text elements introduced.
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px | 400 | 1.5 |
-| Label | 12px | 500 | 1.4 |
+| Label | 12px | 400 | 1.4 |
 | Heading | 20px | 600 | 1.2 |
-| Display | 28px | 700 | 1.2 |
+| Display | 28px | 600 | 1.2 |
+
+**Font Weights:** 400 (regular), 600 (semibold).
 
 Column header links (`<th> <a>`) use the existing `text-current` (inherits from `<th>`) with
 `hover:text-indigo-400 transition-colors` — no new typographic weight or size.
