@@ -198,7 +198,7 @@ Full archive: `.planning/milestones/v2.4-ROADMAP.md`
 
 - [x] **Phase 48: Model Foundation** — `_created_at` field on QSO model with `default_factory`, compound index `(_operator, _created_at)`, field protected from updates in both update handlers (completed 2026-04-22)
 - [x] **Phase 49: Service Layer** — `_ALLOWED_SORT_FIELDS` allowlist in `get_qso_page()` with fallback to default sort, `created_at` exposed in view dict, SSE auto-refresh sentinel extended to include `-_created_at` (completed 2026-04-23)
-- [ ] **Phase 50: Sort UI** — MODE column sort header, clock icon in DATE header for `_created_at` sort, hollow double-chevron on all unsorted sortable columns, solid directional chevron on active sort column
+- [x] **Phase 50: Sort UI** — MODE column sort header, clock icon in DATE header for `_created_at` sort, hollow double-chevron on all unsorted sortable columns, solid directional chevron on active sort column (completed 2026-04-23)
 
 
 ## Phase Details
@@ -715,10 +715,10 @@ Plans:
   3. All currently unsorted sortable columns (DATE, CALL, BAND, MODE, and the clock icon) display a faint hollow double-chevron icon, indicating they are clickable
   4. The currently active sort column displays a solid directional chevron (up for ascending, down for descending) — the active sort is visually distinct from the inactive sortable columns
   5. Applying a band or callsign filter and then clicking a sort header preserves all active filter parameters in the resulting URL — no filter is silently dropped on sort click
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 50-01-PLAN.md — MODE sort header, DATE flex restructure with clock icon, inactive hollow chevrons on all sortable columns, CSS build verification
+- [x] 50-01-PLAN.md — MODE sort header, DATE flex restructure with clock icon, inactive hollow chevrons on all sortable columns, CSS build verification
 **UI hint**: yes
 
 ---
@@ -776,4 +776,4 @@ Plans:
 | 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
 | 48. Model Foundation | v2.5 | 1/1 | Complete    | 2026-04-22 |
 | 49. Service Layer | v2.5 | 1/1 | Complete    | 2026-04-23 |
-| 50. Sort UI | v2.5 | 0/1 | Not started | - |
+| 50. Sort UI | v2.5 | 1/1 | Complete    | 2026-04-23 |
