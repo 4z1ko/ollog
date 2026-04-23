@@ -1,5 +1,23 @@
 # Milestones
 
+## v2.5 QSO Sorting & Entry Timestamp (Shipped: 2026-04-23)
+
+**Phases:** 48–50 (3 phases) | **Plans:** 3 | **Timeline:** 2026-04-21 → 2026-04-23 (3 days)
+**Files changed:** 13 files | **Lines:** +629 / -27
+
+**Key accomplishments:**
+
+- `QSO._created_at` — UTC entry timestamp via `default_factory`, auto-stamped on all 4 insert paths (REST API, UI, UDP, ADIF import) with zero service-layer changes; protected from mutation in all PATCH handlers; excluded from API responses and ADIF exports
+- `operator_created_at_idx` compound index `(_operator ASC, _created_at DESC)` created at startup; idempotent `backfill_created_at()` migration stamps pre-existing documents from their ObjectId timestamp
+- `_ALLOWED_SORT_FIELDS` frozenset (10 values) in `get_qso_page()` — rejects arbitrary sort field names before reaching MongoDB, preventing field enumeration attacks; WARNING log on rejection
+- MODE column sort header — ascending-first toggle, HTMX `hx-get` wired with full filter preservation in URL query string
+- DATE header restructured — flex wrapper with date sort link + Heroicons clock icon link for `_created_at` sort (descending-first); SSE auto-refresh sentinel extended to fire on `-_created_at` sort
+- Hollow double-chevron (`opacity-30 dark:opacity-25`) on all 5 inactive sortable elements; solid directional chevron on active sort — full visual sort state system
+
+**Archive:** `.planning/milestones/v2.5-ROADMAP.md` | `.planning/milestones/v2.5-REQUIREMENTS.md`
+
+---
+
 ## v2.4 Live Log & Sound Alerts (Shipped: 2026-04-20)
 
 **Phases:** 44–47 (4 phases) | **Plans:** 5 | **Timeline:** 2026-04-16 → 2026-04-20 (4 days)

@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: API Token Auth
-status: executing
-stopped_at: Phase 50 UI-SPEC approved
-last_updated: "2026-04-23T20:55:02.249Z"
+milestone: v2.5
+milestone_name: QSO Sorting & Entry Timestamp
+status: milestone_complete
+stopped_at: v2.5 archived 2026-04-23
+last_updated: "2026-04-23T00:00:00.000Z"
 last_activity: 2026-04-23
 progress:
   total_phases: 3
@@ -18,23 +18,23 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-20)
+See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 50 — sort-ui
+**Current focus:** Planning next milestone (v2.5 shipped)
 
 ## Current Position
 
-Phase: 50
-Plan: Not started
-Status: Executing Phase 50
+Phase: —
+Plan: —
+Status: v2.5 milestone complete — planning next milestone
 Last activity: 2026-04-23
 
 ```
-v2.5 Progress: [░░░░░░░░░░] 0% (0/3 phases)
-Phase 48: Model Foundation      [ ] Not started
-Phase 49: Service Layer         [ ] Not started
-Phase 50: Sort UI               [ ] Not started
+v2.5 Progress: [██████████] 100% (3/3 phases)
+Phase 48: Model Foundation      [x] Complete (2026-04-22)
+Phase 49: Service Layer         [x] Complete (2026-04-23)
+Phase 50: Sort UI               [x] Complete (2026-04-23)
 ```
 
 ## Performance Metrics
