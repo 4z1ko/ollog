@@ -718,7 +718,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 50-01-PLAN.md — TBD
+- [ ] 50-01-PLAN.md — MODE sort header, DATE flex restructure with clock icon, inactive hollow chevrons on all sortable columns, CSS build verification
 **UI hint**: yes
 
 ---
