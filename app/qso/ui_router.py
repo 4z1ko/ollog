@@ -442,8 +442,12 @@ async def qso_update(
                       "_created_at", "created_at"):
         update_dict.pop(protected, None)
 
-    if update_dict:
-        await qso.update({"$set": update_dict})
+    if not update_dict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid fields to update",
+        )
+    await qso.update({"$set": update_dict})
 
     # Refetch to get the updated document
     updated = await QSO.get(oid)
