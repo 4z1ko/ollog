@@ -197,7 +197,7 @@ Full archive: `.planning/milestones/v2.4-ROADMAP.md`
 **Milestone Goal:** Every QSO record carries a `_created_at` entry timestamp auto-set at insert time, and every visible log table column is sortable — with a hidden-but-sortable entry timestamp accessible via a clock icon in the DATE header.
 
 - [x] **Phase 48: Model Foundation** — `_created_at` field on QSO model with `default_factory`, compound index `(_operator, _created_at)`, field protected from updates in both update handlers (completed 2026-04-22)
-- [ ] **Phase 49: Service Layer** — `_ALLOWED_SORT_FIELDS` allowlist in `get_qso_page()` with fallback to default sort, `created_at` exposed in view dict, SSE auto-refresh sentinel extended to include `-_created_at`
+- [x] **Phase 49: Service Layer** — `_ALLOWED_SORT_FIELDS` allowlist in `get_qso_page()` with fallback to default sort, `created_at` exposed in view dict, SSE auto-refresh sentinel extended to include `-_created_at` (completed 2026-04-23)
 - [ ] **Phase 50: Sort UI** — MODE column sort header, clock icon in DATE header for `_created_at` sort, hollow double-chevron on all unsorted sortable columns, solid directional chevron on active sort column
 
 
@@ -697,10 +697,10 @@ Plans:
   2. All currently sortable fields (`-qso_date_utc`, `qso_date_utc`, `-CALL`, `CALL`, `-BAND`, `BAND`, `-MODE`, `MODE`, `-_created_at`, `_created_at`) are accepted and produce correctly ordered results
   3. The server-side `#auto-refresh-ok` sentinel is rendered when `sort` is `-_created_at` (in addition to the existing `-qso_date_utc` condition) — SSE live table refresh fires on the newest-entered-first sort
   4. A QSO's `created_at` value is accessible in the Jinja2 template context via the view dict key — no `UndefinedError` when the template references it
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 49-01-PLAN.md — Sort allowlist in get_qso_page(), created_at view dict, SSE sentinel extension, SORT-03/SORT-04 tests
+- [x] 49-01-PLAN.md — Sort allowlist in get_qso_page(), created_at view dict, SSE sentinel extension, SORT-03/SORT-04 tests
 
 ---
 
@@ -775,5 +775,5 @@ Plans:
 | 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
 | 48. Model Foundation | v2.5 | 1/1 | Complete    | 2026-04-22 |
-| 49. Service Layer | v2.5 | 0/1 | Planned | - |
+| 49. Service Layer | v2.5 | 1/1 | Complete   | 2026-04-23 |
 | 50. Sort UI | v2.5 | 0/1 | Not started | - |
