@@ -34,8 +34,12 @@ def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
     date_part = datetime.strptime(qso_date, "%Y%m%d").date()
     if len(time_on) == 4:
         time_part = datetime.strptime(time_on, "%H%M").time()
-    else:
+    elif len(time_on) == 6:
         time_part = datetime.strptime(time_on, "%H%M%S").time()
+    else:
+        raise ValueError(
+            f"TIME_ON must be HHMM (4 chars) or HHMMSS (6 chars), got {len(time_on)!r} chars: {time_on!r}"
+        )
     return datetime.combine(date_part, time_part, tzinfo=timezone.utc)
 
 
