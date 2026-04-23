@@ -238,23 +238,34 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ SSE auto-refresh sentinel fires for both `-qso_date_utc` and `-_created_at` sorts on page 1 with no filters (SORT-03)
 - ✓ SSE auto-refresh sentinel does NOT fire for non-newest-first sorts like `CALL` (SORT-03)
 
+### Validated (v2.5 — Phase 50)
+
+- ✓ MODE column header is clickable and sorts ascending on first click (`?sort=MODE`), descending on second click (`?sort=-MODE`) — SORT-01
+- ✓ Clock icon in DATE header sorts by `_created_at` descending on first click (`?sort=-_created_at`), ascending on second click — SORT-02
+- ✓ All inactive sortable columns (DATE text, clock icon, CALL, BAND, MODE) display a faint hollow double-chevron (`opacity-30 dark:opacity-25`) — UX-01
+- ✓ Active sort column displays a solid directional chevron (down for desc, up for asc) — UX-02
+- ✓ All sort clicks preserve active filter parameters (call, band, mode, date_from, date_to) in the URL — UX-01
+- ✓ DATE header restructured with flex wrapper: date sort link + clock icon sort link side-by-side — D-01
+- ✓ Non-sortable columns (Freq MHz, RST S/R, Actions) have no sort indicators — UX-01
+
 ## Current State
 
-**Version:** v2.5 QSO Sorting & Entry Timestamp — Phase 49 complete (2026-04-23)
+**Version:** v2.5 QSO Sorting & Entry Timestamp — **COMPLETE** (Phase 50 complete 2026-04-23)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
 **Codebase:** ~9,000+ LOC Python (+ HTML templates + Tailwind component system) + 7-page MkDocs docs site (pre-built `site/` in Docker image)
 
-**Shipped features (cumulative, v1.0–v2.5 Phase 49):**
-All v2.4 features plus (Phase 48 + Phase 49 complete):
+**Shipped features (cumulative, v1.0–v2.5 complete):**
+All v2.4 features plus (Phases 48–50 complete):
 - `app/qso/models.py` — `created_at: datetime` field with `alias="_created_at"`, `serialization_alias="_created_at"`, `default_factory=lambda: datetime.now(timezone.utc)`; `operator_created_at_idx` compound index `(_operator ASC, _created_at DESC)` added as 4th entry in `Settings.indexes`
 - `app/qso/router.py` — PATCH handler strips `_created_at`/`created_at` from update body; `_qso_to_dict` pops `_created_at` from API responses
 - `app/qso/ui_router.py` — PATCH handler strips `_created_at`/`created_at` from update body; `_qso_to_view_dict()` exposes `"created_at": qso.created_at` for template use
 - `app/adif/router.py` — `_created_at` added to `_SKIP_FIELDS` to exclude from ADIF exports
 - `app/main.py` — `backfill_created_at()` idempotent startup migration: stamps `_created_at` from ObjectId timestamp on pre-existing documents lacking the field
 - `app/qso/service.py` — `_ALLOWED_SORT_FIELDS` frozenset (10 values), `_DEFAULT_SORT` constant, guard block in `get_qso_page()` with WARNING log for invalid sort fields (prevents MongoDB field enumeration)
-- `templates/log/log_table.html` — SSE auto-refresh sentinel extended to fire on `-_created_at` sort in addition to `-qso_date_utc`
+- `templates/log/log_table.html` — SSE auto-refresh sentinel extended to fire on `-_created_at` sort; MODE sort header (ascending-first); DATE header restructured with flex wrapper (date sort + clock icon sort); CALL/BAND/MODE/clock inactive hollow chevron indicators; `dark:opacity-25` for dark mode faint indicators
+- `static/css/output.css` — rebuilt with `dark:opacity-25` class
 - `tests/test_qso_schema.py` — 7 new/updated tests: index count, field alias, default_factory, MongoDB storage, compound index existence, PATCH immutability, backfill correctness and idempotency
 - `tests/test_watcher.py` — updated lifespan mock to include `backfill_created_at`
 - `tests/test_service_sort.py` — SORT-04 allowlist validation tests
@@ -390,4 +401,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 — Phase 49 complete*
+*Last updated: 2026-04-23 — v2.5 complete (Phase 50)*
