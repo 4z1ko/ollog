@@ -21,6 +21,7 @@ _ALLOWED_SORT_FIELDS: frozenset[str] = frozenset({
     "-CALL", "CALL",
     "-BAND", "BAND",
     "-MODE", "MODE",
+    # MongoDB alias "_created_at" (not the Python attribute "created_at")
     "-_created_at", "_created_at",
 })
 
