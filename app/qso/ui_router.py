@@ -229,6 +229,7 @@ def _qso_to_view_dict(qso: QSO) -> dict:
         "BAND": qso.BAND or "",
         "MODE": qso.MODE or "",
         "qso_date_utc": qso.qso_date_utc,
+        "created_at": qso.created_at,
     }
     # Pull extra ADIF fields from model_extra (set via extra="allow")
     extra = qso.model_extra or {}

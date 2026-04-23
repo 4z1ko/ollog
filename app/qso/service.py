@@ -1,6 +1,7 @@
 """QSO service layer — ADIF datetime parsing, QSO document construction, paginated queries."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
@@ -9,8 +10,18 @@ from app.qso.models import QSO
 if TYPE_CHECKING:
     from app.auth.models import User
 
+logger = logging.getLogger(__name__)
+
 _REQUIRED_FIELDS = {"CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE"}
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+_DEFAULT_SORT = "-qso_date_utc"
+_ALLOWED_SORT_FIELDS: frozenset[str] = frozenset({
+    "-qso_date_utc", "qso_date_utc",
+    "-CALL", "CALL",
+    "-BAND", "BAND",
+    "-MODE", "MODE",
+    "-_created_at", "_created_at",
+})
 
 
 def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
@@ -189,7 +200,7 @@ async def get_qso_page(
     mode_filter: Optional[str] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
-    sort_by: str = "-qso_date_utc",
+    sort_by: str = _DEFAULT_SORT,
 ) -> tuple[list[QSO], int]:
     """Fetch a paginated, filtered page of active QSOs for an operator.
 
@@ -198,6 +209,13 @@ async def get_qso_page(
 
     Returns (items, total) where total is the unfiltered count for pagination UI.
     """
+    if sort_by not in _ALLOWED_SORT_FIELDS:
+        logger.warning(
+            "Invalid sort field '%s' for operator '%s', falling back to default",
+            sort_by,
+            operator,
+        )
+        sort_by = _DEFAULT_SORT
     query: dict = {"_operator": operator, "_deleted": False}
 
     if callsign_filter:
