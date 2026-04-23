@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
@@ -219,7 +220,7 @@ async def get_qso_page(
     query: dict = {"_operator": operator, "_deleted": False}
 
     if callsign_filter:
-        query["CALL"] = {"$regex": callsign_filter, "$options": "i"}
+        query["CALL"] = {"$regex": re.escape(callsign_filter), "$options": "i"}
     if band_filter:
         query["BAND"] = band_filter
     if mode_filter:
