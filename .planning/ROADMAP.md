@@ -697,10 +697,10 @@ Plans:
   2. All currently sortable fields (`-qso_date_utc`, `qso_date_utc`, `-CALL`, `CALL`, `-BAND`, `BAND`, `-MODE`, `MODE`, `-_created_at`, `_created_at`) are accepted and produce correctly ordered results
   3. The server-side `#auto-refresh-ok` sentinel is rendered when `sort` is `-_created_at` (in addition to the existing `-qso_date_utc` condition) — SSE live table refresh fires on the newest-entered-first sort
   4. A QSO's `created_at` value is accessible in the Jinja2 template context via the view dict key — no `UndefinedError` when the template references it
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 49-01-PLAN.md — TBD
+- [ ] 49-01-PLAN.md — Sort allowlist in get_qso_page(), created_at view dict, SSE sentinel extension, SORT-03/SORT-04 tests
 
 ---
 
@@ -715,7 +715,7 @@ Plans:
   3. All currently unsorted sortable columns (DATE, CALL, BAND, MODE, and the clock icon) display a faint hollow double-chevron icon, indicating they are clickable
   4. The currently active sort column displays a solid directional chevron (up for ascending, down for descending) — the active sort is visually distinct from the inactive sortable columns
   5. Applying a band or callsign filter and then clicking a sort header preserves all active filter parameters in the resulting URL — no filter is silently dropped on sort click
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 50-01-PLAN.md — TBD
@@ -775,5 +775,5 @@ Plans:
 | 46. Sound Playback Wiring | v2.4 | 1/1 | Complete    | 2026-04-17 |
 | 47. New QSO Badge | v2.4 | 1/1 | Complete    | 2026-04-18 |
 | 48. Model Foundation | v2.5 | 1/1 | Complete    | 2026-04-22 |
-| 49. Service Layer | v2.5 | 0/1 | Not started | - |
+| 49. Service Layer | v2.5 | 0/1 | Planned | - |
 | 50. Sort UI | v2.5 | 0/1 | Not started | - |
