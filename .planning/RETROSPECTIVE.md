@@ -101,6 +101,51 @@
 
 ---
 
+## Milestone: v2.5 — QSO Sorting & Entry Timestamp
+
+**Shipped:** 2026-04-23
+**Phases:** 3 (48–50) | **Plans:** 3 | **Sessions:** ~3
+
+### What Was Built
+
+- `app/qso/models.py` — `_created_at: datetime` field with `default_factory=lambda: datetime.now(timezone.utc)`; all 4 insert paths (REST, UDP, ADIF import, admin) stamped automatically without touching each path individually; compound index on `(_operator, _created_at)`; protected field stripping ensures `_created_at` cannot be overwritten via API
+- `app/qso/service.py` — `_ALLOWED_SORT_FIELDS` allowlist (CALL, BAND, MODE, qso_date_utc, _created_at); view dict enrichment adds `_created_at` ISO string for template; SSE sentinel extended to `-_created_at` (prevents auto-refresh when user is browsing by entry timestamp)
+- `templates/log/log_table.html` — Sort UI: MODE clickable header (ascending-first toggle); clock icon link in DATE header for `_created_at` (descending-first); hollow/solid chevron indicator system across all 5 sortable elements (DATE text, clock, CALL, BAND, MODE)
+- `static/css/output.css` — rebuilt with `dark:opacity-25` compiled for inactive chevron indicators
+
+### What Worked
+
+- **`default_factory` on model field**: Stamping `_created_at` at the Beanie model level covered all 4 insert paths (REST, UDP, ADIF import, admin) without modifying each individually — confirmed as the right pattern over service-layer stamping
+- **Backend-first phase ordering**: Phases 48+49 defined exact field names, allowlist keys, and API contract before Phase 50's UI work began — zero blocked decisions during template edits
+- **Hollow/solid chevron system**: `opacity-30 dark:opacity-25` inactive indicators with solid directional chevrons on active column is a clean, composable pattern applicable to any sortable table
+
+### What Was Inefficient
+
+- **STATE.md front matter stale `milestone: v1.7`**: Same recurring issue from v2.4 — front matter was never updated mid-milestone; only fixed at close. Needs to be updated at milestone start, not end.
+- **`gsd-tools milestone complete` bad MILESTONES.md output**: CLI extracted garbage accomplishment text ("One-liner:", "[Rule 1 - Bug]...") from SUMMARY.md instead of meaningful entries — required full manual rewrite of MILESTONES.md v2.5 entry.
+- **`audit-open` CLI crash**: `gsd-tools audit-open` threw `ReferenceError: output is not defined` at milestone open step — worked around by manual artifact assessment. Tool bug needs fixing upstream.
+- **`roadmap analyze` silent failure**: Returned `phases: [], phase_count: 0` — could not parse this project's ROADMAP.md format. Manual ROADMAP.md read was required as fallback.
+
+### Patterns Established
+
+- **Multi-link `<th>` with `inline-flex` wrapper**: When a single column header needs multiple sort targets (e.g., DATE text + clock icon), wrap both `<a>` elements in `<span class="inline-flex items-center gap-2">` inside the `<th>`. Established for any future multi-sort column.
+- **MODE ascending-first sort toggle**: `{% if sort == 'MODE' %}-MODE{% else %}MODE{% endif %}` — MODE sorts ascending on first click (A→Z), then descending. All other fields default descending-first. Documented in STATE.md key decisions.
+- **`_ALLOWED_SORT_FIELDS` allowlist pattern**: Allowlist in service layer prevents arbitrary MongoDB field injection via sort parameter. FREQ and RST intentionally excluded (non-meaningful sort axes).
+
+### Key Lessons
+
+1. **Use `default_factory` on the model field for auto-stamped internal fields, not service-layer stamping.** Model-level defaults apply to every insert path (REST, UDP, ADIF import, admin CRUD) without requiring each path to be updated. Service-layer stamping only covers paths that explicitly call the service.
+2. **`dark:opacity-25` compiles to `dark\:opacity-25` in CSS (standard CSS colon escape).** `grep -q "dark:opacity-25" output.css` will exit 1 even when the class is present. Use `grep -q 'dark\\:opacity-25'` or verify with `npm run verify` instead.
+3. **gsd-tools `audit-open` and `roadmap analyze` are unreliable for this project.** Both crash or return empty results — the ROADMAP.md format is not parsed correctly. Always fall back to reading files directly; do not block milestone progression on CLI tool output.
+
+### Cost Observations
+
+- Model: claude-sonnet-4-6 throughout
+- Sessions: ~3 execution sessions across 3 phases
+- Notable: Phase 50 was `autonomous: false` with a `checkpoint:human-verify` task — the only human browser-verification gate in the milestone; all other phases ran fully autonomously
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -113,11 +158,13 @@
 | v2.2 | 1 | 2 | Single-phase milestone — narrow well-scoped feature |
 | v2.3 | 2 | 2 | Two-phase data+UI split — backend first, frontend second |
 | v2.4 | 4 | 5 | Hardening + new UX features; arch decisions pre-loaded in STATE.md |
+| v2.5 | 3 | 3 | Model-level `default_factory` stamp + allowlist sort + 5-column sort UI |
 
 ### Cumulative Quality
 
 | Milestone | Tests Added | Zero New Prod Deps |
 |-----------|-------------|-------------------|
+| v2.5 | 0 new tests | ✓ (no new dependencies) |
 | v2.4 | 5 integration tests | ✓ (Web Audio native browser) |
 | v2.3 | 7 integration tests | ✓ (Chart.js CDN only) |
 | v2.2 | 12 integration tests | ✓ |
