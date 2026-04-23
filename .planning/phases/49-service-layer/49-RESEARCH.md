@@ -356,7 +356,7 @@ def _qso_to_view_dict(qso: QSO) -> dict:
 ### Wave 0 Gaps
 - [ ] `tests/test_service_sort.py` — covers SORT-04 (allowlist guard, WARNING log, fallback, all 10 valid values accepted)
 - [ ] `tests/test_sse_sentinel.py` — covers SORT-03 (sentinel rendered for both newest-first sorts, absent for others); follows `test_log_view_notify_sound.py` fixture pattern (httpx ASGITransport + JWT cookie)
-- [ ] `tests/test_view_dict.py` — covers `_qso_to_view_dict()` `created_at` key presence (unit test, no MongoDB required, use `QSO.model_construct()`)
+- [ ] `tests/test_view_dict.py` — covers `_qso_to_view_dict()` `created_at` key presence (unit test, no MongoDB required, construct via `QSO(...)` not `model_construct()`)
 
 **Existing test infrastructure coverage:** `test_operator_isolation.py` already tests `get_qso_page()` — extend or add alongside it. `test_log_view_notify_sound.py` provides the exact fixture pattern (ASGITransport + JWT cookie + init_beanie) for sentinel tests.
 
@@ -389,16 +389,13 @@ Step 2.6: SKIPPED (no external dependencies — this is a code-only change to Py
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Logger not in `service.py` — is import logging needed elsewhere?**
-   - What we know: `app/qso/service.py` currently has no `import logging` and no `logger` assignment [VERIFIED by file read]. CONTEXT.md says it's "already set up" — that appears to be an error in the context document.
-   - What's unclear: Whether the plan should fix this gap in the same task or as a separate setup task.
-   - Recommendation: Include `import logging` + `logger = logging.getLogger(__name__)` in the same task as adding `_ALLOWED_SORT_FIELDS` and the guard block. It's a 2-line addition in the right place.
+   RESOLVED: Yes, `import logging` and `logger = logging.getLogger(__name__)` must be added to `service.py` in the same task as the guard block. It's a 2-line addition. The CONTEXT.md claim that the logger was "already set up" was incorrect — verified by file read that `service.py` lines 1-14 have neither import.
 
 2. **`_DEFAULT_SORT` as named constant vs. inline string?**
-   - What we know: The fallback value `-qso_date_utc` appears in the function signature default and in the guard fallback. A named constant avoids duplication.
-   - Recommendation: Define `_DEFAULT_SORT = "-qso_date_utc"` alongside `_ALLOWED_SORT_FIELDS`. Use it in both the function signature default and the guard assignment. This is Claude's discretion.
+   RESOLVED: Define `_DEFAULT_SORT = "-qso_date_utc"` alongside `_ALLOWED_SORT_FIELDS`. Use it in both the function signature default and the guard assignment. This avoids duplicating the string literal and is Claude's discretion.
 
 ---
 
