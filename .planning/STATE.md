@@ -1,34 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.5
-milestone_name: QSO Sorting & Entry Timestamp
-status: milestone_complete
-stopped_at: v2.5 archived 2026-04-23
-last_updated: "2026-04-23T00:00:00.000Z"
-last_activity: 2026-04-23
+milestone: v2.6
+milestone_name: llms.txt Support
+status: planning
+stopped_at: ~
+last_updated: "2026-04-24T00:00:00.000Z"
+last_activity: 2026-04-24
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-23)
+See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone (v2.5 shipped)
+**Current focus:** Defining requirements for v2.6 (llms.txt Support)
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: v2.5 milestone complete — planning next milestone
-Last activity: 2026-04-23
+Status: Defining requirements
+Last activity: 2026-04-24 — Milestone v2.6 started
 
 ```
 v2.5 Progress: [██████████] 100% (3/3 phases)
@@ -63,7 +63,8 @@ Phase 50: Sort UI               [x] Complete (2026-04-23)
 | v2.2 | 41 | 2 |
 | v2.3 | 42–43 | 2 |
 | v2.4 | 44–47 | 5 |
-| v2.5 | 48–50 | TBD |
+| v2.5 | 48–50 | 3 |
+| v2.6 | 51–? | TBD |
 
 ## Accumulated Context
 
@@ -71,23 +72,15 @@ Phase 50: Sort UI               [x] Complete (2026-04-23)
 
 - v2.5 milestone started: QSO Sorting & Entry Timestamp
 - v2.5 roadmap finalized 2026-04-20: 3 phases (48–50), 9 requirements mapped
+- v2.6 milestone started: llms.txt Support (2026-04-24)
 
-### v2.5 Phase Summary
+### Key Decisions for v2.6
 
-| Phase | Name | Requirements | Key Work |
-|-------|------|--------------|----------|
-| 48 | Model Foundation | TS-01, TS-02, TS-03 | `_created_at` field + `default_factory`, compound index, protected fields strip |
-| 49 | Service Layer | SORT-03, SORT-04 | `_ALLOWED_SORT_FIELDS` allowlist, view dict enrichment, SSE sentinel extended |
-| 50 | Sort UI | SORT-01, SORT-02, UX-01, UX-02 | MODE header, clock icon in DATE header, hollow/solid chevrons |
-
-### Key Decisions for v2.5
-
-- `_created_at` clock icon goes INSIDE the DATE column header — no new `<th>`/`<td>` column
-- SSE auto-refresh sentinel extends to include `-_created_at` sort (Phase 49)
-- FREQ and RST columns are NOT sortable — excluded from `_ALLOWED_SORT_FIELDS`
-- No three-state sort cycle — existing Clear button handles reset to default
-- `default_factory=lambda: datetime.now(timezone.utc)` on model (not in `build_qso_dict()`) ensures all 4 insert paths get the timestamp automatically
-- Sort string uses MongoDB alias name (`_created_at`), not Python attribute name (`created_at`)
+- Static files (`static/llms.txt`, `static/llms-full.txt`) — editable without touching Python
+- Two FastAPI routes at `/llms.txt` and `/llms-full.txt` on operator app (port 8000) — not on admin app
+- Both routes excluded from OpenAPI schema (`include_in_schema=False`)
+- `/llms.txt` = index (project title + description + section links)
+- `/llms-full.txt` = full content (API reference + ADIF field guide + getting-started walkthrough)
 
 ### Critical Build Rules (carried forward)
 
@@ -110,6 +103,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-23T20:14:45.295Z
-Stopped at: Phase 50 UI-SPEC approved
-Next: `/gsd-plan-phase 48`
+Last session: 2026-04-24
+Stopped at: v2.6 milestone initialized — requirements and roadmap pending
+Next: `/gsd-plan-phase 51`

@@ -12,15 +12,14 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 **Goal achieved:** SSE watcher hardened against Python 3.12+ GC and runtime exceptions; LIVE indicator accuracy fixed to message-first state machine; per-operator sound notifications (Web Audio 440 Hz tone, autoplay-policy compliant) wired to SSE events with persistent MongoDB preference; dismissable new-QSO badge for page 2+/filtered views.
 
-## Current Milestone: v2.5 QSO Sorting & Entry Timestamp
+## Current Milestone: v2.6 llms.txt Support
 
-**Goal:** Add a creation timestamp to every QSO record and make all log table columns sortable, with a hidden-but-sortable entry timestamp and default sort by QSO date.
+**Goal:** Make ollog discoverable and useful to LLM tooling by serving structured, full-text documentation at standard llms.txt endpoints on the operator app.
 
 **Target features:**
-- Entry timestamp (`_created_at`) — system field auto-set on QSO insert (API, UI, UDP, import); invisible in the log table
-- Column sorting — every visible log table column gets a sort icon; clicking cycles asc → desc → default
-- Default sort — QSO_DATE descending (most recent first)
-- Timestamp sort icon — dedicated icon in the table header allows sorting by `_created_at` even though the column is hidden
+- `/llms.txt` — index: project title, one-sentence description, links to all content sections
+- `/llms-full.txt` — full text: API reference, ADIF field guide, operator getting-started walkthrough
+- Both served as `text/plain` from static source files (editable without touching Python code)
 
 ## Requirements
 
@@ -401,4 +400,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 — v2.5 complete (Phase 50)*
+*Last updated: 2026-04-24 — v2.6 started*
