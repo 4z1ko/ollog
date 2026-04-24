@@ -50,10 +50,10 @@ operator app so LLM tooling can discover and consume ollog's API and field refer
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| LLMS-01 | TBD | Pending |
-| LLMS-02 | TBD | Pending |
-| LLMS-03 | TBD | Pending |
-| LLMS-04 | TBD | Pending |
-| CONTENT-01 | TBD | Pending |
-| CONTENT-02 | TBD | Pending |
-| CONTENT-03 | TBD | Pending |
+| LLMS-01 | Phase 51 | Pending |
+| LLMS-02 | Phase 51 | Pending |
+| LLMS-03 | Phase 51 | Pending |
+| LLMS-04 | Phase 51 | Pending |
+| CONTENT-01 | Phase 51 | Pending |
+| CONTENT-02 | Phase 51 | Pending |
+| CONTENT-03 | Phase 51 | Pending |

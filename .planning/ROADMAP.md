@@ -18,6 +18,7 @@
 - ✅ **v2.3 Operator Statistics** — Phases 42–43 (shipped 2026-04-16)
 - ✅ **v2.4 Live Log & Sound Alerts** — Phases 44–47 (shipped 2026-04-20)
 - ✅ **v2.5 QSO Sorting & Entry Timestamp** — Phases 48–50 (shipped 2026-04-23)
+- 🔄 **v2.6 llms.txt Support** — Phase 51 (in progress)
 
 
 ## Phases
@@ -200,6 +201,10 @@ Full archive: `.planning/milestones/v2.4-ROADMAP.md`
 Full archive: `.planning/milestones/v2.5-ROADMAP.md`
 
 </details>
+
+### v2.6 llms.txt Support (Phase 51)
+
+- [ ] **Phase 51: llms.txt Endpoints and Content** — two `FileResponse` routes in `app/main.py`, static source files, full content authored from MkDocs source
 
 ## Phase Details
 
@@ -668,6 +673,72 @@ Plans:
 - [x] 47-01-PLAN.md — New QSO badge: badge HTML sibling of `#log-table`, JS counter, htmx:afterSettle re-sync, click-to-dismiss
 **UI hint**: yes
 
+---
+
+### Phase 48: Model Foundation
+
+**Goal:** The `_created_at` timestamp field exists on every QSO document — inserted automatically at creation time, protected from updates, indexed for efficient sort, and backfilled on existing documents at startup.
+**Depends on:** Phase 47 (v2.4 complete)
+**Requirements:** TS-01, TS-02, TS-03
+**Success Criteria** (what must be TRUE):
+  1. A QSO logged via REST API, UI form, UDP datagram, or ADIF import contains a `_created_at` field in MongoDB set to the UTC time of insertion
+  2. A PATCH request to update any QSO field does not change `_created_at` — the timestamp is immutable after insertion
+  3. The MongoDB compound index `(_operator ASC, _created_at DESC)` exists after app startup and is used for `_created_at`-sorted queries
+  4. Pre-existing QSO documents without `_created_at` receive a backfilled value derived from their ObjectId timestamp on the next app startup
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 48-01-PLAN.md — QSO model `_created_at` field, compound index declaration, PATCH handlers strip, backfill migration, tests
+
+---
+
+### Phase 49: Service Layer
+
+**Goal:** The QSO service layer enforces a strict allowlist of sort fields, exposes `_created_at` to the template layer, and extends the SSE auto-refresh sentinel to include `_created_at`-descending sort.
+**Depends on:** Phase 48
+**Requirements:** SORT-03, SORT-04, TS-04, TS-05
+**Success Criteria** (what must be TRUE):
+  1. Sending `?sort=hashed_password` or any non-allowlisted field to the log view falls back to default sort and logs a WARNING — no MongoDB query uses the rejected field name
+  2. All 10 explicitly allowed sort values are accepted without fallback or warning
+  3. The view dict for each QSO row contains a `created_at` key with a datetime value accessible in templates
+  4. The SSE auto-refresh sentinel fires for both `-qso_date_utc` and `-_created_at` sorts on page 1 with no filters
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 49-01-PLAN.md — `_ALLOWED_SORT_FIELDS` frozenset, WARNING log, `_qso_to_view_dict()` `created_at` key, SSE sentinel extension, tests
+
+---
+
+### Phase 50: Sort UI
+
+**Goal:** Operators can sort the QSO log by MODE and by entry timestamp (`_created_at`) directly from column headers, with clear visual indicators for sort direction on active columns and faint indicators on inactive sortable columns.
+**Depends on:** Phase 49
+**Requirements:** SORT-01, SORT-02, UX-01, UX-02, D-01
+**Success Criteria** (what must be TRUE):
+  1. Clicking the MODE column header sorts ascending on first click and descending on second click — sort state is preserved through filter changes
+  2. A clock icon in the DATE header sorts by `_created_at` descending on first click and ascending on second click
+  3. All inactive sortable columns display a faint hollow double-chevron; the active sort column shows a solid directional chevron (down for descending, up for ascending)
+  4. Filter parameters (call, band, mode, date range) are preserved in the URL when any sort header is clicked
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 50-01-PLAN.md — log_table.html MODE sort header, clock icon sort link, hollow/solid chevron indicators, filter preservation, output.css rebuild
+**UI hint**: yes
+
+---
+
+### Phase 51: llms.txt Endpoints and Content
+
+**Goal:** LLM tooling can discover and consume ollog's API reference, ADIF field guide, and operator walkthrough by fetching two plain-text endpoints on the operator app — with content editable as static files requiring no Python code changes.
+**Depends on:** Phase 50 (v2.5 complete)
+**Requirements:** LLMS-01, LLMS-02, LLMS-03, LLMS-04, CONTENT-01, CONTENT-02, CONTENT-03
+**Success Criteria** (what must be TRUE):
+  1. `GET /llms.txt` returns `Content-Type: text/plain; charset=utf-8` containing a project title, one-sentence description, and links to all content sections available in `/llms-full.txt` — verifiable with `curl -I http://localhost:8000/llms.txt`
+  2. `GET /llms-full.txt` returns `Content-Type: text/plain; charset=utf-8` containing the full API reference (all 16+ endpoints with method, auth, request fields, response shape, status codes, and at least one curl example each), the complete ADIF field reference (QSO_DATE, TIME_ON, BAND, MODE, OPERATOR/STATION_CALLSIGN format tables), and the operator getting-started walkthrough (login → profile → QSO via UI and REST API → ADIF import/export)
+  3. Neither `/llms.txt` nor `/llms-full.txt` appears in the Swagger UI at `/docs` or in `/openapi.json` — both routes carry `include_in_schema=False`
+  4. Editing `static/llms.txt` or `static/llms-full.txt` in a text editor and restarting the app causes the updated content to be served immediately — no Python file requires modification to update the content
+**Plans:** TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -722,3 +793,4 @@ Plans:
 | 48. Model Foundation | v2.5 | 1/1 | Complete    | 2026-04-22 |
 | 49. Service Layer | v2.5 | 1/1 | Complete    | 2026-04-23 |
 | 50. Sort UI | v2.5 | 1/1 | Complete    | 2026-04-23 |
+| 51. llms.txt Endpoints and Content | v2.6 | 0/TBD | Not started | - |

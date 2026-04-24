@@ -7,7 +7,7 @@ stopped_at: ~
 last_updated: "2026-04-24T00:00:00.000Z"
 last_activity: 2026-04-24
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,27 +21,25 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Defining requirements for v2.6 (llms.txt Support)
+**Current focus:** Phase 51 — llms.txt Endpoints and Content
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 51 — llms.txt Endpoints and Content
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-24 — Milestone v2.6 started
+Status: Not started
+Last activity: 2026-04-24 — Roadmap created for v2.6
 
 ```
-v2.5 Progress: [██████████] 100% (3/3 phases)
-Phase 48: Model Foundation      [x] Complete (2026-04-22)
-Phase 49: Service Layer         [x] Complete (2026-04-23)
-Phase 50: Sort UI               [x] Complete (2026-04-23)
+v2.6 Progress: [__________] 0% (0/1 phases)
+Phase 51: llms.txt Endpoints and Content  [ ] Not started
 ```
 
 ## Performance Metrics
 
 **Velocity (historical):**
 
-- Total plans completed: 69 plans across v1.0–v2.4
+- Total plans completed: 72 plans across v1.0–v2.5
 - Average duration: ~5–20 min/plan
 
 **By Milestone:**
@@ -64,23 +62,24 @@ Phase 50: Sort UI               [x] Complete (2026-04-23)
 | v2.3 | 42–43 | 2 |
 | v2.4 | 44–47 | 5 |
 | v2.5 | 48–50 | 3 |
-| v2.6 | 51–? | TBD |
+| v2.6 | 51 | TBD |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
-- v2.5 milestone started: QSO Sorting & Entry Timestamp
-- v2.5 roadmap finalized 2026-04-20: 3 phases (48–50), 9 requirements mapped
+- v2.5 milestone complete: QSO Sorting & Entry Timestamp (Phases 48–50)
 - v2.6 milestone started: llms.txt Support (2026-04-24)
+- v2.6 roadmap finalized 2026-04-24: 1 phase (51), 7 requirements mapped
 
 ### Key Decisions for v2.6
 
 - Static files (`static/llms.txt`, `static/llms-full.txt`) — editable without touching Python
 - Two FastAPI routes at `/llms.txt` and `/llms-full.txt` on operator app (port 8000) — not on admin app
-- Both routes excluded from OpenAPI schema (`include_in_schema=False`)
+- Both routes use `FileResponse` with `include_in_schema=False`
 - `/llms.txt` = index (project title + description + section links)
 - `/llms-full.txt` = full content (API reference + ADIF field guide + getting-started walkthrough)
+- Content sourced from existing MkDocs markdown files in `docs/`
 
 ### Critical Build Rules (carried forward)
 
@@ -104,5 +103,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-24
-Stopped at: v2.6 milestone initialized — requirements and roadmap pending
+Stopped at: v2.6 roadmap created — Phase 51 ready to plan
 Next: `/gsd-plan-phase 51`
