@@ -737,7 +737,12 @@ Plans:
   2. `GET /llms-full.txt` returns `Content-Type: text/plain; charset=utf-8` containing the full API reference (all 16+ endpoints with method, auth, request fields, response shape, status codes, and at least one curl example each), the complete ADIF field reference (QSO_DATE, TIME_ON, BAND, MODE, OPERATOR/STATION_CALLSIGN format tables), and the operator getting-started walkthrough (login → profile → QSO via UI and REST API → ADIF import/export)
   3. Neither `/llms.txt` nor `/llms-full.txt` appears in the Swagger UI at `/docs` or in `/openapi.json` — both routes carry `include_in_schema=False`
   4. Editing `static/llms.txt` or `static/llms-full.txt` in a text editor and restarting the app causes the updated content to be served immediately — no Python file requires modification to update the content
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 51-01-PLAN.md — Wave 0 scaffolding: stub static/llms.txt, static/llms-full.txt, tests/test_llms.py
+- [ ] 51-02-PLAN.md — Add FileResponse import and two @app.get routes (/llms.txt, /llms-full.txt) to app/main.py
+- [ ] 51-03-PLAN.md — Author full content in static/llms-full.txt (16-endpoint API reference, ADIF field tables, operator walkthrough)
 
 ## Progress
 
