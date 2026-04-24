@@ -1,0 +1,15 @@
+# ollog — Full LLM Reference
+
+A self-hosted, multi-operator ham radio logbook. This document is the machine-readable full reference for LLM tooling.
+
+## API Reference
+
+Stub — full content authored in Plan 03.
+
+## ADIF Field Reference
+
+Stub — full content authored in Plan 03.
+
+## Getting Started
+
+Stub — full content authored in Plan 03.
