@@ -1,171 +1,190 @@
 # Feature Research
 
-**Domain:** Sortable log table columns + entry timestamp for a server-rendered HTMX ham radio logbook
-**Milestone:** v2.5 QSO Sorting & Entry Timestamp
-**Researched:** 2026-04-20
-**Confidence:** HIGH — grounded in direct codebase inspection plus verified UX research
+**Domain:** UTC date/time entry enhancements for an HTMX ham radio logbook form
+**Milestone:** v2.7 UTC Date/Time Entry
+**Researched:** 2026-04-24
+**Confidence:** HIGH — grounded in direct codebase inspection, ADIF spec verification, LoTW domain research, and UX pattern research
 
 ---
 
 ## Current State Snapshot
 
-The existing `log_table.html` already implements sortable column headers for three columns:
+The existing `templates/log/form.html` QSO entry form has:
 
-| Column | Sort key | Status |
-|--------|----------|--------|
-| Date / Time UTC | `qso_date_utc` | Already sortable (asc/desc toggle) |
-| Callsign | `CALL` | Already sortable |
-| Band | `BAND` | Already sortable |
-| Mode | `MODE` | Header exists but not sortable |
-| Freq (MHz) | `FREQ` | Header exists but not sortable |
-| RST S/R | (composite) | Header exists, not applicable |
-| Actions | (buttons) | Not applicable |
+| Field | Current Behavior | v2.7 Target |
+|-------|-----------------|-------------|
+| `QSO_DATE` (text input) | Blank on page load; placeholder `YYYYMMDD`; required; 8-digit validation on submit | Locked to today's UTC by default; lock icon toggles manual edit; `readonly` not `disabled` |
+| `TIME_ON` (text input) | Blank on page load; placeholder `HHMM`; required; 4-digit validation on submit | Live UTC HHMMSS while locked; lock icon freezes for manual entry; HHMM normalized to HHMM00 |
+| Post-submit reset | Always: `form.reset()` + focus CALL + clear errors (line 249 in form.html) | Toggle: "Keep current" vs "Reset to live UTC" |
+| TIME_ON format in DB | Stored as HHMM string | Stored as HHMMSS string; migration backfills existing HHMM→HHMM00 |
 
-Default sort: `-qso_date_utc` (most recent first).
-
-The `auto-refresh-ok` sentinel in `log_table.html` already gates SSE auto-refresh on `sort == '-qso_date_utc'`, so any new sort value (including `_created_at`) automatically suppresses SSE auto-refresh with no additional logic.
+The existing JavaScript validation rule for `TIME_ON` is `/^\d{4}$/.test(v.trim())` — this must be updated to accept both 4-digit (HHMM) and 6-digit (HHMMSS) forms.
 
 ---
 
-## Feature Landscape
+## ADIF Spec: TIME_ON Precision
 
-### Table Stakes (Users Expect These)
+**Specification:** ADIF 3.1.7 (project's pinned version, `https://adif.org/317/ADIF_317.htm`)
 
-Features users assume exist. Missing these = product feels incomplete.
+The ADIF `Time` data type is defined as: HHMMSS or HHMM. HH (hours, 00–23) and MM (minutes, 00–59) are **required**. SS (seconds, 00–59) is **optional**.
+
+**What this means for ollog:**
+
+- Both HHMM and HHMMSS are spec-valid. Existing HHMM records do not violate the spec.
+- The migration plan (normalize HHMM→HHMM00) produces valid HHMMSS. No spec breakage.
+- When a user enters HHMM manually via the locked-off form, submitting as HHMM00 is transparent and correct.
+- HHMMSS is the preferred form for modern interoperability: FT8/WSJT-X logs 6-digit times; ADIF export consumers (LoTW, eQSL, QRZ) all accept it.
+
+**FT8 / seconds precision:** FT8 QSOs start and end at 15-second boundaries (0, 15, 30, 45 seconds). WSJT-X logs TIME_ON with seconds. When operators import WSJT-X ADIF into ollog, the seconds are preserved. Having ollog's manual entry UI also capture/store seconds makes the logbook internally consistent regardless of entry path (manual UI vs UDP vs ADIF import).
+
+**LoTW matching:** LoTW uses a ±30-minute tolerance window for QSL confirmation matching — seconds precision is not a factor in matching accuracy. Capturing seconds in TIME_ON is about internal consistency and FT8 ecosystem compatibility, not LoTW compliance.
+
+**Confidence:** HIGH — ADIF spec confirmed via multiple searches; LoTW tolerance confirmed via DXLab mailing list discussion and LoTW help docs.
+
+---
+
+## Table Stakes
+
+Features users expect. Missing = product feels incomplete or broken.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Visual sort indicator on active column | Every sortable table shows which column is sorted and in which direction | LOW | Already done for date/call/band using filled chevron SVGs. Must be extended to MODE. |
-| Clickable header triggers sort | Standard interaction — clicking a column header sorts by that column | LOW | Already implemented via `hx-get` on `<a>` wrappers in `<th>`. Pattern is established. |
-| Sort state preserved through pagination | Page 2 must remain sorted the same way | LOW | Already works: `sort` param threaded through all pagination `hx-get` URLs in `log_table.html`. |
-| Sort state preserved through filter changes | Applying a band filter must not reset the sort | LOW | Already works: filter form has `<input type="hidden" name="sort" value="{{ sort }}">` in `log.html`. |
-| Default sort is most recent QSO first | Ham operators always want chronological reverse order by default | NONE | Already `-qso_date_utc`. No change needed. |
-| `_created_at` field auto-set on all insert paths | System timestamp recording when the record entered the database; user must never set it | LOW | New `Optional[datetime]` field on `QSO` Beanie document with `default_factory=lambda: datetime.now(timezone.utc)`. Beanie sets it on `.insert()` — no change to `build_qso_dict()` required. |
-| `_created_at` invisible in table display | It is system metadata, not an ADIF field that belongs in the log view | LOW | Do not add it as a `<td>` in `qso_row.html`. |
-| Dedicated sort icon for `_created_at` in header | Users need a way to sort by insertion order without an explicit table column | MEDIUM | A small clock or stack icon in the `<thead>` row. Not a `<th>` with a data column below it — instead placed at the end of the existing header row as a standalone sortable icon. Cycles `-_created_at` (newest insert first) ↔ `_created_at` (oldest insert first). |
-| `asc → desc` cycle on clicking the same column | Users expect a second click on the active column to reverse direction | LOW | Already implemented for date/call/band. Pattern: `if sort == '-FIELD'` then go to `FIELD`; else go to `-FIELD`. Extend to MODE. |
-| Sort state visible in URL | Deep-linkable; browser back button returns to previous sort | LOW | Already works via `hx-push-url="true"` on all sort-triggering links. |
+| Date field pre-filled with today's UTC | Every ham logging tool (N1MM+, Log4OM, Ham Radio Deluxe) pre-fills the current UTC date. A blank date field on a live-logging tool reads as broken. | LOW | `new Date().toISOString().slice(0,10).replace(/-/g,'')` on page load. |
+| Time field showing current UTC | Live logging means real-time. Operators logging a QSO now expect the time field to already show "now." | MEDIUM | `setInterval` updating the input value every second while locked. |
+| "Locked" means readonly, not disabled | `readonly` inputs submit their value in the form; `disabled` inputs do not. Ham operators expect the date/time to be included in the QSO even when they didn't type it themselves. | LOW | Existing form uses `name="QSO_DATE"` and `name="TIME_ON"` — value submission depends on `readonly` not `disabled`. |
+| Lock icon is recognizable | Padlock convention is near-universal for "this field is protected" — closed padlock = locked/readonly, open padlock = editable. | LOW | Heroicons has `lock-closed` and `lock-open` (both 16x16 `solid` variant). Existing codebase already uses Heroicons for all icons. |
+| Clicking the lock icon toggles editability | Operators who worked a QSO a few minutes ago expect to be able to back-date without navigating away or reloading. | LOW | Toggle `readonly` attribute + swap icon on click. |
+| Post-submit field behavior is predictable | The current behavior (full form reset after successful submit) is the right default for one-off QSO logging. Users expect a clear form to mean "ready for next QSO." | LOW | Preserve existing reset-on-success as the **default** post-submit behavior. |
 
-### Differentiators (Competitive Advantage)
+---
 
-Features that set the product apart. Not required, but valuable.
+## Differentiators
+
+Features that set this tool apart for its use case (multi-operator club station, high-frequency FT8/contest logging).
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Hollow/outline double-chevron on sortable-but-unsorted columns | Makes it immediately obvious which columns can be sorted, reducing discovery friction. W3C ARIA Authoring Practices recommend a visually distinct unsorted icon (e.g. outline double-chevron) vs the active sort icon. | LOW | Apply to all sortable columns (date, call, band, mode, `_created_at` icon) when they are not the active sort. Currently the template shows nothing on unsorted columns — adding the hollow icon is a small, impactful improvement. Requires adding one SVG variant to existing `{% if sort == ... %}` blocks. |
-| `aria-sort` attribute on active `<th>` | WCAG 2.2 AA accessibility compliance; European Accessibility Act 2025 mandates this for EU-served digital products. Screen readers announce sort state. | LOW | `aria-sort="ascending"` or `aria-sort="descending"` on the active `<th>`. Omit attribute entirely on unsorted columns (W3C recommendation: do not use `aria-sort="none"` as it generates verbose screen reader output). |
-| MODE column sortable | Third most-useful sort for ham operators (after date and callsign). Lets operators review all FT8, all CW, all SSB QSOs grouped together. | LOW | Identical pattern to CALL/BAND. One additional `<a hx-get="...">` wrapper in the MODE `<th>`. MongoDB string sort on `MODE` is semantically correct (FT8, CW, SSB, etc. are comparable strings). |
+| Live auto-updating time while locked | Eliminates the most common logging error: submitting a QSO with a stale or blank time. Operator just logs — the time is always right. | MEDIUM | `setInterval` at 1 Hz; pause updates while field is focused OR while a lock-off override is in effect. Resume on blur if locked. |
+| HHMMSS precision (6 digits) | Consistent with WSJT-X ADIF output, FT8 15-second boundary logging, and modern logbook standards. Makes UDP-submitted FT8 QSOs and manually-entered QSOs time-consistent. | LOW | Validation rule update: `/^\d{4}(\d{2})?$/` (4 or 6 digits). Store whatever precision was captured — no normalization that loses information. |
+| Post-submit toggle: "Keep current date/time" | For operators running a contest sprint or logging a pile-up, every QSO is on the same band/mode for 2 hours. Resetting the form after each QSO and re-entering the same time is friction. "Keep current" means the locked-off time value and the lock state both persist, so the next QSO is pre-stamped without re-entry. | MEDIUM | A small checkbox or toggle below the date/time fields, off by default. When checked: after a successful submit, skip the `form.reset()` entirely for date and time fields; when using locked live-UTC mode, the auto-updating continues uninterrupted. |
+| Date auto-updates at UTC midnight | Edge case: operator logs across midnight UTC. Locked date auto-updates to the new date at midnight. No manual date correction needed. | LOW | Handled by the same `setInterval` that updates time: recompute both date and time strings on each tick. |
+| Visual distinction between "locked auto-UTC" and "manually overridden" | Operators need to glance and know: is this field currently showing live UTC or did someone set it manually? Lock icon state provides this, but a subtle background or border difference makes it unambiguous. | LOW | `readonly` + locked class: neutral input background (current `form-input` style). Unlocked: no change (already editable appearance). The open-padlock icon is sufficient visual differentiation. |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+---
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Three-state sort cycle (asc → desc → reset-to-default) | Some table libraries (TanStack, Tabulator) support this tristate toggle | For a personal logbook, "reset to default" is already handled by the existing Clear button in the filter bar. Third state adds URL parameter ambiguity (must distinguish "no sort specified" vs "sort=-qso_date_utc") and triple-click muscle memory is unusual. | Keep two-state toggle (asc ↔ desc). Clear button already resets everything to default. |
-| Multi-column sort (shift+click secondary sort) | Power users in spreadsheet tools expect secondary sort keys | Significant URL parameter complexity, server-side sort complexity in `get_qso_page()`, and confusing UX without persistent sort-key indicators. Single-column sort covers all practical ham log review needs. | Single-column sort only. |
-| Client-side sort (JavaScript, no server round-trip) | Feels faster for small datasets | Breaks for large logs (500+ QSOs), breaks pagination, breaks filter interaction, creates a second source of truth separate from MongoDB's sort. This app is server-rendered HTMX — client-side sort fights the architecture fundamentally. | Server sort via `get_qso_page(sort_by=...)` using Beanie's `.sort()`. Already works. |
-| Freq (MHz) sortable | FREQ is a visible column; users might expect it | `FREQ` is stored in `model_extra` as a string (ADIF verbatim: "14.074", "144.200"). MongoDB string sort is lexicographic, not numeric: "9.0" sorts after "144.200". Correct sort requires either a `FREQ_numeric: float` derived field stored on insert, or an aggregation pipeline — significant complexity for low operational value. Band filter already groups by frequency range. | Not sortable. Users who want frequency-oriented views use the Band filter. |
-| RST S/R sortable | RST is a visible column | RST values are signal reports (e.g. "599", "59"). No ham operator has ever needed to review their log sorted by signal quality. Zero practical value. | Not sortable. RST column keeps its current plain `<th>RST S / R</th>`. |
-| Actions column sortable | N/A | Actions column contains edit/delete buttons, not data. Conceptually nonsensical. | Remains a plain non-interactive header. |
-| Sticky column header (frozen `<thead>` on scroll) | Long log tables require scrolling; sticky header makes column context visible | Log table has no horizontal scroll. Vertical scroll is handled by page-level browser scroll. Adding `position: sticky` to `<thead>` adds CSS complexity with minimal benefit at personal-log scale (50 rows per page). | Pagination at 50 rows per page keeps tables short. Not needed. |
-| Sort preference persisted in localStorage | Sort choice survives a hard page reload | Adds JS complexity and creates confusion when URLs (bookmarks, shared links) override localStorage. URL-based sort state is already persistent via `hx-push-url="true"` and survives hard reloads. | URL state is sufficient and shareable. |
+## Lock Icon UX Convention
+
+**Established convention (HIGH confidence):**
+
+- **Closed padlock (lock-closed)** = field is locked / protected / readonly. Value is system-controlled. User cannot type.
+- **Open padlock (lock-open)** = field is editable. User can type freely.
+
+This convention is used by: macOS System Preferences (locked settings sections), iOS (screen lock), iOS Keychain, most password managers, Salesforce field lock, Microsoft Dynamics field lock, Adobe Acrobat PDF lock.
+
+**Action on click:** The lock icon is itself the toggle. Clicking the closed padlock opens it (makes field editable). Clicking the open padlock closes it (locks field back to live UTC). This is the same interaction model as macOS System Preferences lock buttons.
+
+**Tooltip requirement (MEDIUM priority):** Research found that lock/unlock icon semantics in form fields can be unclear to unfamiliar users (KeeWeb GitHub issue #805: "Unclear UX Lock/Unlock in field. No ToolTip"). Add `title="Click to edit"` on the closed lock and `title="Click to lock (restore live UTC)"` on the open lock. These are visible on hover and exposed to screen readers via `aria-label`.
+
+**Icon sizing:** Heroicons `lock-closed` and `lock-open` at `w-4 h-4` (16×16, matching existing secondary button icons in this codebase).
+
+**Placement:** Icon as an inline button inside or immediately adjacent to the right side of the input. CSS: `relative` on the input wrapper, `absolute right-2 top-1/2 -translate-y-1/2` on the icon button. This is the "input with trailing icon" pattern used in most design systems (Carbon, Cloudscape, Tailwind UI).
+
+---
+
+## Anti-Features
+
+| Anti-Feature | Why to Avoid | What to Do Instead |
+|--------------|-------------|-------------------|
+| `disabled` attribute on locked fields | Disabled inputs do not submit their value — the form POST would be missing `QSO_DATE` and `TIME_ON`, causing server-side validation failures. A disabled field also looks visually different (grayed out) in ways that suggest the data is unavailable rather than system-controlled. | Use `readonly` attribute. Value submits normally. Appearance is identical to an editable field. |
+| Three-state post-submit toggle (reset / keep-with-freeze / keep-with-live) | Tristate toggles are unusual in form UX and generate user confusion. "Keep current" means different things in the locked vs unlocked state, but the user's intent is always "don't wipe what I just had." | Two states only: (1) Reset to live UTC (default, existing behavior), (2) Keep current date/time + lock state. |
+| Showing seconds in the time input placeholder | If the placeholder says `HHMMSS`, operators running SSB pile-ups (who log at minute-level precision) feel like they're doing it wrong by only entering 4 digits. HHMM is valid. | Placeholder: `HHMM or HHMMSS`. Validation: accept both. DB: store exactly what was submitted (HHMM or HHMMSS). |
+| Auto-pausing the live clock when the user starts typing | This is a subtle UX trap. If the clock pauses on first keypress in the time field, and the user types `14` then pauses to think, the displayed time is now wrong (stopped mid-edit). | Pause when locked is toggled off (explicit user action). Do not pause on keypress. When lock is off, the interval is simply not running — there is no "pause during typing" logic needed. |
+| Separate "Restore to UTC" button | Adding a second button to the form adds visual noise. The lock icon already serves as "restore to UTC" — clicking the open padlock re-locks and immediately resumes auto-update. | Lock icon is the restore mechanism. No additional button. |
+| Using `<input type="time">` | Browser time pickers add a native clock UI that conflicts with ADIF HHMM/HHMMSS text format. They output `HH:MM` (with colon), requiring strip/normalize before submission. | Keep `<input type="text">` with client-side formatting. Consistent with existing form pattern. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-_created_at field on QSO Beanie Document
-    └──required by──> _created_at sort icon in log_table.html <thead>
-                          └──requires──> sort_by='_created_at' handled in get_qso_page()
-                                             └──requires──> MongoDB index on (_operator, _created_at)
+JS setInterval (1 Hz clock) — needed by:
+  ├── Live auto-updating time in TIME_ON input (while locked)
+  └── Auto-date rollover at UTC midnight (while date is locked)
 
-Existing sort pattern (CALL, BAND, qso_date_utc in log_table.html)
-    └──extended by──> MODE column sort (identical pattern, zero new dependencies)
-                      └──requires nothing new beyond the template change
+readonly attribute toggle — needed by:
+  ├── Lock icon click handler
+  └── "Keep current" post-submit behavior (must restore readonly state after submit)
 
-auto-refresh-ok sentinel in log_table.html (existing v1.6 feature)
-    └──automatically gates──> any non-default sort including _created_at
-       (sentinel renders only when sort == '-qso_date_utc'; all other sort values
-        already suppress SSE auto-refresh with zero new logic)
+Post-submit toggle checkbox (new UI element) — reads:
+  └── Current lock state of date/time fields (to decide whether to re-lock after submit)
+
+HHMMSS storage in MongoDB — needed by:
+  ├── Updated validation regex (4 or 6 digits)
+  └── Startup migration: backfill HHMM → HHMM00 on pre-existing records
+
+TIME_ON regex in form.js:
+  └── Currently: /^\d{4}$/ — must change to /^\d{4}(\d{2})?$/
 ```
 
-### Dependency Notes
+### Critical Implementation Note: Locked ≠ Live-Updating After Submit
 
-- **`_created_at` Beanie field must be declared before anything else:** The `QSO` document needs `_created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))`. Beanie respects `default_factory` on `.insert()`. No migration needed for existing documents — `Optional` with `None` default means old documents remain valid; sorting by `_created_at` on old documents puts `None`-valued QSOs at the low end (MongoDB treats `null` as less than all values), which is acceptable legacy-QSOs-first behavior.
-- **ADIF import path behavior:** `import_qsos_from_bytes()` calls `build_qso_dict()` then `QSO(**qso_dict).insert()`. The `_created_at` field is NOT set in `build_qso_dict()` — it is set by the Beanie model's `default_factory` at document construction time. This is correct: imported historical QSOs get a `_created_at` reflecting when they were imported into this system, not the original QSO date. Do not set `_created_at` inside `build_qso_dict()`.
-- **MongoDB index:** Add `(_operator, _created_at)` compound index to `QSO.Settings.indexes`. Without it, sorting by `_created_at` on large logs requires a collection scan. Low risk for personal-scale deployments, but adding the index is the correct approach.
-- **MODE sort has zero backend dependencies:** `MODE` is a declared field on `QSO` (not in `model_extra`), so Beanie's `.sort('MODE')` works without any model or service changes. The only change is in `log_table.html`.
-- **`_created_at` must be excluded from ADIF export:** It is an internal system field, not an ADIF field. The existing `_qso_to_adif_dict()` in `app/adif/router.py` explicitly maps known fields — `_created_at` will not be in the output unless explicitly added. Verify this to avoid ADIF spec violations.
+When "Keep current" mode is active AND the time was locked (live-UTC), post-submit behavior must be: do NOT reset the time field, and DO resume the live-clock interval. The time value will have been frozen during the POST (form submission blocks JS briefly), but the interval resumes immediately after. Since the submit takes <200ms on a local server, the displayed time will be at most 1 second stale — acceptable for ham logging purposes.
 
 ---
 
-## MVP Definition (for this milestone, v2.5)
+## MVP Definition (for v2.7)
 
-### Launch With (required to ship v2.5)
+### Launch With (required to ship v2.7)
 
-- [ ] `_created_at: Optional[datetime]` field on `QSO` Beanie document with `default_factory`
-- [ ] MongoDB compound index on `(_operator, _created_at)` in `QSO.Settings.indexes`
-- [ ] `get_qso_page()` handles `sort_by='_created_at'` and `sort_by='-_created_at'` (currently only validates that the value passes through to `.sort()`; verify Beanie handles underscore-prefixed fields — the stored MongoDB field name is `_created_at`, need to confirm Beanie translates this correctly)
-- [ ] MODE column header in `log_table.html` becomes sortable (same pattern as CALL/BAND)
-- [ ] `_created_at` sort icon in `log_table.html` `<thead>` row — dedicated icon (clock or timestamp glyph), positioned as a non-data header element, cycles `-_created_at` ↔ `_created_at`
+1. **Date locked to today UTC on page load** — `QSO_DATE` pre-filled, `readonly`, closed lock icon.
+2. **Time live-updating while locked** — `TIME_ON` pre-filled with HHMMSS, `readonly`, updating every second, closed lock icon.
+3. **Lock icon toggles editability** — click closed → open lock, remove `readonly`, stop interval; click open → closed lock, restore `readonly`, restart interval with current UTC.
+4. **HHMM-entered time accepted** — when unlocked and user enters HHMM, server/DB accepts it as-is; no forced normalization client-side (server normalizes to HHMM00 before storage, or store verbatim if 4 or 6 digits are both valid DB representations).
+5. **Post-submit toggle: "Keep current date/time"** — checkbox (unchecked = default reset behavior, checked = preserve fields + lock state after submit).
+6. **Updated validation regex** — `/^\d{4}(\d{2})?$/` on TIME_ON; `/^\d{8}$/` on QSO_DATE stays unchanged.
+7. **DB stores HHMMSS** — Beanie model field accepts both; startup migration backfills HHMM→HHMM00.
 
-### Add After Core Is Working (v2.5 stretch goals)
+### Stretch Goals (v2.7 if time permits)
 
-- [ ] Hollow/outline double-chevron on all sortable-but-unsorted columns — improves discoverability; low effort once core sort is working
-- [ ] `aria-sort` attributes on active `<th>` elements
+- Tooltip on lock icon buttons (`title` attribute for hover hint).
+- Subtle visual cue: locked fields use a slightly different cursor (`cursor-default` when `readonly`).
 
-### Future Consideration (v2.6+)
+### Explicitly Out of Scope for v2.7
 
-- [ ] Sort by FREQ with numeric coercion — requires `FREQ_numeric` derived field stored on insert, migration of existing records, potential breaking changes to `build_qso_dict()`; deferred until there is clear user demand
-
----
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| `_created_at` system field | HIGH — unambiguous insert order, no QSO_DATE backdating ambiguity | LOW | P1 |
-| `_created_at` sort icon | HIGH — the reason `_created_at` exists | MEDIUM | P1 |
-| MODE column sortable | MEDIUM — FT8/CW/SSB review use case | LOW | P1 |
-| MongoDB index on `_created_at` | HIGH (correctness for large logs) | LOW | P1 |
-| Hollow icon on unsorted sortable columns | LOW-MEDIUM — discoverability | LOW | P2 |
-| `aria-sort` on active `<th>` | LOW (personal tool) | LOW | P2 |
-| FREQ sortable with numeric coercion | LOW | HIGH | P3 (defer) |
-| Multi-column sort | LOW | HIGH | skip |
-| Three-state sort cycle | LOW | MEDIUM | skip |
-| RST sortable | NONE | LOW | skip |
+- `<input type="datetime-local">` — would break ADIF field name structure and add colon-stripping complexity.
+- Date picker calendar widget — text entry with YYYYMMDD is the correct pattern for ham operators who know their dates.
+- Keyboard shortcut to toggle lock — nice to have, but adds complexity. Operator can click the icon.
 
 ---
 
-## Ham Radio Domain Notes on Sort Usefulness
+## Ham Radio Operator Workflow Context
 
-Based on domain research into how ham operators actually use logbooks (Ham Radio Deluxe, Log4OM, Xlog, QRZ Logbook) and the QSO confirmation matching criteria used by LoTW/eQSL:
+**Why lock/unlock matters for ham operators:**
 
-**Most useful sorts (in priority order):**
-1. **Date/Time descending** (default) — "what did I just work?" — most recent first
-2. **Callsign ascending** — "have I worked this station before?" — alphabetical lookup
-3. **Band ascending** — "what did I work on 20M?" — band review (or use Band filter)
-4. **Mode ascending** — "show all FT8 QSOs together" — mode review
-5. **Entry timestamp (`_created_at`) descending** — "which QSOs were most recently entered into this system?" — useful to verify UDP auto-logging worked, or to find QSOs inserted by import vs manual entry when `QSO_DATE` was backdated
+Contest operation (running a frequency, logging a pile-up): Operators log 50–200 QSOs per hour. Every QSO gets the current time. The time field must never be blank, never stale, and must not require manual re-entry between QSOs. "Keep current" + locked live-UTC is the contest workflow: the form auto-stamps time; the operator only touches CALL, RST, possibly band/mode.
 
-**Confirms anti-feature decisions:**
-- Frequency sorting: the Band filter is a more precise tool for frequency-range review; FREQ string sort is semantically incorrect
-- RST sorting: no ham operator reviews logs sorted by signal report; zero practical use
-- Secondary/multi-column sort: ham log review is always single-dimension (find contacts on a band, find contacts by callsign, etc.)
+**Why keeping the date/time across submits matters:**
+
+For casual DX logging: QSOs happen 5–30 minutes apart. The date doesn't change. The time should auto-update. "Keep current" lets the operator log 3 QSOs in an afternoon without re-filling the form from scratch each time.
+
+**For backdated entry (logging paper slips):** Operator unlocks both fields, enters historical YYYYMMDD and HHMM, logs. Post-submit reset to live UTC is the correct behavior here, because the next QSO is current-time again.
+
+**General ham logbook software behavior (N1MM+, Ham Radio Deluxe, Log4OM):** All major logging tools pre-fill current UTC time and do not require manual entry. Some (HRD, Log4OM) auto-populate time from rig control. N1MM+ operates in contest mode where time auto-stamps on every QSO log. This is the established expectation: time entry should be invisible for the normal-path operator.
 
 ---
 
 ## Sources
 
-- Direct codebase inspection: `templates/log/log_table.html`, `templates/log/log.html`, `app/qso/ui_router.py`, `app/qso/service.py`, `app/qso/models.py` — HIGH confidence
-- HTMX table sorting pattern: https://dev.to/vladkens/table-sorting-and-pagination-with-htmx-3dh8 — MEDIUM confidence (community article, verified against existing implementation)
-- W3C WAI-ARIA sortable table example: https://www.w3.org/WAI/ARIA/apg/patterns/table/examples/sortable-table/ — HIGH confidence (official spec)
-- Adrian Roselli sortable table columns UX: https://adrianroselli.com/2021/04/sortable-table-columns.html — HIGH confidence (authoritative accessibility source)
-- MDN aria-sort reference: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-sort — HIGH confidence (official spec)
-- TanStack Table sort cycle documentation: https://tanstack.com/table/latest/docs/guide/sorting — MEDIUM confidence (confirms three-state cycle is a known anti-feature for simple use cases)
-- Ham Radio Deluxe QSO fields: https://support.hamradiodeluxe.com/support/solutions/articles/51000052691-creating-and-managing-qsos — MEDIUM confidence
-- Ham radio logging common sort fields: https://hamradioplayground.com/digital-modes-tech/logging-software/log-organize-qso-contacts — MEDIUM confidence (community article)
+- Direct codebase inspection: `templates/log/form.html` (lines 39–50, 170–257) — HIGH confidence
+- ADIF 3.1.7 Time data type: HHMM and HHMMSS both valid, seconds optional — confirmed via multiple ADIF spec search results — HIGH confidence
+- LoTW ±30 minute QSL matching tolerance: confirmed via DXLab@groups.io discussion and general LoTW help docs — MEDIUM confidence (mailing list source, widely corroborated)
+- FT8 15-second timing boundaries: from WSJT-X user guide and FT8 protocol paper — HIGH confidence
+- Lock icon convention (closed = locked, open = editable): confirmed via Apple/macOS UX, Salesforce, Microsoft Dynamics, Material UI, Heroicons naming — HIGH confidence
+- Tooltip necessity for lock/unlock in form fields: KeeWeb GitHub issue #805 — MEDIUM confidence (single source, confirms known UX concern)
+- `readonly` vs `disabled` for submittable read-only inputs: MDN HTML spec, W3Schools — HIGH confidence
+- Ham logging tool time-stamping behavior (HRD, N1MM+, Log4OM): confirmed via logging software documentation and reviews — MEDIUM confidence (indirect references)
+- Focus/blur pattern for live-updating inputs: JavaScript.info focus/blur docs, Phoenix LiveView issue #938 — HIGH confidence
 
 ---
-*Feature research for: v2.5 QSO Sorting & Entry Timestamp (ollog)*
-*Researched: 2026-04-20*
+*Feature research for: v2.7 UTC Date/Time Entry (ollog)*
+*Researched: 2026-04-24*

@@ -1,312 +1,314 @@
-# Technology Stack — v2.5 QSO Sorting & Entry Timestamp
+# Technology Stack
 
-**Project:** ollog v2.5
-**Milestone:** QSO Sorting & Entry Timestamp
-**Researched:** 2026-04-20
-**Scope:** Additions and changes ONLY. Validated v2.4 stack is not re-listed.
-**Confidence:** HIGH (all claims verified against official docs, Context7, or code audit)
-
----
-
-## New Dependencies
-
-**None required.** All v2.5 features are achievable with the existing Python + JS stack.
-No new packages in `pyproject.toml` or CDN `<script>` tags are needed.
+**Project:** ollog v2.7 UTC Date/Time Entry
+**Researched:** 2026-04-24
+**Scope:** Additions and changes for v2.7 features ONLY. Validated v2.6 stack is not re-listed.
+**Confidence:** HIGH (all claims verified against codebase audit, official browser specs, or
+existing patterns in this project)
 
 ---
 
-## Feature 1: `_created_at` Entry Timestamp Field
+## Verdict Up Front
 
-### Field Declaration Pattern
-
-Add to `app/qso/models.py` — `QSO(Document)`:
-
-```python
-from datetime import datetime, timezone
-from pydantic import Field
-
-created_at: Optional[datetime] = Field(
-    default_factory=lambda: datetime.now(tz=timezone.utc),
-    alias="_created_at",
-    serialization_alias="_created_at",
-)
-```
-
-**Why `lambda: datetime.now(tz=timezone.utc)` not `datetime.utcnow`:**
-`datetime.utcnow()` is deprecated in Python 3.12 (DeprecationWarning emitted at module
-import if used as a `default_factory`). The `lambda` wrapper avoids capturing a stale
-datetime at class-definition time and produces a timezone-aware UTC datetime consistently.
-
-**Why `Optional[datetime]`:**
-Matches the existing `qso_date_utc: Optional[datetime]` pattern on the same model.
-Documents without `_created_at` (pre-v2.5 imports) read as `None` — no migration needed.
-Beanie skips missing fields and applies `default_factory` only on insert, not on read.
-
-**Why `alias="_created_at"` AND `serialization_alias="_created_at"`:**
-This is the same two-alias pattern used for `operator_callsign`/`is_deleted` in the
-existing model. `alias` controls how Beanie names the MongoDB field during both reads
-and writes. `serialization_alias` is required for `model_dump(by_alias=True)` calls.
-`populate_by_name=True` is already set via `model_config = ConfigDict(...)`.
-
-### Datetime Storage Behaviour (MEDIUM confidence — pymongo docs verified)
-
-pymongo stores `datetime` objects as BSON UTC milliseconds regardless of timezone info.
-By default (without `tz_aware=True` in CodecOptions), pymongo **returns naive UTC
-datetimes on read**. The existing `qso_date_utc` field is already stored and retrieved
-this way — the codebase treats all datetimes as UTC-naive. The new `_created_at` field
-must follow the same convention.
-
-**Do NOT add `tz_aware=True` to `init_db()`** — it would change the type returned for all
-existing datetime fields and could break the current `qso_date_utc` comparisons in
-`find_duplicate()` (aware vs naive comparison raises `TypeError` in Python).
-
-The only change is: store `_created_at` using `lambda: datetime.now(tz=timezone.utc)`.
-pymongo strips the `+00:00` tzinfo at write time and stores UTC milliseconds. On read,
-`_created_at` comes back as a naive UTC datetime — consistent with `qso_date_utc`.
-
-### Index Change — `QSO.Settings.indexes`
-
-Add one new `IndexModel` to the existing `indexes` list:
-
-```python
-IndexModel(
-    [
-        ("_operator", pymongo.ASCENDING),
-        ("_created_at", pymongo.DESCENDING),
-    ],
-    name="operator_created_idx",
-),
-```
-
-**Why this compound index, not a single-field index on `_created_at`:**
-
-Every `get_qso_page()` query includes `{"_operator": operator, "_deleted": False}`. MongoDB
-compound index rules: sort can use an index if all fields preceding the sort key in the
-index have equality conditions in the query. `_operator` always has an equality condition.
-The compound `(_operator, _created_at)` index supports both:
-- Sort by `_created_at` (the v2.5 use case)
-- The existing `operator_active_idx` handles `_deleted` filter; this index adds sort support
-
-The existing `operator_qso_compound` index (`_operator, CALL, qso_date_utc, BAND, MODE`)
-supports sort by `qso_date_utc` because `_operator` is the equality prefix. No changes
-needed to existing indexes for date sort. For sorting by `CALL`, `BAND`, `MODE`, `FREQ`
-these are in-memory sorts for the typical log size (hundreds to low thousands per operator),
-which is acceptable. Adding individual indexes for every sortable column would over-index.
-
-**Index creation:** Beanie calls `init_beanie()` at startup which runs `ensure_indexes()`.
-New indexes are created idempotently — no migration script needed. Old documents without
-`_created_at` will have no value for that field; MongoDB skips sparse fields in index
-entries unless explicitly sparse-indexed. The non-sparse compound index will store `null`
-for documents missing `_created_at` — they will sort last on descending sort, first on
-ascending. This is acceptable for pre-migration documents.
-
-### Insert Paths That Need `_created_at` Auto-Set
-
-The field has `default_factory` so it is set automatically on `QSO(**qso_dict).insert()`.
-No changes needed to `build_qso_dict()`, `import_qsos_from_bytes()`, or the UDP path.
-The default fires on every `QSO(**kwargs)` construction, covering all four paths:
-
-| Path | How `_created_at` is set |
-|------|--------------------------|
-| REST API POST `/api/qsos` | `QSO(**qso_dict).insert()` — default_factory fires |
-| UI form submit | Same `QSO(**qso_dict).insert()` call in `submit_qso()` |
-| UDP datagram | Same `QSO(**qso_dict).insert()` call in `udp/server.py` |
-| ADIF import | Same `QSO(**qso_dict).insert()` call in `import_qsos_from_bytes()` |
-
-**Important:** `build_qso_dict()` must NOT explicitly set `_created_at` — let the
-Pydantic default_factory handle it. If the dict contains `_created_at`, it would
-override the default (which is the desired behaviour for tests that need a fixed
-timestamp, but must not happen in production paths).
-
-### Exposing `_created_at` in the View Dict
-
-`_qso_to_view_dict()` in `ui_router.py` must extract `_created_at` for sort-by display
-in the table header (the timestamp icon), even though the column is hidden:
-
-```python
-d["_created_at"] = qso.created_at  # None for pre-v2.5 documents
-```
-
-The field is declared (not in `model_extra`), so access as `qso.created_at` is correct.
-No `extra.get()` needed.
+No new dependencies for any of the five feature areas. Browser-native JS, the existing
+Beanie/PyMongo migration pattern, and the existing `htmx:beforeRequest` hook cover everything.
+A date/time library (Luxon, Day.js, Moment.js) would add weight without adding value.
 
 ---
 
-## Feature 2: Sortable Log Table Columns
+## Feature 1: Live Auto-Updating UTC Clock in a Form Input
 
-### Sort Parameter Design
+**Technology:** Vanilla JS `setInterval` + `Date` prototype UTC accessors.
 
-**Keep the existing `-fieldname` / `fieldname` convention** — it is already wired end-to-end
-in `get_qso_page()` and the Beanie query builder. Do not change to a separate
-`sort_field + sort_dir` pair — the existing combined string is simpler and Beanie's
-`.sort(sort_by)` accepts it directly.
-
-**Three-state sort cycle per column:**
-```
-default (no sort applied to this column)
-  → click → descending ("-FIELD")
-  → click → ascending ("FIELD")
-  → click → back to default ("-qso_date_utc")
-```
-
-The "default" state is always `-qso_date_utc` (most recent first), not "no sort" — the
-table must always have a sort. This means clicking a column header a third time resets to
-the default sort, not to unsorted.
-
-**Implementation in template**: Jinja2 handles the toggle logic. Each column header link
-computes its `next_sort` value from the current `sort` variable:
-
-```jinja2
-{% if sort == "-BAND" %}
-  {% set next_sort = "BAND" %}
-{% elif sort == "BAND" %}
-  {% set next_sort = "-qso_date_utc" %}
-{% else %}
-  {% set next_sort = "-BAND" %}
-{% endif %}
-```
-
-This is identical to the existing Date/Time column logic but extended to three states.
-
-### HTMX Sort Pattern (Confirmed — Existing Pattern Is Correct)
-
-The existing `log_table.html` already implements the correct pattern:
-- `hx-get="/log/view?sort=...&call=...&band=...&mode=...&date_from=...&date_to=..."`
-- `hx-target="#log-table"`
-- `hx-swap="innerHTML"`
-- `hx-push-url="true"` (preserves sort state in browser URL; supports back button)
-
-All filter params are carried forward in the URL string directly. This is the authoritative
-HTMX pattern for server-side sorted tables. No `hx-vals`, `hx-include`, or hidden form
-inputs are needed — the sort and filter state is fully encoded in the URL.
-
-**`auto-refresh-ok` sentinel update needed:** The sentinel condition in `log_table.html`
-line 1 currently checks `sort == '-qso_date_utc'`. This is correct and must remain — it
-means the auto-SSE-refresh only fires when on the default sort. Sorting by any other column
-suppresses auto-refresh (correct behaviour — user explicitly chose a non-default sort).
-No change required to this logic.
-
-### New Sortable Columns
-
-| Column | Sort key | Notes |
-|--------|----------|-------|
-| Date / Time UTC | `-qso_date_utc` / `qso_date_utc` | Already implemented |
-| Callsign | `-CALL` / `CALL` | Already implemented |
-| Band | `-BAND` / `BAND` | Already implemented |
-| Mode | `-MODE` / `MODE` | New |
-| Freq | `-FREQ` / `FREQ` | New — FREQ is in `model_extra`; Beanie sort on extra fields works via raw field name string |
-| RST | No sort needed | Not meaningful to sort by RST |
-| Entry Timestamp | `-_created_at` / `_created_at` | New — hidden column, icon in header only |
-
-**Beanie sorting on `model_extra` fields (FREQ):** Beanie's `.sort("-FREQ")` passes the
-string to pymongo's cursor `.sort()` which works on any field name in the collection,
-including those not declared as Pydantic fields. Verified: `get_qso_page()` already calls
-`QSO.find(query).sort(sort_by)` where `sort_by` is an arbitrary string — no changes to
-the service layer needed.
-
-**Beanie sorting on aliased fields (`_created_at`):** The MongoDB field is stored as
-`_created_at` (from `alias="_created_at"`). The Beanie sort string must use the
-**MongoDB field name**, i.e. `"-_created_at"` not `"-created_at"`. This is consistent
-with how `_operator` and `_deleted` are referenced in raw queries throughout the codebase
-(e.g. `{"_operator": operator}` not `{"operator_callsign": operator}`).
-
-### `get_qso_page()` Sort Allowlist
-
-Add a server-side validation allowlist in `get_qso_page()` to prevent arbitrary field
-injection via the `sort` query parameter:
-
-```python
-_SORTABLE_FIELDS = {
-    "qso_date_utc", "-qso_date_utc",
-    "CALL", "-CALL",
-    "BAND", "-BAND",
-    "MODE", "-MODE",
-    "FREQ", "-FREQ",
-    "_created_at", "-_created_at",
+```javascript
+function utcTimeNow() {
+  var d = new Date();
+  return (
+    String(d.getUTCHours()).padStart(2, '0') +
+    String(d.getUTCMinutes()).padStart(2, '0') +
+    String(d.getUTCSeconds()).padStart(2, '0')
+  ); // HHMMSS
 }
 
-async def get_qso_page(..., sort_by: str = "-qso_date_utc") -> tuple[list[QSO], int]:
-    if sort_by not in _SORTABLE_FIELDS:
-        sort_by = "-qso_date_utc"
-    ...
+function utcDateNow() {
+  var d = new Date();
+  return (
+    d.getUTCFullYear() +
+    String(d.getUTCMonth() + 1).padStart(2, '0') +
+    String(d.getUTCDate()).padStart(2, '0')
+  ); // YYYYMMDD
+}
+
+// While locked:
+var clockTimerId = setInterval(function () {
+  timeInput.value = utcTimeNow();
+  dateInput.value = utcDateNow();
+}, 1000);
+
+// On unlock:
+clearInterval(clockTimerId);
+clockTimerId = null;
 ```
 
-This prevents `sort=_deleted` or other field injection. The current code has no such guard.
+`setInterval` at 1-second intervals is the correct pattern — it matches the existing live clock
+concept already present elsewhere in the app (SSE event timing, etc.) and imposes no meaningful
+CPU load. The existing `form.html` IIFE already has a pattern of managing `setInterval` via a
+scoped closure; the clock timer follows the same model.
+
+**Why not a date/time library?**
+
+All required operations are: get UTC year/month/day/hour/minute/second, zero-pad each component,
+concatenate. This is 6 accessor calls. Luxon weighs ~60 kB minified; Day.js ~8 kB but requires
+UTC plugin import. Neither justifies the dependency for 6 lines of native JS.
+
+`Intl.DateTimeFormat` with `timeZone: 'UTC'` and `formatToParts()` works but is more verbose
+and involves string parsing of parts — less clear than direct UTC accessors for ADIF's
+non-ISO formats.
+
+**Confidence:** HIGH — browser built-ins, no version concerns.
 
 ---
 
-## Feature 3: Sort Icons in Column Headers
+## Feature 2: Lock/Unlock Toggle
 
-### Icon Set — Heroicons (Already In Use)
+**Technology:** HTML `readonly` attribute toggled via JS. Zero new dependencies.
 
-The existing `log_table.html` already uses inline Heroicons SVG paths (chevron-down and
-chevron-up for the two existing sort states). No new icon library or CDN dependency needed.
+The `readonly` vs `disabled` distinction is load-bearing:
 
-**Three-state icon convention:**
+| Attribute | Included in form submit? | HTMX serialises it? |
+|-----------|--------------------------|---------------------|
+| `readonly` | Yes | Yes |
+| `disabled` | No | No |
 
-| State | Icon | Heroicons name | SVG path |
-|-------|------|----------------|----------|
-| No sort (column not active) | Double chevron (neutral) | `chevron-up-down` | See below |
-| Sorted descending (active) | Chevron down | `chevron-down` | Already in codebase |
-| Sorted ascending (active) | Chevron up | `chevron-up` | Already in codebase |
+Using `disabled` would silently drop QSO_DATE and TIME_ON from the HTMX POST body, causing
+server-side validation failure (both fields are `required` in the form and the service layer).
+Use `readonly` exclusively.
 
-**`chevron-up-down` SVG path (20px solid — matches existing `w-3 h-3` icons):**
-
-```html
-<svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-  <path fill-rule="evenodd"
-    d="M10 3a.75.75 0 01.55.24l3.25 3.5a.75.75 0 11-1.1 1.02L10 4.852 7.3 7.76a.75.75 0 01-1.1-1.02l3.25-3.5A.75.75 0 0110 3zm-3.76 9.2a.75.75 0 011.06.04l2.7 2.908 2.7-2.908a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 01.04-1.06z"
-    clip-rule="evenodd"/>
-</svg>
+```javascript
+function lockField(input) {
+  input.readOnly = true;
+  // add visual indicator class
+}
+function unlockField(input) {
+  input.readOnly = false;
+  clearInterval(clockTimerId);
+  clockTimerId = null;
+  // remove visual indicator class
+}
 ```
 
-**Colour convention:**
-- Active sort column icon: `currentColor` (inherits the link hover colour, typically
-  indigo-400 on hover)
-- Inactive column icon: add `text-gray-400 dark:text-gray-600` so it is subdued but visible
+**Lock icon:** Inline Heroicons SVG, `w-4 h-4` (16x16 px). Two SVG paths needed:
+locked state (filled padlock) and unlocked state (open padlock). These are available in
+the Heroicons set already used throughout the codebase. Toggling is done via `classList`
+swap on two sibling `<svg>` elements — identical to the existing theme icon toggle pattern
+in `base_app.html` (`icon-moon` / `icon-sun` swap).
 
-This matches the existing pattern where active sort headers show a coloured icon and
-inactive columns show no icon (current) or a muted double-chevron (proposed).
-
-**Entry timestamp icon (hidden column, header-only):** Add a compact clock icon or
-double-arrow in the last position of the `<tr>` header row. The column has no visible
-data — only the sortable icon appears. Label with `title="Sort by entry time"` tooltip
-for discoverability. Use `w-4 h-4` at the header level to be slightly more prominent.
+**Confidence:** HIGH — HTML spec behaviour, matches existing codebase icon toggle pattern.
 
 ---
 
-## Integration Points — What Changes vs What Stays
+## Feature 3: HHMM to HHMMSS Normalisation
 
-| Component | Change | Details |
-|-----------|--------|---------|
-| `app/qso/models.py` | Add field + index | `created_at` with `alias="_created_at"`, `default_factory`; new `operator_created_idx` IndexModel |
-| `app/qso/service.py` | Add sort allowlist | `_SORTABLE_FIELDS` set; fallback to default in `get_qso_page()` |
-| `app/qso/ui_router.py` | Extend `_qso_to_view_dict()` | Add `d["_created_at"] = qso.created_at` |
-| `app/qso/router.py` | Verify `_created_at` not in `QSOResponse` | Should be excluded from REST API response (internal field) |
-| `templates/log/log_table.html` | Extend sort headers | Add three-state Jinja2 logic + icons for MODE, FREQ, `_created_at`; update Date column to three-state |
-| `app/adif/router.py` | No change | `_qso_to_adif_dict()` should not export `_created_at` (not an ADIF field) |
+Two integration points are needed. Both are one-line changes to existing code.
 
-### `QSOResponse` exclusion
+### 3a. JS Pre-Submit (UI path)
 
-The `_created_at` field must be excluded from the REST API `QSOResponse` schema. It is
-an internal system field (like `_operator` and `_deleted`). Verify `app/qso/schemas.py`
-does not include it — if `QSOResponse` uses `extra='ignore'`, it will be silently dropped
-at the serialization boundary without changes.
+The existing `htmx:beforeRequest` listener in `form.html` is already the correct hook:
+
+```javascript
+form.addEventListener('htmx:beforeRequest', function (e) {
+  submitAttempted = true;
+  if (!validate()) { e.preventDefault(); return; }
+
+  // Normalise TIME_ON: HHMM → HHMM00 before HTMX serialises the form
+  var t = field('TIME_ON');
+  if (t && /^\d{4}$/.test(t.value.trim())) {
+    t.value = t.value.trim() + '00';
+  }
+});
+```
+
+HTMX serialises the form body after this event fires, so the normalised value is what
+the server receives. The input retains the HHMMSS value visually after the mutation.
+
+### 3b. Server-Side (`build_qso_dict` — covers REST API + UDP)
+
+```python
+# In build_qso_dict(), after the BAND/MODE uppercase normalisation block:
+if len(result.get("TIME_ON", "")) == 4:
+    result["TIME_ON"] = result["TIME_ON"] + "00"
+```
+
+This makes all three ingestion paths (UI form, REST API, UDP datagram) store HHMMSS.
+It runs before `parse_adif_datetime()` which already handles both lengths correctly, so
+no change to the parser is needed.
+
+**Why both?**
+- JS-only: REST API callers and UDP datagrams would still store HHMM.
+- Server-only: the UI input would briefly show HHMM before server normalises it (minor).
+- Both: the UI always shows HHMMSS after submit, and all paths are consistent.
+
+**Confidence:** HIGH — single-line additions to existing code paths.
+
+---
+
+## Feature 4: Validation Rule Update
+
+The existing TIME_ON validator in `form.html`:
+
+```javascript
+TIME_ON: function (v) { return /^\d{4}$/.test(v.trim()); },
+```
+
+Must become:
+
+```javascript
+TIME_ON: function (v) { return /^\d{4}(\d{2})?$/.test(v.trim()); },
+```
+
+This accepts both HHMM (locked auto-clock always outputs HHMMSS; manual entry may be HHMM)
+and HHMMSS. The JS pre-submit normaliser in Feature 3a appends `00` for HHMM before the
+server sees it.
+
+**Confidence:** HIGH — regex change, no dependencies.
+
+---
+
+## Feature 5: Idempotent DB Migration (TIME_ON HHMM → HHMM00)
+
+**Technology:** Raw PyMongo `UpdateOne` bulk_write via `QSO.get_pymongo_collection()`.
+
+This is the exact same pattern as the existing `backfill_created_at()` in `app/main.py`.
+
+```python
+async def backfill_time_on_hhmmss():
+    """Idempotent migration: normalise TIME_ON from HHMM to HHMM00.
+
+    Finds QSO documents where TIME_ON is exactly 4 characters (legacy HHMM format)
+    and appends '00' to produce HHMMSS. Safe to re-run — 4-digit strings cannot exist
+    after the first successful run.
+    """
+    from app.qso.models import QSO
+    from pymongo import UpdateOne
+
+    collection = QSO.get_pymongo_collection()
+    cursor = collection.find(
+        {"TIME_ON": {"$exists": True, "$regex": r"^\d{4}$"}},
+        {"_id": 1, "TIME_ON": 1},
+    )
+    ops = []
+    async for doc in cursor:
+        ops.append(UpdateOne(
+            {"_id": doc["_id"]},
+            {"$set": {"TIME_ON": doc["TIME_ON"] + "00"}},
+        ))
+    if ops:
+        result = await collection.bulk_write(ops, ordered=False)
+        logger.info("TIME_ON backfill: %d documents updated", result.modified_count)
+    else:
+        logger.info("TIME_ON backfill: 0 documents — already up to date")
+```
+
+**Integration in `app/main.py` lifespan:**
+
+```python
+await backfill_created_at()        # existing
+await backfill_time_on_hhmmss()    # new — add after
+```
+
+**Why raw PyMongo (not Beanie Document update)?**
+
+`TIME_ON` is stored in `model_extra` — it is not a declared field on the `QSO` Beanie
+Document. Beanie's high-level update API goes through Pydantic validation, which does not
+know about `TIME_ON`. Raw `UpdateOne` via `get_pymongo_collection()` is the correct
+and tested path (same as `backfill_created_at` which operates on `_created_at`, also
+accessed via raw collection). `get_pymongo_collection()` is the official Beanie accessor
+for raw MongoDB operations — Motor was EOL'd May 2025 and is not in this codebase.
+
+**Why `ordered=False`?**
+
+Each document is independent. Unordered bulk write allows MongoDB to parallelise
+operations. If one fails, the rest continue. This is the same choice made in
+`backfill_created_at`.
+
+**Idempotency guarantee:** The `$regex: r"^\d{4}$"` filter matches only exactly 4-digit
+strings. After normalisation, all TIME_ON values are 6 digits. Re-running the migration
+finds zero matching documents and performs zero writes.
+
+**Confidence:** HIGH — exact pattern of `backfill_created_at` in this codebase.
+
+---
+
+## Feature 6: Post-Submit Behavior Toggle
+
+**Technology:** JS boolean state in the existing `form.html` IIFE. No new dependencies.
+
+The existing `htmx:afterSwap` handler already handles the reset case. The toggle adds a
+persistent mode variable and a UI control (checkbox or toggle button):
+
+```javascript
+var postSubmitMode = 'reset'; // 'reset' | 'keep'
+
+// UI control (checkbox) sets this:
+// postSubmitMode = checkbox.checked ? 'keep' : 'reset';
+
+document.body.addEventListener('htmx:afterSwap', function (e) {
+  if (!e.detail.target || e.detail.target.id !== 'qso-result') return;
+  var result = document.getElementById('qso-result');
+  if (!result || !result.querySelector('.success-msg')) return;
+
+  clearErrors();
+  submitAttempted = false;
+
+  if (postSubmitMode === 'reset') {
+    // Clear all fields, restore live UTC clock
+    form.reset();
+    if (!timeLocked) lockTime();   // re-enable clock
+  } else {
+    // Keep date/time values and lock state; only clear contact fields
+    field('CALL').value = '';
+    field('RST_SENT').value = '';
+    field('RST_RCVD').value = '';
+    field('FREQ').value = '';
+  }
+
+  var callField = field('CALL');
+  if (callField) callField.focus();
+});
+```
+
+The toggle control is a Tailwind-styled checkbox/label pair. No HTMX attributes needed —
+it sets a JS variable only.
+
+**Confidence:** HIGH — JS-only, existing HTMX event hook is the integration point.
+
+---
+
+## Stack Summary: What Changes vs What Stays
+
+| Component | Change Required | Notes |
+|-----------|----------------|-------|
+| `app/qso/service.py` | Add 2-line HHMM normalisation in `build_qso_dict()` | Before `parse_adif_datetime` call |
+| `app/main.py` | Add `backfill_time_on_hhmmss()` function + lifespan call | After existing `backfill_created_at()` |
+| `templates/log/form.html` | JS clock, lock/unlock, validation regex, post-submit toggle | All within existing IIFE |
+| `static/css/output.css` | Rebuild if new `dark:` or responsive classes added for lock icons | `npm run build` |
+| `app/qso/models.py` | No change | `TIME_ON` is in `model_extra`; no declaration needed |
+| `app/qso/router.py` | No change | `parse_adif_datetime` already handles HHMMSS |
+| `pyproject.toml` | No change | Zero new Python dependencies |
+| `package.json` | No change | Zero new JS dependencies |
 
 ---
 
 ## What NOT to Add
 
 | Item | Reason |
-|------|---------|
-| New Python package for datetime | stdlib `datetime.now(tz=timezone.utc)` is sufficient |
-| `tz_aware=True` in `init_db()` | Changes return type for ALL datetime fields; breaks existing naive datetime comparisons |
-| `sort_field` + `sort_dir` as separate query params | The existing combined `-fieldname` convention already works end-to-end; splitting adds complexity with no benefit |
-| Per-column index for CALL, BAND, MODE, FREQ sort | Low cardinality / small dataset; in-memory sorts acceptable; over-indexing wastes MongoDB memory |
-| `hx-vals` or `hx-include` for sort state | Not needed — sort state travels in the URL query string directly |
-| Any JavaScript for sort toggle | Pure server-side Jinja2 toggle logic; zero JS needed for sorting |
-| tablesort.js or similar client-side sort library | Server-side sort is the correct pattern for paginated tables; client sort only works on visible rows |
-| `_created_at` in ADIF export | Not an ADIF field; must not pollute ADIF exports |
+|------|--------|
+| Luxon / Day.js / Moment.js | 6 lines of native `Date` UTC accessors replace them entirely |
+| `<input type="datetime-local">` | Operates in local time; requires UTC conversion; produces ISO 8601 combined string — incompatible with ADIF's separate YYYYMMDD / HHMMSS fields |
+| `disabled` attribute on locked fields | Excluded from form serialisation — HTMX POST would omit QSO_DATE and TIME_ON, causing 422 on server |
+| Beanie Document update API for migration | `TIME_ON` is `model_extra`, not a declared field; Pydantic validation blocks it; raw PyMongo is correct |
+| `type="time"` browser input | Browser time inputs enforce local timezone display and HH:MM format — incompatible with ADIF HHMMSS and the font-mono ADIF-string convention |
+| A separate migration endpoint or CLI command | Startup migration is the project's established pattern (precedent: `backfill_created_at`); simpler ops model |
 
 ---
 
@@ -314,31 +316,29 @@ at the serialization boundary without changes.
 
 All features use packages already pinned in the project:
 
-| Package | Version | Relevant Capability |
-|---------|---------|---------------------|
-| Beanie | 2.1+ | `default_factory` fields, `IndexModel` in `Settings.indexes`, `.sort("-field")` string syntax |
-| pymongo | 4.16+ | `AsyncMongoClient`, `IndexModel`, stores datetime as BSON UTC, returns naive UTC on read |
-| HTMX | 2.0.4 | `hx-push-url`, `hx-get` with query string, `hx-swap="innerHTML"` |
-| Tailwind CSS | v3 | `text-gray-400 dark:text-gray-600` for inactive icon colour |
-| Heroicons | Inline SVG (no npm package) | `chevron-up-down` path confirmed on heroicons.com |
-| Python | 3.12+ | `datetime.now(tz=timezone.utc)` — avoids DeprecationWarning from `utcnow()` |
+| Package | Version | Relevant Capability Used |
+|---------|---------|--------------------------|
+| Beanie | 2.1+ | `get_pymongo_collection()` for raw collection access |
+| pymongo | 4.16+ | `UpdateOne`, `bulk_write(ordered=False)`, async cursor |
+| HTMX | 2.0.4 | `htmx:beforeRequest`, `htmx:afterSwap` event hooks |
+| Tailwind CSS | v3 | Lock icon styling, `readonly` visual state classes |
+| Python | 3.12+ | `asyncio`, `datetime.now(tz=timezone.utc)` |
+| Browser | Modern (2020+) | `Date.getUTCFullYear()` etc., `setInterval`, `readOnly` property |
 
 ---
 
 ## Sources
 
-- Beanie index documentation (Context7 `/beanieodm/beanie`): `IndexModel` in `Settings.indexes`, `Indexed()` wrapper, `.sort("-field")` string syntax
-- PyMongo datetime handling: https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/dates-and-times/
-- MongoDB compound index sort rules: https://www.mongodb.com/docs/manual/tutorial/sort-results-with-indexes/
-- HTMX `hx-push-url` (Context7 `/bigskysoftware/htmx`): URL state preservation pattern
-- HTMX `hx-include` (Context7 `/bigskysoftware/htmx`): confirmed not needed for URL-param sort
-- Heroicons sort icons: https://heroicons.com/ — `chevron-up-down`, `chevron-up`, `chevron-down` (20px solid)
-- Beanie datetime timezone discussion: https://github.com/BeanieODM/beanie/discussions/1146
-- Python 3.12 `datetime.utcnow()` deprecation: https://github.com/dbt-labs/dbt-core/issues/9791
-- HTMX sortable table pattern: https://vladkens.cc/htmx-table-sorting/
-- Code audit: `app/qso/models.py`, `app/qso/service.py`, `app/qso/ui_router.py`,
-  `app/database.py`, `templates/log/log_table.html`
+- HTML `readonly` attribute spec: [MDN — readonly](https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/readonly) — HIGH confidence
+- `Date` UTC methods: [MDN — Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date) — HIGH confidence
+- `setInterval`: [MDN — setInterval](https://developer.mozilla.org/en-US/docs/Web/API/Window/setInterval) — HIGH confidence
+- `form.html` codebase audit: `htmx:beforeRequest` hook verified at lines 237–241, `htmx:afterSwap` hook at lines 245–255 — HIGH confidence
+- `build_qso_dict()` codebase audit: `parse_adif_datetime()` HHMM/HHMMSS dual-length handling verified at service.py lines 30–44 — HIGH confidence
+- `backfill_created_at()` migration pattern: `app/main.py` lines 22–47 — HIGH confidence (direct code audit)
+- Beanie `get_pymongo_collection()`: verified in `backfill_created_at()` at main.py line 29; Motor EOL confirmed in PROJECT.md Key Decisions — HIGH confidence
+- `model_extra` for TIME_ON: confirmed by absence from declared fields in `app/qso/models.py` (only `operator_callsign`, `CALL`, `BAND`, `MODE`, `qso_date_utc`, `is_deleted`, `created_at` are declared) — HIGH confidence
 
 ---
-*Stack research for: ollog v2.5 QSO Sorting & Entry Timestamp*
-*Researched: 2026-04-20*
+
+*Stack research for: ollog v2.7 UTC Date/Time Entry*
+*Researched: 2026-04-24*

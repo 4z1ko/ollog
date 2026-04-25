@@ -1,381 +1,466 @@
-# Domain Pitfalls — v2.5 QSO Sorting & Entry Timestamp
+# Domain Pitfalls
 
-**Domain:** Adding `_created_at` timestamp + column sorting to existing FastAPI/Beanie/HTMX/MongoDB logbook
-**Researched:** 2026-04-20
-**Confidence:** HIGH — all findings verified against live codebase and Beanie docs
+**Domain:** UTC Date/Time Entry Enhancements — live lock/unlock toggles, HHMMSS precision, post-submit reset — adding to existing HTMX + FastAPI + Beanie/MongoDB logbook
+**Researched:** 2026-04-24
+**Milestone:** v2.7 UTC Date/Time Entry
+**Overall confidence:** HIGH — all pitfalls grounded in live codebase inspection (`form.html`, `service.py`) + browser/HTML/HTMX specs
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: `default_factory` Fires on Every Instantiation, Including Updates — Double-Stamping
-
-**What goes wrong:**
-`_created_at: datetime = Field(default_factory=datetime.utcnow)` on the `QSO` Beanie document fires the factory every time a `QSO(...)` object is constructed, not only on `.insert()`. The `qso_update` handler in `ui_router.py` (and `patch_qso` in `router.py`) fetch the existing document with `await QSO.get(oid)`, then call `await qso.update({"$set": update_dict})`. This path never touches `_created_at`. However, if any code path ever calls `QSO(**qso_dict)` on an existing document dict (e.g., rebuilding from a stored dict), the factory overwrites the original timestamp.
-
-The immediate risk: if `build_qso_dict()` is extended to include `_created_at` in the returned dict and `import_qsos_from_bytes` passes that dict to `QSO(**qso_dict)`, the import path will always receive an import-time stamp, not a QSO date stamp. This is correct for imports — but only if the field is not also included in `build_qso_dict` where a caller might strip it or leave it out, causing the factory to fire a second time on re-insertion.
-
-**Root cause:**
-Pydantic/Beanie `default_factory` is a *construction* hook, not an *insert* hook. It is re-evaluated every time the Python object is constructed.
-
-**How to avoid:**
-Use the Beanie `@before_event(Insert)` hook pattern instead of `default_factory`:
-
-```python
-from beanie import Document, Insert, before_event
-from datetime import datetime, timezone
-
-class QSO(Document):
-    _created_at: Optional[datetime] = None
-
-    @before_event(Insert)
-    def set_created_at(self):
-        self._created_at = datetime.now(timezone.utc)
-```
-
-OR: use `default_factory` but set it on the field with `Optional[datetime] = Field(default=None)` and set it explicitly only in `build_qso_dict()`. The rule is: one place sets it, never set it in `build_qso_dict()`, never touch it in the update path.
-
-The simpler, safer pattern for this codebase (which uses raw `$set` dicts rather than Beanie save/replace): add `_created_at` to `build_qso_dict()` explicitly (`result["_created_at"] = datetime.now(timezone.utc)`), and ensure the update handlers in `qso_update` (ui_router) and `patch_qso` (router) include `_created_at` in the list of protected fields that get stripped from `update_dict`:
-
-```python
-for protected in ("_operator", "_deleted", "operator_callsign", "is_deleted", "_id", "_created_at"):
-    update_dict.pop(protected, None)
-```
-
-**Warning signs:**
-- `_created_at` on an updated QSO is newer than the QSO was inserted (the update path accidentally re-stamped it).
-- Two QSOs inserted at the same time appear to have different `_created_at` values that match their respective edit times, not insert times.
-
-**Phase to address:** Model + service layer phase (first implementation phase).
+Mistakes that cause data loss, silent wrong values, or complete feature failure.
 
 ---
 
-### Pitfall 2: Sorting `model_extra` Fields (FREQ, QSO_DATE, TIME_ON) — String Comparison, Not Numeric
+### Pitfall 1: HTMX Swap Scope — The Form Is NOT the Swap Target (Must Stay That Way)
 
-**What goes wrong:**
-`FREQ` is stored as a string (e.g., `"14.225"`, `"7.1"`, `"144.200"`). MongoDB's `sort()` on a string field uses lexicographic order. Lexicographic sort of `"14.225"` vs `"7.1"` places `"14.225"` before `"7.1"` because `"1" < "7"`. A user sorting by frequency ascending will see `14 MHz` entries before `7 MHz` entries — which is wrong.
+**What goes wrong:** Developer moves `hx-target` or `hx-swap` so the form itself gets replaced after submit. All JS event listeners, `setInterval` clock timers, lock state, and the `submitAttempted` flag on the old DOM node are silently destroyed. New form node has no wiring. Live clock stops. Lock toggle stops. Validation breaks.
 
-`QSO_DATE` and `TIME_ON` are stored as ADIF strings (`"20260420"` and `"1430"`). String sort is correct for these two fields because the ADIF date/time format is lexicographically monotone (YYYYMMDD sorts correctly as a string). However, this is a coincidence of the format, not a guarantee — mixing 4-char (`HHMM`) and 6-char (`HHMMSS`) `TIME_ON` values can cause unexpected ordering.
+**Why it happens:** The reflex to "show success state in the form" leads to swapping the form container rather than a separate result area.
 
-**Root cause:**
-`model_config = ConfigDict(extra="allow")` stores all non-declared ADIF fields verbatim in `model_extra`. These fields are not typed; MongoDB stores them as whatever type was inserted (string). Beanie's `.sort("-FREQ")` passes the field name directly to PyMongo, which sorts by whatever the stored type is.
+**This project's actual wiring (form.html lines 24-28):**
+```html
+<form id="qso-form"
+      hx-post="/log/qsos"
+      hx-target="#qso-result"   <!-- only this div is replaced -->
+      hx-swap="innerHTML">
+```
+```html
+<div id="qso-result"></div>     <!-- sibling of form, not parent/child -->
+```
 
-**How to avoid:**
-Do not expose `FREQ`, `QSO_DATE`, or `TIME_ON` as sort options in `get_qso_page()`. The correct sort for date/time is `qso_date_utc` (a declared `datetime` field, sorts correctly). The correct sort for frequency is also `qso_date_utc` or band — frequency sorting is rarely useful in a ham logbook context and adds complexity without user value.
+The form is never replaced. The IIFE event listeners survive every submit. This is the correct architecture — preserve it.
 
-If FREQ sorting is added in the future, the fix requires a migration that converts the string `FREQ` field to a float in MongoDB, or a computed `FREQ_MHZ: Optional[float]` declared field. Do not add FREQ as a sort target in v2.5.
+**Consequences if broken:**
+- Live clock stops after first submit (interval running on detached node, updating nothing)
+- Lock toggle stops responding (listener on detached node)
+- `submitAttempted = false` never resets correctly
+- Validation error highlights persist forever or never appear
 
-**Warning signs:**
-- Sort-by-frequency produces results in unexpected order (14 MHz before 7 MHz).
-- Users report that "sort by date" and "sort by time" give different orderings for QSOs logged on the same UTC date with mixed TIME_ON formats.
+**Prevention:**
+- Keep `hx-target="#qso-result"` and `hx-swap="innerHTML"` — do not change the swap target to the form, the `.card-body`, or any ancestor of `#qso-form`.
+- Post-submit behavior (reset, keep state) belongs in the `htmx:afterSwap` handler already present in the IIFE (form.html line 245), not in a swap that replaces the form.
+- If a future requirement forces form-level swapping, the re-initialization pattern is: `document.body.addEventListener('htmx:afterSettle', function(e) { if (e.detail.target.id === 'qso-form') initForm(); })` — bind to `document.body`, check the target ID, re-run the IIFE body as a named function.
 
-**Phase to address:** Service layer sort allowlist phase. Exclude `FREQ`, `QSO_DATE`, `TIME_ON` from the sort allowlist.
+**Detection:** After a successful submit, click the lock toggle. If nothing happens, the form was swapped.
 
 ---
 
-### Pitfall 3: Sort Field Injection — No Allowlist in `get_qso_page()`
+### Pitfall 2: `disabled` vs `readonly` — Silent Value Drops on Locked Fields
 
-**What goes wrong:**
-`get_qso_page()` passes `sort_by` directly to `.sort(sort_by)` with no validation:
+**What goes wrong:** The date/time input is given `disabled` to prevent editing while locked. It renders grayed-out and non-interactive — looks correct to the eye. But HTML spec: `disabled` form controls are excluded from `FormData` serialization. HTMX uses `FormData` — it obeys the same rule. The `QSO_DATE` and `TIME_ON` values are silently absent from the POST body. The server receives missing required fields and returns a validation error (or worse, accepts a QSO with empty date/time if validation is insufficiently strict).
 
-```python
-items = await QSO.find(query).sort(sort_by).skip(...).limit(...)
+**The rule:**
+- `readonly` — field is non-editable by the user; value IS submitted with the form. Use this for locked fields.
+- `disabled` — field is excluded from submission entirely. Use only for controls that should contribute no value (decorative buttons, intentionally cleared optional fields).
+
+**Prevention:**
+```html
+<!-- WRONG: value not submitted -->
+<input type="text" name="QSO_DATE" disabled class="form-input ...">
+
+<!-- CORRECT: non-editable but value submits -->
+<input type="text" name="QSO_DATE" readonly class="form-input ...">
 ```
 
-The `sort` query param in `log_view()` is also unvalidated. An operator can pass `sort=_operator` or `sort=-_id` or `sort=nonexistent_field` via the URL and the query will execute against MongoDB. While operator isolation prevents cross-operator data leakage, arbitrary sort fields expose MongoDB field structure and cause unpredictable ordering.
+Toggle lock state via the `readonly` property in JS, never `disabled`:
+```javascript
+// Lock — user cannot edit, clock can still write, value still submits
+dateInput.readOnly = true;
 
-**Root cause:**
-The current implementation (pre-v2.5) accepts any string. This was acceptable when the only sort was `qso_date_utc`, `CALL`, and `BAND`, but adding `_created_at` as a valid option requires a proper allowlist to prevent `_deleted`, `_operator`, or invented field names from being used as sort keys.
+// Unlock — user can edit freely
+dateInput.readOnly = false;
+```
 
-**How to avoid:**
-Add a module-level allowlist set in `service.py` and validate at the top of `get_qso_page()`:
+The clock update code must use `.value =` to write into the `readonly` input — JS can write to a `readonly` input's `.value` property programmatically even when the user cannot type into it. This is correct behavior.
 
-```python
-_ALLOWED_SORT_FIELDS = {
-    "qso_date_utc", "-qso_date_utc",
-    "CALL", "-CALL",
-    "BAND", "-BAND",
-    "MODE", "-MODE",
-    "_created_at", "-_created_at",
+**Detection:** In DevTools Network tab, submit the form with a locked date. Inspect the request payload (Form Data section). If `QSO_DATE` is absent, the field is `disabled` not `readonly`.
+
+---
+
+### Pitfall 3: `setInterval` Clock Drift — Accumulating Error
+
+**What goes wrong:** `setInterval(updateClock, 1000)` fires approximately every 1000ms, but each callback takes non-zero time. The interval does not self-correct. Over a 4-hour FT8 session (typical overnight contest), the display can drift 2-5 seconds behind actual UTC. For FT8 QSOs (15-second transmission cycles), even a 2-second displayed lag causes operators to log at the wrong second and creates confusion about whether the displayed time matches the stored time.
+
+**Why it happens:** `setInterval` schedules the next tick relative to the previous tick's schedule time — it does not account for callback execution time or browser scheduling jitter.
+
+**The correct pattern — derive from wall clock on every tick, never accumulate:**
+```javascript
+function updateClock(timeInput) {
+  var now = new Date();
+  var hh = String(now.getUTCHours()).padStart(2, '0');
+  var mm = String(now.getUTCMinutes()).padStart(2, '0');
+  var ss = String(now.getUTCSeconds()).padStart(2, '0');
+  timeInput.value = hh + mm + ss;  // HHMMSS
 }
 
-async def get_qso_page(..., sort_by: str = "-qso_date_utc") -> ...:
-    if sort_by not in _ALLOWED_SORT_FIELDS:
-        sort_by = "-qso_date_utc"  # fallback to default
-    ...
+// Align first tick to next second boundary to reduce initial display lag
+var clockTimer = null;
+function startClock(timeInput) {
+  if (clockTimer) clearInterval(clockTimer);
+  var msUntilNextSecond = 1000 - (Date.now() % 1000);
+  setTimeout(function() {
+    updateClock(timeInput);
+    clockTimer = setInterval(function() { updateClock(timeInput); }, 1000);
+  }, msUntilNextSecond);
+}
+
+function stopClock() {
+  clearInterval(clockTimer);
+  clockTimer = null;
+}
 ```
 
-**Warning signs:**
-- Any user can craft a URL with `?sort=_deleted` or `?sort=_operator` and get a valid response (though not exploitable, it is a leak of internal field names).
-- Adding new sort fields in a future phase requires updating the allowlist — without the allowlist, no such audit point exists.
+This pattern:
+1. Always calls `new Date()` inside the tick — drift cannot accumulate because each tick reads the current wall clock, not a counter
+2. Aligns the first tick to the next whole-second boundary — displayed seconds track the system clock within ~1 tick's worth of jitter (~16ms)
 
-**Phase to address:** First phase (service allowlist). Must be in place before the template exposes new sort icons.
+**Prevention:**
+- Never use a counter or accumulate time deltas. Always call `new Date()` inside the tick.
+- Store the `setInterval` handle in the IIFE scope as `clockTimer = null`. Clear it in `stopClock()`, on form reset, and on lock-off.
 
 ---
 
-### Pitfall 4: `_created_at` as Hidden Sort Column — Table Semantic Validity and `<th>` Placement
+### Pitfall 4: Browser Timezone Leakage — `new Date()` Returns Local Time
 
-**What goes wrong:**
-The requirement is: "timestamp sort icon in the table header allows sorting by `_created_at` even though the column is hidden." There is no `<td>` data column for `_created_at` in each `<tr>`, but the `<th>` for the sort icon must exist. An extra `<th>` in the `<thead>` without a corresponding `<td>` in every `<tbody>` row creates an HTML table with mismatched column counts. While browsers render this without visible error, it breaks screen readers, automated scraping, and `table-layout: fixed` styles if ever applied.
+**What goes wrong:** `new Date().getHours()` returns local hours. An operator in UTC+5 logging at 14:30 local time has the clock display "1430" as the UTC time, but actual UTC is "0930". The QSO is stored with a 5-hour error in `TIME_ON`. The derived `qso_date_utc` field is then also wrong. Duplicate detection, which uses `qso_date_utc` for the ±2-minute window, may fail to catch real duplicates or falsely flag non-duplicates.
 
-**Root cause:**
-Attempting to add a sort control to a column that has no visible data requires choosing between: (a) an out-of-band sort button (outside the table entirely), (b) an empty `<td>` in every row (extra space in each row), or (c) accepting the semantic mismatch (fragile).
+**Why it happens:** JS `Date` methods without `UTC` in their name (`.getHours()`, `.getMinutes()`, `.getDate()`, `.getMonth()`, `.getFullYear()`) all return values in the browser's local timezone. This is the JS default; UTC variants are opt-in.
 
-**How to avoid:**
-The cleanest solution is (b): add an empty `<td></td>` in every `qso_row.html` and `qso_row_edit.html` at the same column position as the `<th>` sort icon. The cell is visually empty and has zero width via CSS (`width: 0; padding: 0;`). This preserves correct column count semantics.
+**Every UTC access must use the `UTC` variants:**
+```javascript
+// WRONG — returns local time
+var h = now.getHours();
+var m = now.getMinutes();
+var d = now.getDate();
+var y = now.getFullYear();
 
-An alternative is placing the `_created_at` sort icon outside the `<table>` entirely — e.g., as a sort control above the table header row. This avoids the semantic issue and is better UX since the column is conceptually "hidden."
+// CORRECT — always UTC regardless of browser timezone
+var h = now.getUTCHours();
+var m = now.getUTCMinutes();
+var d = now.getUTCDate();
+var y = now.getUTCFullYear();
+```
 
-Do not add a `<th>` without a matching `<td>` count in every row.
+**For QSO_DATE (YYYYMMDD):**
+```javascript
+function utcDateString(now) {
+  var y  = now.getUTCFullYear();
+  var mo = String(now.getUTCMonth() + 1).padStart(2, '0');  // +1: months are 0-indexed
+  var d  = String(now.getUTCDate()).padStart(2, '0');
+  return '' + y + mo + d;
+}
+```
 
-**Warning signs:**
-- Developer tools accessibility audit flags "table header has no corresponding data cells."
-- The `Actions` column shifts horizontally when the `_created_at` `<th>` is present on some renders and absent on others.
+**For TIME_ON (HHMMSS):**
+```javascript
+function utcTimeString(now) {
+  var h = String(now.getUTCHours()).padStart(2, '0');
+  var m = String(now.getUTCMinutes()).padStart(2, '0');
+  var s = String(now.getUTCSeconds()).padStart(2, '0');
+  return h + m + s;
+}
+```
 
-**Phase to address:** Template implementation phase (log_table.html, qso_row.html, qso_row_edit.html changes together in one commit).
+**Prevention:**
+- Code review rule: grep the template for `\.getHours\b\|\.getMinutes\b\|\.getDate\b\|\.getFullYear\b\|\.getMonth\b` (without `UTC`) — any hit is a bug.
+- Never use `.toLocaleDateString()`, `.toLocaleTimeString()`, or `.toLocalString()` — all are locale-formatted and timezone-adjusted.
+
+**Detection:** Test from a browser with the OS timezone set to UTC+8 or UTC-5. If the displayed clock matches local wall-clock time instead of UTC, the bug is present.
 
 ---
 
-### Pitfall 5: Auto-Refresh Sentinel Condition Must Include New `_created_at` Sort Value
+### Pitfall 5: MongoDB HHMM → HHMMSS Migration — Double-Padding and Field Scope
 
 **What goes wrong:**
-The SSE auto-refresh sentinel in `log_table.html` suppresses live refresh whenever the sort is not the default:
 
-```jinja
-{% if page == 1 and sort == '-qso_date_utc' and not filters.call and ... %}
-<span id="auto-refresh-ok" hidden></span>
-{% endif %}
+1. **Double-padding on re-run.** The migration is called from the FastAPI lifespan (alongside `backfill_created_at()`), so it runs on every restart. If the filter regex matches 6-digit strings (e.g., `\d{4,}` or `\d+`), already-migrated `"143000"` records get padded to `"14300000"`. The ADIF spec does not define 8-character TIME_ON — the value becomes invalid.
+
+2. **Scope too broad.** A bulk update that filters on any 4-digit string could theoretically match numeric ADIF `model_extra` fields other than `TIME_ON` if the `$match` filter is applied without specifying the `TIME_ON` field name. This would corrupt unrelated 4-digit ADIF fields.
+
+3. **pymongo aggregation pipeline syntax required.** The `$concat` operator needs to reference the existing field value (`"$TIME_ON"`). This requires MongoDB 4.2+ aggregation pipeline update syntax — the `update_many(filter, [pipeline])` list form. The standard `update_many(filter, {"$set": {"TIME_ON": "0000"}})` dict form cannot reference the existing value.
+
+**The correct idempotent migration pattern:**
+```python
+async def migrate_time_on_to_hhmmss() -> int:
+    """Idempotent: matches only exact 4-digit TIME_ON values (HHMM).
+    6-digit HHMMSS values do not match — safe to run on every restart.
+    Uses aggregation pipeline update to append "00" to the existing value.
+    """
+    collection = QSO.get_pymongo_collection()  # not get_motor_collection() — Motor is EOL
+    result = await collection.update_many(
+        {"TIME_ON": {"$regex": r"^\d{4}$"}},               # exactly 4 digits, anchored
+        [{"$set": {"TIME_ON": {"$concat": ["$TIME_ON", "00"]}}}],  # pipeline update
+    )
+    return result.modified_count
 ```
 
-When `_created_at` sort is added, users can be on page 1 with no filters but with `sort='-_created_at'`. The sentinel will be absent, so every new QSO inserts only the badge counter instead of triggering a table refresh. This is technically correct (the table is sorted by entry time, not QSO date, so auto-refresh is appropriate). However: if the intent is to also suppress auto-refresh when sorted by `_created_at`, the condition remains correct. If the intent is to allow auto-refresh when sorted by `_created_at` (since new entries will naturally appear at the top), the condition must be extended:
+Key points:
+- `r"^\d{4}$"` — anchored start and end. A 6-digit `HHMMSS` does not match `^\d{4}$`. Idempotent by design.
+- Filter explicitly specifies `TIME_ON` field name — no other field is touched.
+- `[{...}]` list syntax triggers aggregation pipeline mode; `$concat` can reference `"$TIME_ON"`.
+- Uses `get_pymongo_collection()` — the correct raw-collection accessor per this codebase (CLAUDE.md Key Decisions: `get_pymongo_collection()` not `get_motor_collection()`; Motor EOL'd May 2025).
 
-```jinja
-{% if page == 1 and sort in ('-qso_date_utc', '-_created_at') and not filters.call and ... %}
+**Prevention:**
+- Always anchor time-format regexes: `^\d{4}$` not `\d{4}`.
+- Run the migration from lifespan startup and log `modified_count` — zero on restart means it's idempotent.
+- Add a test: insert a pre-migrated `HHMMSS` record, run migration, assert it is unchanged. Insert an `HHMM` record, run migration, assert it becomes `HHMMSS`.
+
+---
+
+### Pitfall 6: Validation Timing — Accepting 4-Digit Input While Storing 6-Digit Values
+
+**What goes wrong:** The current form validator (form.html line 181) accepts `TIME_ON` matching `^\d{4}$`. The v2.7 requirement stores HHMMSS (6 digits). Two bad paths:
+
+A. Validator updated to require `^\d{6}$` only. Operators who naturally type "1430" get an immediate error. Bad UX — the server already accepts HHMM and normalizes it.
+
+B. Validator left at `^\d{4}$`. Operators type "143000" (6 digits) and get a red error because the validator rejects 6-digit input. Can't log QSOs that already have seconds.
+
+**The correct approach — validate both, normalize in `htmx:beforeRequest`:**
+
+The server's `parse_adif_datetime()` already accepts both HHMM and HHMMSS (service.py lines 36-43). Client-side normalization in `htmx:beforeRequest` pads HHMM to HHMMSS before the request fires, so the stored value is always 6 digits without requiring a server change.
+
+```javascript
+// Update the validator to accept both formats:
+TIME_ON: function (v) {
+  return /^\d{4}$/.test(v.trim()) || /^\d{6}$/.test(v.trim());
+},
+
+// Normalize in htmx:beforeRequest (already exists in IIFE):
+form.addEventListener('htmx:beforeRequest', function (e) {
+  submitAttempted = true;
+
+  // Pad HHMM to HHMMSS before validation and submission
+  var timeInput = field('TIME_ON');
+  if (timeInput && /^\d{4}$/.test(timeInput.value.trim())) {
+    timeInput.value = timeInput.value.trim() + '00';
+  }
+
+  if (!validate()) {
+    e.preventDefault();
+  }
+});
 ```
 
-**Root cause:**
-The sentinel condition hardcodes the default sort value as the only allowed auto-refresh case. Adding `_created_at` as a valid sort target requires a deliberate decision about whether it should also enable auto-refresh.
+**The wrong validation timing choices:**
+- Normalizing on `blur`: operators tab quickly past the time field while the clock is updating — blur fires on a stale value, races with the clock update.
+- Validating on `input` before `submitAttempted`: shows error after typing "14" of "1430" (mid-keystroke). Already handled correctly in the IIFE by the `submitAttempted` guard — preserve this pattern.
+- Normalizing in a `submit` event listener: fires before `htmx:beforeRequest`, which is acceptable but inconsistent with existing interception pattern. Use `htmx:beforeRequest` for consistency.
 
-**How to avoid:**
-Decide explicitly during implementation: auto-refresh triggers for `-qso_date_utc` only (default sort only), or for all descending sorts where new items naturally appear at the top. Document the decision as a comment in the template.
+---
 
-**Warning signs:**
-- Users sorting by entry time (`_created_at` descending) get badge counter increments instead of live table refresh — unexpected behavior if they expect new entries to appear automatically.
+### Pitfall 7: Passing JS-Computed Values to HTMX — Hidden Input vs Single Visible `readonly` Input
 
-**Phase to address:** Template phase. The condition change is one line; the decision must be made before writing the line.
+**What goes wrong:** Two approaches exist for submitting a clock-driven time value: a hidden input that the visible display reads from, or a visible `readonly` input that the clock updates directly. Each has failure modes.
+
+**Hidden input failure modes:**
+- If both a visible `<input name="TIME_ON">` and a hidden `<input name="TIME_ON">` exist in the DOM simultaneously, `FormData` serializes both. Servers typically use the last value. If the order is wrong, the wrong value is submitted.
+- Keeping display and hidden input in sync requires updating two elements on every clock tick — easy to miss one.
+
+**`hx-vals` failure modes:**
+- `hx-vals='js:{"TIME_ON": document.getElementById("time-on").value}'` overrides the form's TIME_ON value at request time. Works, but evaluated in global scope — breaks under strict CSP `script-src` policies that block eval.
+- Bypasses normal form serialization, making the data flow harder to reason about and test.
+
+**The correct approach — single visible `readonly` input:**
+```html
+<input type="text" name="TIME_ON" id="time-on"
+       readonly
+       class="form-input font-mono"
+       placeholder="HHMMSS">
+```
+
+```javascript
+// Clock writes directly to the input value
+function updateClock() {
+  var now = new Date();
+  timeInput.value = utcTimeString(now);  // JS can set .value on readonly inputs
+}
+
+// Lock toggle
+function setLocked(isLocked) {
+  timeInput.readOnly = isLocked;
+  if (isLocked) {
+    startClock(timeInput);
+  } else {
+    stopClock();
+  }
+}
+```
+
+This is the cleanest approach: one element, no sync problem, no duplicate name problem, no CSP concern, no `hx-vals` complexity. `readonly` inputs are submitted by HTMX/FormData. JS can write to `.value` programmatically even when `readOnly = true`.
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 6: HTMX Sort Header Clicks Lose Filter Params — URL Construction Must Thread All Active Filters
+---
 
-**What goes wrong:**
-Each sort header `<a>` in `log_table.html` constructs the `hx-get` URL by hand:
+### Pitfall 8: Month Off-by-One — `getUTCMonth()` Is 0-Indexed
 
-```jinja
-hx-get="/log/view?sort=...&call={{ filters.call or '' }}&band=..."
+**What goes wrong:** `new Date().getUTCMonth()` returns 0 for January, 11 for December. Forgetting the `+1` produces dates like `"20260324"` where month field `03` represents April (month 4). A QSO logged in April is stored as March. The compound duplicate-detection index uses `qso_date_utc` — a wrong date may miss real duplicates or create phantom duplicates.
+
+**Prevention:**
+```javascript
+var month = String(now.getUTCMonth() + 1).padStart(2, '0');  // +1 always
 ```
 
-If a new filter param is added to `log_view()` in the future (e.g., a "worked before" toggle), the sort header URL construction must be updated in every `<th>` element individually. The current template already handles all five existing filter params. Adding the `_created_at` sort icon as a sixth `<th>` requires adding the same five filter params to its URL. Forgetting even one drops that filter when the user clicks the sort icon.
-
-**Root cause:**
-Manual URL construction in Jinja2 templates is not DRY — every sort link duplicates the full parameter list. Changing any filter param name requires touching every sort header.
-
-**How to avoid:**
-In v2.5, use the existing pattern (all five params appear in every sort URL). If this pattern is ever refactored, a Jinja2 macro or URL builder helper would centralize it. For now, the risk is low — five params is manageable. The key discipline is: add the `_created_at` sort `<th>` using the exact same URL template as the existing sort headers — copy-paste the full URL fragment and change only the `sort=` value.
-
-**Warning signs:**
-- Clicking the entry-time sort icon while a band filter is active clears the band filter (it was omitted from the sort URL).
-- Integration test: apply a filter, then click each sort header, confirm filter params are preserved in the updated URL.
-
-**Phase to address:** Template phase. Test by applying a filter and cycling through all sort icons.
+Code review rule: grep for `getUTCMonth()` without `+ 1` — any hit is a bug.
 
 ---
 
-### Pitfall 7: Beanie Aliased Fields — `_created_at` Must Use the Same Alias Pattern as `_operator` and `_deleted`
+### Pitfall 9: Post-Submit `form.reset()` Clears Auto-Populated Date/Time Fields
 
-**What goes wrong:**
-The existing QSO model uses `Field(alias="_operator", serialization_alias="_operator")` because MongoDB requires the leading-underscore field name, but Python attribute names cannot start with underscore (without a name-mangling side effect in Python classes). If `_created_at` is added as a plain field name (e.g., `created_at: Optional[datetime]`), the MongoDB document will have the key `created_at`, not `_created_at`. This mismatches the naming convention for system fields and breaks any code or MongoDB query that expects `_created_at`.
+**What goes wrong:** The current IIFE calls `form.reset()` on successful submit (form.html line 249). Browser `form.reset()` restores each field to its `defaultValue` (the `value=""` attribute from HTML at parse time). Date/time inputs that were set by the clock JS have no `value=""` in HTML — they reset to empty string. The live clock would need to immediately re-populate them.
 
-Conversely, if `created_at` (without underscore) is used as the Python attribute, adding `Field(alias="_created_at", serialization_alias="_created_at")` correctly stores the field as `_created_at` in MongoDB. Beanie `.sort("-_created_at")` string sort uses the MongoDB field name, so this is the correct approach.
+The v2.7 requirement adds a post-submit toggle: "Keep current date/time" vs "Reset to live UTC." The `form.reset()` call must become conditional.
 
-**Root cause:**
-The existing alias pattern for `_operator` and `_deleted` is the established convention for internal/system fields in this codebase. Deviating from it for `_created_at` creates an inconsistency and breaks the expected field naming.
-
-**How to avoid:**
-Follow the established pattern exactly:
-
-```python
-created_at: Optional[datetime] = Field(
-    default=None,
-    alias="_created_at",
-    serialization_alias="_created_at"
-)
+**The correct conditional reset pattern:**
+```javascript
+// In the htmx:afterSwap success handler (form.html line 245 area):
+var result = document.getElementById('qso-result');
+if (result && result.querySelector('.success-msg')) {
+  if (keepDateTimeCheckbox && keepDateTimeCheckbox.checked) {
+    // Selective reset — clear contact fields, preserve date/time and lock state
+    field('CALL').value = '';
+    field('RST_SENT').value = '';
+    field('RST_RCVD').value = '';
+    field('FREQ').value = '';
+    // Date, time, band, mode preserved
+  } else {
+    // Full reset — re-populate date/time immediately after
+    form.reset();
+    clearErrors();
+    submitAttempted = false;
+    // Re-populate date/time with current UTC
+    field('QSO_DATE').value = utcDateString(new Date());
+    if (timeLocked) {
+      field('TIME_ON').value = utcTimeString(new Date());
+      // Clock is still running; it will keep updating
+    }
+  }
+  var callField = field('CALL');
+  if (callField) callField.focus();
+}
 ```
 
-with `populate_by_name=True` already set in `model_config`. Access as `qso.created_at` in Python; stored as `_created_at` in MongoDB. The sort string `"-_created_at"` in `get_qso_page()` uses the MongoDB alias name, which Beanie passes directly to PyMongo.
-
-Add `"_created_at"` to the protected fields list in both update handlers:
-- `ui_router.py` `qso_update()` protected list
-- `router.py` `patch_qso()` protected list
-
-**Warning signs:**
-- `qso._created_at` attribute access raises `AttributeError` — the Python attribute name is `created_at` (no underscore), not `_created_at`.
-- MongoDB documents have `created_at` field (no underscore) instead of `_created_at`.
-- Sorting by `"-_created_at"` returns results in insertion order (because the field is actually stored as `created_at` without underscore, so the sort field `_created_at` does not exist and MongoDB uses natural order).
-
-**Phase to address:** Model phase. Verify with a quick `mongosh` query after first insert.
+**Prevention:** Never call `form.reset()` unconditionally in a form with auto-populated fields. After any reset, synchronously re-populate the live fields from the clock before returning control to the user.
 
 ---
 
-### Pitfall 8: ADIF Import Gets Import-Time Timestamp, Not QSO-Date Timestamp — Intentional But Easy to Confuse
+### Pitfall 10: Clock Timer Leak — `setInterval` Not Cleared on Page Navigation
 
-**What goes wrong:**
-When `import_qsos_from_bytes()` inserts QSOs via `QSO(**qso_dict)` and `_created_at` is set at construction time (whether by `default_factory` or by explicit set in `build_qso_dict()`), all imported QSOs receive the timestamp of the import operation. A logbook imported on 2026-04-20 will have `_created_at = 2026-04-20T...` for QSOs that were originally made in 2020. Sorting by `_created_at` descending then shows the most recently *imported* QSOs, not the most recently *worked* QSOs.
+**What goes wrong:** The IIFE starts `setInterval` when the page loads. If the operator navigates away, the interval continues firing against a detached DOM node. On multi-page HTMX apps with partial swaps, multiple intervals accumulate — several timers all trying to update the same element, causing visible flickering or silent no-ops on detached nodes.
 
-This is the correct behavior for the stated requirement ("entry timestamp — system field auto-set on QSO insert"). But it creates confusion when:
-1. Users sort by entry time and see their entire imported logbook at the top.
-2. A user re-imports a file after clearing duplicates — the re-imported QSOs all get new `_created_at` timestamps.
-3. The SSE feed's auto-refresh sentinel, which uses `_created_at` sort, triggers a full table refresh for every bulk-imported QSO (if import-time inserts fire change stream events, which they do).
+**This project's risk level:** LOW-MEDIUM. `form.html` is a full-page template; HTMX nav between pages is full-page navigation. The form's `<script>` block loads only on `form.html`. Risk increases if the form is ever embedded as a partial within another page.
 
-**Root cause:**
-`_created_at` is a database insertion timestamp (MongoDB `$currentDate` equivalent), not an ADIF QSO date field. The distinction must be documented and users must understand that "entry time" means "when this record entered this database," not "when the QSO was made."
+**Prevention:**
+```javascript
+var clockTimer = null;
 
-**How to avoid:**
-- In the log table UI, label the `_created_at` sort icon as "Entry order" or "Logged order," not "Time logged" or "QSO time" (which suggests QSO date).
-- This is a UX documentation issue, not a code issue. The implementation is correct.
-- If import-heavy usage causes SSE refresh storms during bulk import, the debounce on `htmx.ajax` (from v2.4 pitfall research) becomes critical. Ensure it is in place.
-
-**Phase to address:** Template phase (label the icon correctly). Architecture decision phase (acknowledge the semantic in comments).
-
----
-
-### Pitfall 9: `_qso_to_view_dict()` Does Not Expose `_created_at` — Template Gets None
-
-**What goes wrong:**
-`_qso_to_view_dict()` in `ui_router.py` constructs the dict that Jinja2 templates receive. It currently populates `id`, `CALL`, `BAND`, `MODE`, `qso_date_utc`, plus `model_extra` fields (`FREQ`, `RST_SENT`, `RST_RCVD`, `QSO_DATE`, `TIME_ON`). It does not include `created_at` (the Python attribute for `_created_at`).
-
-If the `_created_at` sort icon is added to the template and a tooltip or data attribute wants to show the entry timestamp, `qso.created_at` must be explicitly added to the view dict. Without this, the template gets `None` (key missing) or a Jinja2 `UndefinedError`.
-
-The sort itself does not require `_created_at` in the view dict — sorting happens in `get_qso_page()` before the dicts are built. But any template that references `qso.created_at` or `qso['created_at']` will fail.
-
-**Root cause:**
-`model_extra` is the grab-bag for arbitrary ADIF fields. `created_at` is a declared field but NOT in `model_extra` — it is accessed as `qso.created_at` (the Python attribute). Extra fields must be pulled from `model_extra`; declared fields must be pulled directly from the Beanie document attributes.
-
-**How to avoid:**
-Explicitly add `created_at` to `_qso_to_view_dict()`:
-
-```python
-d["created_at"] = qso.created_at  # alias for _created_at
+window.addEventListener('beforeunload', function() {
+  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+});
+// Also clear when lock is toggled off
 ```
 
-Only needed if any template renders it. For the v2.5 requirement (invisible column, sort-only), this is optional. Add it anyway for completeness and future use.
+---
 
-**Phase to address:** Service/template integration phase.
+### Pitfall 11: Tailwind Dark Mode Classes on Lock Icon — Purge Strips Dynamically Constructed Classes
+
+**What goes wrong:** The lock icon has two SVG states (locked/unlocked). If Tailwind class names are constructed dynamically in JS (e.g., `el.className = 'w-4 h-4 ' + (locked ? 'text-indigo-500' : 'text-gray-400')`), Tailwind's purge scanner never sees `text-indigo-500` or `text-gray-400` as literal strings in the template — they are stripped from `output.css`. The icon renders without color.
+
+**Prevention:** Per `CLAUDE.md` — all Tailwind classes must appear as literal strings in template files. Use two pre-declared SVG icon elements with a `hidden` class toggled between them, rather than dynamic class construction:
+
+```html
+<!-- In form.html — both elements always exist with literal Tailwind classes -->
+<span id="lock-icon-locked"  class="text-indigo-500 dark:text-indigo-400"><!-- locked SVG --></span>
+<span id="lock-icon-unlocked" class="hidden text-gray-400 dark:text-gray-500"><!-- unlocked SVG --></span>
+```
+
+```javascript
+// Toggle with classList.add/remove — no dynamic class construction
+function updateLockIcon(isLocked) {
+  lockIconLocked.classList.toggle('hidden', !isLocked);
+  lockIconUnlocked.classList.toggle('hidden', isLocked);
+}
+```
+
+After adding new dark-mode classes, run `npm run verify` to confirm they appear in `static/css/output.css`.
 
 ---
 
-### Pitfall 10: Existing QSOs Have No `_created_at` — `None` Sort Behavior in MongoDB
+### Pitfall 12: `htmx:afterSwap` vs `htmx:afterSettle` — When Each Is Correct
 
-**What goes wrong:**
-All existing QSO documents in MongoDB have no `_created_at` field. When sorted by `"_created_at"` ascending, MongoDB places documents with a `null` or missing field *before* documents with a value (nulls sort first in ascending order, last in descending). Sorting by `"-_created_at"` descending places the oldest (null) records at the end, which is acceptable for the default use case (users want newest entries first). But sorting ascending puts all pre-migration records at the top, which is confusing.
+**What goes wrong:** Using `htmx:afterSwap` to trigger a CSS transition (e.g., animating the success message into view) fails because the browser has not yet rendered the new DOM when `afterSwap` fires. Using `htmx:afterSettle` for a simple DOM read (checking for `.success-msg`) is harmless but adds unnecessary latency.
 
-**Root cause:**
-MongoDB sort behavior for missing fields: `null` values sort before any non-null value in ascending order. Documents missing the field entirely behave the same as `null`.
+**This project's existing code** (form.html line 245) uses `htmx:afterSwap` to check for `.success-msg` — this is correct since it's a DOM read, not a layout operation.
 
-**How to avoid:**
-Accept this behavior as correct for the descending case (which is the primary use case). For ascending sort, consider filtering out null `_created_at` documents or document the known limitation.
+**The rule:**
+- `htmx:afterSwap` — correct for: DOM reads, classList changes, focus calls, value assignments
+- `htmx:afterSettle` — required for: triggering CSS transitions, reading `offsetHeight`/computed styles, anything that needs the browser to have painted
 
-No migration is required for v2.5. Beanie reads the missing field as `None` (the Python default), which is correct.
-
-**Warning signs:**
-- Sort by `_created_at` ascending shows all imported/pre-v2.5 QSOs first, then QSOs inserted after the feature was deployed.
-- This is expected behavior, not a bug.
-
-**Phase to address:** No action required. Document as known behavior in comments.
+The v2.7 success handler only needs DOM reads and form resets — `htmx:afterSwap` remains correct.
 
 ---
 
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| URL construction per sort header (no DRY macro) | Simple to understand, easy to debug | Every new filter param requires updating every sort URL | Acceptable for v2.5 (5 params). Refactor to Jinja2 macro if filter count exceeds 7. |
-| No index on `_created_at` | Zero index setup | Sort-by-entry-time scans all documents | Acceptable until logbook > 10,000 QSOs. Add `IndexModel([("_operator", ASC), ("_created_at", DESC)])` in same commit as field addition. |
-| Sort allowlist as a Python set (not enum) | Simple to add values | No documentation of valid values, no IDE autocomplete | Acceptable for v2.5. Add a comment listing all valid sort strings. |
-| `_created_at` labeled "entry order" in UI only | No migration, no renaming | Users may confuse with QSO date if tooltip is absent | Never omit the tooltip or label — UX debt if label is absent. |
+## Minor Pitfalls
 
 ---
 
-## Integration Gotchas
+### Pitfall 13: Duplicate `name="TIME_ON"` Elements If Visible + Hidden Inputs Coexist
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Beanie `default_factory` | Set on field declaration — fires on every construction | Set explicitly in `build_qso_dict()` or use `@before_event(Insert)` |
-| `qso.update({"$set": ...})` | Forget to add `_created_at` to protected fields strip list | Add `"_created_at"` to the protected fields list in both update handlers |
-| `model_extra` vs declared fields | Pull `created_at` from `model_extra` (it isn't there) | Access as `qso.created_at` (declared field) |
-| Beanie `.sort("-_created_at")` | Use Python attribute name `"-created_at"` | Use MongoDB alias name `"-_created_at"` (with underscore) |
-| `_qso_to_view_dict()` | Forget to include `created_at` in the view dict | Add explicitly; it is not in `model_extra` |
-| HTMX sort URL | Omit one filter param from new sort icon URL | Copy the full URL template from an existing sort icon, change only the sort value |
+**What goes wrong:** During implementation, a developer adds a hidden `<input name="TIME_ON">` for the locked-clock value while the original visible `<input name="TIME_ON">` is still in the DOM. Both serialize into FormData. The server sees two `TIME_ON` values. FastAPI/Pydantic typically uses the last one; depending on form field ordering, this could be the stale visible value or the correct hidden value.
+
+**Prevention:** Ensure exactly one `<input name="TIME_ON">` exists in the form DOM at any time. The recommended approach (Pitfall 7) uses a single visible `readonly` input — no hidden input is ever needed.
+
+**Detection:** `document.querySelectorAll('[name="TIME_ON"]').length > 1` in the console after loading the form. Any result greater than 1 is a bug.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Date/time lock toggle JS | Pitfall 2 (disabled vs readonly) | Use `.readOnly` property, never `.disabled`. Verify via Network tab FormData inspection. |
+| Live UTC clock | Pitfall 3 (setInterval drift) + Pitfall 4 (local timezone) | Derive from `new Date().getUTC*()` on every tick. Align to second boundary. |
+| UTC date formatting | Pitfall 8 (month off-by-one) | `getUTCMonth() + 1` always. Grep check in review. |
+| HHMM → HHMMSS migration | Pitfall 5 (double-pad, field scope) | `r"^\d{4}$"` anchored regex; aggregation pipeline `$concat`; `get_pymongo_collection()`; run from lifespan startup. |
+| Time validation update | Pitfall 6 (4-vs-6 digit) | Validator accepts both; normalize to HHMMSS in `htmx:beforeRequest`. |
+| Post-submit reset | Pitfall 9 (reset kills live fields) | Conditional reset; re-populate date/time immediately after `form.reset()`. |
+| Value submission | Pitfall 7 + 13 (hx-vals, hidden input, duplicates) | Single visible `readonly` input only. No hidden `name="TIME_ON"`. No `hx-vals`. |
+| HTMX swap scope | Pitfall 1 (form replaced) | Keep `hx-target="#qso-result"`, never point at form or any ancestor of `#qso-form`. |
+| Tailwind lock icon | Pitfall 11 (purge) | Literal class strings only. Run `npm run verify` after adding new `dark:` classes. |
+| Clock timer lifecycle | Pitfall 10 (timer leak) | Store `setInterval` handle; clear on `beforeunload` and on lock-off. |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **`_created_at` double-stamp prevention:** Verify `_created_at` is in the protected fields strip list in `qso_update()` (ui_router.py) AND `patch_qso()` (router.py). Run a test: insert QSO, edit CALL, confirm `_created_at` is unchanged in MongoDB after edit.
-- [ ] **Sort allowlist active:** Confirm `get_qso_page()` returns `sort_by="-qso_date_utc"` results when called with `sort_by="nonexistent_field"`. Confirm `sort_by="_deleted"` falls back to default.
-- [ ] **FREQ excluded from sort options:** Confirm `FREQ` and `QSO_DATE` are not in the sort allowlist and not exposed as sort icons in the template.
-- [ ] **Column count semantic validity:** Every `<tr>` in `<tbody>` has the same number of `<td>` elements as `<th>` elements in `<thead>`. Run HTML validation or count manually.
-- [ ] **Filter params preserved on sort click:** Apply a band filter + mode filter, then click each sort header. Confirm the URL retains `band=` and `mode=` params. Confirm the table shows filtered results after sort.
-- [ ] **Auto-refresh sentinel decision documented:** The template comment explicitly states which sort values enable the sentinel. The decision (default sort only, or all descending sorts) is stated in the comment.
-- [ ] **Index added for `_created_at`:** `Settings.indexes` in `QSO` model includes a compound index on `(_operator ASC, _created_at DESC)`.
-- [ ] **`_created_at` in view dict:** `_qso_to_view_dict()` returns `created_at` key (even if `None` for pre-migration documents) so templates can safely reference it without `UndefinedError`.
-- [ ] **Import path gets insert-time stamp:** After importing a test ADIF file, confirm all imported QSOs have `_created_at` close to the import time (not `None`, not the ADIF QSO_DATE value).
-- [ ] **UDP path gets insert-time stamp:** After sending a test UDP datagram, confirm the inserted QSO has `_created_at` set (not `None`).
-
----
-
-## Recovery Strategies
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| `_created_at` stamped on update | MEDIUM | MongoDB update: `db.qsos.updateMany({_created_at: {$gt: ISODate("2026-04-21")}}, [{$set: {_created_at: "$_id.getTimestamp()"}}])` — MongoDB ObjectIds encode insert time, can recover approximate `_created_at` from `_id` |
-| Field stored as `created_at` (no underscore) | LOW | Rename field in MongoDB: `db.qsos.updateMany({created_at: {$exists: true}}, [{$rename: {created_at: "_created_at"}}])` |
-| Filter param dropped by sort icon | LOW | Purely a template fix — no data impact, user navigates back, re-applies filter |
-| Sort allowlist missing (injection) | LOW | Code-only fix, no data impact — no operator can see another operator's data regardless |
-| No index on `_created_at` (performance) | LOW | Add index online via `db.qsos.createIndex({_operator: 1, _created_at: -1})` — MongoDB builds indexes in background without downtime |
-
----
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Double-stamp on update | Model + service layer | Edit a QSO after insert; confirm `_created_at` is unchanged in DB |
-| FREQ string sort | Sort allowlist phase | Confirm `FREQ` not in `_ALLOWED_SORT_FIELDS` |
-| Sort field injection | Sort allowlist phase | Call `get_qso_page(sort_by="_deleted")`, confirm fallback to default |
-| `<th>` without `<td>` mismatch | Template phase | HTML validation; count `<th>` vs `<td>` in rendered output |
-| Auto-refresh sentinel missing new sort | Template phase | Sort by `_created_at`, trigger new QSO, confirm expected refresh/badge behavior |
-| Filter params lost on sort click | Template phase | Apply filter, click each sort icon, confirm filter preserved |
-| Alias mismatch (`created_at` vs `_created_at`) | Model phase | Inspect MongoDB doc after insert; field must be `_created_at` |
-| `_created_at` missing from view dict | Template integration | Access `{{ qso.created_at }}` in template; no `UndefinedError` |
-| Import gets insert-time stamp | Service phase | Import test file; all records have `_created_at` near import time, not `None` |
-| Missing `_created_at` index | Model phase | Check `Settings.indexes` before merging model change |
+- [ ] **readonly not disabled:** Lock toggle uses `input.readOnly = true/false`. Network tab confirms `QSO_DATE` and `TIME_ON` present in FormData when locked.
+- [ ] **UTC time source:** All date/time construction uses `getUTCHours()`, `getUTCMinutes()`, `getUTCSeconds()`, `getUTCDate()`, `getUTCMonth() + 1`, `getUTCFullYear()`. Grep for bare `getHours|getMinutes|getDate|getMonth|getFullYear` — zero hits.
+- [ ] **Clock drift prevention:** `updateClock()` calls `new Date()` on every tick. No counter or accumulated delta. First tick aligned to next second boundary.
+- [ ] **Swap scope preserved:** `hx-target` still points at `#qso-result`. `hx-swap` still `innerHTML`. Form is never replaced.
+- [ ] **Migration idempotent:** Run migration twice. `modified_count` is zero on second run. Pre-existing HHMMSS values unchanged.
+- [ ] **Migration scoped:** Only `TIME_ON` field updated. No other 4-digit ADIF fields touched.
+- [ ] **Validator accepts both:** Submitting with TIME_ON = "1430" succeeds. Submitting with "143000" succeeds. Submitting with "143" or "14300" fails.
+- [ ] **Normalization fires:** Submit form with TIME_ON = "1430". Stored value in MongoDB is "143000" (6 digits).
+- [ ] **Post-submit reset conditional:** With "Keep date/time" toggle checked: date/time fields retain values after submit. CALL field clears. With toggle unchecked: all fields clear, date/time repopulate from UTC immediately.
+- [ ] **Single name="TIME_ON":** `document.querySelectorAll('[name="TIME_ON"]').length === 1` in console. Always.
+- [ ] **Dark mode icon classes:** `npm run verify` passes after adding lock icon. New `dark:` classes appear in `output.css`.
+- [ ] **No timezone leakage:** Test with browser timezone = UTC+8. Displayed UTC clock matches UTC, not local time.
 
 ---
 
 ## Sources
 
-- Beanie `@before_event(Insert)` pattern — verified against Beanie docs via Context7 (/beanieodm/beanie)
-- Beanie `.sort()` string syntax — verified: string sort uses MongoDB field name (alias), not Python attribute name
-- MongoDB sort behavior for null/missing fields — MongoDB documentation, behavior confirmed in current docs
-- Existing codebase alias pattern: `operator_callsign = Field(alias="_operator", serialization_alias="_operator")` — `app/qso/models.py`
-- `model_extra` access pattern for ADIF fields — `_qso_to_view_dict()` in `app/qso/ui_router.py`
-- Protected fields strip list — `qso_update()` in `app/qso/ui_router.py` and `patch_qso()` in `app/qso/router.py`
-- Auto-refresh sentinel condition — `templates/log/log_table.html` line 1
-- HTMX sort URL construction pattern — `templates/log/log_table.html` existing sort headers
+- `templates/log/form.html` — live codebase: HTMX wiring (`hx-target="#qso-result"`, `hx-swap="innerHTML"`), JS IIFE, validation rules (`^\d{4}$`), `htmx:afterSwap` success handler, `submitAttempted` guard pattern
+- `app/qso/service.py` — live codebase: `parse_adif_datetime()` accepting both HHMM (4-char) and HHMMSS (6-char), `build_qso_dict()` normalization, `get_pymongo_collection()` precedent from stats page
+- `.planning/PROJECT.md` — v2.7 requirements; Key Decisions (Motor EOL, `get_pymongo_collection()`, HTMX cookie auth, `NOTIFY_SOUND` string rendering pattern, `#log-table` SSE swap target pattern, `classList.add/remove` for hidden badge)
+- HTML spec — disabled vs readonly form control submission behavior (HIGH confidence — browser spec, MDN)
+- HTMX docs — `htmx:beforeRequest`, `htmx:afterSwap`, `htmx:afterSettle` event lifecycle; FormData serialization (HIGH confidence — used throughout this codebase; `htmx:afterSwap` for theme icon sync confirmed in CLAUDE.md Key Decisions v1.9)
+- MongoDB docs — aggregation pipeline update syntax (`[{$set: ...}]` list form), `$regex` anchoring, `$concat` in aggregation (HIGH confidence — same pattern used in existing `backfill_created_at()` migration in this project)
 
 ---
-*Pitfalls research for: v2.5 QSO Sorting & Entry Timestamp*
-*Researched: 2026-04-20*
+*Pitfalls research for: v2.7 UTC Date/Time Entry*
+*Researched: 2026-04-24*
