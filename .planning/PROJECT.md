@@ -247,9 +247,17 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ DATE header restructured with flex wrapper: date sort link + clock icon sort link side-by-side — D-01
 - ✓ Non-sortable columns (Freq MHz, RST S/R, Actions) have no sort indicators — UX-01
 
+### Validated (v2.6 — Phase 51)
+
+- ✓ `GET /llms.txt` serves `static/llms.txt` with `Content-Type: text/plain; charset=utf-8`, `include_in_schema=False` (LLMS-01, LLMS-04)
+- ✓ `GET /llms-full.txt` serves `static/llms-full.txt` with `Content-Type: text/plain; charset=utf-8`, `include_in_schema=False` (LLMS-02, LLMS-04)
+- ✓ `static/llms.txt` contains title, one-sentence description, and section links to `/llms-full.txt` (LLMS-03)
+- ✓ `static/llms-full.txt` contains complete API reference (all 16 REST endpoints with curl examples), ADIF field reference tables, and operator getting-started walkthrough (CONTENT-01, CONTENT-02, CONTENT-03)
+- ✓ Both routes are absent from `/openapi.json` (LLMS-04)
+
 ## Current State
 
-**Version:** v2.5 QSO Sorting & Entry Timestamp — **COMPLETE** (Phase 50 complete 2026-04-23)
+**Version:** v2.6 llms.txt Support — **COMPLETE** (Phase 51 complete 2026-04-25)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
