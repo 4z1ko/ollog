@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo import UpdateOne
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -177,6 +177,28 @@ app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
 
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# llms.txt endpoints — static content served from disk via FileResponse.
+# Routes are excluded from the OpenAPI schema (LLMS-03).
+# Editing static/llms.txt or static/llms-full.txt and restarting the app
+# serves updated content with no Python code change (LLMS-04).
+@app.get("/llms.txt", include_in_schema=False)
+async def llms_index():
+    """LLM tooling index — project title, description, section links."""
+    return FileResponse(
+        path="static/llms.txt",
+        media_type="text/plain; charset=utf-8",
+    )
+
+
+@app.get("/llms-full.txt", include_in_schema=False)
+async def llms_full():
+    """Full LLM reference — API docs, ADIF field guide, getting started."""
+    return FileResponse(
+        path="static/llms-full.txt",
+        media_type="text/plain; charset=utf-8",
+    )
 
 
 @app.exception_handler(HTTPException)
