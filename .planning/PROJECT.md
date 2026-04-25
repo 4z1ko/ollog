@@ -8,18 +8,19 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
-## Shipped: v2.4 Live Log & Sound Alerts (2026-04-20)
+## Shipped: v2.6 llms.txt Support (2026-04-25)
 
-**Goal achieved:** SSE watcher hardened against Python 3.12+ GC and runtime exceptions; LIVE indicator accuracy fixed to message-first state machine; per-operator sound notifications (Web Audio 440 Hz tone, autoplay-policy compliant) wired to SSE events with persistent MongoDB preference; dismissable new-QSO badge for page 2+/filtered views.
+**Goal achieved:** `/llms.txt` and `/llms-full.txt` endpoints added to operator app; static files editable without touching Python; full 610-line LLM reference document covering all 16 REST endpoints with curl examples, ADIF field reference tables, and operator getting-started walkthrough.
 
-## Current Milestone: v2.6 llms.txt Support
+## Current Milestone: v2.7 UTC Date/Time Entry
 
-**Goal:** Make ollog discoverable and useful to LLM tooling by serving structured, full-text documentation at standard llms.txt endpoints on the operator app.
+**Goal:** Upgrade the Log QSO form with live UTC date/time defaults, lock/unlock toggles, HHMMSS precision, and post-submission reset behavior control.
 
 **Target features:**
-- `/llms.txt` — index: project title, one-sentence description, links to all content sections
-- `/llms-full.txt` — full text: API reference, ADIF field guide, operator getting-started walkthrough
-- Both served as `text/plain` from static source files (editable without touching Python code)
+- Date field locked to today's UTC (YYYYMMDD) by default; lock icon (16×16) toggles manual editing; `readonly` (not `disabled`) so value still submits; validated input
+- Time field auto-updates with live UTC (HHMMSS) while locked; lock icon stops auto-update for manual entry; HHMM input normalized to HHMM00; validated
+- DB accepts and stores HHMMSS; idempotent startup migration updates existing HHMM records to HHMM00
+- Post-submission toggle: "Keep current date/time" (preserve values + lock state) vs "Reset to live UTC" (restore locked auto-updating defaults)
 
 ## Requirements
 
