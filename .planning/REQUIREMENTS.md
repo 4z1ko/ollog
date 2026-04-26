@@ -58,19 +58,19 @@ HHMMSS precision, and post-submission reset behavior control.
 
 ## Traceability
 
-| REQ-ID | Phase | Status |
-|--------|-------|--------|
-| DATE-01 | — | Pending |
-| DATE-02 | — | Pending |
-| DATE-03 | — | Pending |
-| DATE-04 | — | Pending |
-| TIME-01 | — | Pending |
-| TIME-02 | — | Pending |
-| TIME-03 | — | Pending |
-| TIME-04 | — | Pending |
-| TIME-05 | — | Pending |
-| DB-01   | — | Pending |
-| DB-02   | — | Pending |
-| RESET-01 | — | Pending |
-| RESET-02 | — | Pending |
-| RESET-03 | — | Pending |
+| REQ-ID   | Phase    | Status  |
+|----------|----------|---------|
+| DB-01    | Phase 52 | Pending |
+| DB-02    | Phase 52 | Pending |
+| DATE-01  | Phase 53 | Pending |
+| DATE-02  | Phase 53 | Pending |
+| DATE-03  | Phase 53 | Pending |
+| DATE-04  | Phase 53 | Pending |
+| TIME-01  | Phase 53 | Pending |
+| TIME-02  | Phase 53 | Pending |
+| TIME-03  | Phase 53 | Pending |
+| TIME-04  | Phase 53 | Pending |
+| TIME-05  | Phase 53 | Pending |
+| RESET-01 | Phase 53 | Pending |
+| RESET-02 | Phase 53 | Pending |
+| RESET-03 | Phase 53 | Pending |
