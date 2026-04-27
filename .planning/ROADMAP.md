@@ -762,7 +762,10 @@ Plans:
   2. Running the app startup migration twice on the same database produces no additional changes — the migration is idempotent and does not corrupt already-padded 6-digit values
   3. A QSO submitted via REST API with `TIME_ON: "1430"` (4 digits) is accepted and stored without a validation error — the server accepts HHMM input
   4. A QSO submitted via REST API with `TIME_ON: "143000"` (6 digits) is accepted and stored without a validation error — the server accepts HHMMSS input
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 52-01-PLAN.md — normalize_time_on() startup migration (anchored regex + aggregation pipeline) + tests/test_migration.py covering DB-01 padding/idempotency and DB-02 HHMM/HHMMSS acceptance
 
 ---
 
