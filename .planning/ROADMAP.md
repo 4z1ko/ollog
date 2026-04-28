@@ -842,5 +842,5 @@ Plans:
 | 49. Service Layer | v2.5 | 1/1 | Complete    | 2026-04-23 |
 | 50. Sort UI | v2.5 | 1/1 | Complete    | 2026-04-23 |
 | 51. llms.txt Endpoints and Content | v2.6 | 3/3 | Complete    | 2026-04-25 |
-| 52. TIME_ON DB Migration | v2.7 | 1/1 | Complete   | 2026-04-28 |
+| 52. TIME_ON DB Migration | v2.7 | 1/1 | Complete    | 2026-04-28 |
 | 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 0/1 | Not started | - |
