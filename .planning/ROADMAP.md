@@ -209,7 +209,7 @@ Full archive: `.planning/milestones/v2.5-ROADMAP.md`
 
 ### v2.7 UTC Date/Time Entry (Phases 52–53)
 
-- [ ] **Phase 52: TIME_ON DB Migration** — idempotent `normalize_time_on()` startup migration in `app/main.py` that pads existing 4-digit `HHMM` records to `HHMM00`; server-side validation confirmed to accept both HHMM and HHMMSS
+- [x] **Phase 52: TIME_ON DB Migration** — idempotent `normalize_time_on()` startup migration in `app/main.py` that pads existing 4-digit `HHMM` records to `HHMM00`; server-side validation confirmed to accept both HHMM and HHMMSS (completed 2026-04-28)
 - [ ] **Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior** — all QSO form enhancements in `templates/log/form.html`: live UTC clock, readonly lock toggles with Heroicons padlock icons, client-side validation, HHMM normalization, post-submit reset toggle
 
 ## Phase Details
@@ -762,10 +762,10 @@ Plans:
   2. Running the app startup migration twice on the same database produces no additional changes — the migration is idempotent and does not corrupt already-padded 6-digit values
   3. A QSO submitted via REST API with `TIME_ON: "1430"` (4 digits) is accepted and stored without a validation error — the server accepts HHMM input
   4. A QSO submitted via REST API with `TIME_ON: "143000"` (6 digits) is accepted and stored without a validation error — the server accepts HHMMSS input
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 52-01-PLAN.md — normalize_time_on() startup migration (anchored regex + aggregation pipeline) + tests/test_migration.py covering DB-01 padding/idempotency and DB-02 HHMM/HHMMSS acceptance
+- [x] 52-01-PLAN.md — normalize_time_on() startup migration (anchored regex + aggregation pipeline) + tests/test_migration.py covering DB-01 padding/idempotency and DB-02 HHMM/HHMMSS acceptance
 
 ---
 
@@ -842,5 +842,5 @@ Plans:
 | 49. Service Layer | v2.5 | 1/1 | Complete    | 2026-04-23 |
 | 50. Sort UI | v2.5 | 1/1 | Complete    | 2026-04-23 |
 | 51. llms.txt Endpoints and Content | v2.6 | 3/3 | Complete    | 2026-04-25 |
-| 52. TIME_ON DB Migration | v2.7 | 0/1 | Not started | - |
+| 52. TIME_ON DB Migration | v2.7 | 1/1 | Complete   | 2026-04-28 |
 | 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 0/1 | Not started | - |
