@@ -256,9 +256,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ `static/llms-full.txt` contains complete API reference (all 16 REST endpoints with curl examples), ADIF field reference tables, and operator getting-started walkthrough (CONTENT-01, CONTENT-02, CONTENT-03)
 - ✓ Both routes are absent from `/openapi.json` (LLMS-04)
 
+### Validated (v2.7 — Phase 52)
+
+- ✓ `normalize_time_on()` idempotent startup migration in `app/main.py` pads all 4-digit `TIME_ON` values to 6-digit `HHMM00` using anchored regex `^\d{4}$` filter + aggregation pipeline (DB-01)
+- ✓ Migration called in `lifespan()` immediately after `backfill_created_at()` — runs on every startup, modifies 0 documents if already migrated (idempotent) (DB-01)
+- ✓ `parse_adif_datetime()` in `app/qso/service.py` confirmed to accept both HHMM (4-digit) and HHMMSS (6-digit) `TIME_ON` — unchanged, test-covered (DB-02)
+- ✓ `tests/test_migration.py` — 5 tests: padding, idempotency, skip-6-digit (integration), HHMM/HHMMSS parse acceptance (unit) (DB-01, DB-02)
+
 ## Current State
 
-**Version:** v2.6 llms.txt Support — **COMPLETE** (Phase 51 complete 2026-04-25)
+**Version:** v2.7 UTC Date/Time Entry — **Phase 52 complete** (2026-04-28)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
