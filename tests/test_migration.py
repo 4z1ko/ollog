@@ -49,7 +49,7 @@ mongo_required = pytest.mark.skipif(
 @pytest_asyncio.fixture(scope="function")
 async def migration_db():
     client = AsyncMongoClient(
-        "mongodb://localhost:27017",
+        "mongodb://localhost:27017/?directConnection=true",
         serverSelectionTimeoutMS=2000,
     )
     db = client["ollog_migration_test"]

@@ -47,11 +47,31 @@ async def backfill_created_at():
         logger.info("_created_at backfill: 0 documents — already up to date")
 
 
+async def normalize_time_on():
+    """One-time idempotent migration: pad 4-digit HHMM TIME_ON values to HHMM00.
+
+    Uses an anchored regex filter (^\\d{4}$) to match only exactly-4-digit strings,
+    preventing double-padding on repeated runs. Aggregation pipeline $concat appends
+    "00" server-side — no Python loop required.
+    """
+    from app.qso.models import QSO
+    collection = QSO.get_pymongo_collection()
+    result = await collection.update_many(
+        {"TIME_ON": {"$regex": r"^\d{4}$"}},
+        [{"$set": {"TIME_ON": {"$concat": ["$TIME_ON", "00"]}}}],
+    )
+    if result.modified_count:
+        logger.info("TIME_ON migration: %d documents updated", result.modified_count)
+    else:
+        logger.info("TIME_ON migration: 0 documents — already up to date")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await _bootstrap_admin()
     await backfill_created_at()   # D-05: one-time idempotent migration
+    await normalize_time_on()     # Phase 52 (D-02): pad 4-digit TIME_ON to 6-digit
     # Start change stream watcher for live feed
     client = get_client()
     app.state.watcher_task = None
