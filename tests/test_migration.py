@@ -48,6 +48,9 @@ mongo_required = pytest.mark.skipif(
 
 @pytest_asyncio.fixture(scope="function")
 async def migration_db():
+    # NOTE: init_beanie() rebinds QSO collection globally. Run migration tests
+    # in isolation (`pytest tests/test_migration.py`) to avoid cross-fixture
+    # Beanie state collisions with other test files that use a different database.
     client = AsyncMongoClient(
         "mongodb://localhost:27017/?directConnection=true",
         serverSelectionTimeoutMS=2000,
