@@ -110,7 +110,6 @@ async def lifespan(app: FastAPI):
         )
 
     # Start backup scheduler (conditional on BACKUP_SCHEDULE env var)
-    backup_task = None
     backup_scheduler = None
     if settings.backup_schedule:
         from app.backup.scheduler import make_scheduler
@@ -133,12 +132,6 @@ async def lifespan(app: FastAPI):
         app.state.watcher_task.cancel()
         try:
             await app.state.watcher_task
-        except asyncio.CancelledError:
-            pass
-    if backup_task is not None:
-        backup_task.cancel()
-        try:
-            await backup_task
         except asyncio.CancelledError:
             pass
     if backup_scheduler is not None and backup_scheduler.running:
