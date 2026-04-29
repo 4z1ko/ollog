@@ -42,7 +42,7 @@ Declared values (multiples of 4, matching existing Tailwind 8-point usage in tem
 | 3xl | 64px | Page-level spacing |
 
 Exceptions:
-- Padlock button target area: `inset-y-0 right-0 pr-2.5` — right-side icon tap zone within input wrapper, not on the 8-point grid; required to match password show/hide pattern. Source: CONTEXT.md D-04.
+- Padlock button target area: `inset-y-0 right-0 pr-3` (12px) — right-side icon tap zone within input wrapper. Source: CONTEXT.md D-04. Updated from pr-2.5 (10px, not on 8-point grid) to pr-3 (12px, on 4-point grid).
 - Input right padding to clear padlock icon: `pr-9` (36px) on `QSO_DATE` and `TIME_ON` inputs. Source: RESEARCH.md Pattern 2.
 - Toggle switch pill: `w-9 h-5` (36px × 20px), thumb `h-4 w-4` (16px) — exact pill-and-thumb proportions for the `peer-checked:` toggle. Source: RESEARCH.md Pattern 4.
 
@@ -55,11 +55,23 @@ Exceptions:
 | Body / form input value | 14px (`text-sm`) | 400 (regular) | 1.5 |
 | Form label | 12px (`text-xs`) | 600 (semibold), uppercase, tracked | 1.2 |
 | Reset mode label | 12px (`text-xs`) | 400 (regular) | 1.5 |
-| Page heading | 20px (`text-xl`) | 700 (bold) | 1.2 |
+| Page heading | 20px (`text-xl`) | 600 (semibold) | 1.2 |
+
+Two weights only: 400 (regular) and 600 (semibold). Weight 700 (bold) is not used in this phase; the page heading uses `font-semibold` (`font-bold` dropped to satisfy the 2-weight maximum).
 
 Font is monospace (`font-mono`) for input values in `QSO_DATE` and `TIME_ON` fields — ensures fixed-width digit columns for the live clock display.
 
-**Source:** `static/css/input.css` `.form-label` (`text-xs font-semibold uppercase tracking-wider`), `.form-input` (`text-sm`), `templates/log/form.html` (`text-xl font-bold` heading) — VERIFIED codebase
+**Source:** `static/css/input.css` `.form-label` (`text-xs font-semibold uppercase tracking-wider`), `.form-input` (`text-sm`), `templates/log/form.html` heading updated to `text-xl font-semibold` — VERIFIED codebase
+
+---
+
+## Visual Hierarchy
+
+**Primary visual anchor:** The `QSO_DATE` and `TIME_ON` fields with their inline padlock icons. These are the new interactive elements in this phase. The live clock ticking in `TIME_ON` draws the eye and communicates real-time UTC state.
+
+**Secondary element:** The reset-mode toggle switch in the submit row. It is visually subordinate to the primary CTA ("Log QSO") and communicates a behavioral preference rather than a core action.
+
+**Tertiary:** All other form fields are unchanged and carry no new visual weight.
 
 ---
 
@@ -112,7 +124,7 @@ All components already exist in `static/css/input.css`. No new CSS component cla
 | Construct | Classes | Purpose |
 |-----------|---------|---------|
 | Input wrapper (relative) | `relative` | Positions the absolute padlock button inside the input |
-| Padlock button | `absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300` | Lock toggle button positioned at input right |
+| Padlock button | `absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300` | Lock toggle button positioned at input right |
 | Locked input state | `bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed` | Visual locked state applied via JS `applyLockedStyle()` |
 | Toggle pill | `relative inline-flex items-center cursor-pointer w-9 h-5 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-indigo-500 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4` | Reset mode toggle switch label |
 | Toggle checkbox | `sr-only peer` | Hidden accessible checkbox driving `peer-checked:` variants |
@@ -147,6 +159,17 @@ Click padlock → if locked: `clearInterval(timeInterval)`, set `readOnly=false`
 ### Padlock Icons
 
 Both padlock buttons: `<button type="button">` — never `type="submit"` or `type="reset"`. Size: `w-4 h-4` (16×16 rendered). Heroicons 2.x outline, `fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24"`.
+
+**Accessibility — aria-label (required on all padlock buttons):**
+
+| Field | Lock state | aria-label value |
+|-------|------------|-----------------|
+| QSO_DATE | Locked (closed padlock showing) | `"Lock date field"` |
+| QSO_DATE | Unlocked (open padlock showing) | `"Unlock date field"` |
+| TIME_ON | Locked (closed padlock showing) | `"Lock time field"` |
+| TIME_ON | Unlocked (open padlock showing) | `"Unlock time field"` |
+
+The JS toggle handlers must update `aria-label` when swapping the SVG icon. Initial value is the locked-state label (`"Lock date field"` / `"Lock time field"`) since both fields are locked on page load.
 
 Lock-closed path (locked state):
 ```
