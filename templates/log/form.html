@@ -135,7 +135,7 @@
 
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
           <button type="submit" class="btn-primary">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -143,6 +143,14 @@
             Log QSO
           </button>
           <button type="reset" class="btn-ghost btn-sm">Clear</button>
+          <!-- Reset-mode toggle (RESET-01, RESET-02, RESET-03) -->
+          <div class="flex items-center gap-2 ml-auto">
+            <input type="checkbox" id="reset-mode-toggle" class="sr-only peer" checked>
+            <label for="reset-mode-toggle"
+                   class="relative inline-flex items-center cursor-pointer w-9 h-5 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-indigo-500 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4">
+            </label>
+            <span class="text-xs text-gray-500 dark:text-gray-400" id="reset-mode-label">Reset to live UTC</span>
+          </div>
         </div>
       </form>
     </div>
