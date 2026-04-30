@@ -210,7 +210,7 @@
   var rules = {
     CALL:     function (v) { return v.trim().length > 0; },
     QSO_DATE: function (v) { return /^\d{8}$/.test(v.trim()); },
-    TIME_ON:  function (v) { return /^\d{4}$/.test(v.trim()); },
+    TIME_ON:  function (v) { return /^\d{6}$/.test(v.trim()); },
     BAND:     function (v) { return v.trim().length > 0; },
     MODE:     function (v) { return v.trim().length > 0; },
   };
@@ -284,6 +284,7 @@
     Object.keys(rules).forEach(function (name) {
       var el = field(name);
       if (!el) return;
+      if (el.readOnly) { setError(el, false); return; } // locked = always valid (D-12)
       var valid = rules[name](el.value);
       setError(el, !valid);
       if (!valid) ok = false;
@@ -391,6 +392,13 @@
 
   // ── Gate HTMX request behind validation ─────────────────────────────────────
   form.addEventListener('htmx:beforeRequest', function (e) {
+    // Step 1: normalize HHMM → HHMM00 (TIME-04). Only normalize if field is unlocked
+    // and value is exactly 4 digits — locked fields already hold valid HHMMSS.
+    var timeEl = field('TIME_ON');
+    if (timeEl && !timeEl.readOnly && /^\d{4}$/.test(timeEl.value.trim())) {
+      timeEl.value = timeEl.value.trim() + '00';
+    }
+    // Step 2: gate behind validation (existing behavior)
     submitAttempted = true;
     if (!validate()) {
       e.preventDefault();
