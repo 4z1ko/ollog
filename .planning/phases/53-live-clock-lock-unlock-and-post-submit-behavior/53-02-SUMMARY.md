@@ -120,11 +120,11 @@ None — all four tasks executed exactly as specified in 53-02-PLAN.md.
 - Task 4: initResetToggle present, localStorage.getItem appears exactly 2x, both setItem calls present, both label strings present, mode check and branching present, form.reset() followed by initDateTime()
 - Phase-level: no .disabled= anywhere, no local-time accessors, npm run build + npm run verify both pass
 
-### Human Verification (Task 5): CHECKPOINT — AWAITING HUMAN APPROVAL
+### Human Verification (Task 5): APPROVED
 
-Task 5 is a `checkpoint:human-verify` gate. The automated tasks are complete and all checks pass. Human browser verification is required to confirm all 12 phase requirements (DATE-01 through DATE-04, TIME-01 through TIME-05, RESET-01 through RESET-03) pass in a live browser session.
+All 12 phase requirements (DATE-01–04, TIME-01–05, RESET-01–03) verified and approved in a live browser session.
 
-See the Task 5 verification procedure in `53-02-PLAN.md` for the full step-by-step walkthrough.
+**Post-checkpoint fix:** In "Keep current date/time" mode, the CALL field was not being cleared after a successful submit. Fixed by adding `callField.value = ''` before `callField.focus()` in the shared post-submit cleanup (both modes now always clear and focus CALL). Committed as `3676ed7`.
 
 ## Issues Encountered
 
