@@ -202,6 +202,7 @@
 (function () {
   var form = document.getElementById('qso-form');
   var submitAttempted = false;
+  var timeInterval = null;
 
   // ── Validation rules ────────────────────────────────────────────────────────
   // CALL: any non-empty string; DATE: exactly 8 digits; TIME: exactly 4 digits
@@ -213,6 +214,58 @@
     BAND:     function (v) { return v.trim().length > 0; },
     MODE:     function (v) { return v.trim().length > 0; },
   };
+
+  // ── UTC clock helpers (TIME-01, TIME-02 — getUTC* exclusively) ──────────────
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function currentUTCDate() {
+    var d = new Date();
+    return '' + d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate());
+  }
+
+  function currentUTCTime() {
+    var d = new Date();
+    return pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds());
+  }
+
+  // ── Locked-state visual styling (D-06) ──────────────────────────────────────
+  function applyLockedStyle(el) {
+    el.classList.add('bg-gray-50', 'dark:bg-gray-800/50', 'cursor-not-allowed');
+  }
+
+  function removeLockedStyle(el) {
+    el.classList.remove('bg-gray-50', 'dark:bg-gray-800/50', 'cursor-not-allowed');
+  }
+
+  // ── initDateTime: populate both fields, lock both, restart the live clock ───
+  function initDateTime() {
+    var dateEl = document.getElementById('qso-date-input');
+    var timeEl = document.getElementById('qso-time-input');
+    if (!dateEl || !timeEl) return;
+
+    // Always clear any prior interval before setting up a new one (Pitfall 1)
+    if (timeInterval) {
+      clearInterval(timeInterval);
+      timeInterval = null;
+    }
+
+    // Date: populate today's UTC date and lock
+    dateEl.value = currentUTCDate();
+    dateEl.readOnly = true;
+    applyLockedStyle(dateEl);
+
+    // Time: populate now, lock, start ticking
+    timeEl.value = currentUTCTime();
+    timeEl.readOnly = true;
+    applyLockedStyle(timeEl);
+
+    timeInterval = setInterval(function () {
+      // Only mutate the field while it remains locked — once unlocked the user owns the value
+      if (timeEl.readOnly) {
+        timeEl.value = currentUTCTime();
+      }
+    }, 1000);
+  }
 
   function field(name) {
     return form.querySelector('[name="' + name + '"]');
@@ -285,6 +338,9 @@
       if (callField) callField.focus();
     }
   });
+
+  // ── Page load: populate date/time, lock both, start the live clock ──────────
+  initDateTime();
 })();
 </script>
 {% endblock %}
