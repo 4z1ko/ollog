@@ -438,11 +438,11 @@
         form.reset();
         initDateTime(); // re-populate + re-lock + restart interval
       }
-      // Both modes: clear errors, reset attempt flag, focus CALL (D-07, D-09)
+      // Both modes: clear errors, reset attempt flag, clear + focus CALL
       clearErrors();
       submitAttempted = false;
       var callField = form.querySelector('[name="CALL"]');
-      if (callField) callField.focus();
+      if (callField) { callField.value = ''; callField.focus(); }
     }
   });
 
