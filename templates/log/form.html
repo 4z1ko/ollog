@@ -297,6 +297,77 @@
     });
   }
 
+  // ── Padlock SVG path swap helper (D-05 — Heroicons outline 24px paths) ──────
+  var LOCK_CLOSED_D = "M16.5 10.5V6.75C16.5 4.26472 14.4853 2.25 12 2.25C9.51472 2.25 7.5 4.26472 7.5 6.75V10.5M6.75 21.75H17.25C18.4926 21.75 19.5 20.7426 19.5 19.5V12.75C19.5 11.5074 18.4926 10.5 17.25 10.5H6.75C5.50736 10.5 4.5 11.5074 4.5 12.75V19.5C4.5 20.7426 5.50736 21.75 6.75 21.75Z";
+  var LOCK_OPEN_D   = "M13.5 10.5V6.75C13.5 4.26472 15.5147 2.25 18 2.25C20.4853 2.25 22.5 4.26472 22.5 6.75V10.5M3.75 21.75H14.25C15.4926 21.75 16.5 20.7426 16.5 19.5V12.75C16.5 11.5074 15.4926 10.5 14.25 10.5H3.75C2.50736 10.5 1.5 11.5074 1.5 12.75V19.5C1.5 20.7426 2.50736 21.75 3.75 21.75Z";
+
+  function setLockIcon(svgEl, locked) {
+    var path = svgEl && svgEl.querySelector('path');
+    if (!path) return;
+    path.setAttribute('d', locked ? LOCK_CLOSED_D : LOCK_OPEN_D);
+  }
+
+  // ── Date padlock click handler (DATE-03) ────────────────────────────────────
+  var dateLockBtn  = document.getElementById('qso-date-lock');
+  var dateLockIcon = document.getElementById('qso-date-lock-icon');
+  if (dateLockBtn) {
+    dateLockBtn.addEventListener('click', function () {
+      var dateEl = document.getElementById('qso-date-input');
+      if (!dateEl) return;
+      if (dateEl.readOnly) {
+        // Unlock
+        dateEl.readOnly = false;
+        removeLockedStyle(dateEl);
+        setLockIcon(dateLockIcon, false);
+        dateLockBtn.setAttribute('aria-label', 'Unlock date field');
+      } else {
+        // Re-lock — restore live UTC value, re-apply locked classes, swap icon
+        dateEl.value = currentUTCDate();
+        dateEl.readOnly = true;
+        applyLockedStyle(dateEl);
+        setError(dateEl, false); // clear any stale error ring (D-12)
+        setLockIcon(dateLockIcon, true);
+        dateLockBtn.setAttribute('aria-label', 'Lock date field');
+      }
+    });
+  }
+
+  // ── Time padlock click handler (TIME-03) ────────────────────────────────────
+  var timeLockBtn  = document.getElementById('qso-time-lock');
+  var timeLockIcon = document.getElementById('qso-time-lock-icon');
+  if (timeLockBtn) {
+    timeLockBtn.addEventListener('click', function () {
+      var timeEl = document.getElementById('qso-time-input');
+      if (!timeEl) return;
+      if (timeEl.readOnly) {
+        // Unlock — stop the live tick entirely so the field freezes at its current value
+        if (timeInterval) { clearInterval(timeInterval); timeInterval = null; }
+        timeEl.readOnly = false;
+        removeLockedStyle(timeEl);
+        setLockIcon(timeLockIcon, false);
+        timeLockBtn.setAttribute('aria-label', 'Unlock time field');
+      } else {
+        // Re-lock — snap value to live UTC, re-apply locked classes, swap icon, restart tick
+        timeEl.value = currentUTCTime();
+        timeEl.readOnly = true;
+        applyLockedStyle(timeEl);
+        setError(timeEl, false); // clear any stale error ring (D-12)
+        setLockIcon(timeLockIcon, true);
+        timeLockBtn.setAttribute('aria-label', 'Lock time field');
+        if (timeInterval) { clearInterval(timeInterval); }
+        timeInterval = setInterval(function () {
+          if (timeEl.readOnly) { timeEl.value = currentUTCTime(); }
+        }, 1000);
+      }
+    });
+  }
+
+  // ── Clear button (type="reset") rehydrates date/time after native reset ─────
+  // Per Pitfall 4: defer initDateTime via setTimeout(0) so the browser's native reset completes first.
+  form.addEventListener('reset', function () {
+    setTimeout(function () { initDateTime(); }, 0);
+  });
+
   // ── Live re-validation (only after first submit attempt) ────────────────────
   form.addEventListener('input', function (e) {
     if (!submitAttempted) return;
