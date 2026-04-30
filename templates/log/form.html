@@ -390,6 +390,28 @@
     }
   });
 
+  // ── Reset-mode toggle: localStorage persistence + label text (RESET-01) ─────
+  (function initResetToggle() {
+    var toggle = document.getElementById('reset-mode-toggle');
+    var label  = document.getElementById('reset-mode-label');
+    if (!toggle || !label) return;
+
+    var saved = localStorage.getItem('ollog.resetMode');
+    // Default ON (= "reset") when no saved value (D-03)
+    toggle.checked = (saved !== 'keep');
+    label.textContent = toggle.checked ? 'Reset to live UTC' : 'Keep current date/time';
+
+    toggle.addEventListener('change', function () {
+      if (toggle.checked) {
+        localStorage.setItem('ollog.resetMode', 'reset');
+        label.textContent = 'Reset to live UTC';
+      } else {
+        localStorage.setItem('ollog.resetMode', 'keep');
+        label.textContent = 'Keep current date/time';
+      }
+    });
+  })();
+
   // ── Gate HTMX request behind validation ─────────────────────────────────────
   form.addEventListener('htmx:beforeRequest', function (e) {
     // Step 1: normalize HHMM → HHMM00 (TIME-04). Only normalize if field is unlocked
@@ -405,12 +427,18 @@
     }
   });
 
-  // ── Clear form + focus CALL after a successful log ───────────────────────────
+  // ── Clear form + focus CALL after a successful log (branched on reset mode) ──
   document.body.addEventListener('htmx:afterSwap', function (e) {
     if (!e.detail.target || e.detail.target.id !== 'qso-result') return;
     var result = document.getElementById('qso-result');
     if (result && result.querySelector('.success-msg')) {
-      form.reset();
+      var mode = localStorage.getItem('ollog.resetMode');
+      if (mode !== 'keep') {
+        // "Reset to live UTC" (default — D-08)
+        form.reset();
+        initDateTime(); // re-populate + re-lock + restart interval
+      }
+      // Both modes: clear errors, reset attempt flag, focus CALL (D-07, D-09)
       clearErrors();
       submitAttempted = false;
       var callField = form.querySelector('[name="CALL"]');
