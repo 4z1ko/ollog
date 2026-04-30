@@ -435,8 +435,9 @@
       var mode = localStorage.getItem('ollog.resetMode');
       if (mode !== 'keep') {
         // "Reset to live UTC" (default — D-08)
+        // form.reset() fires the 'reset' event, whose setTimeout(0) handler calls
+        // initDateTime() after native reset completes — no direct call needed here.
         form.reset();
-        initDateTime(); // re-populate + re-lock + restart interval
       }
       // Both modes: clear errors, reset attempt flag, clear + focus CALL
       clearErrors();
