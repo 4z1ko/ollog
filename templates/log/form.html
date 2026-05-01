@@ -210,7 +210,7 @@
   var rules = {
     CALL:     function (v) { return v.trim().length > 0; },
     QSO_DATE: function (v) { return /^\d{8}$/.test(v.trim()); },
-    TIME_ON:  function (v) { return /^\d{6}$/.test(v.trim()); },
+    TIME_ON:  function (v) { return /^([01]\d|2[0-3])([0-5]\d)([0-5]\d)$/.test(v.trim()); },
     BAND:     function (v) { return v.trim().length > 0; },
     MODE:     function (v) { return v.trim().length > 0; },
   };
@@ -258,6 +258,14 @@
     timeEl.value = currentUTCTime();
     timeEl.readOnly = true;
     applyLockedStyle(timeEl);
+
+    // Reset padlock icons to closed state (covers post-submit reset after unlock)
+    setLockIcon(document.getElementById('qso-date-lock-icon'), true);
+    setLockIcon(document.getElementById('qso-time-lock-icon'), true);
+    var dBtn = document.getElementById('qso-date-lock');
+    var tBtn = document.getElementById('qso-time-lock');
+    if (dBtn) dBtn.setAttribute('aria-label', 'Lock date field');
+    if (tBtn) tBtn.setAttribute('aria-label', 'Lock time field');
 
     timeInterval = setInterval(function () {
       // Only mutate the field while it remains locked — once unlocked the user owns the value
