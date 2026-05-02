@@ -28,10 +28,13 @@ manager = ConnectionManager()
 
 async def watch_qsos(collection, mgr: ConnectionManager, templates) -> None:
     """Watch the qsos collection for inserts and broadcast rendered HTML to all SSE clients."""
+    logger.info("watch_qsos: starting change stream watcher")
     pipeline = [{"$match": {"operationType": "insert"}}]
     while True:
         try:
+            logger.info("watch_qsos: opening change stream cursor")
             async with await collection.watch(pipeline, full_document="updateLookup") as stream:
+                logger.info("watch_qsos: change stream open, waiting for events")
                 async for change in stream:
                     doc = change.get("fullDocument", {})
                     if not doc:

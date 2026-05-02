@@ -1,0 +1,95 @@
+{% extends "base_app.html" %}
+{% block title %}ollog — About{% endblock %}
+{% block active_page %}about{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  <!-- Page header -->
+  <div>
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">About</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+      Station operator and application information
+    </p>
+  </div>
+
+  <!-- Operator card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Station Operator</h2>
+    </div>
+    <div class="card-body space-y-4">
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+          <span class="text-white text-xl font-bold">RC</span>
+        </div>
+        <div>
+          <p class="text-lg font-semibold text-gray-900 dark:text-white">Roy Cohen</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">Licensed Amateur Radio Operator</p>
+        </div>
+      </div>
+
+      <div class="border-t border-gray-100 dark:border-gray-800 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Callsigns</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="inline-flex items-center px-3 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-mono font-semibold text-sm">4Z1KO</span>
+            <span class="inline-flex items-center px-3 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-mono font-semibold text-sm">KU6L</span>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Logged in as</p>
+          <span class="inline-flex items-center px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono font-semibold text-sm">{{ callsign }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Documentation card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Documentation</h2>
+    </div>
+    <div class="card-body">
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Full operator guide covering logging QSOs, ADIF import/export, UDP integration, and API reference.
+      </p>
+      <a href="/guide" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.966 8.966 0 0 0-6 2.292m0-14.25v14.25" />
+        </svg>
+        Open Operator Guide
+      </a>
+    </div>
+  </div>
+
+  <!-- App info card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Application</h2>
+    </div>
+    <div class="card-body">
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div>
+          <dt class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Name</dt>
+          <dd class="text-gray-900 dark:text-white font-medium mt-0.5">ollog</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Version</dt>
+          <dd class="text-gray-900 dark:text-white font-medium mt-0.5">v2.2</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">ADIF Standard</dt>
+          <dd class="text-gray-900 dark:text-white font-medium mt-0.5">3.1.7</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Description</dt>
+          <dd class="text-gray-500 dark:text-gray-400 mt-0.5">Self-hosted multi-operator ham radio logbook</dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
