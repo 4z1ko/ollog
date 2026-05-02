@@ -210,7 +210,7 @@ Full archive: `.planning/milestones/v2.5-ROADMAP.md`
 ### v2.7 UTC Date/Time Entry (Phases 52–53)
 
 - [x] **Phase 52: TIME_ON DB Migration** — idempotent `normalize_time_on()` startup migration in `app/main.py` that pads existing 4-digit `HHMM` records to `HHMM00`; server-side validation confirmed to accept both HHMM and HHMMSS (completed 2026-04-28)
-- [ ] **Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior** — all QSO form enhancements in `templates/log/form.html`: live UTC clock, readonly lock toggles with Heroicons padlock icons, client-side validation, HHMM normalization, post-submit reset toggle
+- [x] **Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior** — all QSO form enhancements in `templates/log/form.html`: live UTC clock, readonly lock toggles with Heroicons padlock icons, client-side validation, HHMM normalization, post-submit reset toggle (completed 2026-04-30)
 
 ## Phase Details
 
@@ -782,11 +782,11 @@ Plans:
   5. Entering an invalid date (e.g. `20260132`) or invalid time (e.g. `9999`) into an unlocked field is rejected with visible inline feedback before the form submits
   6. With "Reset to live UTC" selected, submitting a QSO returns both fields to locked state with live UTC date and a restarted auto-updating clock — the fields behave as on a fresh page load
   7. With "Keep current date/time" selected, submitting a QSO leaves field values and lock/unlock state exactly as they were before submission — a contest operator can log consecutive QSOs on the same UTC date/time without re-entering values
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 53-01-PLAN.md — Wrap QSO_DATE/TIME_ON inputs with padlock buttons, add reset-mode toggle widget to submit row, run `npm run build` + verify
-- [ ] 53-02-PLAN.md — Add live UTC clock JS (initDateTime + setInterval), padlock click handlers, HHMM normalization in htmx:beforeRequest, locked-field-aware validate, localStorage-backed reset-mode branching in htmx:afterSwap, Clear button deferred re-init
+- [x] 53-02-PLAN.md — Add live UTC clock JS (initDateTime + setInterval), padlock click handlers, HHMM normalization in htmx:beforeRequest, locked-field-aware validate, localStorage-backed reset-mode branching in htmx:afterSwap, Clear button deferred re-init
 **UI hint**: yes
 
 ---
@@ -847,4 +847,4 @@ Plans:
 | 50. Sort UI | v2.5 | 1/1 | Complete    | 2026-04-23 |
 | 51. llms.txt Endpoints and Content | v2.6 | 3/3 | Complete    | 2026-04-25 |
 | 52. TIME_ON DB Migration | v2.7 | 1/1 | Complete    | 2026-04-28 |
-| 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 1/2 | In Progress|  |
+| 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 2/2 | Complete    | 2026-05-02 |
