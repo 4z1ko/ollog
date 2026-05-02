@@ -263,9 +263,19 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ `parse_adif_datetime()` in `app/qso/service.py` confirmed to accept both HHMM (4-digit) and HHMMSS (6-digit) `TIME_ON` — unchanged, test-covered (DB-02)
 - ✓ `tests/test_migration.py` — 5 tests: padding, idempotency, skip-6-digit (integration), HHMM/HHMMSS parse acceptance (unit) (DB-01, DB-02)
 
+### Validated (v2.7 — Phase 53)
+
+- ✓ Log QSO form: QSO_DATE and TIME_ON wrapped in padlock UI — `readonly` by default, closed-padlock SVG, locked CSS; click toggles editable with open-padlock icon and aria-label swap (DATE-02, DATE-03, TIME-03)
+- ✓ Live UTC clock: `initDateTime()` populates both fields on load using `getUTC*` exclusively; `setInterval` ticks TIME_ON every second while locked; `initDateTime()` resets icons/aria-labels on post-submit reset (DATE-01, TIME-01, TIME-02)
+- ✓ HHMM normalization: `htmx:beforeRequest` pads 4-digit unlocked TIME_ON to 6 digits before validation fires (TIME-04)
+- ✓ Locked-field validation: `validate()` skips `readonly` fields; TIME_ON range regex `^([01]\d|2[0-3])([0-5]\d)([0-5]\d)$` rejects out-of-range values client-side (DATE-04, TIME-05)
+- ✓ Reset-mode toggle: pill widget in submit row; `localStorage` key `ollog.resetMode` persists choice across reloads (RESET-01)
+- ✓ Post-submit branching: "Reset to live UTC" replays `form.reset()` + `initDateTime()`; "Keep current date/time" preserves all field state; both modes clear CALL and focus it (RESET-02, RESET-03)
+- ✓ Clear button: `form.addEventListener('reset', ...)` defers `initDateTime()` via `setTimeout(0)` so date/time repopulate instead of going blank
+
 ## Current State
 
-**Version:** v2.7 UTC Date/Time Entry — **Phase 52 complete** (2026-04-28)
+**Version:** v2.7 UTC Date/Time Entry — **Phase 53 complete** (2026-05-02)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -416,4 +426,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 — v2.6 started*
+*Last updated: 2026-05-02 — v2.7 Phase 53 complete*
