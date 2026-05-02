@@ -1,5 +1,37 @@
 # Milestones
 
+## v2.7 UTC Date/Time Entry (Shipped: 2026-05-02)
+
+**Phases:** 52–53 (2 phases) | **Plans:** 3 | **Timeline:** 2026-04-26 → 2026-05-02 (7 days)
+**Files changed:** 24 | **Lines:** +3,655 / −43 | **Commits:** 39
+
+**Key accomplishments:**
+
+- Idempotent `normalize_time_on()` startup migration pads all 4-digit `TIME_ON` records to `HHMM00` via anchored regex `^\d{4}$` + aggregation pipeline `$concat` — zero-op on re-run; 5 integration/unit tests covering DB-01 and DB-02
+- `parse_adif_datetime()` in `app/qso/service.py` confirmed via explicit test coverage to accept both HHMM (4-digit) and HHMMSS (6-digit) — no code change needed (existing function satisfied DB-02)
+- QSO_DATE and TIME_ON inputs wrapped in Heroicons padlock buttons — `readonly` (not `disabled`) so values always reach POST body; locked styling (grey background, `cursor-not-allowed`) renders before JS loads
+- Live UTC clock via `setInterval` ticking `getUTCHours/Minutes/Seconds` exclusively — zero local-timezone leakage; stops on unlock, restarts on re-lock; `initDateTime()` is the canonical reset-to-locked entrypoint
+- HHMM→HHMM00 normalization in `htmx:beforeRequest` before `validate()` fires; range-checking regex `/^([01]\d|2[0-3])([0-5]\d)([0-5]\d)$/` rejects out-of-range values (e.g. `9999→999900` fails hours=99)
+- `localStorage`-backed reset-mode toggle ("Reset to live UTC" / "Keep current date/time") persists across page reloads; all 14 requirements (DB-01–02, DATE-01–04, TIME-01–05, RESET-01–03) browser-verified
+
+**Archive:** `.planning/milestones/v2.7-ROADMAP.md` | `.planning/milestones/v2.7-REQUIREMENTS.md`
+
+---
+
+## v2.6 llms.txt Support (Shipped: 2026-04-25)
+
+**Phases:** 51 (1 phase) | **Plans:** 3
+
+**Key accomplishments:**
+
+- `GET /llms.txt` and `GET /llms-full.txt` endpoints added to operator app via `FileResponse` (both `include_in_schema=False`)
+- Static source files editable without touching Python code
+- Full 610-line LLM reference document covering all 16 REST endpoints with curl examples, ADIF field reference tables, and operator getting-started walkthrough
+
+**Archive:** `.planning/milestones/v2.6-ROADMAP.md` (not created — milestone archived inline)
+
+---
+
 ## v2.5 QSO Sorting & Entry Timestamp (Shipped: 2026-04-23)
 
 **Phases:** 48–50 (3 phases) | **Plans:** 3 | **Timeline:** 2026-04-21 → 2026-04-23 (3 days)

@@ -19,7 +19,7 @@
 - ✅ **v2.4 Live Log & Sound Alerts** — Phases 44–47 (shipped 2026-04-20)
 - ✅ **v2.5 QSO Sorting & Entry Timestamp** — Phases 48–50 (shipped 2026-04-23)
 - ✅ **v2.6 llms.txt Support** — Phase 51 (shipped 2026-04-25)
-- 🔄 **v2.7 UTC Date/Time Entry** — Phases 52–53 (in progress)
+- ✅ **v2.7 UTC Date/Time Entry** — Phases 52–53 (shipped 2026-05-02)
 
 
 ## Phases
@@ -207,10 +207,15 @@ Full archive: `.planning/milestones/v2.5-ROADMAP.md`
 
 - [x] **Phase 51: llms.txt Endpoints and Content** — two `FileResponse` routes in `app/main.py`, static source files, full content authored from MkDocs source (completed 2026-04-25)
 
-### v2.7 UTC Date/Time Entry (Phases 52–53)
+<details>
+<summary>✅ v2.7 UTC Date/Time Entry (Phases 52–53) — SHIPPED 2026-05-02</summary>
 
-- [x] **Phase 52: TIME_ON DB Migration** — idempotent `normalize_time_on()` startup migration in `app/main.py` that pads existing 4-digit `HHMM` records to `HHMM00`; server-side validation confirmed to accept both HHMM and HHMMSS (completed 2026-04-28)
-- [x] **Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior** — all QSO form enhancements in `templates/log/form.html`: live UTC clock, readonly lock toggles with Heroicons padlock icons, client-side validation, HHMM normalization, post-submit reset toggle (completed 2026-04-30)
+- [x] Phase 52: TIME_ON DB Migration (1/1 plan) — completed 2026-04-28
+- [x] Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior (2/2 plans) — completed 2026-04-30
+
+Full archive: `.planning/milestones/v2.7-ROADMAP.md`
+
+</details>
 
 ## Phase Details
 
@@ -749,47 +754,6 @@ Plans:
 - [x] 51-01-PLAN.md — Wave 0 scaffolding: stub static/llms.txt, static/llms-full.txt, tests/test_llms.py
 - [x] 51-02-PLAN.md — Add FileResponse import and two @app.get routes (/llms.txt, /llms-full.txt) to app/main.py
 - [x] 51-03-PLAN.md — Author full content in static/llms-full.txt (16-endpoint API reference, ADIF field tables, operator walkthrough)
-
----
-
-### Phase 52: TIME_ON DB Migration
-
-**Goal:** All existing QSO records in MongoDB have `TIME_ON` values at HHMMSS precision — 4-digit HHMM records are padded to HHMM00 at app startup, and the server-side validation pathway is confirmed to accept both HHMM and HHMMSS formats going forward.
-**Depends on:** Phase 51 (v2.6 complete)
-**Requirements:** DB-01, DB-02
-**Success Criteria** (what must be TRUE):
-  1. After app startup, no QSO document in MongoDB has a `TIME_ON` value that is exactly 4 digits — all previously 4-digit values have been padded to 6 digits with `00` suffix (e.g. `1430` becomes `143000`)
-  2. Running the app startup migration twice on the same database produces no additional changes — the migration is idempotent and does not corrupt already-padded 6-digit values
-  3. A QSO submitted via REST API with `TIME_ON: "1430"` (4 digits) is accepted and stored without a validation error — the server accepts HHMM input
-  4. A QSO submitted via REST API with `TIME_ON: "143000"` (6 digits) is accepted and stored without a validation error — the server accepts HHMMSS input
-**Plans:** 1/1 plans complete
-
-Plans:
-- [x] 52-01-PLAN.md — normalize_time_on() startup migration (anchored regex + aggregation pipeline) + tests/test_migration.py covering DB-01 padding/idempotency and DB-02 HHMM/HHMMSS acceptance
-
----
-
-### Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior
-
-**Goal:** The Log QSO form displays live UTC date and time by default with lock/unlock controls, normalizes 4-digit time input to HHMMSS before submission, and restores the correct field state after each submission based on the operator's chosen reset behavior.
-**Depends on:** Phase 52
-**Requirements:** DATE-01, DATE-02, DATE-03, DATE-04, TIME-01, TIME-02, TIME-03, TIME-04, TIME-05, RESET-01, RESET-02, RESET-03
-**Success Criteria** (what must be TRUE):
-  1. Opening the Log QSO form shows the date field pre-filled with today's UTC date in `YYYYMMDD` format and the time field showing the current UTC time in `HHMMSS` format, both fields marked readonly with closed-padlock icons
-  2. While the time field is locked, the displayed value increments every second using UTC time — the local system timezone has no influence on the value shown
-  3. Clicking the padlock icon next to the date field removes the readonly attribute and opens the icon, allowing manual text entry; clicking it again re-applies readonly and restores the current UTC date
-  4. Typing `1430` (4 digits) into an unlocked time field and submitting the form sends `143000` in the POST body — the normalization happens before the HTMX request fires
-  5. Entering an invalid date (e.g. `20260132`) or invalid time (e.g. `9999`) into an unlocked field is rejected with visible inline feedback before the form submits
-  6. With "Reset to live UTC" selected, submitting a QSO returns both fields to locked state with live UTC date and a restarted auto-updating clock — the fields behave as on a fresh page load
-  7. With "Keep current date/time" selected, submitting a QSO leaves field values and lock/unlock state exactly as they were before submission — a contest operator can log consecutive QSOs on the same UTC date/time without re-entering values
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 53-01-PLAN.md — Wrap QSO_DATE/TIME_ON inputs with padlock buttons, add reset-mode toggle widget to submit row, run `npm run build` + verify
-- [x] 53-02-PLAN.md — Add live UTC clock JS (initDateTime + setInterval), padlock click handlers, HHMM normalization in htmx:beforeRequest, locked-field-aware validate, localStorage-backed reset-mode branching in htmx:afterSwap, Clear button deferred re-init
-**UI hint**: yes
-
----
 
 ## Progress
 

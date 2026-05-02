@@ -8,19 +8,9 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
-## Shipped: v2.6 llms.txt Support (2026-04-25)
+## Shipped: v2.7 UTC Date/Time Entry (2026-05-02)
 
-**Goal achieved:** `/llms.txt` and `/llms-full.txt` endpoints added to operator app; static files editable without touching Python; full 610-line LLM reference document covering all 16 REST endpoints with curl examples, ADIF field reference tables, and operator getting-started walkthrough.
-
-## Current Milestone: v2.7 UTC Date/Time Entry
-
-**Goal:** Upgrade the Log QSO form with live UTC date/time defaults, lock/unlock toggles, HHMMSS precision, and post-submission reset behavior control.
-
-**Target features:**
-- Date field locked to today's UTC (YYYYMMDD) by default; lock icon (16×16) toggles manual editing; `readonly` (not `disabled`) so value still submits; validated input
-- Time field auto-updates with live UTC (HHMMSS) while locked; lock icon stops auto-update for manual entry; HHMM input normalized to HHMM00; validated
-- DB accepts and stores HHMMSS; idempotent startup migration updates existing HHMM records to HHMM00
-- Post-submission toggle: "Keep current date/time" (preserve values + lock state) vs "Reset to live UTC" (restore locked auto-updating defaults)
+**Goal achieved:** Log QSO form now displays live UTC date/time by default with padlock toggles, HHMMSS precision (idempotent DB migration for existing records), and a `localStorage`-backed post-submit reset mode. All 14 requirements (DB-01–02, DATE-01–04, TIME-01–05, RESET-01–03) verified in a live browser session.
 
 ## Requirements
 
@@ -275,7 +265,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.7 UTC Date/Time Entry — **Phase 53 complete** (2026-05-02)
+**Version:** v2.7 UTC Date/Time Entry — **SHIPPED** (2026-05-02)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -301,11 +291,7 @@ All v2.4 features plus (Phases 48–50 complete):
 - `QSO.find_active()` in models.py — dead production code
 - `from_mongo_dt()` in utils.py — tested, not called in production
 - Docker end-to-end verification pending (requires live Docker environment)
-
-**Known tech debt:**
-- `QSO.find_active()` in models.py — dead production code
-- `from_mongo_dt()` in utils.py — tested, not called in production
-- Docker end-to-end verification pending (requires live Docker environment)
+- `aria-label` inversion on padlock buttons in `templates/log/form.html` — reads "Lock field" when locked (should say "Unlock"); screen-reader-only, no functional impact (v2.7)
 
 ## Context
 
@@ -426,4 +412,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 — v2.7 Phase 53 complete*
+*Last updated: 2026-05-02 — v2.7 milestone complete and archived*

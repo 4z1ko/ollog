@@ -146,6 +146,51 @@
 
 ---
 
+## Milestone: v2.7 — UTC Date/Time Entry
+
+**Shipped:** 2026-05-02
+**Phases:** 2 (52–53) | **Plans:** 3 | **Sessions:** ~3
+
+### What Was Built
+
+- `app/main.py` — `normalize_time_on()` idempotent startup migration: anchored regex `^\d{4}$` filter + aggregation pipeline `$concat ["00"]`; called after `backfill_created_at()` in lifespan; INFO log on both outcomes (updated / already done)
+- `tests/test_migration.py` — 5 tests: DB-01 padding, idempotency, 6-digit skip (integration); DB-02 HHMM/HHMMSS parse acceptance (unit)
+- `templates/log/form.html` — padlock-wrapped QSO_DATE/TIME_ON inputs (`readonly` not `disabled`; Heroicons 24px SVG swap); `initDateTime()` with `getUTC*` clock; `htmx:beforeRequest` HHMM→HHMM00 normalization; range-checking validation regex; `localStorage`-backed reset-mode toggle; Clear button `setTimeout(0)` defer pattern; 166 lines of JS added
+
+### What Worked
+
+- **Backend-first two-phase split (again)**: Phase 52 locked the DB contract (HHMM vs HHMMSS precision) before any frontend work began. Phase 53 had zero ambiguity about what format to send.
+- **`readonly` vs `disabled` research upfront**: The CONTEXT.md explicitly documented the pitfall before execution — `disabled` silently drops field from POST body. Zero mid-execution surprises.
+- **TDD gate compliance**: Phase 52 executed clean RED→GREEN cycle; all 5 tests existed before implementation, all passed after.
+- **HTMX scope clarity**: The key insight that `hx-target="#qso-result"` points at a sibling div — so form DOM, event listeners, and `setInterval` all survive every submit — was captured in research before planning. No post-submit re-initialization was needed.
+
+### What Was Inefficient
+
+- **REQUIREMENTS.md traceability never updated**: All 14 requirements showed "Pending" throughout the entire milestone — only updated at archive time. This is the same recurring issue from v2.4 and v2.5. The VERIFICATION.md is the correct authority, but the traceability table should match.
+- **Two gap fixes required post-verification**: The verifier found that `initDateTime()` did not reset padlock icons to closed state on the reset path (Gap 1) and that the TIME_ON regex accepted impossible values like `9999` (Gap 2). Both were simple fixes (~5 lines each) but required a second verification pass.
+- **`aria-label` inversion shipped as tech debt**: The padlock buttons describe current state ("Lock field") instead of the action they will take ("Unlock field"). This was caught by the integration checker but accepted as tech debt rather than fixed before close.
+
+### Patterns Established
+
+- **`readonly` on locked form fields (not `disabled`)**: `readonly` fields submit their value in the POST body; `disabled` fields are silently excluded. Critical whenever a field should be pre-filled by JS and also included in form submission.
+- **`getUTC*` discipline for live clocks**: All UTC accessors must use `Date.prototype.getUTCFullYear/Month/Date/Hours/Minutes/Seconds` — never the local-time equivalents. Checked programmatically with `grep -cE '\.getHours\(\)|\.getMinutes\(\)'`.
+- **`setTimeout(fn, 0)` deferral for form reset**: `form.reset()` fires synchronously before any post-reset listener can repopulate fields. `setTimeout(0)` yields control to the browser, allowing `form.reset()` to complete before `initDateTime()` re-populates fields.
+- **Idempotent startup migration pattern**: `anchored regex filter` + `aggregation pipeline $set` is the established pattern for MongoDB field normalization at startup. Previous: `backfill_created_at()` (ObjectId→datetime). Now: `normalize_time_on()` (HHMM→HHMM00).
+
+### Key Lessons
+
+1. **Update REQUIREMENTS.md traceability at phase completion, not milestone close.** The recurring lesson: leaving all rows as "Pending" until archival creates misleading state. The VERIFICATION.md covers this, but the traceability table should stay in sync.
+2. **Range-checking regexes are worth the extra complexity for time inputs.** A simple `/^\d{6}$/` accepted `999900` (impossible time). The range-checking regex `/^([01]\d|2[0-3])([0-5]\d)([0-5]\d)$/` rejects it. For ADIF time fields specifically, range validation catches `9999→999900` which digit-only patterns miss.
+3. **`initDateTime()` as the canonical reset entrypoint is load-bearing.** Any code path that needs to restore locked live-clock state (page load, post-submit reset, Clear button) should call `initDateTime()` — and `initDateTime()` must fully restore icons, aria-labels, readOnly, locked styling, and the interval. Partial resets (only some of these) create inconsistent UI state.
+
+### Cost Observations
+
+- Model: claude-sonnet-4-6 throughout
+- Sessions: ~3 execution sessions (Phase 52 research/plan/execute + Phase 53 plan 01 + Phase 53 plan 02 + verification)
+- Notable: Phase 52 executed in ~15 min (TDD pipeline), Phase 53 plan 01 in ~15 min (HTML-only), Phase 53 plan 02 in ~20 min (JS-only) — clean phase boundary enabled parallel mental tracks
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -159,11 +204,15 @@
 | v2.3 | 2 | 2 | Two-phase data+UI split — backend first, frontend second |
 | v2.4 | 4 | 5 | Hardening + new UX features; arch decisions pre-loaded in STATE.md |
 | v2.5 | 3 | 3 | Model-level `default_factory` stamp + allowlist sort + 5-column sort UI |
+| v2.6 | 1 | 3 | Minimal single-phase content milestone; pure routing + static files, zero new deps |
+| v2.7 | 2 | 3 | Backend-first migration (Phase 52) + frontend-only JS (Phase 53); two-phase split worked cleanly |
 
 ### Cumulative Quality
 
 | Milestone | Tests Added | Zero New Prod Deps |
 |-----------|-------------|-------------------|
+| v2.7 | 5 new tests (test_migration.py) | ✓ (no new dependencies) |
+| v2.6 | 3 new tests (test_llms.py) | ✓ (no new dependencies) |
 | v2.5 | 0 new tests | ✓ (no new dependencies) |
 | v2.4 | 5 integration tests | ✓ (Web Audio native browser) |
 | v2.3 | 7 integration tests | ✓ (Chart.js CDN only) |
@@ -172,7 +221,8 @@
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Backend-first two-phase split works well for data+UI features.** v2.3 proved this: Phase 42 defined the exact context dict shape, which made Phase 43 a nearly mechanical implementation.
+1. **Backend-first two-phase split works well for data+UI features.** v2.3, v2.5, and v2.7 all proved this: defining the exact field/format contract in Phase N makes Phase N+1 a nearly mechanical implementation.
 2. **Jinja2 template bugs surface at render time, not compile time.** Both WR-01 (stats block/if nesting) and earlier template issues required a live render to catch — invest in a quick browser smoke-test step.
 3. **In-memory caches (token_cache, operator_cache, now chart data via JSON) eliminate per-request DB round-trips for read-heavy UI endpoints.**
-4. **Pre-loading arch decisions into STATE.md before execution eliminates mid-execution surprises.** v2.4 had zero blocked decisions during execution — all tricky patterns (strong reference, message-first indicator, hidden-input checkbox, badge DOM placement) were decided at research/context time.
+4. **Pre-loading arch decisions into STATE.md before execution eliminates mid-execution surprises.** v2.4 and v2.7 had zero blocked decisions during execution — all tricky patterns were decided at research/context time.
+5. **Update REQUIREMENTS.md traceability at phase completion, not milestone close.** This lesson has appeared in v2.4, v2.5, and v2.7 retrospectives — it is a recurring pattern that has not been fixed. Consider adding it to the execution checklist.
