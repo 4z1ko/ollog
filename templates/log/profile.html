@@ -221,5 +221,25 @@
     </div>
   </div>
 
+  <!-- Danger Zone -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Danger Zone</h2>
+    </div>
+    <div class="card-body">
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Permanently delete all QSOs from your log. This cannot be undone.
+      </p>
+      <button class="btn-danger"
+              aria-label="Clear my log — opens confirmation modal"
+              hx-get="/log/profile/clear/modal"
+              hx-target="#clear-log-modal"
+              hx-swap="innerHTML">Clear my log</button>
+    </div>
+  </div>
+
 </div>
+
+<!-- Modal target: OUTSIDE the max-w-3xl card container so outerHTML swap does not disturb cards -->
+<div id="clear-log-modal"></div>
 {% endblock %}
