@@ -29,7 +29,7 @@ from app.auth.service import create_access_token, verify_password
 from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
 from app.qso.models import QSO
-from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
+from app.qso.service import build_qso_dict, clear_operator_log, find_duplicate, get_qso_page, parse_adif_datetime
 from app.tokens.models import ApiToken
 from app.tokens.service import generate_api_token, hash_api_token, validate_token_name
 
@@ -764,3 +764,60 @@ async def tokens_revoke(
     from app.udp.token_cache import token_cache
     token_cache.notify_refresh()
     return Response(content="", status_code=200)
+
+
+# -------------------------------------------------------------------
+# Phase 54: Operator clear log (Danger Zone)
+# -------------------------------------------------------------------
+
+
+@ui_router.get("/profile/clear/modal", response_class=HTMLResponse)
+async def clear_log_modal(
+    request: Request,
+    user: User = Depends(get_current_user_cookie),
+):
+    """Return the clear-log confirmation modal fragment with current QSO count.
+
+    The count is queried server-side — never trust a client-supplied number.
+    Always returns HTTP 200 — HTMX 2.x will not swap on 4xx.
+    """
+    count = await QSO.find(
+        {"_operator": user.callsign, "_deleted": False}
+    ).count()
+    return templates.TemplateResponse(
+        request,
+        "log/clear_log_modal.html",
+        {"count": count, "error": None},
+    )
+
+
+@ui_router.post("/profile/clear", response_class=HTMLResponse)
+async def clear_log_confirm(
+    request: Request,
+    user: User = Depends(get_current_user_cookie),
+    password: Annotated[str, Form()] = "",
+):
+    """Verify operator password and permanently delete all their active QSOs.
+
+    Always returns HTTP 200 — HTMX 2.x ignores body on 4xx responses.
+    Wrong password → re-render the modal with an inline error (modal stays open).
+    Correct password → delete and return the success fragment (modal replaced).
+    """
+    if not verify_password(password, user.hashed_password):
+        count = await QSO.find(
+            {"_operator": user.callsign, "_deleted": False}
+        ).count()
+        return templates.TemplateResponse(
+            request,
+            "log/clear_log_modal.html",
+            {"count": count, "error": "Incorrect password — no QSOs were deleted."},
+            status_code=200,
+        )
+
+    deleted = await clear_operator_log(user.callsign)
+    return templates.TemplateResponse(
+        request,
+        "log/clear_log_success.html",
+        {"deleted": deleted},
+        status_code=200,
+    )
