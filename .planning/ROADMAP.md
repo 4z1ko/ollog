@@ -811,11 +811,11 @@ Plans:
   3. Entering the correct password and submitting permanently deletes all of the operator's QSOs from MongoDB; the modal closes and an inline success message shows the count of QSOs deleted
   4. Entering an incorrect password shows an inline error inside the modal; the modal stays open and no QSOs are deleted
   5. An operator with zero QSOs sees a count of 0 in the modal — the action completes without error
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 **UI hint**: yes
 
 Plans:
-- [ ] 54-01-PLAN.md — Wave 0 tests + clear_operator_log() service function + modal/success HTMX fragment templates
+- [x] 54-01-PLAN.md — Wave 0 tests + clear_operator_log() service function + modal/success HTMX fragment templates
 - [ ] 54-02-PLAN.md — Wire GET /log/profile/clear/modal and POST /log/profile/clear routes + add Danger Zone card to profile.html
 
 ---
@@ -904,6 +904,6 @@ Plans:
 | 51. llms.txt Endpoints and Content | v2.6 | 3/3 | Complete    | 2026-04-25 |
 | 52. TIME_ON DB Migration | v2.7 | 1/1 | Complete    | 2026-04-28 |
 | 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 2/2 | Complete    | 2026-05-02 |
-| 54. Operator Clear Log | v2.8 | 0/? | Not started | - |
+| 54. Operator Clear Log | v2.8 | 1/2 | In Progress|  |
 | 55. Admin Clear Operator Log | v2.8 | 0/? | Not started | - |
 | 56. Documentation | v2.8 | 0/? | Not started | - |
