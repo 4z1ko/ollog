@@ -12,6 +12,15 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 **Goal achieved:** Log QSO form now displays live UTC date/time by default with padlock toggles, HHMMSS precision (idempotent DB migration for existing records), and a `localStorage`-backed post-submit reset mode. All 14 requirements (DB-01–02, DATE-01–04, TIME-01–05, RESET-01–03) verified in a live browser session.
 
+## Current Milestone: v2.8 Clear Log
+
+**Goal:** Operators can permanently delete all their QSOs from the profile page; admins can clear any operator's log from the admin console — both gated behind password confirmation.
+
+**Target features:**
+- Operator "Clear my log" action on profile/settings page — password-confirmation modal, permanent hard-delete of all operator QSOs
+- Admin "Clear log" per-operator in admin console — admin-password confirmation modal, same permanent hard-delete
+- Guide documentation: operator walkthrough + admin guide updated for both flows
+
 ## Requirements
 
 ### Validated (v1.0)
@@ -412,4 +421,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 — v2.7 milestone complete and archived*
+*Last updated: 2026-05-06 — v2.8 milestone started*
