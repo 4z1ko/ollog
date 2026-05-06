@@ -20,6 +20,7 @@
 - ✅ **v2.5 QSO Sorting & Entry Timestamp** — Phases 48–50 (shipped 2026-04-23)
 - ✅ **v2.6 llms.txt Support** — Phase 51 (shipped 2026-04-25)
 - ✅ **v2.7 UTC Date/Time Entry** — Phases 52–53 (shipped 2026-05-02)
+- 🔄 **v2.8 Clear Log** — Phases 54–56 (in progress)
 
 
 ## Phases
@@ -216,6 +217,12 @@ Full archive: `.planning/milestones/v2.5-ROADMAP.md`
 Full archive: `.planning/milestones/v2.7-ROADMAP.md`
 
 </details>
+
+### 🔄 v2.8 Clear Log (Phases 54–56) — IN PROGRESS
+
+- [ ] **Phase 54: Operator Clear Log** — `clear_operator_log()` service function, operator-facing HTMX route, Danger Zone section on profile page, password-confirmation modal
+- [ ] **Phase 55: Admin Clear Operator Log** — per-operator "Clear log" action on admin operators page, admin password-confirmation modal, HTMX route wiring
+- [ ] **Phase 56: Documentation** — operator getting-started guide updated, admin guide updated, MkDocs site rebuilt
 
 ## Phase Details
 
@@ -755,6 +762,87 @@ Plans:
 - [x] 51-02-PLAN.md — Add FileResponse import and two @app.get routes (/llms.txt, /llms-full.txt) to app/main.py
 - [x] 51-03-PLAN.md — Author full content in static/llms-full.txt (16-endpoint API reference, ADIF field tables, operator walkthrough)
 
+---
+
+### Phase 52: TIME_ON DB Migration
+
+**Goal:** All pre-existing QSO documents with 4-digit `TIME_ON` values are padded to 6 digits at app startup — idempotently, with zero downtime, and with no functional change to how new QSOs are stored or validated.
+**Depends on:** Phase 51 (v2.6 complete)
+**Requirements:** DB-01, DB-02
+**Success Criteria** (what must be TRUE):
+  1. After running the migration, every QSO document in MongoDB with a `TIME_ON` value has exactly 6 digits — no 4-digit values remain
+  2. Running the migration a second time (app restart) modifies 0 documents — the migration is idempotent
+  3. `parse_adif_datetime()` in `app/qso/service.py` accepts both `HHMM` (4-digit) and `HHMMSS` (6-digit) `TIME_ON` values without raising an error
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 52-01-PLAN.md — `normalize_time_on()` migration function, lifespan wiring, tests
+
+---
+
+### Phase 53: Live Clock, Lock/Unlock, and Post-Submit Behavior
+
+**Goal:** The QSO log form populates QSO_DATE and TIME_ON with live UTC values by default, lets operators unlock and edit them, and after submission either resets to a live UTC clock or preserves the current values — all controlled by a persistent toggle.
+**Depends on:** Phase 52
+**Requirements:** DATE-01, DATE-02, DATE-03, DATE-04, TIME-01, TIME-02, TIME-03, TIME-04, TIME-05, RESET-01, RESET-02, RESET-03
+**Success Criteria** (what must be TRUE):
+  1. On page load, QSO_DATE is populated with today's UTC date and TIME_ON ticks forward every second showing current UTC time — both fields are read-only until unlocked
+  2. Clicking the padlock icon on either field switches it to editable (open-padlock icon, white background) and stops the live clock for that field — clicking again re-locks and resumes the live clock
+  3. Submitting the form with a locked TIME_ON in HHMM format (4 digits) pads it to HHMMSS before the request fires — the server receives a valid 6-digit value
+  4. After a successful QSO submission, if "Reset to live UTC" mode is active, the form resets and QSO_DATE/TIME_ON repopulate with the current UTC values — CALL is cleared and focused
+  5. After a successful QSO submission, if "Keep current date/time" mode is active, QSO_DATE and TIME_ON retain their submitted values — CALL is cleared and focused
+  6. The reset-mode toggle choice persists across page reloads via localStorage — an operator who prefers "Keep current date/time" does not have to re-select it each session
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 53-01-PLAN.md — Padlock UI: QSO_DATE and TIME_ON wrapped in padlock toggle buttons, locked/unlocked state, aria-labels, CSS classes
+- [x] 53-02-PLAN.md — Live clock: initDateTime(), setInterval, HHMM normalization in htmx:beforeRequest, post-submit branching, reset-mode toggle with localStorage
+
+---
+
+### Phase 54: Operator Clear Log
+
+**Goal:** Operators can permanently delete all their QSOs from the profile/settings page — after confirming with their own password in a modal that shows the QSO count to be deleted.
+**Depends on:** Phase 53 (v2.7 complete)
+**Requirements:** CLR-01, CLR-02, CLR-03, CLR-04, CLR-05
+**Success Criteria** (what must be TRUE):
+  1. A "Danger Zone" section with a "Clear my log" button is visible at the bottom of the operator profile/settings page at `/log/profile`
+  2. Clicking "Clear my log" opens a modal showing the exact count of QSOs that will be deleted and a password input field — no deletion occurs until the modal is submitted
+  3. Entering the correct password and submitting permanently deletes all of the operator's QSOs from MongoDB; the modal closes and an inline success message shows the count of QSOs deleted
+  4. Entering an incorrect password shows an inline error inside the modal; the modal stays open and no QSOs are deleted
+  5. An operator with zero QSOs sees a count of 0 in the modal — the action completes without error
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
+### Phase 55: Admin Clear Operator Log
+
+**Goal:** Admins can clear any operator's entire log from the admin operators management page — after confirming with their own admin password in a modal that names the target operator and shows the QSO count.
+**Depends on:** Phase 54
+**Requirements:** ACLR-01, ACLR-02, ACLR-03, ACLR-04, ACLR-05
+**Success Criteria** (what must be TRUE):
+  1. A "Clear log" button (or action link) appears in each operator's row on the admin operators management page, alongside the existing enable/disable/reset-password actions
+  2. Clicking "Clear log" for an operator opens a modal showing that operator's callsign, the count of QSOs that will be deleted, and a password input requiring the admin's own password
+  3. Entering the correct admin password and submitting permanently deletes all QSOs for the target operator; the modal closes and an inline success confirmation shows the operator callsign and QSO count deleted
+  4. Entering an incorrect admin password shows an inline error inside the modal; the modal stays open and no QSOs are deleted
+  5. Clearing the log for an operator with zero QSOs completes without error — the success message shows the operator callsign and a count of 0
+**Plans:** TBD
+**UI hint**: yes
+
+---
+
+### Phase 56: Documentation
+
+**Goal:** The operator getting-started guide and admin guide each document the clear-log flow, and the MkDocs site is rebuilt with the updated content committed to the repository.
+**Depends on:** Phase 55
+**Requirements:** DOC-01, DOC-02, DOC-03
+**Success Criteria** (what must be TRUE):
+  1. `docs/getting-started.md` contains a "Clear my log" section that explains the Danger Zone location on the profile page, describes the password confirmation step, and notes that deletion is permanent
+  2. `docs/admin.md` contains a "Clear operator log" section that explains the per-operator action on the operators management page, describes the admin password confirmation step, and notes that deletion is permanent
+  3. `uv run mkdocs build --strict` completes with zero warnings; the rebuilt `site/` is committed to the repository and `/guide` in the running app serves the updated content
+**Plans:** TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -812,3 +900,6 @@ Plans:
 | 51. llms.txt Endpoints and Content | v2.6 | 3/3 | Complete    | 2026-04-25 |
 | 52. TIME_ON DB Migration | v2.7 | 1/1 | Complete    | 2026-04-28 |
 | 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 2/2 | Complete    | 2026-05-02 |
+| 54. Operator Clear Log | v2.8 | 0/? | Not started | - |
+| 55. Admin Clear Operator Log | v2.8 | 0/? | Not started | - |
+| 56. Documentation | v2.8 | 0/? | Not started | - |

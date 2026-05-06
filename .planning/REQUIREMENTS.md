@@ -44,25 +44,25 @@ None identified for this feature area.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLR-01 | TBD | Pending |
-| CLR-02 | TBD | Pending |
-| CLR-03 | TBD | Pending |
-| CLR-04 | TBD | Pending |
-| CLR-05 | TBD | Pending |
-| ACLR-01 | TBD | Pending |
-| ACLR-02 | TBD | Pending |
-| ACLR-03 | TBD | Pending |
-| ACLR-04 | TBD | Pending |
-| ACLR-05 | TBD | Pending |
-| DOC-01 | TBD | Pending |
-| DOC-02 | TBD | Pending |
-| DOC-03 | TBD | Pending |
+| CLR-01 | Phase 54 | Pending |
+| CLR-02 | Phase 54 | Pending |
+| CLR-03 | Phase 54 | Pending |
+| CLR-04 | Phase 54 | Pending |
+| CLR-05 | Phase 54 | Pending |
+| ACLR-01 | Phase 55 | Pending |
+| ACLR-02 | Phase 55 | Pending |
+| ACLR-03 | Phase 55 | Pending |
+| ACLR-04 | Phase 55 | Pending |
+| ACLR-05 | Phase 55 | Pending |
+| DOC-01 | Phase 56 | Pending |
+| DOC-02 | Phase 56 | Pending |
+| DOC-03 | Phase 56 | Pending |
 
 **Coverage:**
 - v1 requirements: 13 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 13 ⚠️
+- Mapped to phases: 13 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-06*
-*Last updated: 2026-05-06 after initial definition*
+*Last updated: 2026-05-06 — traceability updated after roadmap creation*
