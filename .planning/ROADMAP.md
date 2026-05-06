@@ -811,8 +811,12 @@ Plans:
   3. Entering the correct password and submitting permanently deletes all of the operator's QSOs from MongoDB; the modal closes and an inline success message shows the count of QSOs deleted
   4. Entering an incorrect password shows an inline error inside the modal; the modal stays open and no QSOs are deleted
   5. An operator with zero QSOs sees a count of 0 in the modal — the action completes without error
-**Plans:** TBD
+**Plans:** 2 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 54-01-PLAN.md — Wave 0 tests + clear_operator_log() service function + modal/success HTMX fragment templates
+- [ ] 54-02-PLAN.md — Wire GET /log/profile/clear/modal and POST /log/profile/clear routes + add Danger Zone card to profile.html
 
 ---
 
