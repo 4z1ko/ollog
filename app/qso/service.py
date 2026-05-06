@@ -242,3 +242,23 @@ async def get_qso_page(
     total = await base.count()
     items = await QSO.find(query).sort(sort_by).skip((page - 1) * page_size).limit(page_size).to_list()
     return items, total
+
+
+async def clear_operator_log(operator: str) -> int:
+    """Permanently delete all active (non-soft-deleted) QSOs for an operator.
+
+    Returns the count of deleted documents. Permanent delete (not soft-delete)
+    per CLR-03 requirements — sets do not toggle `_deleted`; documents are
+    removed entirely from MongoDB.
+
+    Args:
+        operator: The operator callsign (from JWT cookie / current user).
+
+    Returns:
+        Number of QSO documents removed. Zero is a valid, non-error return value
+        (operator may legitimately have an empty log).
+    """
+    result = await QSO.find(
+        {"_operator": operator, "_deleted": False}
+    ).delete_many()
+    return result.deleted_count if result is not None else 0
