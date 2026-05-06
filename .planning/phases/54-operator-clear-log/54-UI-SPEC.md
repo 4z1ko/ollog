@@ -93,7 +93,7 @@ All components are existing CSS classes from `static/css/input.css`. No new clas
 | Form group | `.form-group` | Password field wrapper inside modal |
 | Password input | `.form-control` (alias for `.form-input`) | Password field in modal |
 | Modal actions | `.modal-actions` | Button row at bottom of modal |
-| Secondary button | `.btn-secondary` | Cancel button inside modal |
+| Secondary button | `.btn-secondary` | "Keep my log" cancel button inside modal |
 | Success alert | `.alert-success` | Inline success message after deletion (HTTP 200 fragment) |
 | Error alert | `.alert-error` | Inline error inside modal on wrong password (HTTP 200 fragment) |
 
@@ -111,6 +111,14 @@ The modal is injected into the page via HTMX. A dedicated `<div id="clear-log-mo
 
 ---
 
+## Focal Points
+
+**Danger Zone card:** The `.btn-danger` rose-600 button ("Clear my log") is the sole focal point of this card. All other content — the card title and description text — exists to contextualise and guard that button. No competing visual weight should appear adjacent to it.
+
+**Confirmation modal:** The modal title ("Clear My Log") paired with the bolded QSO count (`<strong>{N} QSO(s)</strong>`) inside `.modal-body` is the focal point. Together they communicate the irreversibility and exact scope of the action before the operator commits.
+
+---
+
 ## Interaction Flow
 
 ### Trigger
@@ -123,7 +131,7 @@ The modal is injected into the page via HTMX. A dedicated `<div id="clear-log-mo
 - QSO count is bolded using `<strong>` inside `.modal-body`.
 - Password field (`.form-control`) with label "Your password", `autocomplete="current-password"`, `type="password"`, required.
 - Inline error target `<div id="clear-log-error"></div>` above the password field.
-- Action row: "Delete {N} QSOs" (`btn-danger`) + "Cancel" (`btn-secondary`).
+- Action row: "Delete {N} QSOs" (`btn-danger`) + "Keep my log" (`btn-secondary`).
 
 ### Submit — correct password
 1. HTMX posts to `POST /log/profile/clear` targeting `#clear-log-modal` with `hx-swap="outerHTML"`.
@@ -136,7 +144,7 @@ The modal is injected into the page via HTMX. A dedicated `<div id="clear-log-mo
 2. HTMX swaps `outerHTML` of `#clear-log-modal` — modal stays visible with error shown above the password field.
 
 ### Cancel
-- "Cancel" button: plain `type="button"` with `onclick="document.getElementById('clear-log-modal').innerHTML = ''"` — removes modal from DOM without a server round-trip.
+- "Keep my log" button: plain `type="button"` with `onclick="document.getElementById('clear-log-modal').innerHTML = ''"` — removes modal from DOM without a server round-trip.
 - No page reload. Profile cards remain fully intact.
 
 ---
@@ -155,7 +163,7 @@ The modal is injected into the page via HTMX. A dedicated `<div id="clear-log-mo
 | Password field placeholder | "Enter your password to confirm" |
 | Modal submit button (N > 0) | "Delete {N} QSOs" |
 | Modal submit button (N = 0) | "Confirm (0 QSOs)" |
-| Modal cancel button | "Cancel" |
+| Modal cancel button | "Keep my log" |
 | Wrong password error (inside modal) | "Incorrect password — no QSOs were deleted." |
 | Success message (after deletion, N > 0) | "Done. {N} QSO(s) deleted from your log." |
 | Success message (after deletion, N = 0) | "Done. Your log was already empty — nothing was deleted." |
