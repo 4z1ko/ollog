@@ -83,6 +83,12 @@ Dark mode: all classes use paired `dark:` variants already present in `input.css
 
 ---
 
+## Focal Point
+
+On `users.html`, the eye is drawn first to the operator rows in the data table; within each row, the `btn-danger btn-sm` "Clear log" button is the highest-weight interactive element, as its rose destructive color is the only non-neutral hue in the row action group.
+
+---
+
 ## Copywriting Contract
 
 | Element | Copy |
@@ -96,7 +102,7 @@ Dark mode: all classes use paired `dark:` variants already present in `input.css
 | Password field placeholder | `Enter your password to confirm` |
 | Modal submit button (count > 0) | `Delete {N} QSOs` |
 | Modal submit button (count == 0) | `Confirm (0 QSOs)` |
-| Modal cancel button | `Cancel` |
+| Modal cancel button | `Keep log` |
 | Success message (count > 0) | `Done. {N} QSO(s) deleted from {callsign}'s log.` |
 | Success message (count == 0) | `Done. {callsign}'s log was already empty — nothing was deleted.` |
 | Inline password error | `Incorrect password. No QSOs were deleted.` |
@@ -159,7 +165,7 @@ Structure mirrors `templates/admin/restore/password_modal.html` exactly:
         <button type="button" class="btn btn-secondary"
                 hx-get="/admin/ui/users/{username}/clear-log/cancel"
                 hx-target="#admin-clear-log-modal"
-                hx-swap="outerHTML">Cancel</button>
+                hx-swap="outerHTML">Keep log</button>
       </div>
     </form>
   </div>
@@ -227,7 +233,7 @@ Empty div with the same ID replaces the modal via `outerHTML` — backdrop and m
     → Server returns modal fragment (id="admin-clear-log-modal") with alert-error inserted
     → Modal re-renders with error visible; modal stays open
 
-4. Admin clicks Cancel
+4. Admin clicks "Keep log"
    → hx-get /admin/ui/users/X/clear-log/cancel
    → hx-target="#admin-clear-log-modal" hx-swap="outerHTML"
    → Server returns <div id="admin-clear-log-modal"></div>
