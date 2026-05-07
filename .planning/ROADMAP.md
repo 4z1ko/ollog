@@ -831,8 +831,12 @@ Plans:
   3. Entering the correct admin password and submitting permanently deletes all QSOs for the target operator; the modal closes and an inline success confirmation shows the operator callsign and QSO count deleted
   4. Entering an incorrect admin password shows an inline error inside the modal; the modal stays open and no QSOs are deleted
   5. Clearing the log for an operator with zero QSOs completes without error — the success message shows the operator callsign and a count of 0
-**Plans:** TBD
+**Plans:** 2 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 55-01-PLAN.md — Wave 0 test scaffold: tests/test_admin_clear_log.py with 6 RED-state tests for ACLR-01..05
+- [ ] 55-02-PLAN.md — Implementation: 3 admin routes (modal/confirm/cancel), 2 new templates, button + placeholder wiring; turns all 6 tests GREEN
 
 ---
 
