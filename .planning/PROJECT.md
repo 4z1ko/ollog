@@ -17,7 +17,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 **Goal:** Operators can permanently delete all their QSOs from the profile page; admins can clear any operator's log from the admin console — both gated behind password confirmation.
 
 **Target features:**
-- Operator "Clear my log" action on profile/settings page — password-confirmation modal, permanent hard-delete of all operator QSOs
+- ✓ Operator "Clear my log" action on profile/settings page — password-confirmation modal, permanent hard-delete of all operator QSOs (Phase 54, 2026-05-07)
 - Admin "Clear log" per-operator in admin console — admin-password confirmation modal, same permanent hard-delete
 - Guide documentation: operator walkthrough + admin guide updated for both flows
 
