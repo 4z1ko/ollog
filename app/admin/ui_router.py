@@ -16,6 +16,8 @@ from fastapi.templating import Jinja2Templates
 from app.auth.dependencies import require_admin_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, hash_password, verify_password
+from app.qso.models import QSO
+from app.qso.service import clear_operator_log
 from app.udp.operator_cache import operator_cache
 
 templates = Jinja2Templates(directory="templates")
@@ -404,3 +406,93 @@ async def restore_confirm(
     finally:
         if p.exists():
             os.unlink(p)
+
+
+@ui_router.get("/users/{username}/clear-log/modal", response_class=HTMLResponse)
+async def admin_clear_log_modal(
+    username: str,
+    request: Request,
+    current_user: User = Depends(require_admin_cookie),
+):
+    """Return confirmation modal fragment with target operator's QSO count.
+
+    Always HTTP 200 — HTMX 2.x will not swap on 4xx.
+    On not-found, returns the empty placeholder so the UI degrades gracefully.
+    """
+    target_user = await User.find_one({"username": username})
+    if target_user is None:
+        return HTMLResponse(
+            content='<div id="admin-clear-log-modal"></div>',
+            status_code=200,
+        )
+
+    count = await QSO.find(
+        {"_operator": target_user.callsign, "_deleted": False}
+    ).count()
+    return templates.TemplateResponse(
+        request,
+        "admin/clear_log_modal.html",
+        {
+            "username": username,
+            "callsign": target_user.callsign,
+            "count": count,
+            "error": None,
+        },
+    )
+
+
+@ui_router.post("/users/{username}/clear-log", response_class=HTMLResponse)
+async def admin_clear_log_confirm(
+    username: str,
+    request: Request,
+    password: Annotated[str, Form()],
+    current_user: User = Depends(require_admin_cookie),
+):
+    """Verify admin password and delete all target operator's QSOs.
+
+    Always HTTP 200 — HTMX 2.x ignores body on 4xx.
+    current_user is the admin (from the dependency); target_user is the operator
+    being cleared (looked up by URL path param).
+
+    SECURITY: password is verified against current_user.hashed_password
+    (the admin's OWN password), NOT target_user.hashed_password.
+    """
+    target_user = await User.find_one({"username": username})
+    if target_user is None:
+        return HTMLResponse(
+            content='<div id="admin-clear-log-modal"></div>',
+            status_code=200,
+        )
+
+    if not verify_password(password, current_user.hashed_password):
+        count = await QSO.find(
+            {"_operator": target_user.callsign, "_deleted": False}
+        ).count()
+        return templates.TemplateResponse(
+            request,
+            "admin/clear_log_modal.html",
+            {
+                "username": username,
+                "callsign": target_user.callsign,
+                "count": count,
+                "error": "Incorrect password. No QSOs were deleted.",
+            },
+            status_code=200,
+        )
+
+    deleted = await clear_operator_log(target_user.callsign)
+    return templates.TemplateResponse(
+        request,
+        "admin/clear_log_success.html",
+        {"callsign": target_user.callsign, "deleted": deleted},
+        status_code=200,
+    )
+
+
+@ui_router.get("/users/{username}/clear-log/cancel", response_class=HTMLResponse)
+async def admin_clear_log_cancel(
+    username: str,
+    _user: User = Depends(require_admin_cookie),
+):
+    """Clear the modal without a page reload."""
+    return HTMLResponse(content='<div id="admin-clear-log-modal"></div>')
