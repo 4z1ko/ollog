@@ -76,3 +76,23 @@ curl -X POST http://localhost:8000/admin/users/op1/reset-password \
 ```
 
 Returns `200 OK` with `{"username": "op1", "password_reset": true}`. The new password takes effect immediately. The user's existing tokens remain valid until they expire — a password reset does not immediately revoke active sessions.
+
+## Clear Operator Log
+
+Admins can permanently delete all QSOs for any operator from the operators management
+page. This action is available in the admin web UI only — there is no REST API endpoint for it.
+
+1. In the admin web UI, navigate to the **Operators** management page.
+2. Find the operator whose log you want to clear.
+3. Click the **Clear log** button in that operator's row, alongside the existing
+   enable/disable and reset-password actions.
+4. A confirmation modal opens showing the operator's callsign and the number of QSOs
+   that will be deleted.
+5. Enter your admin password in the **Your admin password** field.
+6. Click **Delete N QSOs** (where N is the count shown) to confirm, or **Keep log**
+   to cancel.
+
+!!! danger "This cannot be undone"
+    Clearing an operator's log permanently deletes all their QSOs from the database.
+    There is no undo and no recovery from the UI. If you need to recover deleted QSOs,
+    restore from a backup taken before the clear operation.
