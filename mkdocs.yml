@@ -19,6 +19,9 @@ plugins:
       docExpansion: none
       syntaxHighlightTheme: monokai
 
+markdown_extensions:
+  - admonition
+
 nav:
   - Getting Started:
     - getting-started/index.md
