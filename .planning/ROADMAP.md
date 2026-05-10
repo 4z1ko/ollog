@@ -849,10 +849,10 @@ Plans:
   1. `docs/getting-started.md` contains a "Clear my log" section that explains the Danger Zone location on the profile page, describes the password confirmation step, and notes that deletion is permanent
   2. `docs/admin.md` contains a "Clear operator log" section that explains the per-operator action on the operators management page, describes the admin password confirmation step, and notes that deletion is permanent
   3. `uv run mkdocs build --strict` completes with zero warnings; the rebuilt `site/` is committed to the repository and `/guide` in the running app serves the updated content
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 56-01-PLAN.md — Enable admonition extension in mkdocs.yml; append Danger Zone section to operator profile.md (DOC-01); append Clear Operator Log section to admin account-management.md (DOC-02)
+- [x] 56-01-PLAN.md — Enable admonition extension in mkdocs.yml; append Danger Zone section to operator profile.md (DOC-01); append Clear Operator Log section to admin account-management.md (DOC-02)
 - [ ] 56-02-PLAN.md — Run `uv run mkdocs build --strict` and verify admonition blocks rendered as styled HTML on both pages (DOC-03)
 
 ## Progress
@@ -914,4 +914,4 @@ Plans:
 | 53. Live Clock, Lock/Unlock, and Post-Submit Behavior | v2.7 | 2/2 | Complete    | 2026-05-02 |
 | 54. Operator Clear Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 55. Admin Clear Operator Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
-| 56. Documentation | v2.8 | 0/? | Not started | - |
+| 56. Documentation | v2.8 | 1/2 | In Progress|  |
