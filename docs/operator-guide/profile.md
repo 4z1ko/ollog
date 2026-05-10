@@ -84,3 +84,23 @@ curl -X PATCH http://localhost:8000/api/profile/ \
 ## STATION_CALLSIGN Environment Variable
 
 The `STATION_CALLSIGN` environment variable on the server is not the same as the profile field. The env var is used as a system-level default if the operator's profile has no `station_callsign` set. Consult your administrator or see [Environment Variables](../reference/environment-variables.md) for details.
+
+## Danger Zone
+
+The **Danger Zone** section appears at the bottom of your profile page and contains
+irreversible account actions.
+
+To clear your log:
+
+1. Navigate to **Profile** in the navigation bar.
+2. Scroll to the **Danger Zone** section at the bottom of the page.
+3. Click **Clear my log**.
+4. A confirmation modal opens showing the number of QSOs that will be deleted.
+5. Enter your password in the **Your password** field.
+6. Click **Delete N QSOs** (where N is the count shown) to confirm, or **Keep my log**
+   to cancel.
+
+!!! danger "This cannot be undone"
+    Clearing your log permanently deletes all your QSOs from the database. There is no
+    undo and no recovery from the UI. If you need to recover deleted QSOs, restore from
+    a backup taken before the clear operation.
