@@ -666,6 +666,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#danger-zone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Danger Zone
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1368,6 +1379,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#danger-zone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Danger Zone
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1512,6 +1534,25 @@
 </code></pre>
 <h2 id="station_callsign-environment-variable">STATION_CALLSIGN Environment Variable</h2>
 <p>The <code>STATION_CALLSIGN</code> environment variable on the server is not the same as the profile field. The env var is used as a system-level default if the operator's profile has no <code>station_callsign</code> set. Consult your administrator or see <a href="../../reference/environment-variables/">Environment Variables</a> for details.</p>
+<h2 id="danger-zone">Danger Zone</h2>
+<p>The <strong>Danger Zone</strong> section appears at the bottom of your profile page and contains
+irreversible account actions.</p>
+<p>To clear your log:</p>
+<ol>
+<li>Navigate to <strong>Profile</strong> in the navigation bar.</li>
+<li>Scroll to the <strong>Danger Zone</strong> section at the bottom of the page.</li>
+<li>Click <strong>Clear my log</strong>.</li>
+<li>A confirmation modal opens showing the number of QSOs that will be deleted.</li>
+<li>Enter your password in the <strong>Your password</strong> field.</li>
+<li>Click <strong>Delete N QSOs</strong> (where N is the count shown) to confirm, or <strong>Keep my log</strong>
+   to cancel.</li>
+</ol>
+<div class="admonition danger">
+<p class="admonition-title">This cannot be undone</p>
+<p>Clearing your log permanently deletes all your QSOs from the database. There is no
+undo and no recovery from the UI. If you need to recover deleted QSOs, restore from
+a backup taken before the clear operation.</p>
+</div>
 
 
 

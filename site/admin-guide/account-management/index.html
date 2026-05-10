@@ -834,6 +834,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#clear-operator-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear Operator Log
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1312,6 +1323,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#clear-operator-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear Operator Log
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1403,6 +1425,26 @@
   -d '{&quot;password&quot;: &quot;newpass123&quot;}'
 </code></pre>
 <p>Returns <code>200 OK</code> with <code>{"username": "op1", "password_reset": true}</code>. The new password takes effect immediately. The user's existing tokens remain valid until they expire — a password reset does not immediately revoke active sessions.</p>
+<h2 id="clear-operator-log">Clear Operator Log</h2>
+<p>Admins can permanently delete all QSOs for any operator from the operators management
+page. This action is available in the admin web UI only — there is no REST API endpoint for it.</p>
+<ol>
+<li>In the admin web UI, navigate to the <strong>Operators</strong> management page.</li>
+<li>Find the operator whose log you want to clear.</li>
+<li>Click the <strong>Clear log</strong> button in that operator's row, alongside the existing
+   enable/disable and reset-password actions.</li>
+<li>A confirmation modal opens showing the operator's callsign and the number of QSOs
+   that will be deleted.</li>
+<li>Enter your admin password in the <strong>Your admin password</strong> field.</li>
+<li>Click <strong>Delete N QSOs</strong> (where N is the count shown) to confirm, or <strong>Keep log</strong>
+   to cancel.</li>
+</ol>
+<div class="admonition danger">
+<p class="admonition-title">This cannot be undone</p>
+<p>Clearing an operator's log permanently deletes all their QSOs from the database.
+There is no undo and no recovery from the UI. If you need to recover deleted QSOs,
+restore from a backup taken before the clear operation.</p>
+</div>
 
 
 
