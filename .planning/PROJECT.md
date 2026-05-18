@@ -8,20 +8,13 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
+## Shipped: v2.8 Clear Log (2026-05-18)
+
+**Goal achieved:** Operators can permanently delete all their QSOs from the profile page; admins can clear any operator's log from the admin console — both gated behind password confirmation against the requester's OWN hashed password. A single `clear_operator_log()` service powers both flows. Guide documentation updated with Danger Zone and Clear Operator Log sections rendered as `!!! danger` admonitions; MkDocs site rebuilt with the admonition extension. All 13 requirements (CLR-01..05, ACLR-01..05, DOC-01..03) verified; integration check PASS; all 3 phases Nyquist-compliant.
+
 ## Shipped: v2.7 UTC Date/Time Entry (2026-05-02)
 
 **Goal achieved:** Log QSO form now displays live UTC date/time by default with padlock toggles, HHMMSS precision (idempotent DB migration for existing records), and a `localStorage`-backed post-submit reset mode. All 14 requirements (DB-01–02, DATE-01–04, TIME-01–05, RESET-01–03) verified in a live browser session.
-
-## Shipped: v2.8 Clear Log (2026-05-10)
-
-**Goal achieved:** Operators can permanently delete all their QSOs from the profile page; admins can clear any operator's log from the admin console — both gated behind password confirmation. Guide documentation updated with Danger Zone and Clear Operator Log sections; MkDocs site rebuilt with admonition extension.
-
-**Validated in Phase 56:**
-- ✓ Operator "Clear my log" action on profile/settings page — password-confirmation modal, permanent hard-delete of all operator QSOs
-- ✓ Admin "Clear log" per-operator in admin console — admin-password confirmation modal, same permanent hard-delete
-- ✓ Operator guide documents Danger Zone clear-log flow with `!!! danger "This cannot be undone"` admonition
-- ✓ Admin guide documents Clear Operator Log action with admin-password confirmation (UI-only, no REST endpoint)
-- ✓ MkDocs site rebuilt with `--strict`, admonition extension enabled, site/ committed
 
 ## Requirements
 
@@ -178,6 +171,22 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 - ✓ Stats page shows an empty-state message when the operator has no QSOs logged — v2.3
 - ✓ Charts adapt to dark/light theme toggle without a page reload (re-initialized on theme change) — v2.3
 
+### Validated (v2.8)
+
+- ✓ Operator can see a "Clear my log" action in a Danger Zone section at the bottom of the profile/settings page — v2.8 (CLR-01)
+- ✓ Clicking it opens a confirmation modal showing the number of QSOs that will be deleted and requiring the operator to enter their password — v2.8 (CLR-02)
+- ✓ On successful password verification, all of the operator's QSOs are permanently deleted from MongoDB — v2.8 (CLR-03)
+- ✓ Operator sees an inline success message with the count of QSOs deleted; the modal closes — v2.8 (CLR-04)
+- ✓ Incorrect password shows an inline error inside the modal — deletion does not proceed — v2.8 (CLR-05)
+- ✓ Admin can trigger "Clear log" for any operator from the admin operators management page — v2.8 (ACLR-01)
+- ✓ A confirmation modal opens showing the target operator's callsign and QSO count, requiring the admin to re-enter their own password — v2.8 (ACLR-02)
+- ✓ On successful admin password verification, all QSOs for the target operator are permanently deleted — v2.8 (ACLR-03)
+- ✓ Admin sees an inline success confirmation with the operator callsign and QSO count deleted — v2.8 (ACLR-04)
+- ✓ Incorrect admin password shows an inline error — deletion does not proceed — v2.8 (ACLR-05)
+- ✓ Operator getting-started guide updated with a "Clear my log" section explaining the Danger Zone flow and password confirmation — v2.8 (DOC-01)
+- ✓ Admin guide updated with "Clear operator log" instructions including the admin-password confirmation step — v2.8 (DOC-02)
+- ✓ MkDocs site rebuilt and `site/` committed to repo — v2.8 (DOC-03)
+
 ### Out of Scope
 
 - Award tracking (DXCC, WAS, WAZ, etc.) — deferred to v2
@@ -276,7 +285,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.7 UTC Date/Time Entry — **SHIPPED** (2026-05-02)
+**Version:** v2.8 Clear Log — **SHIPPED** (2026-05-18)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -404,6 +413,11 @@ All v2.4 features plus (Phases 48–50 complete):
 | Sound check fires BEFORE auto-refresh-ok guard in htmx:sseMessage | Badge and tone should work on page 2+ and with active filters — placing sound/badge logic after the `return` guard would silence them on all non-page-1 views | ✓ Good — tone and badge both work on page 2+ and filtered views |
 | `#new-qso-badge` as DOM sibling of `#log-table` (not child) | HTMX SSE innerHTML swap replaces all children of the swap target; badge nested inside would be destroyed on every SSE refresh | ✓ Good — badge persists across all HTMX SSE swaps and pagination |
 | `classList.remove('hidden')` before `classList.add('flex')` for badge show | Tailwind `hidden` compiles to `display: none !important`; adding `flex` without removing `hidden` has no visible effect | ✓ Good — badge appears correctly on first increment |
+| Single `clear_operator_log()` service in `app/qso/service.py` consumed by both operator and admin flows (v2.8) | Two callers, one filter — eliminates the drift risk of duplicating `delete_many({_operator, _deleted: False})` in admin code | ✓ Good — Phase 55 imports + calls Phase 54's service; centralized Beanie filter |
+| Admin clear-log verifies admin's OWN password (`current_user.hashed_password`), never `target_user.hashed_password` (v2.8) | A compromised admin session must not be able to delete a target user's QSOs just because their callsign is known; password gate must defend the admin account itself | ✓ Good — integration check confirmed zero references to `target_user.hashed_password` in verify_password calls; docstring at admin/ui_router.py:458 explicitly warns against it |
+| Distinct modal target IDs (`#clear-log-modal` operator, `#admin-clear-log-modal` admin) (v2.8) | Operator and admin UIs are served from separate FastAPI sub-apps but identical IDs would risk collision if pages were ever co-rendered | ✓ Good — no DOM collision possible |
+| MkDocs Material `admonition` extension required for `!!! danger` blocks (v2.8) | Without `markdown_extensions: [admonition]`, `!!! danger` syntax silently renders as literal plain text — no build warning | ✓ Good — extension wired; HTML render verified via grep `class="admonition danger"` |
+| Documentation paths use `docs/operator-guide/profile.md` + `docs/admin-guide/account-management.md` (NOT stale ROADMAP paths) (v2.8) | ROADMAP referenced `docs/getting-started.md` and `docs/admin.md` which are excluded from nav via `not_in_nav`; Phase 56 D-04 explicitly resolves to the actual MkDocs source files | ✓ Good — verified by two accepted overrides in 56-VERIFICATION.md |
 
 ## Evolution
 
@@ -423,4 +437,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-07 — Phase 55 complete: admin clear-operator-log feature shipped*
+*Last updated: 2026-05-18 — v2.8 Clear Log milestone shipped (Phases 54–56, 13 requirements verified)*

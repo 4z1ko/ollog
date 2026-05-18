@@ -4,8 +4,8 @@ milestone: v1.7
 milestone_name: API Token Auth
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-05-11T07:15:21.566Z"
-last_activity: 2026-05-11
+last_updated: "2026-05-18T16:01:10.871Z"
+last_activity: 2026-05-18
 progress:
   total_phases: 3
   completed_phases: 3
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 Phase: 56
 Plan: Not started
 Status: Executing Phase 56
-Last activity: 2026-05-11
+Last activity: 2026-05-18
 
 ```
 v2.8 Progress: [                    ] 0% (0/3 phases)
@@ -114,6 +114,15 @@ v2.8 Progress: [                    ] 0% (0/3 phases)
 ### Pending Todos
 
 None.
+
+## Deferred Items
+
+Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
+
+| Category | Item | Status |
+|----------|------|--------|
+| human-uat | 54-operator-clear-log/54-HUMAN-UAT.md | partial — visual-only browser checks (card styling order, HTMX innerHTML swap, HTMX outerHTML swap). Behavioral coverage duplicated by `tests/test_clear_log.py` (6 async tests, all green). |
+| human-uat | 55-admin-clear-operator-log/55-HUMAN-UAT.md | partial — visual-only browser checks (modal backdrop legibility in dark mode, HTMX cancel-swap behavior). Behavioral coverage duplicated by `tests/test_admin_clear_log.py` (6 async tests, all green). |
 
 ## Session Continuity
 

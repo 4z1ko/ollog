@@ -1,5 +1,25 @@
 # Milestones
 
+## v2.8 Clear Log (Shipped: 2026-05-18)
+
+**Phases:** 54–56 (3 phases) | **Plans:** 6 | **Timeline:** 2026-05-06 → 2026-05-18 (13 days)
+**Files changed:** 55 | **Source lines:** +685 / −1 | **Commits:** 49
+
+**Key accomplishments:**
+
+- `clear_operator_log(operator: str) -> int` async service in `app/qso/service.py` — single Beanie `delete_many({"_operator": <callsign>, "_deleted": False})` filter consumed by both operator and admin flows; no logic duplication, 6 async tests in `tests/test_clear_log.py` cover the path end-to-end
+- Operator flow: Danger Zone card on `/log/profile` → `GET /log/profile/clear/modal` (live QSO count via Beanie) → `POST /log/profile/clear` gated by `verify_password(user.hashed_password)` → HTMX outerHTML swap to green success fragment; covers CLR-01..05
+- Admin flow: per-operator "Clear log" button in `templates/admin/users_table.html` → 3 new admin routes (modal GET, confirm POST, cancel GET) all gated by `require_admin_cookie` → verify against admin's OWN password (`current_user.hashed_password`, NOT `target_user.hashed_password`) before calling Phase 54's service; covers ACLR-01..05
+- Distinct modal target IDs (`#clear-log-modal` operator, `#admin-clear-log-modal` admin) and separate FastAPI sub-apps (port 8000 vs 8001) — zero DOM collision risk
+- MkDocs Material `admonition` extension enabled in `mkdocs.yml`; `## Danger Zone` (operator-guide/profile.md) and `## Clear Operator Log` (admin-guide/account-management.md) sections with `!!! danger "This cannot be undone"` blocks rendered to styled HTML; `mkdocs build --strict` exits 0 with 0 warnings; covers DOC-01..03
+- All 13 requirements verified, integration check PASS (13/13 wired, 5/5 routes auth-protected, 2/2 E2E flows complete), all 3 phases Nyquist-compliant after retroactive validation
+
+**Known deferred items at close:** 2 (see STATE.md Deferred Items — visual-only HUMAN-UAT for Phase 54/55, behavioral coverage duplicated by passing integration tests)
+
+**Archive:** `.planning/milestones/v2.8-ROADMAP.md` | `.planning/milestones/v2.8-REQUIREMENTS.md` | `.planning/milestones/v2.8-MILESTONE-AUDIT.md`
+
+---
+
 ## v2.7 UTC Date/Time Entry (Shipped: 2026-05-02)
 
 **Phases:** 52–53 (2 phases) | **Plans:** 3 | **Timeline:** 2026-04-26 → 2026-05-02 (7 days)
