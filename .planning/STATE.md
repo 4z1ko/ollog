@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: API Token Auth
-status: executing
-stopped_at: Phase 56 context gathered
+milestone: v2.8
+milestone_name: Clear Log
+status: shipped
+stopped_at: v2.8 shipped 2026-05-18 — awaiting next milestone definition
 last_updated: "2026-05-18T16:01:10.871Z"
 last_activity: 2026-05-18
 progress:
@@ -18,20 +18,20 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-06)
+See: .planning/PROJECT.md (updated 2026-05-18 after v2.8 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 56 — documentation
+**Current focus:** Planning next milestone — run `/gsd-new-milestone` to define v2.9 scope
 
 ## Current Position
 
-Phase: 56
-Plan: Not started
-Status: Executing Phase 56
+Milestone: v2.8 Clear Log — **SHIPPED** (2026-05-18, tag `v2.8`)
+Phase: None active
+Status: Awaiting next milestone definition
 Last activity: 2026-05-18
 
 ```
-v2.8 Progress: [                    ] 0% (0/3 phases)
+v2.8 Progress: [████████████████████] 100% (3/3 phases)
 ```
 
 ## Performance Metrics
@@ -63,7 +63,7 @@ v2.8 Progress: [                    ] 0% (0/3 phases)
 | v2.5 | 48–50 | 3 |
 | v2.6 | 51 | 3 |
 | v2.7 | 52–53 | 3 |
-| v2.8 | 54–56 | TBD |
+| v2.8 | 54–56 | 6 |
 
 ## Accumulated Context
 
@@ -71,14 +71,22 @@ v2.8 Progress: [                    ] 0% (0/3 phases)
 
 - v2.6 milestone complete: llms.txt Support (Phase 51, 2026-04-25)
 - v2.7 milestone complete: UTC Date/Time Entry (Phases 52–53, 2026-05-02)
-- v2.8 milestone started: Clear Log (2026-05-06)
-- v2.8 roadmap created: Phases 54–56 defined (2026-05-06)
+- v2.8 milestone complete: Clear Log (Phases 54–56, 2026-05-18)
 
 ### v2.8 Phase Structure
 
 - **Phase 54** — Operator Clear Log: `clear_operator_log()` service function, `POST /log/profile/clear` HTMX route, Danger Zone section + password-confirmation modal in `templates/log/profile.html`; covers CLR-01–05
 - **Phase 55** — Admin Clear Operator Log: `POST /admin/ui/users/<username>/clear-log` HTMX route, "Clear log" button + modal in `templates/admin/users.html`; covers ACLR-01–05
 - **Phase 56** — Documentation: `docs/getting-started.md` + `docs/admin.md` updated, `uv run mkdocs build --strict`, `site/` committed; covers DOC-01–03
+
+### Key Decisions for v2.8
+
+- Single shared `clear_operator_log(operator: str) -> int` service in `app/qso/service.py` consumed by both operator (Phase 54) and admin (Phase 55) flows — single Beanie `delete_many({_operator, _deleted: False})` filter, no duplicated delete logic
+- Admin clear-log verifies admin's OWN password (`current_user.hashed_password`), NEVER `target_user.hashed_password` — defends the admin account itself, not the target user
+- Distinct modal target IDs: `#clear-log-modal` (operator), `#admin-clear-log-modal` (admin) — zero DOM collision risk
+- HTMX outerHTML swap pattern: form posts to confirm endpoint, response replaces the entire modal element in place (success or error fragment, both return HTTP 200)
+- MkDocs Material `admonition` extension wired in `mkdocs.yml` — without it `!!! danger` blocks render as literal plain text (silent failure, no build warning)
+- Documentation paths use `docs/operator-guide/profile.md` + `docs/admin-guide/account-management.md`; ROADMAP referred to stale paths (`docs/getting-started.md`, `docs/admin.md`) excluded from nav — Phase 56 D-04 resolved via override mechanism
 
 ### Key Decisions for v2.7
 
@@ -126,6 +134,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-05-10T05:54:35.629Z
-Stopped at: Phase 56 context gathered
-Next: `/gsd-plan-phase 54`
+Last session: 2026-05-18 (v2.8 milestone close)
+Stopped at: v2.8 shipped — Clear Log feature complete, milestone archived, tag pending
+Next: `/gsd-new-milestone` to define v2.9 scope
