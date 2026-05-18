@@ -191,6 +191,57 @@
 
 ---
 
+## Milestone: v2.8 — Clear Log
+
+**Shipped:** 2026-05-18
+**Phases:** 3 (54–56) | **Plans:** 6 | **Commits:** 49 | **Source lines:** +685 / −1
+
+### What Was Built
+
+- `app/qso/service.py` — `clear_operator_log(operator: str) -> int` async service; single Beanie `delete_many({_operator, _deleted: False})` filter centralized for both flows
+- `app/qso/ui_router.py` — `GET /log/profile/clear/modal` + `POST /log/profile/clear` operator routes (cookie auth, password gate against operator's own hash, HTMX outerHTML swap)
+- `app/admin/ui_router.py` — 3 admin routes (modal GET, confirm POST, cancel GET) all under `require_admin_cookie`; password verified against `current_user.hashed_password` (admin's OWN, NOT `target_user.hashed_password`)
+- `templates/log/{clear_log_modal,clear_log_success}.html` + `templates/admin/{clear_log_modal,clear_log_success}.html` — 4 HTMX fragments with distinct outer IDs (`#clear-log-modal` vs `#admin-clear-log-modal`)
+- `templates/log/profile.html` Danger Zone card + `templates/admin/users_table.html` per-row "Clear log" button + `templates/admin/users.html` modal target div
+- `mkdocs.yml` admonition extension; `docs/operator-guide/profile.md` Danger Zone section; `docs/admin-guide/account-management.md` Clear Operator Log section; rebuilt `site/`
+- `tests/test_clear_log.py` (6 async tests) + `tests/test_admin_clear_log.py` (6 async tests) — full integration coverage of CLR-01..05 and ACLR-01..05
+
+### What Worked
+
+- **Single shared service across two phases.** Phase 54 owned `clear_operator_log()`; Phase 55 consumed it with one import line. The integration checker verified zero logic duplication and a single Beanie filter — exactly the design payoff of locking the service contract first.
+- **Distinct modal target IDs caught proactively.** `#clear-log-modal` (operator) vs `#admin-clear-log-modal` (admin) was decided in PATTERNS.md before either template was written. No DOM-collision bug to find later.
+- **D-04 stale-path resolution + override mechanism.** ROADMAP success criteria referenced `docs/getting-started.md` and `docs/admin.md` (legacy stubs excluded from MkDocs nav). Phase 56 CONTEXT.md decision D-04 resolved these to actual paths upfront; verification used the override system rather than fighting the spec drift.
+- **Admin password semantics gate.** Plan + research explicitly flagged "verify admin's OWN password, NOT target_user's" before any admin route was wired. Integration check confirmed zero references to `target_user.hashed_password` in any `verify_password` call site.
+
+### What Was Inefficient
+
+- **Three retroactive validation audits required at milestone close.** All 3 phases shipped with `nyquist_compliant: false` in their VALIDATION.md frontmatter despite passing integration tests existing during execution. `/gsd-validate-phase 54`, `55`, `56` were each mechanical sign-off passes — no new test code needed. Should have been flipped during execute-phase, not at milestone audit.
+- **Phase 54 VALIDATION.md referenced `tests/test_qso.py::test_clear_operator_log`, but actual tests landed in `tests/test_clear_log.py`.** Drafted test paths drifted from the executed file location. Validation audit had to remap each row to the real test name.
+- **REQUIREMENTS.md traceability stayed `[ ]` for all 13 rows through the entire milestone.** Same pattern as v2.4/v2.5/v2.7 — the traceability table is updated at archive time, not phase completion. Recurring debt.
+- **Two `Edit`-tool retry loops on the read-before-edit hook.** Each turn-fresh edit triggered a "READ-BEFORE-EDIT" reminder despite the file having been read earlier in the same turn. Cost ~3 extra round-trips per multi-edit pass on STATE.md / VALIDATION.md / PROJECT.md.
+
+### Patterns Established
+
+- **Single-service-two-callers for destructive ops with different auth contexts.** Operator + admin clear-log share `clear_operator_log()`; password verification is the caller's responsibility. Pattern: put the data-mutation in the service, the identity check in the route. Apply to any future "admin can do X on behalf of operator" feature.
+- **Modal target ID prefix discipline.** `#clear-log-modal` vs `#admin-clear-log-modal` — when the same UI pattern serves operator and admin sub-apps, prefix admin DOM IDs with `admin-` to prevent collision if pages are ever co-rendered.
+- **`!!! danger "This cannot be undone"` admonition for destructive UI documentation.** Established convention: every destructive UI surface gets a permanence callout in the docs site using the MkDocs Material `!!! danger` block. Requires `markdown_extensions: [admonition]` in `mkdocs.yml` (silent failure mode without it).
+- **Override + decision artifact for stale ROADMAP paths.** When a phase's success criteria reference paths that no longer exist (legacy stubs excluded from nav), use a CONTEXT.md decision (D-04 pattern) to declare the resolved actual paths up front, then claim verification overrides rather than failing on the literal path mismatch.
+
+### Key Lessons
+
+1. **Flip `nyquist_compliant: true` at end of execute-phase, not at milestone close.** Phase verification confirms tests pass; validation audit should be triggered (or skipped as compliant) immediately, not deferred. Three retroactive audits per milestone is debt that piles up linearly with milestone size.
+2. **VALIDATION.md test paths drift if drafted before execute-phase.** When `gsd-plan-phase` outputs draft test paths (`tests/test_qso.py::test_X`), they're guesses. The actual test file is decided during execute-phase. Either re-anchor VALIDATION.md at end of execute, or treat draft paths as suggestions and let the validation audit be the source of truth.
+3. **Service contract is the cross-phase boundary; the caller's auth context is per-phase.** Phase 54 shipped a service with one input (`operator: str`) and one output (`int`). Phase 55 didn't extend, wrap, or modify it — just gated the same call behind a different auth dependency. Future cross-phase reuse should follow this exact shape: one service signature, multiple callers, each with their own auth.
+4. **Documentation phases need a build verification, not just content checks.** Phase 56 split a build (`mkdocs --strict`) AND a render check (`grep class="admonition danger" site/...`) into separate tasks. Without the render check, the silent-failure mode of missing `markdown_extensions: [admonition]` would have shipped raw `!!! danger` text. Build success ≠ content rendered as intended.
+
+### Cost Observations
+
+- Model: claude-sonnet-4-6 throughout execution; claude-opus-4-7 (1M) for retroactive validation audits, milestone audit, and close
+- Sessions: ~5 (Phase 54, Phase 55, Phase 56, validation backfill, milestone close)
+- Notable: ~13 days elapsed but only ~5 active sessions — most of the calendar gap was between Phase 56 completion (2026-05-10) and milestone close (2026-05-18). The actual implementation work was compressed.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -206,11 +257,13 @@
 | v2.5 | 3 | 3 | Model-level `default_factory` stamp + allowlist sort + 5-column sort UI |
 | v2.6 | 1 | 3 | Minimal single-phase content milestone; pure routing + static files, zero new deps |
 | v2.7 | 2 | 3 | Backend-first migration (Phase 52) + frontend-only JS (Phase 53); two-phase split worked cleanly |
+| v2.8 | 3 | 6 | Service-first three-phase split (Phase 54 service + ops UI, Phase 55 admin UI reusing service, Phase 56 docs); single shared `clear_operator_log()` consumed by both auth contexts |
 
 ### Cumulative Quality
 
 | Milestone | Tests Added | Zero New Prod Deps |
 |-----------|-------------|-------------------|
+| v2.8 | 12 new tests (test_clear_log.py + test_admin_clear_log.py) | ✓ (no new dependencies) |
 | v2.7 | 5 new tests (test_migration.py) | ✓ (no new dependencies) |
 | v2.6 | 3 new tests (test_llms.py) | ✓ (no new dependencies) |
 | v2.5 | 0 new tests | ✓ (no new dependencies) |
