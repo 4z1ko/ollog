@@ -9,6 +9,9 @@ venv/
 
 # Environment
 .env
+.env.local
+.env.*
+!.env.example
 
 # Test artifacts
 .pytest_cache/
@@ -17,9 +20,16 @@ htmlcov/
 
 # macOS
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.tsbuildinfo
 
 # Node
 node_modules/
+
+# Runtime backups
+backups/
 
 # Editor temp/lock files
 .planning/.!*
