@@ -1,0 +1,252 @@
+{% extends "base_app.html" %}
+{% block title %}ollog — Log View{% endblock %}
+{% block active_page %}view{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  <!-- Page header -->
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-xl font-bold text-gray-900 dark:text-white">Log View</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        {{ total }} contact{{ 's' if total != 1 else '' }} total
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Live indicator -->
+      <span id="live-indicator"
+            class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+                   bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+        LIVE
+      </span>
+      <a href="/log/export" class="btn-ghost btn-sm">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Export ADIF
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Filters</h2>
+      {% if filters.call or filters.band or filters.mode or filters.date_from or filters.date_to %}
+      <span class="badge-blue">Active</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <form id="filter-form"
+            hx-get="/log/view"
+            hx-target="#log-table"
+            hx-swap="innerHTML"
+            hx-push-url="true">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div>
+            <label class="form-label">Callsign</label>
+            <input type="text" name="call" value="{{ filters.call or '' }}" placeholder="W1AW"
+                   autocomplete="off" class="form-input font-mono">
+          </div>
+          <div>
+            <label class="form-label">Band</label>
+            <select name="band" class="form-select">
+              <option value="">All bands</option>
+              {% for b in ['160M','80M','60M','40M','30M','20M','17M','15M','12M','10M','6M','2M','70CM'] %}
+              <option value="{{ b }}" {% if filters.band == b %}selected{% endif %}>{{ b }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Mode</label>
+            <select name="mode" class="form-select">
+              <option value="">All modes</option>
+              {% for m in ['SSB','CW','FT8','FT4','FM','AM','RTTY','PSK31','JS8','DSTAR'] %}
+              <option value="{{ m }}" {% if filters.mode == m %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Date from</label>
+            <input type="text" name="date_from" value="{{ filters.date_from or '' }}"
+                   placeholder="YYYYMMDD" autocomplete="off" class="form-input font-mono">
+          </div>
+          <div>
+            <label class="form-label">Date to</label>
+            <input type="text" name="date_to" value="{{ filters.date_to or '' }}"
+                   placeholder="YYYYMMDD" autocomplete="off" class="form-input font-mono">
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-4">
+          <button type="submit" class="btn-primary btn-sm">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            Search
+          </button>
+          <button type="button"
+                  hx-get="/log/view"
+                  hx-target="#log-table"
+                  hx-swap="innerHTML"
+                  hx-push-url="true"
+                  hx-params="none"
+                  onclick="document.querySelectorAll('#filter-form input[type=text]').forEach(function(i){i.value=''});document.querySelectorAll('#filter-form select').forEach(function(s){s.value=''});"
+                  class="btn-ghost btn-sm">
+            Clear
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- New QSO badge (hidden by default; shown when new QSOs arrive on page 2+) -->
+  <div id="new-qso-badge"
+       class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+              bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300
+              cursor-pointer select-none w-fit">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+         stroke-width="2" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+    </svg>
+    <span id="new-qso-badge-text">1 new QSO</span>
+    <span class="ml-1 opacity-70">&times;</span>
+  </div>
+
+  <!-- Log table (SSE + HTMX swap target) -->
+  <div id="log-table"
+       hx-ext="sse"
+       sse-connect="/feed/station"
+       hx-trigger="sse:new_qso">
+    {% include "log/log_table.html" %}
+  </div>
+
+</div>
+
+<script>
+  const NOTIFY_SOUND = "{{ 'true' if notify_sound else 'false' }}";
+  (function () {
+    var indicator = document.getElementById('live-indicator');
+    var eventsFlowing = false;
+    var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    var audioCtx = null;
+    var userInteracted = false;
+    var badge = document.getElementById('new-qso-badge');
+    var badgeText = document.getElementById('new-qso-badge-text');
+    var newQsoCount = 0;
+    var pendingSseRefresh = false;
+
+    function onFirstInteraction() {
+      if (userInteracted) return;
+      userInteracted = true;
+      if (AudioCtxClass) {
+        audioCtx = new AudioCtxClass();
+      }
+    }
+
+    document.addEventListener('click', onFirstInteraction);
+    document.addEventListener('keydown', onFirstInteraction);
+
+    async function playTone(ctx) {
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      var now = ctx.currentTime;
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.08);
+      gain.gain.linearRampToValueAtTime(0, now + 0.11);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+
+    function updateBadge() {
+      badgeText.textContent = newQsoCount === 1
+        ? '1 new QSO'
+        : newQsoCount + ' new QSOs';
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    }
+
+    function dismissBadge() {
+      newQsoCount = 0;
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+
+    badge.addEventListener('click', dismissBadge);
+
+    // htmx:sseOpen detail has {source} but no .elt — use e.target instead.
+    // Do NOT set green on open; wait for the first actual new_qso event.
+
+    document.body.addEventListener('htmx:sseMessage', function (e) {
+      // e.detail is the raw MessageEvent; e.target is the element that has
+      // hx-trigger="sse:new_qso" (i.e. #log-table).
+      if (!e.target || e.target.id !== 'log-table') return;
+      if (!e.detail || e.detail.type !== 'new_qso') return;
+      if (!eventsFlowing) {
+        eventsFlowing = true;
+        indicator.classList.remove('hidden');
+        indicator.classList.add('flex');
+        indicator.querySelector('span:last-child').textContent = 'LIVE';
+        indicator.classList.remove('bg-rose-100', 'text-rose-700');
+        indicator.classList.add('bg-emerald-100', 'dark:bg-emerald-900/40',
+                                'text-emerald-700', 'dark:text-emerald-400');
+      }
+      // Sound notification -- BEFORE auto-refresh guards so tone fires
+      // independently of page/filter state (SND-01 + RESEARCH.md Open Question)
+      if (NOTIFY_SOUND === 'true' && userInteracted && audioCtx) {
+        playTone(audioCtx);
+      }
+      // Badge increment -- fires when page 2+ or filters active (D-04, D-06)
+      var canAutoRefresh = !!document.getElementById('auto-refresh-ok');
+      if (!canAutoRefresh) {
+        newQsoCount++;
+        updateBadge();
+        return;
+      }
+      if (document.querySelector('#log-table input')) return;
+      pendingSseRefresh = true;
+      htmx.ajax('GET', '/log/view', { target: '#log-table', swap: 'innerHTML' });
+    });
+
+    document.body.addEventListener('htmx:sseError', function (e) {
+      if (e.target && e.target.id === 'log-table') {
+        eventsFlowing = false;
+        indicator.classList.remove('hidden', 'bg-emerald-100', 'dark:bg-emerald-900/40',
+                                   'text-emerald-700', 'dark:text-emerald-400');
+        indicator.classList.add('flex', 'bg-rose-100', 'text-rose-700');
+        indicator.querySelector('span:last-child').textContent = 'OFFLINE';
+      }
+    });
+
+    document.body.addEventListener('htmx:sseClose', function (e) {
+      if (e.target && e.target.id === 'log-table') {
+        eventsFlowing = false;
+        indicator.classList.add('hidden');
+        indicator.classList.remove('flex');
+      }
+    });
+
+    document.body.addEventListener('htmx:afterSettle', function () {
+      if (pendingSseRefresh && document.getElementById('auto-refresh-ok')) {
+        pendingSseRefresh = false;
+        dismissBadge();
+      }
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+<div id="admin-clear-log-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="admin-clear-log-title">
+    <h3 id="admin-clear-log-title" class="modal-title">Clear {{ callsign }}'s Log</h3>
+    <p class="modal-body">
+      {% if count == 0 %}
+        {{ callsign }}'s log is empty (0 QSOs). Submitting your password will complete without deleting anything.
+      {% else %}
+        This will permanently delete <strong>{{ count }} QSO(s)</strong> for {{ callsign }}.
+        This cannot be undone.
+      {% endif %}
+    </p>
+    {% if error %}
+    <div class="alert alert-error" role="alert">{{ error }}</div>
+    {% endif %}
+    <form hx-post="/admin/ui/users/{{ username }}/clear-log"
+          hx-target="#admin-clear-log-modal"
+          hx-swap="outerHTML">
+      <div class="form-group">
+        <label for="admin-clear-log-password" class="form-label">Your admin password</label>
+        <input id="admin-clear-log-password" type="password" name="password" required
+               autocomplete="current-password" class="form-control"
+               placeholder="Enter your password to confirm">
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-danger">
+          {% if count == 0 %}Confirm (0 QSOs){% else %}Delete {{ count }} QSOs{% endif %}
+        </button>
+        <button type="button" class="btn btn-secondary"
+                hx-get="/admin/ui/users/{{ username }}/clear-log/cancel"
+                hx-target="#admin-clear-log-modal"
+                hx-swap="outerHTML">
+          Keep log
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

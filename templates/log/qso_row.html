@@ -1,0 +1,27 @@
+<tr id="qso-{{ qso.id }}">
+  <td>{{ qso.qso_date_utc.strftime('%Y-%m-%d %H:%M') if qso.qso_date_utc else '' }} UTC</td>
+  <td>
+    {% if qso.flag_iso %}
+    <img src="/static/flags/{{ qso.flag_iso }}.svg"
+         width="20" height="15"
+         alt="{{ qso.flag_country or '' }}"
+         title="{{ qso.flag_country or '' }}"
+         class="inline align-middle mr-1">
+    {% endif %}
+    {{ qso.CALL }}
+  </td>
+  <td>{{ qso.BAND or '' }}</td>
+  <td>{{ qso.MODE or '' }}</td>
+  <td>{{ qso.FREQ or '' }}</td>
+  <td>{{ qso.RST_SENT or '' }} / {{ qso.RST_RCVD or '' }}</td>
+  <td class="actions">
+    <button hx-get="/log/qsos/{{ qso.id }}/edit"
+            hx-target="#qso-{{ qso.id }}"
+            hx-swap="outerHTML">Edit</button>
+    <button class="danger"
+            hx-delete="/log/qsos/{{ qso.id }}"
+            hx-target="#qso-{{ qso.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this QSO? It can be recovered by an admin.">Delete</button>
+  </td>
+</tr>

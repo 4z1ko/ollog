@@ -1,0 +1,9 @@
+# ollog
+
+A self-hosted, multi-operator ham radio logbook with a REST API and ADIF import/export.
+
+## Contents
+
+- API Reference: /llms-full.txt#api-reference
+- ADIF Field Reference: /llms-full.txt#adif-field-reference
+- Getting Started: /llms-full.txt#getting-started

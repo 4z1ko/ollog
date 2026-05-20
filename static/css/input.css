@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  /* Default style for bare <button> elements (used in HTMX partials without classes) */
+  button:not([class]),
+  button[class=""] {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg
+           bg-indigo-600 hover:bg-indigo-500 text-white transition-colors duration-150
+           focus:outline-none focus:ring-2 focus:ring-indigo-500;
+  }
+}
+
+@layer components {
+  /* Form elements */
+  .form-input {
+    @apply block w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
+           bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm
+           placeholder-gray-400 dark:placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+           transition-colors duration-150;
+  }
+  .form-select {
+    @apply form-input cursor-pointer;
+  }
+  .form-label {
+    @apply block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5;
+  }
+  .form-hint {
+    @apply text-xs text-gray-400 dark:text-gray-500 mt-1;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+           transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-indigo-600 hover:bg-indigo-500 text-white focus:ring-indigo-500
+           dark:focus:ring-offset-gray-900;
+  }
+  .btn-danger {
+    @apply btn bg-rose-600 hover:bg-rose-500 text-white focus:ring-rose-500
+           dark:focus:ring-offset-gray-900;
+  }
+  .btn-success {
+    @apply btn bg-emerald-600 hover:bg-emerald-500 text-white focus:ring-emerald-500
+           dark:focus:ring-offset-gray-900;
+  }
+  .btn-secondary {
+    @apply btn bg-gray-600 hover:bg-gray-500 text-white focus:ring-gray-500
+           dark:focus:ring-offset-gray-900;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800
+           text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600
+           focus:ring-gray-400;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-surface-light dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-card dark:shadow-none;
+  }
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between;
+  }
+  .card-title {
+    @apply text-sm font-semibold text-gray-700 dark:text-gray-200;
+  }
+  .card-body {
+    @apply px-6 py-5;
+  }
+
+  /* Alerts */
+  .alert {
+    @apply flex items-start gap-3 p-4 rounded-lg text-sm;
+  }
+  .alert-error {
+    @apply alert bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800
+           text-rose-800 dark:text-rose-300;
+  }
+  .alert-success {
+    @apply alert bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800
+           text-emerald-800 dark:text-emerald-300;
+  }
+  .alert-warning {
+    @apply alert bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800
+           text-amber-800 dark:text-amber-300;
+  }
+
+  /* Tables */
+  .table-wrap {
+    @apply overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800 shadow-card dark:shadow-none;
+  }
+  .data-table {
+    @apply w-full text-sm bg-white dark:bg-gray-900;
+  }
+  .data-table thead {
+    @apply bg-gray-50 dark:bg-gray-800/60;
+  }
+  .data-table th {
+    @apply px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400
+           uppercase tracking-wider whitespace-nowrap;
+  }
+  .data-table td {
+    @apply px-4 py-3 text-gray-700 dark:text-gray-300 border-t border-gray-100 dark:border-gray-800
+           whitespace-nowrap;
+  }
+  .data-table tbody tr:hover td {
+    @apply bg-gray-50/80 dark:bg-gray-800/40;
+  }
+
+  /* Sidebar nav items */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
+           text-sidebar-text hover:bg-sidebar-hover hover:text-white
+           transition-colors duration-150 cursor-pointer;
+  }
+  .nav-item-active {
+    @apply bg-sidebar-active text-white;
+  }
+
+  /* Status badges */
+  .badge-green {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium
+           bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400;
+  }
+  .badge-red {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium
+           bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400;
+  }
+  .badge-blue {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium
+           bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400;
+  }
+  .badge-gray {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium
+           bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400;
+  }
+
+  /* Field error state — applied by JS on validation failure */
+  .form-input-error {
+    @apply ring-2 ring-rose-400 border-rose-400 bg-rose-50 dark:bg-rose-950/20 !important;
+  }
+
+  /* ── Legacy class aliases used by HTMX partials (qso_result, qso_row, etc.) ── */
+  .error-msg   { @apply alert-error   mb-3; }
+  .success-msg { @apply alert-success mb-3; }
+  .warning-msg { @apply alert-warning mb-3; }
+
+  /* Legacy button variant classes used in partials */
+  button.danger { @apply btn-danger; }
+  button.safe   { @apply btn-success; }
+
+  /* Legacy action cell layout (qso_row.html) */
+  .actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  /* Status text classes used in partials */
+  .status-enabled  { @apply text-emerald-600 dark:text-emerald-400 font-semibold; }
+  .status-disabled { @apply text-rose-600    dark:text-rose-400    font-semibold; }
+
+  /* Glass card — Apple glassmorphism for login pages */
+  /* Safari fix: -webkit-backdrop-filter requires fixed pixel values, NOT CSS variable references */
+  /* Using raw CSS (not @apply) for backdrop-filter to avoid Tailwind CSS variable indirection */
+  /* Reference: github.com/tailwindlabs/tailwindcss/issues/13844 */
+  /* Reference: github.com/mdn/browser-compat-data/issues/25914 */
+  .glass-card {
+    @apply bg-white/10 rounded-2xl p-8 shadow-2xl;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Modal overlay — used by templates/admin/restore/password_modal.html */
+  /* backdrop-filter uses raw CSS (not @apply) — Safari requires fixed pixel values, not CSS var refs */
+  /* See: github.com/tailwindlabs/tailwindcss/issues/13844 */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/50 z-40;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Modal content box — fixed centered above backdrop */
+  .modal-box {
+    @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50
+           bg-surface-light dark:bg-surface-dark rounded-xl shadow-2xl p-6 w-full max-w-md;
+  }
+
+  /* Modal typography */
+  .modal-title {
+    @apply text-lg font-semibold text-gray-900 dark:text-white mb-2;
+  }
+  .modal-body {
+    @apply text-sm text-gray-600 dark:text-gray-400 mb-4;
+  }
+
+  /* Modal action buttons row */
+  .modal-actions {
+    @apply flex gap-3 justify-end mt-4;
+  }
+
+  /* Form group — spacing wrapper used in modal form */
+  .form-group {
+    @apply mb-4;
+  }
+
+  /* form-control — alias for form-input, used in password_modal.html */
+  .form-control {
+    @apply form-input;
+  }
+}

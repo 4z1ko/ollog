@@ -1,0 +1,9 @@
+<div id="clear-log-modal">
+  <div class="alert alert-success" role="alert">
+    {% if deleted == 0 %}
+      Done. Your log was already empty — nothing was deleted.
+    {% else %}
+      Done. {{ deleted }} QSO(s) deleted from your log.
+    {% endif %}
+  </div>
+</div>

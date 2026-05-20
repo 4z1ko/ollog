@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}ollog{% endblock %}</title>
+  <!--
+    LOAD-BEARING: This script block MUST remain:
+    - Inline (not src="..."), so the browser executes it synchronously
+    - In <head>, before the <link rel="stylesheet"> tag
+    - Non-deferred (no defer or async attribute)
+    Moving, deferring, or externalising this script will cause a FOUC
+    (flash of unstyled/light content) for dark-mode users on every page load.
+  -->
+  <script>
+    (function () {
+      var noTransition = document.createElement('style');
+      noTransition.textContent = '*, *::before, *::after { transition: none !important; }';
+      document.head.appendChild(noTransition);
+
+      var theme = localStorage.getItem('theme');
+      if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          document.head.removeChild(noTransition);
+        });
+      });
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/output.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4/dist/sse.js"></script>
+</head>
+<body class="antialiased">
+  {% block body %}{% endblock %}
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

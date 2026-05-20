@@ -1,0 +1,51 @@
+site_name: ollog
+site_url: http://localhost:8000/guide/
+use_directory_urls: true
+
+not_in_nav: |
+  openapi.json
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+  features:
+    - navigation.expand
+
+plugins:
+  - search
+  - swagger-ui-tag:
+      docExpansion: none
+      syntaxHighlightTheme: monokai
+
+markdown_extensions:
+  - admonition
+
+nav:
+  - Getting Started:
+    - getting-started/index.md
+    - Quickstart: getting-started/quickstart.md
+    - First QSO: getting-started/first-qso.md
+  - Operator Guide:
+    - operator-guide/index.md
+    - Logging QSOs: operator-guide/logging-qsos.md
+    - ADIF Import/Export: operator-guide/adif-import-export.md
+    - API Tokens: operator-guide/api-tokens.md
+    - Profile: operator-guide/profile.md
+    - UDP ADIF: operator-guide/udp-adif.md
+  - Admin Guide:
+    - admin-guide/index.md
+    - Deployment: admin-guide/deployment.md
+    - Admin Container: admin-guide/admin-container.md
+    - Account Management: admin-guide/account-management.md
+    - Backup: admin-guide/backup.md
+  - API Reference:
+    - api-reference/index.md
+    - Interactive Reference: api-reference/interactive.md
+  - Reference:
+    - reference/index.md
+    - ADIF Field Reference: reference/adif-field-reference.md
+    - Environment Variables: reference/environment-variables.md
+  - Troubleshooting:
+    - troubleshooting/index.md

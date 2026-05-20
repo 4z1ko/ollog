@@ -1,0 +1,98 @@
+<div class="card">
+  <div class="card-body space-y-4">
+
+    <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+      Total: {{ report.total_records }} |
+      Accepted: {{ report.accepted | length }} |
+      Duplicates: {{ report.duplicates | length }} |
+      Errors: {{ report.errors | length }}
+    </p>
+
+    {% if report.accepted %}
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mt-3 mb-1.5">
+        Accepted ({{ report.accepted | length }})
+      </h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Record #</th>
+              <th>Callsign</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in report.accepted %}
+            <tr>
+              <td>{{ item.record_index + 1 }}</td>
+              <td>{{ item.call }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if report.duplicates %}
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 mt-3 mb-1.5">
+        Duplicates ({{ report.duplicates | length }})
+      </h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Record #</th>
+              <th>Callsign</th>
+              <th>Existing ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in report.duplicates %}
+            <tr>
+              <td>{{ item.record_index + 1 }}</td>
+              <td>{{ item.call }}</td>
+              <td>{{ item.existing_id }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if report.errors %}
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400 mt-3 mb-1.5">
+        Errors ({{ report.errors | length }})
+      </h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Record #</th>
+              <th>Callsign</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in report.errors %}
+            <tr>
+              <td>{{ item.record_index + 1 if item.record_index is defined else "—" }}</td>
+              <td>{{ item.call if item.call is defined else "—" }}</td>
+              <td>{{ item.error }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not report.accepted and not report.duplicates and not report.errors %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No records found in file.</p>
+    {% endif %}
+
+  </div>
+</div>

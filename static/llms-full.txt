@@ -1,0 +1,610 @@
+# ollog — Full LLM Reference
+
+A self-hosted, ADIF-native, multi-operator ham radio logbook. This document is the
+machine-readable full reference for LLM tooling. Content covers the REST API, ADIF
+field conventions, and an operator walkthrough.
+
+Multiple operators log QSOs simultaneously under their own callsigns without conflicts.
+Data is stored verbatim in ADIF field format. Hosted on a single server; accessed via
+browser or REST API from any location.
+
+## Table of Contents
+
+- API Reference:         /llms-full.txt#api-reference
+- ADIF Field Reference:  /llms-full.txt#adif-field-reference
+- Getting Started:       /llms-full.txt#getting-started
+
+---
+
+## API Reference
+
+Base URL (default): http://localhost:8000
+
+All request and response bodies are JSON unless otherwise specified.
+Timestamps returned by the API are UTC ISO-8601 strings.
+
+### Authentication
+
+ollog supports three authentication mechanisms:
+
+1. Bearer JWT (primary)
+   Obtain a token via POST /auth/token. Include in all subsequent requests:
+     Authorization: Bearer <token>
+   Default expiry: 480 minutes (8 hours — suitable for overnight FT8 sessions).
+
+2. X-API-Key header (alternative for QSO endpoints)
+   Create a named API key via POST /api/tokens/. Include in requests:
+     X-API-Key: <token>
+   API keys work only on QSO endpoints (POST/GET/PATCH/DELETE /api/qsos/).
+   They are NOT accepted on auth, profile, tokens, adif, or admin endpoints.
+
+3. HttpOnly cookie (browser/UI)
+   The web UI uses a session cookie set on login. Cookie auth is transparent
+   to browser users. REST API callers should use Bearer JWT or X-API-Key.
+
+Operator isolation: every QSO is scoped to the authenticated operator's callsign
+(from the JWT). Operators cannot read, modify, or delete each other's QSOs.
+
+---
+
+### POST /auth/token
+
+Auth: None
+Description: OAuth2-compatible login endpoint. Authenticates with username and password;
+             returns a signed JWT access token valid for 480 minutes by default.
+Request: Form-encoded body (application/x-www-form-urlencoded)
+  username  (string, required) — operator username
+  password  (string, required) — operator password
+Response: JSON
+  {
+    "access_token": "<jwt>",
+    "token_type": "bearer"
+  }
+Status codes:
+  200 OK           — credentials valid; token returned
+  401 Unauthorized — bad username or password
+
+curl example:
+  curl -X POST http://localhost:8000/auth/token \
+    -d "username=myuser&password=mypass"
+
+---
+
+### GET /auth/me
+
+Auth: Bearer JWT
+Description: Returns the authenticated operator's username, callsign, and role.
+Request: none
+Response: JSON
+  {
+    "username": "myuser",
+    "callsign": "W1AW",
+    "role": "operator"
+  }
+Status codes:
+  200 OK           — user info returned
+  401 Unauthorized — missing or invalid token
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/auth/me
+
+---
+
+### POST /api/qsos/
+
+Auth: Bearer JWT or X-API-Key
+Description: Create a new QSO for the authenticated operator. OPERATOR and
+             STATION_CALLSIGN are auto-stamped from the authenticated user's profile.
+             BAND and MODE are uppercased on ingest. Duplicate detection window: ±2 minutes
+             same CALL+BAND+MODE. Set ?force=true to override duplicate detection.
+Request: JSON body
+  {
+    "CALL":     "W1AW",       (string, required) callsign of the contacted station
+    "QSO_DATE": "20240115",   (string, required) UTC date in YYYYMMDD format
+    "TIME_ON":  "1430",       (string, required) UTC start time in HHMM or HHMMSS format
+    "BAND":     "20m",        (string, required) amateur band designator (e.g. 40m, 20m, 2m)
+    "MODE":     "SSB",        (string, required) operating mode (e.g. SSB, CW, FT8, FM)
+    "FREQ":     "14.225",     (string, optional) frequency in MHz
+    "RST_SENT": "59",         (string, optional) RST signal report sent
+    "RST_RCVD": "59",         (string, optional) RST signal report received
+    ...                       any additional ADIF fields accepted and stored verbatim
+  }
+Response: JSON — created QSO record including server-assigned "id"
+Status codes:
+  201 Created  — QSO logged successfully
+  409 Conflict — duplicate QSO detected (add ?force=true to override)
+  401 Unauthorized — missing or invalid credentials
+  422 Unprocessable Entity — validation error (missing required field)
+
+curl example:
+  curl -X POST http://localhost:8000/api/qsos/ \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"CALL":"W1AW","QSO_DATE":"20240115","TIME_ON":"1430","BAND":"20m","MODE":"SSB"}'
+
+---
+
+### GET /api/qsos/
+
+Auth: Bearer JWT or X-API-Key
+Description: List the authenticated operator's active QSOs with pagination and optional
+             filters. Returns only non-deleted QSOs owned by the caller.
+Request: Query parameters (all optional)
+  page       (int, default 1)    — page number (1-based)
+  page_size  (int, default 50)   — results per page (max 500)
+  call       (string)            — filter by contacted callsign (partial match)
+  band       (string)            — filter by band (e.g. 20m)
+  mode       (string)            — filter by mode (e.g. FT8)
+  date_from  (string, YYYYMMDD)  — filter QSOs on or after this UTC date
+  date_to    (string, YYYYMMDD)  — filter QSOs on or before this UTC date
+  sort       (string, default "-qso_date_utc") — sort field with optional "-" prefix for desc
+Response: JSON
+  {
+    "items":     [ ...QSOResponse objects... ],
+    "total":     142,
+    "page":      1,
+    "page_size": 50
+  }
+Status codes:
+  200 OK           — list returned (empty list if no matching QSOs)
+  401 Unauthorized — missing or invalid credentials
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" \
+    "http://localhost:8000/api/qsos/?band=20m&mode=FT8&page=1&page_size=25"
+
+---
+
+### GET /api/qsos/{qso_id}
+
+Auth: Bearer JWT or X-API-Key
+Description: Fetch a single QSO by its MongoDB ObjectId. Returns 404 if the QSO does not
+             exist, is not owned by the caller, or has been soft-deleted.
+Request: Path parameter
+  qso_id  (string) — MongoDB ObjectId of the QSO
+Response: JSON — single QSO record
+Status codes:
+  200 OK           — QSO found and returned
+  404 Not Found    — QSO not found, not owned, or deleted
+  401 Unauthorized — missing or invalid credentials
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" \
+    "http://localhost:8000/api/qsos/$QSO_ID"
+
+---
+
+### PATCH /api/qsos/{qso_id}
+
+Auth: Bearer JWT or X-API-Key
+Description: Partially update a QSO. Only fields present in the request body are updated.
+             Protected fields (_operator, _deleted, _id) are stripped. BAND and MODE are
+             uppercased if present. qso_date_utc is recalculated when QSO_DATE or TIME_ON
+             changes.
+Request: Path parameter + JSON body
+  qso_id  (string) — MongoDB ObjectId of the QSO
+  Body: any ADIF fields to update, e.g.
+    {
+      "RST_SENT": "59",
+      "COMMENT":  "Great signal from EU"
+    }
+Response: JSON — updated QSO record
+Status codes:
+  200 OK           — update applied; updated record returned
+  404 Not Found    — QSO not found or not owned by caller
+  401 Unauthorized — missing or invalid credentials
+
+curl example:
+  curl -X PATCH http://localhost:8000/api/qsos/$QSO_ID \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"RST_SENT":"59","COMMENT":"Strong signal"}'
+
+---
+
+### DELETE /api/qsos/{qso_id}
+
+Auth: Bearer JWT or X-API-Key
+Description: Soft-delete a QSO. The record is marked _deleted=true in MongoDB — it is NOT
+             physically removed. Soft-deleted QSOs are excluded from list, get, and export.
+             To permanently remove data, direct database access is required.
+Request: Path parameter
+  qso_id  (string) — MongoDB ObjectId of the QSO
+Response: none (empty body)
+Status codes:
+  204 No Content — soft-delete applied
+  404 Not Found  — QSO not found, not owned, or already deleted
+  401 Unauthorized — missing or invalid credentials
+
+curl example:
+  curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+    "http://localhost:8000/api/qsos/$QSO_ID"
+
+---
+
+### POST /api/adif/import
+
+Auth: Bearer JWT
+Description: Import an ADIF (.adi or .adif) file and return a JSON import report.
+             Accepted per-record: one QSO inserted on success. Duplicate detection (±2 min
+             window) and per-record error accumulation — no silent drops. File size limit: 10 MB.
+Request: Multipart form data
+  file  (UploadFile, required) — the .adi/.adif file to import
+Response: JSON — import report
+  {
+    "total_records": 5,
+    "accepted":    [ {"record_index": 0, "call": "W1AW", "id": "<mongo_id>"}, ... ],
+    "duplicates":  [ {"record_index": 2, "call": "K1TTT", "existing_id": "<id>"}, ... ],
+    "errors":      [ {"record_index": 4, "call": null, "error": "Missing CALL field"}, ... ]
+  }
+Status codes:
+  200 OK                    — import processed; report returned (check per-record status)
+  413 Request Entity Too Large — file exceeds 10 MB
+  401 Unauthorized          — missing or invalid JWT
+
+curl example:
+  curl -X POST http://localhost:8000/api/adif/import \
+    -H "Authorization: Bearer $TOKEN" \
+    -F "file=@logbook.adi"
+
+---
+
+### GET /api/adif/export
+
+Auth: Bearer JWT
+Description: Stream the authenticated operator's full logbook as a valid .adi ADIF file
+             download. Filters: only the caller's non-deleted QSOs. Output is a standard
+             ADIF 3.1.4 file with ADIF_VER, PROGRAMID headers, and one record per QSO.
+Request: none
+Response: text/plain streaming download (Content-Disposition: attachment; filename=<callsign>_logbook.adi)
+Status codes:
+  200 OK           — ADIF stream starts immediately (StreamingResponse)
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" \
+    http://localhost:8000/api/adif/export -o logbook.adi
+
+---
+
+### GET /api/profile/
+
+Auth: Bearer JWT
+Description: Return the authenticated operator's profile fields. A user with no profile
+             fields set receives all-null optional fields.
+Request: none
+Response: JSON — profile object
+  {
+    "username":          "myuser",
+    "callsign":          "W1AW",
+    "station_callsign":  "W1AW/1",
+    "gridsquare":        "FN42",
+    "lat":               42.5,
+    "lon":               -71.5,
+    "rig":               "Icom IC-7300",
+    "antenna":           "Dipole"
+  }
+Status codes:
+  200 OK           — profile returned
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/profile/
+
+---
+
+### PATCH /api/profile/
+
+Auth: Bearer JWT
+Description: Partially update the authenticated operator's profile. Only fields present in
+             the request body are updated. When gridsquare is updated, latitude and longitude
+             are auto-computed from the grid center.
+Request: JSON body — any subset of profile fields:
+  {
+    "callsign":         "W1AW",
+    "station_callsign": "W1AW/1",
+    "gridsquare":       "FN42",
+    "rig":              "Icom IC-7300",
+    "antenna":          "Dipole"
+  }
+Response: JSON — updated profile object
+Status codes:
+  200 OK           — update applied; updated profile returned
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -X PATCH http://localhost:8000/api/profile/ \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"callsign":"W1AW","station_callsign":"W1AW/1","gridsquare":"FN42"}'
+
+---
+
+### POST /api/tokens/
+
+Auth: Bearer JWT
+Description: Create a named API token for the authenticated user. Returns the full plaintext
+             token exactly once in the response body. The raw token is never stored — only
+             the HMAC-SHA256 hash is persisted. Use the token with X-API-Key header on QSO
+             endpoints.
+Request: Form-encoded body (application/x-www-form-urlencoded)
+  name        (string, required)          — human-readable token name
+  expires_at  (string, optional YYYY-MM-DD) — expiry date (omit for no expiry)
+Response: JSON — includes full_token (present only in this response; not retrievable again)
+  {
+    "id":           "<token_id>",
+    "name":         "my-logging-script",
+    "token_prefix": "tok_",
+    "created_at":   "2024-01-15T14:30:00Z",
+    "expires_at":   null,
+    "enabled":      true,
+    "full_token":   "tok_<plaintext>"
+  }
+Status codes:
+  201 Created      — token created; full_token in response
+  422 Unprocessable Entity — invalid name or bad date format
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -X POST http://localhost:8000/api/tokens/ \
+    -H "Authorization: Bearer $TOKEN" \
+    -d "name=my-script"
+
+---
+
+### GET /api/tokens/
+
+Auth: Bearer JWT
+Description: List all active (non-revoked) API tokens for the authenticated user. Does not
+             return the full plaintext token — only metadata (id, name, prefix, dates).
+Request: none
+Response: JSON array of token objects (same shape as POST response minus full_token)
+Status codes:
+  200 OK           — list returned (empty array if no active tokens)
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/tokens/
+
+---
+
+### DELETE /api/tokens/{token_id}
+
+Auth: Bearer JWT
+Description: Revoke (disable) an API token owned by the authenticated user. Sets enabled=false;
+             the token can no longer authenticate requests. Returns 404 if not found or not
+             owned by the caller.
+Request: Path parameter
+  token_id  (string) — token ID (from GET /api/tokens/ or POST /api/tokens/ response)
+Response: none (empty body)
+Status codes:
+  204 No Content — token revoked
+  404 Not Found  — token not found or not owned by caller
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+    "http://localhost:8000/api/tokens/$TOKEN_ID"
+
+---
+
+### GET /health
+
+Auth: None
+Description: MongoDB health check. Returns 200 if the database connection is healthy,
+             503 if MongoDB is unreachable.
+Request: none
+Response: JSON
+  {"status": "ok"}    — MongoDB reachable
+  {"status": "error", "detail": "<message>"}  — MongoDB unreachable
+Status codes:
+  200 OK                   — healthy
+  503 Service Unavailable  — database unreachable
+
+curl example:
+  curl http://localhost:8000/health
+
+---
+
+### GET /api/whoami
+
+Auth: Bearer JWT
+Description: Returns the authenticated operator's callsign as extracted from the JWT
+             payload. Lightweight identity check — no database query.
+Request: none
+Response: JSON
+  {"callsign": "W1AW"}
+Status codes:
+  200 OK           — callsign returned
+  401 Unauthorized — missing or invalid JWT
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/whoami
+
+---
+
+## ADIF Field Reference
+
+ollog stores QSO data in ADIF (Amateur Data Interchange Format) field format. ADIF field
+names are uppercase strings. Field values are stored verbatim (as strings) in MongoDB.
+Any ADIF field can be included in a POST or PATCH request body and will be persisted.
+
+### Required Fields
+
+These five fields are required for every QSO. The server rejects records missing any of them.
+
+  Field       Format           Example     Description
+  ----------  ---------------  ----------  ------------------------------------------
+  CALL        string           W1AW        Callsign of the contacted (logged) station
+  QSO_DATE    YYYYMMDD         20240115    UTC date of the QSO
+  TIME_ON     HHMM or HHMMSS   1430        UTC start time (HHMM, e.g. 1430 = 14:30)
+  BAND        string           20m         Amateur band designator (e.g. 40m, 20m, 2m)
+  MODE        string           SSB         Operating mode (SSB, CW, FT8, FM, RTTY, etc.)
+
+QSO_DATE format: YYYYMMDD — eight digits, no separators. Example: 20240115 = 15 January 2024.
+TIME_ON format:  HHMM (four digits) or HHMMSS (six digits). Example: 1430 = 14:30 UTC.
+
+### Optional Fields
+
+These fields are accepted and stored if present; absent fields are not required.
+
+  Field        Format   Example       Description
+  -----------  -------  ------------  -------------------------------------------
+  FREQ         string   14.225        Frequency in MHz (decimal)
+  RST_SENT     string   59            RST report sent to contacted station
+  RST_RCVD     string   59            RST report received from contacted station
+  TX_PWR       string   100           Transmit power in watts
+  COMMENT      string   Nice signal   Free-text comment about the QSO
+  QTH          string   Boston MA     Contacted station's location
+  GRIDSQUARE   string   FN42          Contacted station's Maidenhead grid locator
+  CONTEST_ID   string   CQWW-SSB      Contest identifier per ADIF spec
+  SRX          string   042           Serial number received in contest exchange
+  STX          string   001           Serial number sent in contest exchange
+
+### Auto-Stamped Fields
+
+These fields are automatically populated by the server from the authenticated operator's
+JWT and profile. Do NOT include them in request bodies — they will be ignored or overwritten.
+
+  Field             Source           Description
+  ----------------  ---------------  -------------------------------------------------
+  OPERATOR          JWT callsign     Callsign of the person operating (logging) the QSO
+  STATION_CALLSIGN  Operator profile Licensed callsign of the station equipment being used
+
+OPERATOR identifies the operator at the keyboard; STATION_CALLSIGN identifies the
+station's licensed callsign (may differ during guest operations or /P activations).
+
+### Application-Specific Fields
+
+  Field             Used in       Description
+  ----------------  ------------  ---------------------------------------------------
+  APP_OLLOG_TOKEN   UDP datagrams API token for multi-operator UDP routing. Include
+                                  in ADIF datagrams sent from logging software (e.g.
+                                  WSJT-X) to route the QSO to the correct operator.
+
+### Conventions
+
+- BAND designators are strings: 160m, 80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m, 10m,
+  6m, 4m, 2m, 70cm, etc. BAND values are uppercased on ingest.
+- MODE is uppercased on ingest: SSB, CW, FT8, FT4, FM, AM, RTTY, PSK31, etc.
+- All timestamps are UTC. QSO_DATE and TIME_ON are stored as strings; qso_date_utc is
+  a computed internal datetime field used for duplicate detection and sorting.
+- Duplicate detection: ±2 minutes same CALL+BAND+MODE per operator. The 2-minute window
+  handles clock skew in automated logging software. Override with ?force=true.
+- Extra ADIF fields beyond the declared set are accepted via extra="allow" on the
+  QSOCreateRequest model and stored verbatim in MongoDB.
+
+---
+
+## Getting Started
+
+This walkthrough covers the six steps to go from a fresh installation to a working
+multi-operator logbook: login, set profile, log a QSO via the web UI, log a QSO via
+the REST API, export your logbook, and import an ADIF file.
+
+### 1. Login
+
+Authenticate with your username and password to obtain a JWT access token. Save the
+token — you will use it in subsequent steps.
+
+curl example:
+  curl -X POST http://localhost:8000/auth/token \
+    -d "username=myuser&password=mypass"
+
+Response:
+  {
+    "access_token": "<your-jwt-token>",
+    "token_type": "bearer"
+  }
+
+Export the token for use in subsequent commands:
+  export TOKEN="<your-jwt-token>"
+
+Default token lifetime: 480 minutes (8 hours). Re-authenticate when it expires.
+
+### 2. Set up your profile
+
+Before logging QSOs, set your callsign and optional profile fields. The callsign is
+stamped on every QSO you log as OPERATOR. STATION_CALLSIGN identifies the station.
+
+curl example:
+  curl -X PATCH http://localhost:8000/api/profile/ \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"callsign":"W1AW","station_callsign":"W1AW","gridsquare":"FN42"}'
+
+Verify your profile was saved:
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/profile/
+
+### 3. Log a QSO via the web UI
+
+Open a browser and navigate to:
+  http://localhost:8000/log/
+
+Fill in the entry form with the required fields: CALL, BAND, MODE, and TIME_ON. Submit
+the form. The new QSO appears in the live log table instantly via Server-Sent Events.
+
+The web UI is the fastest way to log while operating — no curl required.
+
+### 4. Log a QSO via the REST API
+
+POST a QSO with the five required ADIF fields. Additional ADIF fields are optional and
+stored verbatim.
+
+curl example:
+  curl -X POST http://localhost:8000/api/qsos/ \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "CALL":     "W1AW",
+      "QSO_DATE": "20240115",
+      "TIME_ON":  "1430",
+      "BAND":     "20m",
+      "MODE":     "SSB",
+      "RST_SENT": "59",
+      "RST_RCVD": "59"
+    }'
+
+On success, the response is 201 Created with the saved QSO record including its "id".
+If the QSO is a duplicate (same CALL+BAND+MODE within ±2 minutes), the server returns
+409 Conflict. Add ?force=true to override.
+
+Retrieve the logged QSO list:
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/qsos/
+
+### 5. Export your logbook as ADIF
+
+Download your full logbook as a standard ADIF (.adi) file:
+
+curl example:
+  curl -H "Authorization: Bearer $TOKEN" \
+    http://localhost:8000/api/adif/export -o logbook.adi
+
+The export file contains all non-deleted QSOs for your callsign in ADIF 3.1.4 format,
+with ADIF_VER and PROGRAMID headers. Import this file into any ADIF-compatible logging
+software (e.g. Log4OM, TQSL, LOTW, DX4WIN).
+
+### 6. Import an ADIF file
+
+Import a .adi or .adif file from another logging program. Each record is validated
+(required fields checked), duplicate-detected, and reported individually.
+
+curl example:
+  curl -X POST http://localhost:8000/api/adif/import \
+    -H "Authorization: Bearer $TOKEN" \
+    -F "file=@logbook.adi"
+
+The response is a JSON import report:
+  {
+    "total_records": 10,
+    "accepted":   [ ... ],
+    "duplicates": [ ... ],
+    "errors":     [ ... ]
+  }
+
+Check the "errors" list for any records that failed validation. Duplicate records are
+listed separately — they are not re-imported but are not counted as errors.
+
+---
+
+End of ollog Full LLM Reference.

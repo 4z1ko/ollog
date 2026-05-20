@@ -1,0 +1,166 @@
+{% if page == 1 and (sort == '-qso_date_utc' or sort == '-_created_at') and not filters.call and not filters.band and not filters.mode and not filters.date_from and not filters.date_to %}
+<span id="auto-refresh-ok" hidden></span>
+{% endif %}
+
+{% if not qsos %}
+<div class="card">
+  <div class="card-body">
+    <div class="flex flex-col items-center py-12 text-center">
+      <div class="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+        <svg class="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+        </svg>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 font-medium">No contacts found</p>
+      <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Try adjusting your filters or log a new QSO</p>
+    </div>
+  </div>
+</div>
+{% else %}
+
+<!-- Table -->
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>
+          <span class="inline-flex items-center gap-2">
+            <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
+               hx-get="/log/view?sort={% if sort == '-qso_date_utc' %}qso_date_utc{% else %}-qso_date_utc{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+               hx-target="#log-table"
+               hx-swap="innerHTML"
+               hx-push-url="true">
+              Date / Time UTC
+              {% if sort == '-qso_date_utc' %}
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+              {% elif sort == 'qso_date_utc' %}
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+              {% else %}
+              <svg class="w-3 h-3 opacity-30 dark:opacity-25" fill="none" viewBox="0 0 20 20" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+              {% endif %}
+            </a>
+            <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
+               hx-get="/log/view?sort={% if sort == '-_created_at' %}_created_at{% else %}-_created_at{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+               hx-target="#log-table"
+               hx-swap="innerHTML"
+               hx-push-url="true">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+              {% if sort == '-_created_at' %}
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+              {% elif sort == '_created_at' %}
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+              {% else %}
+              <svg class="w-3 h-3 opacity-30 dark:opacity-25" fill="none" viewBox="0 0 20 20" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+              {% endif %}
+            </a>
+          </span>
+        </th>
+        <th>
+          <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
+             hx-get="/log/view?sort={% if sort == '-CALL' %}CALL{% else %}-CALL{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+             hx-target="#log-table"
+             hx-swap="innerHTML"
+             hx-push-url="true">
+            Callsign
+            {% if sort == '-CALL' %}
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+            {% elif sort == 'CALL' %}
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+            {% else %}
+            <svg class="w-3 h-3 opacity-30 dark:opacity-25" fill="none" viewBox="0 0 20 20" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+            {% endif %}
+          </a>
+        </th>
+        <th>
+          <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
+             hx-get="/log/view?sort={% if sort == '-BAND' %}BAND{% else %}-BAND{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+             hx-target="#log-table"
+             hx-swap="innerHTML"
+             hx-push-url="true">
+            Band
+            {% if sort == '-BAND' %}
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+            {% elif sort == 'BAND' %}
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+            {% else %}
+            <svg class="w-3 h-3 opacity-30 dark:opacity-25" fill="none" viewBox="0 0 20 20" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+            {% endif %}
+          </a>
+        </th>
+        <th>
+          <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
+             hx-get="/log/view?sort={% if sort == 'MODE' %}-MODE{% else %}MODE{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+             hx-target="#log-table"
+             hx-swap="innerHTML"
+             hx-push-url="true">
+            Mode
+            {% if sort == '-MODE' %}
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+            {% elif sort == 'MODE' %}
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+            {% else %}
+            <svg class="w-3 h-3 opacity-30 dark:opacity-25" fill="none" viewBox="0 0 20 20" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+            {% endif %}
+          </a>
+        </th>
+        <th>Freq (MHz)</th>
+        <th>RST S / R</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for qso in qsos %}
+        {% include "log/qso_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex items-center justify-between px-1 mt-4">
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    Showing
+    <span class="font-medium text-gray-700 dark:text-gray-300">{{ (page-1)*page_size + 1 }}</span>
+    –
+    <span class="font-medium text-gray-700 dark:text-gray-300">{{ [page*page_size, total]|min }}</span>
+    of
+    <span class="font-medium text-gray-700 dark:text-gray-300">{{ total }}</span>
+  </p>
+  <div class="flex items-center gap-2">
+    {% if page > 1 %}
+    <a class="btn-ghost btn-sm cursor-pointer"
+       hx-get="/log/view?page={{ page-1 }}&sort={{ sort }}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+       hx-target="#log-table"
+       hx-swap="innerHTML"
+       hx-push-url="true">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+      </svg>
+      Previous
+    </a>
+    {% endif %}
+
+    <span class="text-sm text-gray-500 dark:text-gray-400 px-2">
+      Page {{ page }} of {{ total_pages }}
+    </span>
+
+    {% if page < total_pages %}
+    <a class="btn-ghost btn-sm cursor-pointer"
+       hx-get="/log/view?page={{ page+1 }}&sort={{ sort }}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
+       hx-target="#log-table"
+       hx-swap="innerHTML"
+       hx-push-url="true">
+      Next
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+      </svg>
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endif %}

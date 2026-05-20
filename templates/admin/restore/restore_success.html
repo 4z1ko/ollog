@@ -1,0 +1,7 @@
+<div class="alert alert-success" role="alert">
+  <strong>Restore complete.</strong>
+  Database restored successfully.
+  {% if backup_path %}
+  An automatic backup was saved as <code>{{ backup_path }}</code> before the restore.
+  {% endif %}
+</div>
