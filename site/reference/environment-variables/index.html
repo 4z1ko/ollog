@@ -535,6 +535,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../operator-guide/aclog-bridges/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ACLog Bridges
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../operator-guide/udp-adif/" class="md-nav__link">
         
   
@@ -1087,6 +1115,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#aclog-bridges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACLog Bridges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#database-backup-v18" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1290,6 +1329,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#aclog-bridges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACLog Bridges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#database-backup-v18" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1468,6 +1518,39 @@
 </tr>
 </tbody>
 </table>
+<h2 id="aclog-bridges">ACLog Bridges</h2>
+<p>Per-user ACLog bridge hosts and ports are configured from the operator profile
+page. These environment variables control the global bridge manager.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ACLOG_ENABLED</td>
+<td>No</td>
+<td><code>true</code></td>
+<td>Starts the ACLog bridge manager. Set to <code>false</code> to disable all ACLog bridge connections globally.</td>
+</tr>
+<tr>
+<td>ACLOG_RECONNECT_SECONDS</td>
+<td>No</td>
+<td><code>5</code></td>
+<td>Delay before retrying a dropped ACLog TCP API connection.</td>
+</tr>
+<tr>
+<td>ACLOG_SCAN_SECONDS</td>
+<td>No</td>
+<td><code>10</code></td>
+<td>How often ollog reloads enabled per-user ACLog bridge rows from the database.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="database-backup-v18">Database Backup (v1.8)</h2>
 <table>
 <thead>
@@ -1553,6 +1636,11 @@ ADMIN_CALLSIGN=N0CALL
 # UDP_PORT=2237
 # UDP_BIND_HOST=0.0.0.0
 # UDP_OPERATOR=W1AW  # optional fallback when datagrams omit OPERATOR field
+
+# Optional: ACLog TCP API bridge manager
+# ACLOG_ENABLED=true
+# ACLOG_RECONNECT_SECONDS=5
+# ACLOG_SCAN_SECONDS=10
 
 # Optional: scheduled backup
 # BACKUP_SCHEDULE=0 2 * * *

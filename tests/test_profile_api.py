@@ -74,6 +74,7 @@ async def test_get_profile_empty(client, operator, operator_token):
     ]:
         assert data[field] is None, f"Expected {field} to be null, got {data[field]!r}"
     assert data["notify_sound"] is False
+    assert data["aclog_bridges"] == []
 
 
 @pytest.mark.asyncio
@@ -245,3 +246,37 @@ async def test_notify_sound_patch_false(client, operator, operator_token):
     )
     assert resp.status_code == 200
     assert resp.json()["notify_sound"] is False
+
+
+@pytest.mark.asyncio
+async def test_patch_profile_aclog_bridges(client, operator, operator_token):
+    """PATCH /api/profile persists multiple per-user ACLog bridge configs."""
+    headers = {"Authorization": f"Bearer {operator_token}"}
+    bridges = [
+        {
+            "id": "bridge-one",
+            "name": "Shack PC",
+            "host": "192.168.1.50",
+            "port": 1100,
+            "enabled": True,
+        },
+        {
+            "id": "bridge-two",
+            "name": "Laptop",
+            "host": "aclog-laptop.local",
+            "port": 1200,
+            "enabled": False,
+        },
+    ]
+
+    resp = await client.patch(
+        "/api/profile/",
+        json={"aclog_bridges": bridges},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["aclog_bridges"] == bridges
+
+    get_resp = await client.get("/api/profile/", headers=headers)
+    assert get_resp.json()["aclog_bridges"] == bridges

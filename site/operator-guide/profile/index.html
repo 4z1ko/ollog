@@ -14,7 +14,7 @@
         <link rel="prev" href="../api-tokens/">
       
       
-        <link rel="next" href="../udp-adif/">
+        <link rel="next" href="../aclog-bridges/">
       
       
         
@@ -639,6 +639,23 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aclog-bridges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACLog Bridges
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ACLog Bridges">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#clearing-a-field" class="md-nav__link">
     <span class="md-ellipsis">
@@ -681,6 +698,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aclog-bridges/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ACLog Bridges
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1352,6 +1397,23 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aclog-bridges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACLog Bridges
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ACLog Bridges">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#clearing-a-field" class="md-nav__link">
     <span class="md-ellipsis">
@@ -1523,8 +1585,46 @@
 <td>float or null</td>
 <td>Transmit power in watts</td>
 </tr>
+<tr>
+<td><code>aclog_bridges</code></td>
+<td>array</td>
+<td>Optional per-user ACLog TCP API bridge locations</td>
+</tr>
 </tbody>
 </table>
+<h2 id="aclog-bridges">ACLog Bridges</h2>
+<p>The <strong>ACLog Bridges</strong> section on the profile page lets you connect ollog to one
+or more N3FJP ACLog installations through ACLog's TCP API. Each enabled bridge
+listens for ACLog <code>ENTEREVENT</code> messages and logs those contacts to your ollog
+account.</p>
+<p>Each bridge has:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Name</td>
+<td>A local label, such as <code>Shack PC</code> or <code>Laptop</code></td>
+</tr>
+<tr>
+<td>Host</td>
+<td>The hostname or IP address of the computer running ACLog</td>
+</tr>
+<tr>
+<td>Port</td>
+<td>ACLog API TCP port, commonly <code>1100</code></td>
+</tr>
+<tr>
+<td>Enabled</td>
+<td>Whether ollog should keep this bridge connected</td>
+</tr>
+</tbody>
+</table>
+<p>For setup steps and troubleshooting, see <a href="../aclog-bridges/">ACLog Bridges</a>.</p>
 <h3 id="clearing-a-field">Clearing a Field</h3>
 <p>To clear <code>station_callsign</code> (stop auto-stamping it on QSOs):</p>
 <pre><code class="language-bash">curl -X PATCH http://localhost:8000/api/profile/ \

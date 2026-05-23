@@ -22,7 +22,7 @@
       <h2 class="card-title">Operator Details</h2>
     </div>
     <div class="card-body">
-      <form hx-post="/log/profile" hx-target="#profile-result" hx-swap="innerHTML">
+      <form id="profile-form" hx-post="/log/profile" hx-target="#profile-result" hx-swap="innerHTML">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
           <!-- Operator callsign (read-only) -->
@@ -158,6 +158,88 @@
     </div>
   </div>
 
+  <!-- ACLog bridges -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">ACLog Bridges</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        Connect ollog to one or more N3FJP ACLog TCP API locations for live QSO import.
+      </p>
+    </div>
+    <div class="card-body">
+      <div class="space-y-3" id="aclog-bridge-list" data-next-index="1">
+        {% for bridge in profile.aclog_bridges %}
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px_88px_40px] gap-3 items-end aclog-bridge-row">
+          <input form="profile-form" type="hidden" name="aclog_bridge_id" value="{{ bridge.id }}">
+          <div>
+            <label class="form-label">Name</label>
+            <input form="profile-form" type="text" name="aclog_bridge_name" value="{{ bridge.name }}" placeholder="Shack PC" class="form-input">
+          </div>
+          <div>
+            <label class="form-label">Host</label>
+            <input form="profile-form" type="text" name="aclog_bridge_host" value="{{ bridge.host }}" placeholder="192.168.1.50" class="form-input font-mono">
+          </div>
+          <div>
+            <label class="form-label">Port</label>
+            <input form="profile-form" type="text" name="aclog_bridge_port" value="{{ bridge.port }}" placeholder="1100" class="form-input font-mono">
+          </div>
+          <label class="flex items-center gap-2 h-10 text-sm text-gray-700 dark:text-gray-300">
+            <input form="profile-form" type="checkbox" name="aclog_bridge_enabled" value="{{ bridge.id }}" {{ 'checked' if bridge.enabled else '' }}
+                   class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600">
+            Enabled
+          </label>
+          <button type="button" class="btn-secondary h-10 w-10 justify-center" aria-label="Remove ACLog bridge" data-remove-aclog-bridge>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {% endfor %}
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px_88px_40px] gap-3 items-end aclog-bridge-row">
+          <input form="profile-form" type="hidden" name="aclog_bridge_id" value="new-0">
+          <div>
+            <label class="form-label">Name</label>
+            <input form="profile-form" type="text" name="aclog_bridge_name" placeholder="Shack PC" class="form-input">
+          </div>
+          <div>
+            <label class="form-label">Host</label>
+            <input form="profile-form" type="text" name="aclog_bridge_host" placeholder="127.0.0.1" class="form-input font-mono">
+          </div>
+          <div>
+            <label class="form-label">Port</label>
+            <input form="profile-form" type="text" name="aclog_bridge_port" value="1100" class="form-input font-mono">
+          </div>
+          <label class="flex items-center gap-2 h-10 text-sm text-gray-700 dark:text-gray-300">
+            <input form="profile-form" type="checkbox" name="aclog_bridge_enabled" value="new-0" checked
+                   class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600">
+            Enabled
+          </label>
+          <button type="button" class="btn-secondary h-10 w-10 justify-center" aria-label="Remove ACLog bridge" data-remove-aclog-bridge>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="mt-4">
+        <button type="button" class="btn-secondary" id="add-aclog-bridge">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add Bridge
+        </button>
+      </div>
+      <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-800">
+        <button type="submit" form="profile-form" class="btn-primary">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+          Save Bridges
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- API Tokens: creation form -->
   <div class="card">
     <div class="card-header">
@@ -242,4 +324,38 @@
 
 <!-- Modal target: OUTSIDE the max-w-3xl card container so outerHTML swap does not disturb cards -->
 <div id="clear-log-modal"></div>
+<script>
+  (function () {
+    const list = document.getElementById('aclog-bridge-list');
+    const addButton = document.getElementById('add-aclog-bridge');
+    if (!list || !addButton) return;
+
+    function renumberNewRow(row) {
+      const next = Number(list.dataset.nextIndex || '1');
+      const id = 'new-' + next;
+      list.dataset.nextIndex = String(next + 1);
+      row.querySelector('input[name="aclog_bridge_id"]').value = id;
+      row.querySelector('input[name="aclog_bridge_enabled"]').value = id;
+    }
+
+    addButton.addEventListener('click', function () {
+      const source = list.querySelector('.aclog-bridge-row:last-child');
+      if (!source) return;
+      const row = source.cloneNode(true);
+      renumberNewRow(row);
+      row.querySelectorAll('input[type="text"]').forEach(function (input) {
+        input.value = input.name === 'aclog_bridge_port' ? '1100' : '';
+      });
+      row.querySelector('input[type="checkbox"]').checked = true;
+      list.appendChild(row);
+    });
+
+    list.addEventListener('click', function (event) {
+      const button = event.target.closest('[data-remove-aclog-bridge]');
+      if (!button) return;
+      const row = button.closest('.aclog-bridge-row');
+      if (row) row.remove();
+    });
+  })();
+</script>
 {% endblock %}

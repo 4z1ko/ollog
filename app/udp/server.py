@@ -36,8 +36,7 @@ async def _handle_datagram(
     with profile=user). This is identical to the POST /api/qsos/ path.
     """
     from app.adif.parser import parse_adi
-    from app.qso.models import QSO
-    from app.qso.service import _REQUIRED_FIELDS, build_qso_dict, find_duplicate
+    from app.qso.service import ingest_qso_record
 
     try:
         text = data.decode("utf-8", errors="replace")
@@ -99,35 +98,30 @@ async def _handle_datagram(
             )
             return
 
-        missing = _REQUIRED_FIELDS - set(record)
-        if missing:
+        result = await ingest_qso_record(
+            record=record,
+            operator=operator,
+            profile=user,
+            source="udp",
+        )
+
+        if result["status"] == "rejected":
             logger.warning(
-                'UDP datagram src=%s:%s disposition=rejected reason="missing required field: %s"',
-                addr[0], addr[1], sorted(missing)[0],
+                'UDP datagram src=%s:%s disposition=rejected reason="%s"',
+                addr[0], addr[1], result.get("reason", "unknown"),
             )
             return
 
-        qso_dict = build_qso_dict(record, operator, profile=user)
-
-        dup = await find_duplicate(
-            operator=operator,
-            call=qso_dict["CALL"],
-            band=qso_dict["BAND"],
-            mode=qso_dict["MODE"],
-            qso_date_utc=qso_dict["qso_date_utc"],
-        )
-        if dup is not None:
+        if result["status"] == "duplicate":
             logger.info(
                 "UDP datagram src=%s:%s call=%s disposition=duplicate",
-                addr[0], addr[1], qso_dict["CALL"],
+                addr[0], addr[1], record.get("CALL", "?"),
             )
             return
 
-        qso = QSO(**qso_dict)
-        await qso.insert()
         logger.info(
             "UDP datagram src=%s:%s call=%s disposition=accepted id=%s",
-            addr[0], addr[1], qso_dict["CALL"], qso.id,
+            addr[0], addr[1], record.get("CALL", "?"), result.get("id"),
         )
 
     except Exception:

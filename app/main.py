@@ -109,6 +109,17 @@ async def lifespan(app: FastAPI):
             user=udp_user,
         )
 
+    aclog_bridge_manager = None
+    if settings.aclog_enabled:
+        from app.aclog.manager import ACLogBridgeManager
+
+        aclog_bridge_manager = ACLogBridgeManager(
+            scan_seconds=settings.aclog_scan_seconds,
+            reconnect_seconds=settings.aclog_reconnect_seconds,
+        )
+        aclog_bridge_manager.start()
+        logger.info("ACLog bridge manager started")
+
     # Start backup scheduler (conditional on BACKUP_SCHEDULE env var)
     backup_scheduler = None
     if settings.backup_schedule:
@@ -134,6 +145,8 @@ async def lifespan(app: FastAPI):
             await app.state.watcher_task
         except asyncio.CancelledError:
             pass
+    if aclog_bridge_manager is not None:
+        await aclog_bridge_manager.stop()
     if backup_scheduler is not None and backup_scheduler.running:
         backup_scheduler.shutdown(wait=False)
     await close_db()

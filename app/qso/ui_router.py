@@ -8,6 +8,7 @@ in main.py and redirected to /log/login.
 Mounted at /log by app/main.py.
 """
 import math
+import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
@@ -600,6 +601,11 @@ async def profile_update(
     my_antenna: Annotated[Optional[str], Form()] = None,
     tx_pwr: Annotated[Optional[str], Form()] = None,
     notify_sound: Annotated[Optional[str], Form()] = None,
+    aclog_bridge_id: Annotated[Optional[list[str]], Form()] = None,
+    aclog_bridge_name: Annotated[Optional[list[str]], Form()] = None,
+    aclog_bridge_host: Annotated[Optional[list[str]], Form()] = None,
+    aclog_bridge_port: Annotated[Optional[list[str]], Form()] = None,
+    aclog_bridge_enabled: Annotated[Optional[list[str]], Form()] = None,
 ):
     """Process profile settings form submission via HTMX.
 
@@ -629,6 +635,20 @@ async def profile_update(
                 raw[field_name] = stripped if stripped else None
 
     raw["notify_sound"] = (notify_sound == "true")
+    try:
+        raw["aclog_bridges"] = _parse_aclog_bridge_form(
+            ids=aclog_bridge_id or [],
+            names=aclog_bridge_name or [],
+            hosts=aclog_bridge_host or [],
+            ports=aclog_bridge_port or [],
+            enabled_ids=set(aclog_bridge_enabled or []),
+        )
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "log/profile_result.html",
+            {"error": str(exc), "success": False},
+        )
 
     try:
         validated = ProfileUpdateRequest(**raw)
@@ -652,6 +672,44 @@ async def profile_update(
         "log/profile_result.html",
         {"error": None, "success": True},
     )
+
+
+def _parse_aclog_bridge_form(
+    ids: list[str],
+    names: list[str],
+    hosts: list[str],
+    ports: list[str],
+    enabled_ids: set[str],
+) -> list[dict]:
+    bridges: list[dict] = []
+    total = max(len(ids), len(names), len(hosts), len(ports), 0)
+
+    for idx in range(total):
+        row_id = ids[idx].strip() if idx < len(ids) else ""
+        name = names[idx].strip() if idx < len(names) else ""
+        host = hosts[idx].strip() if idx < len(hosts) else ""
+        port_text = ports[idx].strip() if idx < len(ports) else ""
+
+        if not name and not host:
+            continue
+
+        if not row_id or row_id.startswith("new-"):
+            row_id = uuid.uuid4().hex
+
+        try:
+            port = int(port_text) if port_text else 1100
+        except ValueError as exc:
+            raise ValueError("ACLog bridge port must be a number") from exc
+
+        bridges.append({
+            "id": row_id,
+            "name": name,
+            "host": host,
+            "port": port,
+            "enabled": row_id in enabled_ids or ids[idx].strip() in enabled_ids,
+        })
+
+    return bridges
 
 
 # ---------------------------------------------------------------------------

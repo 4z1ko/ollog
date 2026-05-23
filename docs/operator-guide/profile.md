@@ -69,6 +69,25 @@ curl -X PATCH http://localhost:8000/api/profile/ \
 | `my_rig` | string or null | Your transceiver |
 | `my_antenna` | string or null | Your antenna |
 | `tx_pwr` | float or null | Transmit power in watts |
+| `aclog_bridges` | array | Optional per-user ACLog TCP API bridge locations |
+
+## ACLog Bridges
+
+The **ACLog Bridges** section on the profile page lets you connect ollog to one
+or more N3FJP ACLog installations through ACLog's TCP API. Each enabled bridge
+listens for ACLog `ENTEREVENT` messages and logs those contacts to your ollog
+account.
+
+Each bridge has:
+
+| Field | Notes |
+|-------|-------|
+| Name | A local label, such as `Shack PC` or `Laptop` |
+| Host | The hostname or IP address of the computer running ACLog |
+| Port | ACLog API TCP port, commonly `1100` |
+| Enabled | Whether ollog should keep this bridge connected |
+
+For setup steps and troubleshooting, see [ACLog Bridges](aclog-bridges.md).
 
 ### Clearing a Field
 

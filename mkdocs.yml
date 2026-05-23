@@ -33,6 +33,7 @@ nav:
     - ADIF Import/Export: operator-guide/adif-import-export.md
     - API Tokens: operator-guide/api-tokens.md
     - Profile: operator-guide/profile.md
+    - ACLog Bridges: operator-guide/aclog-bridges.md
     - UDP ADIF: operator-guide/udp-adif.md
   - Admin Guide:
     - admin-guide/index.md

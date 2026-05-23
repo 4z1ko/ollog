@@ -114,6 +114,46 @@ async def find_duplicate(
     })
 
 
+async def ingest_qso_record(
+    record: dict,
+    operator: str,
+    profile: Optional[User] = None,
+    source: str = "unknown",
+) -> dict:
+    """Validate, duplicate-check, and insert one ADIF-style QSO record.
+
+    Returns a small status dict instead of raising for expected validation
+    outcomes so background ingestion sources can log and continue.
+    """
+    from app.qso.models import QSO as QSOModel
+
+    missing = _REQUIRED_FIELDS - set(record)
+    if missing:
+        return {
+            "status": "rejected",
+            "reason": f"missing required field: {sorted(missing)[0]}",
+        }
+
+    try:
+        qso_dict = build_qso_dict(record, operator, profile=profile)
+    except (ValueError, KeyError) as exc:
+        return {"status": "rejected", "reason": str(exc)}
+
+    dup = await find_duplicate(
+        operator=operator,
+        call=qso_dict["CALL"],
+        band=qso_dict["BAND"],
+        mode=qso_dict["MODE"],
+        qso_date_utc=qso_dict["qso_date_utc"],
+    )
+    if dup is not None:
+        return {"status": "duplicate", "existing_id": str(dup.id)}
+
+    qso = QSOModel(**qso_dict)
+    await qso.insert()
+    return {"status": "accepted", "id": str(qso.id), "source": source}
+
+
 async def import_qsos_from_bytes(raw: bytes, operator: str) -> dict:
     """Core ADIF import logic — raises ValueError, never HTTPException.
 

@@ -40,6 +40,17 @@ Note: `APP_OLLOG_TOKEN` is an **ADIF field name** used inside UDP datagrams — 
 | UDP_BIND_HOST | No | `127.0.0.1` | Address the UDP socket binds to. Inside Docker, set to `0.0.0.0` so host traffic reaches the container. |
 | UDP_OPERATOR | No | (none) | Fallback operator callsign for UDP QSOs that do not include an `OPERATOR` field. Optional — if every datagram includes an `OPERATOR` field, this variable is not needed. |
 
+## ACLog Bridges
+
+Per-user ACLog bridge hosts and ports are configured from the operator profile
+page. These environment variables control the global bridge manager.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| ACLOG_ENABLED | No | `true` | Starts the ACLog bridge manager. Set to `false` to disable all ACLog bridge connections globally. |
+| ACLOG_RECONNECT_SECONDS | No | `5` | Delay before retrying a dropped ACLog TCP API connection. |
+| ACLOG_SCAN_SECONDS | No | `10` | How often ollog reloads enabled per-user ACLog bridge rows from the database. |
+
 ## Database Backup (v1.8)
 
 | Variable | Required | Default | Description |
@@ -78,6 +89,11 @@ ADMIN_CALLSIGN=N0CALL
 # UDP_PORT=2237
 # UDP_BIND_HOST=0.0.0.0
 # UDP_OPERATOR=W1AW  # optional fallback when datagrams omit OPERATOR field
+
+# Optional: ACLog TCP API bridge manager
+# ACLOG_ENABLED=true
+# ACLOG_RECONNECT_SECONDS=5
+# ACLOG_SCAN_SECONDS=10
 
 # Optional: scheduled backup
 # BACKUP_SCHEDULE=0 2 * * *

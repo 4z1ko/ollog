@@ -1,8 +1,18 @@
 import pymongo
 from pymongo import IndexModel
 from beanie import Document
-from pydantic import ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional
+
+
+class ACLogBridge(BaseModel):
+    """Per-user ACLog TCP API bridge configuration."""
+
+    id: str
+    name: str = ""
+    host: str = "127.0.0.1"
+    port: int = 1100
+    enabled: bool = True
 
 
 class User(Document):
@@ -34,6 +44,7 @@ class User(Document):
     my_antenna: Optional[str] = None     # ADIF 3.1.6: MY_ANTENNA
     tx_pwr: Optional[float] = None       # watts
     notify_sound: bool = False  # SND-03: off by default; missing field reads as False (no migration)
+    aclog_bridges: list[ACLogBridge] = Field(default_factory=list)
 
     class Settings:
         name = "users"

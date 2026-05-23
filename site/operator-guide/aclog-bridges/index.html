@@ -8,27 +8,31 @@
       
       
       
-        <link rel="canonical" href="http://localhost:8000/guide/adif-field-reference/">
+        <link rel="canonical" href="http://localhost:8000/guide/operator-guide/aclog-bridges/">
       
       
+        <link rel="prev" href="../profile/">
+      
+      
+        <link rel="next" href="../udp-adif/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>ADIF Field Reference - ollog</title>
+        <title>ACLog Bridges - ollog</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -47,7 +51,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -70,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#adif-field-reference" class="md-skip">
+        <a href="#aclog-bridges" class="md-skip">
           Skip to content
         </a>
       
@@ -86,7 +90,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="ollog" class="md-header__button md-logo" aria-label="ollog" data-md-component="logo">
+    <a href="../.." title="ollog" class="md-header__button md-logo" aria-label="ollog" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -106,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ADIF Field Reference
+              ACLog Bridges
             
           </span>
         </div>
@@ -184,7 +188,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="ollog" class="md-nav__button md-logo" aria-label="ollog" data-md-component="logo">
+    <a href="../.." title="ollog" class="md-nav__button md-logo" aria-label="ollog" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -251,7 +255,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/" class="md-nav__link">
+      <a href="../../getting-started/" class="md-nav__link">
         
   
   
@@ -279,7 +283,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -307,7 +311,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/first-qso/" class="md-nav__link">
+      <a href="../../getting-started/first-qso/" class="md-nav__link">
         
   
   
@@ -339,20 +343,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -373,7 +377,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -391,7 +395,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operator-guide/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -419,7 +423,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operator-guide/logging-qsos/" class="md-nav__link">
+      <a href="../logging-qsos/" class="md-nav__link">
         
   
   
@@ -447,7 +451,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operator-guide/adif-import-export/" class="md-nav__link">
+      <a href="../adif-import-export/" class="md-nav__link">
         
   
   
@@ -475,7 +479,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operator-guide/api-tokens/" class="md-nav__link">
+      <a href="../api-tokens/" class="md-nav__link">
         
   
   
@@ -503,7 +507,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operator-guide/profile/" class="md-nav__link">
+      <a href="../profile/" class="md-nav__link">
         
   
   
@@ -528,10 +532,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../operator-guide/aclog-bridges/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ACLog Bridges
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -547,6 +578,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enable-the-aclog-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable the ACLog API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-a-bridge-in-ollog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add a Bridge in ollog
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -559,7 +665,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operator-guide/udp-adif/" class="md-nav__link">
+      <a href="../udp-adif/" class="md-nav__link">
         
   
   
@@ -643,7 +749,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/" class="md-nav__link">
+      <a href="../../admin-guide/" class="md-nav__link">
         
   
   
@@ -671,7 +777,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/deployment/" class="md-nav__link">
+      <a href="../../admin-guide/deployment/" class="md-nav__link">
         
   
   
@@ -699,7 +805,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/admin-container/" class="md-nav__link">
+      <a href="../../admin-guide/admin-container/" class="md-nav__link">
         
   
   
@@ -727,7 +833,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/account-management/" class="md-nav__link">
+      <a href="../../admin-guide/account-management/" class="md-nav__link">
         
   
   
@@ -755,7 +861,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/backup/" class="md-nav__link">
+      <a href="../../admin-guide/backup/" class="md-nav__link">
         
   
   
@@ -839,7 +945,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../api-reference/" class="md-nav__link">
+      <a href="../../api-reference/" class="md-nav__link">
         
   
   
@@ -867,7 +973,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../api-reference/interactive/" class="md-nav__link">
+      <a href="../../api-reference/interactive/" class="md-nav__link">
         
   
   
@@ -951,7 +1057,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/" class="md-nav__link">
+      <a href="../../reference/" class="md-nav__link">
         
   
   
@@ -979,7 +1085,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/adif-field-reference/" class="md-nav__link">
+      <a href="../../reference/adif-field-reference/" class="md-nav__link">
         
   
   
@@ -1007,7 +1113,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/environment-variables/" class="md-nav__link">
+      <a href="../../reference/environment-variables/" class="md-nav__link">
         
   
   
@@ -1091,7 +1197,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../troubleshooting/" class="md-nav__link">
         
   
   
@@ -1146,10 +1252,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-fields" class="md-nav__link">
+  <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Fields
+        How It Works
       
     </span>
   </a>
@@ -1157,10 +1263,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#auto-stamped-fields" class="md-nav__link">
+  <a href="#enable-the-aclog-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Auto-Stamped Fields
+        Enable the ACLog API
       
     </span>
   </a>
@@ -1168,10 +1274,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extra-fields" class="md-nav__link">
+  <a href="#add-a-bridge-in-ollog" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Extra Fields
+        Add a Bridge in ollog
       
     </span>
   </a>
@@ -1179,10 +1285,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#duplicate-detection" class="md-nav__link">
+  <a href="#connection-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Duplicate Detection
+        Connection Behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
       
     </span>
   </a>
@@ -1206,101 +1323,93 @@
 
 
 
-<h1 id="adif-field-reference">ADIF Field Reference</h1>
-<p>ollog uses ADIF (Amateur Data Interchange Format) for QSO data. This page describes how key fields are formatted and handled.</p>
-<h2 id="core-fields">Core Fields</h2>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Format</th>
-<th>Example</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>QSO_DATE</td>
-<td>YYYYMMDD</td>
-<td>20240415</td>
-<td>UTC date of contact</td>
-</tr>
-<tr>
-<td>TIME_ON</td>
-<td>HHMM or HHMMSS</td>
-<td>1430 or 143045</td>
-<td>UTC time of contact</td>
-</tr>
-<tr>
-<td>CALL</td>
-<td>Callsign string</td>
-<td>DL1ABC</td>
-<td>Station worked</td>
-</tr>
-<tr>
-<td>BAND</td>
-<td>Amateur band designator</td>
-<td>20m, 40m, 2m</td>
-<td>Standard ADIF band values</td>
-</tr>
-<tr>
-<td>MODE</td>
-<td>Uppercased mode</td>
-<td>SSB, CW, FT8, FM</td>
-<td>Standard ADIF mode values</td>
-</tr>
-<tr>
-<td>RST_SENT</td>
-<td>Signal report string</td>
-<td>59, 599</td>
-<td>599 for CW, 59 for phone</td>
-</tr>
-<tr>
-<td>RST_RCVD</td>
-<td>Signal report string</td>
-<td>59, 599</td>
-<td>Received signal report</td>
-</tr>
-</tbody>
-</table>
-<h2 id="auto-stamped-fields">Auto-Stamped Fields</h2>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Source</th>
-<th>When Stamped</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>OPERATOR</td>
-<td>JWT callsign (account)</td>
-<td>Every QSO created via API/UI</td>
-<td>Always stamped. Cannot be overridden by the user.</td>
-</tr>
-<tr>
-<td>STATION_CALLSIGN</td>
-<td>Profile station_callsign</td>
-<td>When profile has station_callsign set</td>
-<td>Optional. Represents the station being operated (e.g., club call).</td>
-</tr>
-</tbody>
-</table>
-<p>When importing ADIF files, OPERATOR and STATION_CALLSIGN are <strong>not</strong> auto-stamped. The values from the file are preserved as-is. This ensures historical records maintain their original attribution.</p>
-<h2 id="extra-fields">Extra Fields</h2>
-<p>ollog accepts any standard ADIF field beyond the core set. Extra fields are stored as-is in the QSO record and included in ADIF exports. The QSO creation endpoint uses <code>extra="allow"</code> on its Pydantic model — any additional fields in the JSON body are accepted and persisted.</p>
-<p>Examples of extra fields: <code>FREQ</code>, <code>TX_PWR</code>, <code>COMMENT</code>, <code>QTH</code>, <code>GRIDSQUARE</code>, <code>CONTEST_ID</code>, <code>SRX</code>, <code>STX</code></p>
-<h2 id="duplicate-detection">Duplicate Detection</h2>
-<p>ollog checks for duplicate QSOs on every new record, whether created via the API or imported from an ADIF file. The detection algorithm:</p>
+<h1 id="aclog-bridges">ACLog Bridges</h1>
+<p>ollog can collect live QSOs from N3FJP ACLog through ACLog's TCP API. Each
+operator can configure one or more ACLog bridge locations from their own profile
+page.</p>
+<h2 id="how-it-works">How It Works</h2>
+<p>When ACLog saves a contact, its API emits an <code>ENTEREVENT</code> message. ollog keeps a
+background TCP connection open to each enabled bridge and imports those events as
+QSOs for the operator who configured the bridge.</p>
+<p>Imported ACLog QSOs use the same QSO rules as other live ingestion paths:</p>
 <ul>
-<li><strong>Window:</strong> +/- 2 minutes on QSO_DATE + TIME_ON</li>
-<li><strong>Match fields:</strong> CALL + BAND + MODE + operator (the logged-in user)</li>
-<li><strong>Response:</strong> 409 Conflict with error details (single QSO creation endpoint)</li>
-<li><strong>Override:</strong> Append <code>?force=true</code> to the POST URL to bypass duplicate detection for single QSO creation</li>
+<li><code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, and <code>MODE</code> are required.</li>
+<li>Numeric ACLog bands such as <code>20</code> are stored as ADIF-style bands such as <code>20M</code>.</li>
+<li>Duplicate detection uses the same per-operator ±2 minute window.</li>
+<li>Profile stamping still applies, including <code>OPERATOR</code>, <code>STATION_CALLSIGN</code>,
+  <code>MY_GRIDSQUARE</code>, <code>MY_RIG</code>, <code>MY_ANTENNA</code>, and <code>TX_PWR</code> when those profile fields
+  are set.</li>
 </ul>
-<p>Note: The ADIF import endpoint does not support <code>?force=true</code>. To re-import a file that was already imported, delete the existing records first, then import again.</p>
+<h2 id="enable-the-aclog-api">Enable the ACLog API</h2>
+<p>In ACLog:</p>
+<ol>
+<li>Open <strong>Settings</strong>.</li>
+<li>Open <strong>Application Program Interface</strong>.</li>
+<li>Enable the API server.</li>
+<li>Confirm the TCP port. ACLog commonly uses port <code>1100</code>.</li>
+<li>Allow the connection through Windows Firewall if ollog runs on another machine.</li>
+</ol>
+<p>If ollog runs in Docker on a different computer, use the Windows PC's LAN IP
+address as the bridge host.</p>
+<h2 id="add-a-bridge-in-ollog">Add a Bridge in ollog</h2>
+<ol>
+<li>Sign in to ollog.</li>
+<li>Open <strong>Profile</strong>.</li>
+<li>In <strong>ACLog Bridges</strong>, enter:</li>
+<li><strong>Name</strong>: any label, such as <code>Shack PC</code></li>
+<li><strong>Host</strong>: the ACLog computer hostname or IP address</li>
+<li><strong>Port</strong>: the ACLog API TCP port, usually <code>1100</code></li>
+<li><strong>Enabled</strong>: checked when ollog should connect</li>
+<li>Click <strong>Save Bridges</strong>.</li>
+</ol>
+<p>You can add more than one bridge. This is useful when the same operator logs from
+multiple ACLog installations, such as a shack PC and a laptop.</p>
+<h2 id="connection-behavior">Connection Behavior</h2>
+<p>ollog scans configured bridges periodically and starts one background TCP client
+per enabled bridge. If ACLog closes or restarts, ollog retries automatically.</p>
+<p>The scan and retry timing are controlled by environment variables:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ACLOG_ENABLED</code></td>
+<td><code>true</code></td>
+<td>Starts or disables the ACLog bridge manager globally</td>
+</tr>
+<tr>
+<td><code>ACLOG_SCAN_SECONDS</code></td>
+<td><code>10</code></td>
+<td>How often ollog reloads per-user bridge settings</td>
+</tr>
+<tr>
+<td><code>ACLOG_RECONNECT_SECONDS</code></td>
+<td><code>5</code></td>
+<td>Delay before reconnecting a dropped ACLog TCP connection</td>
+</tr>
+</tbody>
+</table>
+<p>Per-user bridge changes take effect on the next scan interval. Restarting ollog
+is not required after editing bridge rows.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p>If QSOs do not appear:</p>
+<ol>
+<li>Confirm ACLog's API is enabled and listening on the configured port.</li>
+<li>Confirm the bridge host is reachable from the machine or container running
+   ollog.</li>
+<li>Confirm Windows Firewall allows inbound connections to the ACLog API port.</li>
+<li>Check ollog logs for <code>ACLog bridge connected</code>, <code>ACLog bridge error</code>, or
+   <code>ACLog bridge ... disposition=</code> messages.</li>
+<li>Confirm the contact saved in ACLog includes <code>CALL</code>, <code>BAND</code>, <code>MODE</code>,
+   <code>QSO_DATE</code>, and <code>TIME_ON</code>.</li>
+</ol>
+<p>If ollog logs a QSO as <code>duplicate</code>, the contact matched an existing QSO for the
+same operator, call, band, mode, and time window.</p>
 
 
 
@@ -1350,10 +1459,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.expand"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.expand"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

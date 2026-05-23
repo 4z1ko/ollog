@@ -1,9 +1,36 @@
 import re
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 MY_GRIDSQUARE_RE = re.compile(r"^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$")
+
+
+class ACLogBridgeConfig(BaseModel):
+    id: str
+    name: str = ""
+    host: str
+    port: int = 1100
+    enabled: bool = True
+
+    @field_validator("name", "host")
+    @classmethod
+    def normalize_text(cls, v: str) -> str:
+        return v.strip()
+
+    @field_validator("host")
+    @classmethod
+    def require_host(cls, v: str) -> str:
+        if not v:
+            raise ValueError("ACLog bridge host is required")
+        return v
+
+    @field_validator("port")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        if v < 1 or v > 65535:
+            raise ValueError("ACLog bridge port must be between 1 and 65535")
+        return v
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -18,6 +45,7 @@ class ProfileUpdateRequest(BaseModel):
     my_antenna: Optional[str] = None
     tx_pwr: Optional[float] = None
     notify_sound: bool = False
+    aclog_bridges: list[ACLogBridgeConfig] = Field(default_factory=list)
 
     @field_validator("my_gridsquare")
     @classmethod
@@ -49,3 +77,4 @@ class ProfileResponse(BaseModel):
     my_antenna: Optional[str] = None
     tx_pwr: Optional[float] = None
     notify_sound: bool = False
+    aclog_bridges: list[ACLogBridgeConfig] = Field(default_factory=list)

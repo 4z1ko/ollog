@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     udp_bind_host: str = "127.0.0.1"
     udp_operator: str | None = None
 
+    # ACLog TCP API bridge
+    aclog_enabled: bool = True
+    aclog_reconnect_seconds: int = 5
+    aclog_scan_seconds: int = 10
+
     # Backup (v1.8)
     backup_dir: str = "/app/backups"
     backup_schedule: str | None = None
