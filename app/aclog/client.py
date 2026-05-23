@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from beanie import PydanticObjectId
 
-from app.aclog.parser import aclog_enterevent_to_adif, parse_cmd
+from app.aclog.parser import aclog_enterevent_to_adif, parse_cmd, update_state_from_message
 from app.auth.models import User
 from app.qso.service import ingest_qso_record
 
@@ -37,6 +37,8 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
             logger.info("ACLog bridge connecting: %s", config.label)
             reader, writer = await asyncio.open_connection(config.host, config.port)
             logger.info("ACLog bridge connected: %s", config.label)
+            state: dict[str, str] = {}
+            await _initialize_connection(writer)
 
             try:
                 while True:
@@ -47,7 +49,7 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
 
                     message = raw.decode("utf-8", errors="replace").strip()
                     if message:
-                        await _handle_message(config, message)
+                        await _handle_message(config, message, state)
             finally:
                 writer.close()
                 await writer.wait_closed()
@@ -60,8 +62,24 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
         await asyncio.sleep(max(1, config.reconnect_seconds))
 
 
-async def _handle_message(config: ACLogBridgeRuntimeConfig, message: str) -> None:
+async def _initialize_connection(writer: asyncio.StreamWriter) -> None:
+    """Ask ACLog for live textbox updates and current band/mode/frequency."""
+    for command in [
+        "<CMD><SETUPDATESTATE><VALUE>TRUE</VALUE></CMD>\r\n",
+        "<CMD><READBMF></CMD>\r\n",
+    ]:
+        writer.write(command.encode("utf-8"))
+    await writer.drain()
+
+
+async def _handle_message(
+    config: ACLogBridgeRuntimeConfig,
+    message: str,
+    state: dict[str, str],
+) -> None:
     command, fields = parse_cmd(message)
+    update_state_from_message(command, fields, state)
+
     if command != "ENTEREVENT":
         return
 
@@ -70,7 +88,7 @@ async def _handle_message(config: ACLogBridgeRuntimeConfig, message: str) -> Non
         logger.warning("ACLog bridge %s skipped QSO: user unavailable", config.label)
         return
 
-    record = aclog_enterevent_to_adif(fields)
+    record = aclog_enterevent_to_adif(fields, state=state)
     result = await ingest_qso_record(
         record=record,
         operator=user.callsign,

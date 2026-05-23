@@ -14,10 +14,15 @@ Imported ACLog QSOs use the same QSO rules as other live ingestion paths:
 
 - `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`, and `MODE` are required.
 - Numeric ACLog bands such as `20` are stored as ADIF-style bands such as `20M`.
+- `FREQ`, `RST_SENT`, and `RST_RCVD` are imported when ACLog provides them.
 - Duplicate detection uses the same per-operator ±2 minute window.
 - Profile stamping still applies, including `OPERATOR`, `STATION_CALLSIGN`,
   `MY_GRIDSQUARE`, `MY_RIG`, `MY_ANTENNA`, and `TX_PWR` when those profile fields
   are set.
+
+To capture frequency and reports, ollog asks ACLog for all text-box updates after
+connecting and keeps the latest frequency, sent report, and received report in
+memory until the next `ENTEREVENT` arrives.
 
 ## Enable the ACLog API
 
@@ -74,6 +79,8 @@ If QSOs do not appear:
    `ACLog bridge ... disposition=` messages.
 5. Confirm the contact saved in ACLog includes `CALL`, `BAND`, `MODE`,
    `QSO_DATE`, and `TIME_ON`.
+6. If frequency or RST values are missing, confirm ACLog is sending field update
+   notifications. Restarting the bridge connection usually refreshes this state.
 
 If ollog logs a QSO as `duplicate`, the contact matched an existing QSO for the
 same operator, call, band, mode, and time window.

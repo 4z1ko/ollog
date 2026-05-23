@@ -1,4 +1,4 @@
-from app.aclog.parser import aclog_enterevent_to_adif, parse_cmd
+from app.aclog.parser import aclog_enterevent_to_adif, parse_cmd, update_state_from_message
 
 
 def test_parse_enterevent_message():
@@ -40,4 +40,52 @@ def test_aclog_enterevent_to_adif_adds_band_suffix():
         "COUNTRY": "Norway",
         "DXCC": "266",
         "CONT": "EU",
+    }
+
+
+def test_aclog_enterevent_to_adif_uses_cached_freq_and_rst():
+    fields = {
+        "CALL": "LA9A",
+        "BAND": "10",
+        "MODE": "CW",
+        "QSO_DATE": "20160810",
+        "TIME_ON": "144300",
+    }
+    state = {
+        "FREQ": "28.042",
+        "RST_SENT": "599",
+        "RST_RCVD": "579",
+    }
+
+    record = aclog_enterevent_to_adif(fields, state=state)
+
+    assert record["FREQ"] == "28.042"
+    assert record["RST_SENT"] == "599"
+    assert record["RST_RCVD"] == "579"
+
+
+def test_update_state_from_readbmf_and_text_updates():
+    state: dict[str, str] = {}
+    update_state_from_message(
+        "READBMFRESPONSE",
+        {"BAND": "40", "MODE": "SSB", "FREQ": "7.22802"},
+        state,
+    )
+    update_state_from_message(
+        "UPDATERESPONSE",
+        {"CONTROL": "txtEntryRSTS", "VALUE": "59"},
+        state,
+    )
+    update_state_from_message(
+        "UPDATERESPONSE",
+        {"CONTROL": "txtEntryRSTR", "VALUE": "57"},
+        state,
+    )
+
+    assert state == {
+        "BAND": "40",
+        "MODE": "SSB",
+        "FREQ": "7.22802",
+        "RST_SENT": "59",
+        "RST_RCVD": "57",
     }

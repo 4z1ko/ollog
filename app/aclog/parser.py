@@ -6,6 +6,15 @@ import re
 
 _TAG_RE = re.compile(r"<([A-Z0-9_]+)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
 
+_UPDATE_CONTROL_MAP = {
+    "TXTENTRYFREQUENCY": "FREQ",
+    "TXTENTRYFREQ": "FREQ",
+    "TXTENTRYRSTS": "RST_SENT",
+    "TXTENTRYRSTR": "RST_RCVD",
+    "TXTENTRYSENT": "RST_SENT",
+    "TXTENTRYRECEIVED": "RST_RCVD",
+}
+
 
 def parse_cmd(message: str) -> tuple[str | None, dict[str, str]]:
     """Parse a single ACLog <CMD> message into command name and fields."""
@@ -35,9 +44,13 @@ def parse_cmd(message: str) -> tuple[str | None, dict[str, str]]:
     return command, fields
 
 
-def aclog_enterevent_to_adif(fields: dict[str, str]) -> dict[str, str]:
+def aclog_enterevent_to_adif(
+    fields: dict[str, str],
+    state: dict[str, str] | None = None,
+) -> dict[str, str]:
     """Convert an ACLog ENTEREVENT payload to an ollog ADIF-style dict."""
     result: dict[str, str] = {}
+    state = state or {}
 
     for source, dest in [
         ("CALL", "CALL"),
@@ -47,10 +60,19 @@ def aclog_enterevent_to_adif(fields: dict[str, str]) -> dict[str, str]:
         ("COUNTRY", "COUNTRY"),
         ("DXCC", "DXCC"),
         ("CONT", "CONT"),
+        ("FREQ", "FREQ"),
+        ("RSTS", "RST_SENT"),
+        ("RSTR", "RST_RCVD"),
+        ("RST_SENT", "RST_SENT"),
+        ("RST_RCVD", "RST_RCVD"),
     ]:
         value = fields.get(source)
         if value:
             result[dest] = value.strip()
+
+    for key in ("FREQ", "RST_SENT", "RST_RCVD"):
+        if key not in result and state.get(key):
+            result[key] = state[key]
 
     band = fields.get("BAND")
     if band:
@@ -58,3 +80,29 @@ def aclog_enterevent_to_adif(fields: dict[str, str]) -> dict[str, str]:
         result["BAND"] = band if band.endswith("M") or band.endswith("CM") else f"{band}M"
 
     return result
+
+
+def update_state_from_message(
+    command: str | None,
+    fields: dict[str, str],
+    state: dict[str, str],
+) -> None:
+    """Update cached bridge state from ACLog field-change messages."""
+    if command == "READBMFRESPONSE":
+        for key in ("BAND", "MODE", "FREQ"):
+            value = fields.get(key)
+            if value:
+                state[key] = value.strip()
+        return
+
+    if command != "UPDATERESPONSE":
+        return
+
+    control = fields.get("CONTROL", "").strip().upper()
+    value = fields.get("VALUE", "").strip()
+    dest = _UPDATE_CONTROL_MAP.get(control)
+    if dest is not None:
+        if value:
+            state[dest] = value
+        else:
+            state.pop(dest, None)

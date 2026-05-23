@@ -1335,11 +1335,15 @@ QSOs for the operator who configured the bridge.</p>
 <ul>
 <li><code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, and <code>MODE</code> are required.</li>
 <li>Numeric ACLog bands such as <code>20</code> are stored as ADIF-style bands such as <code>20M</code>.</li>
+<li><code>FREQ</code>, <code>RST_SENT</code>, and <code>RST_RCVD</code> are imported when ACLog provides them.</li>
 <li>Duplicate detection uses the same per-operator ±2 minute window.</li>
 <li>Profile stamping still applies, including <code>OPERATOR</code>, <code>STATION_CALLSIGN</code>,
   <code>MY_GRIDSQUARE</code>, <code>MY_RIG</code>, <code>MY_ANTENNA</code>, and <code>TX_PWR</code> when those profile fields
   are set.</li>
 </ul>
+<p>To capture frequency and reports, ollog asks ACLog for all text-box updates after
+connecting and keeps the latest frequency, sent report, and received report in
+memory until the next <code>ENTEREVENT</code> arrives.</p>
 <h2 id="enable-the-aclog-api">Enable the ACLog API</h2>
 <p>In ACLog:</p>
 <ol>
@@ -1407,6 +1411,8 @@ is not required after editing bridge rows.</p>
    <code>ACLog bridge ... disposition=</code> messages.</li>
 <li>Confirm the contact saved in ACLog includes <code>CALL</code>, <code>BAND</code>, <code>MODE</code>,
    <code>QSO_DATE</code>, and <code>TIME_ON</code>.</li>
+<li>If frequency or RST values are missing, confirm ACLog is sending field update
+   notifications. Restarting the bridge connection usually refreshes this state.</li>
 </ol>
 <p>If ollog logs a QSO as <code>duplicate</code>, the contact matched an existing QSO for the
 same operator, call, band, mode, and time window.</p>
