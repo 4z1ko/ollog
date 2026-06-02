@@ -105,11 +105,13 @@ async def test_watcher_task_stored_in_app_state():
         patch.object(_main, "_bootstrap_admin", new=AsyncMock()),
         patch.object(_main, "backfill_created_at", new=AsyncMock()),
         patch.object(_main, "normalize_time_on", new=AsyncMock()),
+        patch.object(_main, "backfill_row_hash", new=AsyncMock()),
         patch.object(_main, "get_client", return_value=None),
         patch.object(_main, "close_db", new=AsyncMock()),
         patch("app.main.settings") as mock_settings,
     ):
         mock_settings.udp_enabled = False
+        mock_settings.aclog_enabled = False
         mock_settings.backup_schedule = None
 
         async with _main.lifespan(app):

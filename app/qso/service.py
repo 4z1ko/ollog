@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
+
+from pymongo.errors import DuplicateKeyError
 
 from app.qso.models import QSO
 
@@ -24,6 +27,13 @@ _ALLOWED_SORT_FIELDS: frozenset[str] = frozenset({
     # MongoDB alias "_created_at" (not the Python attribute "created_at")
     "-_created_at", "_created_at",
 })
+
+
+@dataclass(frozen=True)
+class QSOInsertResult:
+    status: str
+    qso: QSO | None = None
+    existing: QSO | None = None
 
 
 def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
@@ -89,6 +99,28 @@ def build_qso_dict(body_dict: dict, operator: str, profile: Optional[User] = Non
     return result
 
 
+async def insert_qso_dict(qso_dict: dict) -> QSOInsertResult:
+    """Insert a QSO dict, returning explicit status for exact rowHash duplicates."""
+    from app.qso.models import QSO as QSOModel
+
+    qso = QSOModel(**qso_dict)
+    try:
+        await qso.insert()
+    except DuplicateKeyError as exc:
+        if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
+            raise
+        existing = await QSOModel.find_one({"rowHash": qso.row_hash})
+        return QSOInsertResult(status="duplicate", existing=existing)
+    return QSOInsertResult(status="inserted", qso=qso)
+
+
+def row_hash_for_updated_qso(qso: QSO, updates: dict) -> str:
+    """Compute the rowHash that a QSO would have after applying `$set` updates."""
+    merged = qso.model_dump(by_alias=True)
+    merged.update(updates)
+    return QSO(**merged).refresh_row_hash()
+
+
 async def find_duplicate(
     operator: str,
     call: str,
@@ -125,8 +157,6 @@ async def ingest_qso_record(
     Returns a small status dict instead of raising for expected validation
     outcomes so background ingestion sources can log and continue.
     """
-    from app.qso.models import QSO as QSOModel
-
     missing = _REQUIRED_FIELDS - set(record)
     if missing:
         return {
@@ -149,8 +179,13 @@ async def ingest_qso_record(
     if dup is not None:
         return {"status": "duplicate", "existing_id": str(dup.id)}
 
-    qso = QSOModel(**qso_dict)
-    await qso.insert()
+    insert_result = await insert_qso_dict(qso_dict)
+    if insert_result.status == "duplicate":
+        return {
+            "status": "duplicate",
+            "existing_id": str(insert_result.existing.id) if insert_result.existing else "",
+        }
+    qso = insert_result.qso
     return {"status": "accepted", "id": str(qso.id), "source": source}
 
 
@@ -217,12 +252,22 @@ async def import_qsos_from_bytes(raw: bytes, operator: str) -> dict:
                 "record_index": idx,
                 "call": qso_dict["CALL"],
                 "existing_id": str(dup.id),
+                "record": record,
             })
             continue
 
         # Insert accepted record
-        qso = QSO(**qso_dict)
-        await qso.insert()
+        insert_result = await insert_qso_dict(qso_dict)
+        if insert_result.status == "duplicate":
+            duplicates.append({
+                "record_index": idx,
+                "call": qso_dict["CALL"],
+                "existing_id": str(insert_result.existing.id) if insert_result.existing else "",
+                "record": record,
+            })
+            continue
+
+        qso = insert_result.qso
         accepted.append({
             "record_index": idx,
             "call": qso_dict["CALL"],

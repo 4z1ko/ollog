@@ -21,6 +21,7 @@
 - ✅ **v2.6 llms.txt Support** — Phase 51 (shipped 2026-04-25)
 - ✅ **v2.7 UTC Date/Time Entry** — Phases 52–53 (shipped 2026-05-02)
 - ✅ **v2.8 Clear Log** — Phases 54–56 (shipped 2026-05-18)
+- 🚢 **v2.9 QSO Deduplication and ADIF Duplicate Review** — Phase 57 (phase complete locally 2026-06-02)
 
 
 ## Phases
@@ -228,6 +229,12 @@ Full archive: `.planning/milestones/v2.7-ROADMAP.md`
 Full archive: `.planning/milestones/v2.8-ROADMAP.md`
 
 </details>
+
+### 🚢 v2.9 QSO Deduplication and ADIF Duplicate Review — PHASE COMPLETE LOCALLY 2026-06-02
+
+**Milestone Goal:** Exact duplicate QSO documents are blocked with deterministic document-level `rowHash` values, and ADIF imports automatically add new QSOs while presenting existing QSOs for explicit operator review.
+
+- [x] **Phase 57: QSO RowHash Deduplication and ADIF Duplicate Review** — canonical hashing utility, QSO `rowHash` model/index/backfill, explicit duplicate handling across insert paths, soft-delete hash updates, ADIF duplicate review table with checkboxes, and focused validation (completed 2026-06-02)
 
 ## Phase Details
 

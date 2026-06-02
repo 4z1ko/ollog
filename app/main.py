@@ -66,12 +66,20 @@ async def normalize_time_on():
         logger.info("TIME_ON migration: 0 documents — already up to date")
 
 
+async def backfill_row_hash():
+    """One-time idempotent migration: stamp deterministic rowHash on QSOs."""
+    from app.qso.row_hash_migration import backfill_qso_row_hash
+
+    await backfill_qso_row_hash()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await _bootstrap_admin()
     await backfill_created_at()   # D-05: one-time idempotent migration
     await normalize_time_on()     # Phase 52 (D-02): pad 4-digit TIME_ON to 6-digit
+    await backfill_row_hash()      # Deterministic document-level deduplication
     # Start change stream watcher for live feed
     client = get_client()
     app.state.watcher_task = None

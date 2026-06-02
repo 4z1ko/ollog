@@ -7,6 +7,8 @@ in main.py and redirected to /log/login.
 
 Mounted at /log by app/main.py.
 """
+import base64
+import json
 import math
 import uuid
 from datetime import datetime, timezone
@@ -30,13 +32,34 @@ from app.auth.service import create_access_token, verify_password
 from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
 from app.qso.models import QSO
-from app.qso.service import build_qso_dict, clear_operator_log, find_duplicate, get_qso_page, parse_adif_datetime
+from app.qso.service import (
+    build_qso_dict,
+    clear_operator_log,
+    find_duplicate,
+    get_qso_page,
+    insert_qso_dict,
+    parse_adif_datetime,
+    row_hash_for_updated_qso,
+)
 from app.tokens.models import ApiToken
 from app.tokens.service import generate_api_token, hash_api_token, validate_token_name
 
 templates = Jinja2Templates(directory="templates")
 
 ui_router = APIRouter(prefix="/log", tags=["log-ui"])
+
+
+def _encode_import_record(record: dict) -> str:
+    payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii")
+
+
+def _decode_import_record(token: str) -> dict:
+    payload = base64.urlsafe_b64decode(token.encode("ascii"))
+    record = json.loads(payload.decode("utf-8"))
+    if not isinstance(record, dict):
+        raise ValueError("Invalid duplicate record payload")
+    return record
 
 
 # ---------------------------------------------------------------------------
@@ -191,8 +214,28 @@ async def submit_qso(
             )
 
     # No duplicate or force=True: insert the QSO
-    qso = QSO(**qso_dict)
-    await qso.insert()
+    insert_result = await insert_qso_dict(qso_dict)
+    if insert_result.status == "duplicate":
+        existing = insert_result.existing
+        dup_dict = {
+            "CALL": existing.CALL if existing else qso_dict["CALL"],
+            "BAND": existing.BAND if existing else qso_dict["BAND"],
+            "MODE": existing.MODE if existing else qso_dict["MODE"],
+            "qso_date_utc": existing.qso_date_utc.isoformat()
+            if existing and existing.qso_date_utc else "",
+        }
+        return templates.TemplateResponse(
+            request,
+            "log/qso_result.html",
+            {
+                "duplicate": dup_dict,
+                "success": None,
+                "qso": None,
+                "form": form_data,
+            },
+        )
+
+    qso = insert_result.qso
 
     qso_display = {
         "CALL": qso.CALL,
@@ -231,6 +274,7 @@ def _qso_to_view_dict(qso: QSO) -> dict:
         "MODE": qso.MODE or "",
         "qso_date_utc": qso.qso_date_utc,
         "created_at": qso.created_at,
+        "operator": qso.operator_callsign,
     }
     # Pull extra ADIF fields from model_extra (set via extra="allow")
     extra = qso.model_extra or {}
@@ -239,6 +283,7 @@ def _qso_to_view_dict(qso: QSO) -> dict:
     d["RST_RCVD"] = extra.get("RST_RCVD", "")
     d["QSO_DATE"] = extra.get("QSO_DATE", "")
     d["TIME_ON"] = extra.get("TIME_ON", "")
+    d["STATION_CALLSIGN"] = extra.get("STATION_CALLSIGN", "")
     # Flag enrichment — render-time lookup, not stored
     iso = lookup_prefix(qso.CALL) if qso.CALL else None
     d["flag_iso"] = iso.lower() if iso else None
@@ -440,7 +485,7 @@ async def qso_update(
 
     # Strip any protected fields that might have snuck in via hx-include
     for protected in ("_operator", "_deleted", "operator_callsign", "is_deleted", "_id",
-                      "_created_at", "created_at"):
+                      "_created_at", "created_at", "rowHash", "row_hash"):
         update_dict.pop(protected, None)
 
     if not update_dict:
@@ -448,7 +493,16 @@ async def qso_update(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No valid fields to update",
         )
-    await qso.update({"$set": update_dict})
+    update_dict["rowHash"] = row_hash_for_updated_qso(qso, update_dict)
+    try:
+        await qso.update({"$set": update_dict})
+    except Exception as exc:
+        if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="QSO already exists",
+        )
 
     # Refetch to get the updated document
     updated = await QSO.get(oid)
@@ -499,6 +553,63 @@ async def import_submit(
             content=f'<div class="error-msg">{str(exc)}</div>',
             status_code=200,
         )
+    for duplicate in report.get("duplicates", []):
+        if "record" in duplicate:
+            duplicate["import_token"] = _encode_import_record(duplicate["record"])
+    return templates.TemplateResponse(
+        request,
+        "log/import_report.html",
+        {"report": report},
+    )
+
+
+@ui_router.post("/import/duplicates", response_class=HTMLResponse)
+async def import_selected_duplicates(
+    request: Request,
+    records: Annotated[list[str] | None, Form()] = None,
+    callsign: str = Depends(get_current_operator_callsign_cookie),
+):
+    """Force-import selected duplicate ADIF records from the import review table."""
+    accepted: list[dict] = []
+    duplicates: list[dict] = []
+    errors: list[dict] = []
+
+    selected = records or []
+    for idx, token in enumerate(selected):
+        try:
+            record = _decode_import_record(token)
+            qso_dict = build_qso_dict(record, callsign)
+            insert_result = await insert_qso_dict(qso_dict)
+        except Exception as exc:
+            errors.append({
+                "record_index": idx,
+                "call": "?",
+                "error": str(exc),
+            })
+            continue
+
+        if insert_result.status == "duplicate":
+            duplicates.append({
+                "record_index": idx,
+                "call": qso_dict["CALL"],
+                "existing_id": str(insert_result.existing.id) if insert_result.existing else "",
+            })
+            continue
+
+        qso = insert_result.qso
+        accepted.append({
+            "record_index": idx,
+            "call": qso_dict["CALL"],
+            "id": str(qso.id),
+        })
+
+    report = {
+        "total_records": len(selected),
+        "accepted": accepted,
+        "duplicates": duplicates,
+        "errors": errors,
+        "duplicate_review": True,
+    }
     return templates.TemplateResponse(
         request,
         "log/import_report.html",

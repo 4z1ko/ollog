@@ -18,7 +18,14 @@ from app.auth.dependencies import (
 )
 from app.auth.models import User
 from app.qso.models import QSO
-from app.qso.service import build_qso_dict, find_duplicate, get_qso_page, parse_adif_datetime
+from app.qso.service import (
+    build_qso_dict,
+    find_duplicate,
+    get_qso_page,
+    insert_qso_dict,
+    parse_adif_datetime,
+    row_hash_for_updated_qso,
+)
 
 router = APIRouter(prefix="/api/qsos", tags=["qsos"])
 
@@ -151,8 +158,22 @@ async def create_qso(
                 },
             )
 
-    qso = QSO(**qso_dict)
-    await qso.insert()
+    insert_result = await insert_qso_dict(qso_dict)
+    if insert_result.status == "duplicate":
+        existing = insert_result.existing
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "duplicate": True,
+                "existing_id": str(existing.id) if existing else "",
+                "existing_call": existing.CALL if existing else qso_dict["CALL"],
+                "existing_band": existing.BAND if existing else qso_dict["BAND"],
+                "existing_mode": existing.MODE if existing else qso_dict["MODE"],
+                "existing_date": existing.qso_date_utc.isoformat()
+                if existing and existing.qso_date_utc else None,
+            },
+        )
+    qso = insert_result.qso
     return _qso_to_dict(qso)
 
 
@@ -169,8 +190,6 @@ async def list_qsos(
     operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
 ) -> dict:
     """List the authenticated operator's active QSOs with pagination and optional filters."""
-    from datetime import timezone as tz
-
     dt_from = None
     dt_to = None
     if date_from:
@@ -238,7 +257,7 @@ async def patch_qso(
 
     # Strip protected / immutable fields
     for protected in ("_operator", "operator_callsign", "_deleted", "is_deleted", "_id",
-                      "_created_at", "created_at"):
+                      "_created_at", "created_at", "rowHash", "row_hash"):
         body.pop(protected, None)
 
     # Normalise BAND/MODE to uppercase
@@ -255,7 +274,25 @@ async def patch_qso(
             body["qso_date_utc"] = parse_adif_datetime(new_date, new_time)
 
     if body:
-        await qso.update({"$set": body})
+        body["rowHash"] = row_hash_for_updated_qso(qso, body)
+        try:
+            await qso.update({"$set": body})
+        except Exception as exc:
+            if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
+                raise
+            existing = await QSO.find_one({"rowHash": body["rowHash"]})
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "duplicate": True,
+                    "existing_id": str(existing.id) if existing else "",
+                    "existing_call": existing.CALL if existing else body.get("CALL", qso.CALL),
+                    "existing_band": existing.BAND if existing else body.get("BAND", qso.BAND),
+                    "existing_mode": existing.MODE if existing else body.get("MODE", qso.MODE),
+                    "existing_date": existing.qso_date_utc.isoformat()
+                    if existing and existing.qso_date_utc else None,
+                },
+            )
 
     updated = await QSO.get(oid)
     return _qso_to_dict(updated)

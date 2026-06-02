@@ -14,12 +14,9 @@ Tests requiring MongoDB are skipped if a live instance is not available.
 """
 
 import pytest
-import pytest_asyncio
 from datetime import datetime, timezone, timedelta
 
-import pymongo
 from pymongo.errors import DuplicateKeyError
-from beanie import init_beanie
 
 from app.qso.models import QSO
 from app.utils import from_mongo_dt
@@ -34,9 +31,9 @@ def test_qso_collection_name():
     assert QSO.Settings.name == "qsos"
 
 
-def test_qso_has_four_indexes():
-    """QSO model declares exactly 4 indexes."""
-    assert len(QSO.Settings.indexes) == 4
+def test_qso_has_five_indexes():
+    """QSO model declares exactly 5 indexes."""
+    assert len(QSO.Settings.indexes) == 5
 
 
 def test_qso_compound_index_definition():
@@ -87,6 +84,12 @@ def test_qso_created_at_field_has_serialization_alias():
     """created_at field uses serialization_alias '_created_at'."""
     field_info = QSO.model_fields["created_at"]
     assert field_info.serialization_alias == "_created_at"
+
+
+def test_qso_row_hash_field_has_serialization_alias():
+    """row_hash field uses serialization_alias 'rowHash'."""
+    field_info = QSO.model_fields["row_hash"]
+    assert field_info.serialization_alias == "rowHash"
 
 
 def test_qso_created_at_default_factory():
@@ -186,6 +189,19 @@ async def test_qso_compound_index_exists(test_db):
 
 
 @pytest.mark.asyncio
+async def test_qso_row_hash_unique_index_exists(test_db):
+    """After init_beanie, the rowHash unique index exists in MongoDB."""
+    indexes = await test_db["qsos"].index_information()
+    assert "row_hash_unique_idx" in indexes, (
+        f"row_hash_unique_idx index not found. Available indexes: {list(indexes.keys())}"
+    )
+    idx = indexes["row_hash_unique_idx"]
+    assert idx.get("unique") is True
+    index_keys = [k for k, _ in idx["key"]]
+    assert index_keys == ["rowHash"]
+
+
+@pytest.mark.asyncio
 async def test_qso_extra_fields_stored(test_db, sample_qso_data):
     """Extra ADIF fields (RST_SENT, COMMENT) are stored and retrieved."""
     qso = QSO(
@@ -208,7 +224,7 @@ async def test_qso_extra_fields_stored(test_db, sample_qso_data):
 
 @pytest.mark.asyncio
 async def test_qso_duplicate_rejected(test_db, sample_qso_data):
-    """Inserting two QSOs with identical compound key fields raises DuplicateKeyError."""
+    """Inserting two QSOs with identical effective values raises DuplicateKeyError."""
     qso1 = QSO(**sample_qso_data)
     await qso1.insert()
 
@@ -218,10 +234,25 @@ async def test_qso_duplicate_rejected(test_db, sample_qso_data):
 
 
 @pytest.mark.asyncio
+async def test_qso_insert_stores_row_hash(test_db, sample_qso_data):
+    """Raw MongoDB document has rowHash after insert."""
+    qso = QSO(**sample_qso_data)
+    await qso.insert()
+
+    raw_doc = await test_db["qsos"].find_one({"_id": qso.id})
+    assert raw_doc is not None
+    assert "rowHash" in raw_doc
+    assert isinstance(raw_doc["rowHash"], str)
+    assert len(raw_doc["rowHash"]) == 64
+
+
+@pytest.mark.asyncio
 async def test_qso_soft_delete_flag(test_db, sample_qso_data):
     """QSO can be soft-deleted by setting is_deleted=True."""
     qso = QSO(**sample_qso_data)
     await qso.insert()
+    raw_before = await test_db["qsos"].find_one({"_id": qso.id})
+    original_hash = raw_before["rowHash"]
 
     assert qso.is_deleted is False
 
@@ -230,6 +261,8 @@ async def test_qso_soft_delete_flag(test_db, sample_qso_data):
     fetched = await QSO.get(qso.id)
     assert fetched is not None
     assert fetched.is_deleted is True
+    raw_after = await test_db["qsos"].find_one({"_id": qso.id})
+    assert raw_after["rowHash"] != original_hash
 
 
 @pytest.mark.asyncio
@@ -351,6 +384,43 @@ async def test_backfill_is_idempotent(test_db, sample_qso_data):
 
     raw_after = await test_db["qsos"].find_one({"_id": qso.id})
     assert raw_after["_created_at"] == original_ts, "Backfill should not modify existing _created_at"
+
+
+@pytest.mark.asyncio
+async def test_backfill_row_hash_does_not_overwrite_existing(test_db, sample_qso_data):
+    """backfill_qso_row_hash leaves existing rowHash values untouched."""
+    qso = QSO(**sample_qso_data)
+    await qso.insert()
+    await test_db["qsos"].update_one(
+        {"_id": qso.id},
+        {"$set": {"rowHash": "manual-hash"}},
+    )
+
+    from app.qso.row_hash_migration import backfill_qso_row_hash
+    report = await backfill_qso_row_hash()
+
+    raw_after = await test_db["qsos"].find_one({"_id": qso.id})
+    assert raw_after["rowHash"] == "manual-hash"
+    assert report["updated"] == 0
+
+
+@pytest.mark.asyncio
+async def test_backfill_row_hash_reports_duplicates_without_deleting(test_db, sample_qso_data):
+    """backfill_qso_row_hash reports duplicate groups and leaves data intact."""
+    first = QSO(**sample_qso_data)
+    second = QSO(**sample_qso_data)
+    await first.insert()
+    await test_db["qsos"].update_one({"_id": first.id}, {"$unset": {"rowHash": ""}})
+    await second.insert()
+    await test_db["qsos"].update_one({"_id": second.id}, {"$unset": {"rowHash": ""}})
+
+    from app.qso.row_hash_migration import backfill_qso_row_hash
+    report = await backfill_qso_row_hash()
+
+    assert report["updated"] == 0
+    assert len(report["duplicate_groups"]) == 1
+    assert {str(first.id), str(second.id)} == set(report["duplicate_groups"][0]["ids"])
+    assert await test_db["qsos"].count_documents({}) == 2
 
 
 @pytest.mark.asyncio

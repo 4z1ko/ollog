@@ -37,28 +37,66 @@
     {% if report.duplicates %}
     <div>
       <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 mt-3 mb-1.5">
-        Duplicates ({{ report.duplicates | length }})
+        Existing QSOs ({{ report.duplicates | length }})
       </h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Record #</th>
-              <th>Callsign</th>
-              <th>Existing ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in report.duplicates %}
-            <tr>
-              <td>{{ item.record_index + 1 }}</td>
-              <td>{{ item.call }}</td>
-              <td>{{ item.existing_id }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {% if report.duplicates[0].import_token is defined %}
+      <form hx-post="/log/import/duplicates" hx-target="#import-result" hx-swap="innerHTML">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Import?</th>
+                <th>Record #</th>
+                <th>Callsign</th>
+                <th>Existing ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in report.duplicates %}
+              <tr>
+                <td>
+                  <input type="checkbox"
+                         name="records"
+                         value="{{ item.import_token }}"
+                         class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                </td>
+                <td>{{ item.record_index + 1 }}</td>
+                <td>{{ item.call }}</td>
+                <td>{{ item.existing_id }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit" class="btn-primary">Import Selected</button>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Unchecked existing QSOs will be skipped.
+          </p>
+        </div>
+      </form>
+      {% else %}
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Record #</th>
+                <th>Callsign</th>
+                <th>Existing ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in report.duplicates %}
+              <tr>
+                <td>{{ item.record_index + 1 }}</td>
+                <td>{{ item.call }}</td>
+                <td>{{ item.existing_id }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
     </div>
     {% endif %}
 

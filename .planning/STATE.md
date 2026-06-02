@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.8
-milestone_name: Clear Log
-status: shipped
-stopped_at: v2.8 shipped 2026-05-18 — awaiting next milestone definition
-last_updated: "2026-05-18T16:01:10.871Z"
-last_activity: 2026-05-18
+milestone: v2.9
+milestone_name: QSO Deduplication and ADIF Duplicate Review
+status: phase_complete
+stopped_at: Phase 57 complete locally 2026-06-02 — PR creation blocked because gh CLI is not installed
+last_updated: "2026-06-02T19:47:12Z"
+last_activity: 2026-06-02
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
   percent: 100
 ---
 
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-18 after v2.8 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning next milestone — run `/gsd-new-milestone` to define v2.9 scope
+**Current focus:** v2.9 Phase 57 complete locally — push/PR still pending because `gh` is not installed.
 
 ## Current Position
 
-Milestone: v2.8 Clear Log — **SHIPPED** (2026-05-18, tag `v2.8`)
-Phase: None active
-Status: Awaiting next milestone definition
-Last activity: 2026-05-18
+Milestone: v2.9 QSO Deduplication and ADIF Duplicate Review
+Phase: 57 QSO RowHash Deduplication and ADIF Duplicate Review — **COMPLETE LOCALLY** (2026-06-02)
+Status: Ready for PR creation once `gh` is available
+Last activity: 2026-06-02
 
 ```
-v2.8 Progress: [████████████████████] 100% (3/3 phases)
+v2.9 Progress: [████████████████████] 100% (1/1 phases)
 ```
 
 ## Performance Metrics
@@ -64,6 +64,7 @@ v2.8 Progress: [████████████████████] 10
 | v2.6 | 51 | 3 |
 | v2.7 | 52–53 | 3 |
 | v2.8 | 54–56 | 6 |
+| v2.9 | 57 | 1 |
 
 ## Accumulated Context
 
@@ -72,6 +73,11 @@ v2.8 Progress: [████████████████████] 10
 - v2.6 milestone complete: llms.txt Support (Phase 51, 2026-04-25)
 - v2.7 milestone complete: UTC Date/Time Entry (Phases 52–53, 2026-05-02)
 - v2.8 milestone complete: Clear Log (Phases 54–56, 2026-05-18)
+- v2.9 phase complete locally: QSO Deduplication and ADIF Duplicate Review (Phase 57, 2026-06-02)
+
+### v2.9 Phase Structure
+
+- **Phase 57** — QSO RowHash Deduplication and ADIF Duplicate Review: canonical hashing utility, QSO `rowHash` field/index/backfill, explicit duplicate insert handling, soft-delete hash updates, and ADIF duplicate review with selectable import; covers DEDUP-01–06 and ADIF-REVIEW-01–04.
 
 ### v2.8 Phase Structure
 
@@ -123,6 +129,12 @@ v2.8 Progress: [████████████████████] 10
 
 None.
 
+### Ship Blockers
+
+- `gh` CLI is not installed, so `$gsd-ship` cannot create a PR from this environment.
+- `gsd-sdk` is not on PATH, so the formal automated ship workflow could not be executed end-to-end.
+- Full-suite pytest remains noisy from unrelated legacy Mongo fixture URI issues and existing non-phase failures; Phase 57 focused validation is passing.
+
 ## Deferred Items
 
 Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
@@ -134,6 +146,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-05-18 (v2.8 milestone close)
-Stopped at: v2.8 shipped — Clear Log feature complete, milestone archived, tag pending
-Next: `/gsd-new-milestone` to define v2.9 scope
+Last session: 2026-06-02 (Phase 57 local ship)
+Stopped at: v2.9 Phase 57 complete locally — implementation and GSD artifacts ready; PR creation blocked by missing `gh`
+Next: install/authenticate `gh`, push the feature branch, and create the PR
