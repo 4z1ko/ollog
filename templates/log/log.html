@@ -21,6 +21,46 @@
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
         LIVE
       </span>
+      <div class="relative" id="column-menu-wrap">
+        <button type="button"
+                id="column-menu-button"
+                class="btn-ghost btn-sm"
+                aria-label="Configure table columns"
+                title="Configure table columns"
+                aria-expanded="false">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.219.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a7.723 7.723 0 0 1 0 .255c-.007.379.138.751.431.992l1.003.827c.424.35.534.955.26 1.431l-1.296 2.247a1.125 1.125 0 0 1-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.075.124a6.47 6.47 0 0 1-.219.128c-.332.183-.582.495-.645.869l-.213 1.281c-.09.542-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 0 1-.219-.127c-.325-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 0 1-1.37-.49l-1.296-2.247a1.125 1.125 0 0 1 .26-1.431l1.003-.827c.293-.241.438-.613.431-.992a6.932 6.932 0 0 1 0-.255c.007-.379-.138-.751-.431-.992l-1.003-.827a1.125 1.125 0 0 1-.26-1.431l1.296-2.247a1.125 1.125 0 0 1 1.37-.49l1.217.456c.355.133.75.072 1.075-.124.072-.044.145-.087.219-.128.332-.183.582-.495.645-.869l.213-1.281Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          </svg>
+        </button>
+        <div id="column-menu"
+             class="hidden absolute right-0 z-20 mt-2 w-48 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-2">
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="date" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Date / Time
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="call" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Callsign
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="operator" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Operator
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="station" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Station Callsign
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="band" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Band
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="mode" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Mode
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="freq" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Frequency
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
+            <input type="checkbox" data-column-toggle="rst" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> RST
+          </label>
+        </div>
+      </div>
       <a href="/log/export" class="btn-ghost btn-sm">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -138,6 +178,71 @@
     var badgeText = document.getElementById('new-qso-badge-text');
     var newQsoCount = 0;
     var pendingSseRefresh = false;
+    var columnStorageKey = 'ollog.log.columns';
+    var defaultColumns = ['date', 'call', 'band', 'mode', 'freq', 'rst'];
+    var configurableColumns = ['date', 'call', 'operator', 'station', 'band', 'mode', 'freq', 'rst'];
+    var menuButton = document.getElementById('column-menu-button');
+    var menu = document.getElementById('column-menu');
+
+    function loadColumns() {
+      try {
+        var raw = localStorage.getItem(columnStorageKey);
+        if (!raw) return defaultColumns.slice();
+        var parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return defaultColumns.slice();
+        var allowed = {};
+        configurableColumns.forEach(function (column) { allowed[column] = true; });
+        var filtered = parsed.filter(function (column) { return allowed[column]; });
+        return filtered.length ? filtered : defaultColumns.slice();
+      } catch (e) {
+        return defaultColumns.slice();
+      }
+    }
+
+    function saveColumns(columns) {
+      localStorage.setItem(columnStorageKey, JSON.stringify(columns));
+    }
+
+    function applyColumnVisibility() {
+      var visible = loadColumns();
+      var visibleMap = {};
+      visible.forEach(function (column) { visibleMap[column] = true; });
+
+      document.querySelectorAll('[data-column]').forEach(function (cell) {
+        var column = cell.getAttribute('data-column');
+        cell.classList.toggle('hidden', !visibleMap[column]);
+      });
+
+      document.querySelectorAll('[data-column-toggle]').forEach(function (input) {
+        input.checked = !!visibleMap[input.getAttribute('data-column-toggle')];
+      });
+    }
+
+    if (menuButton && menu) {
+      menuButton.addEventListener('click', function (event) {
+        event.stopPropagation();
+        var isHidden = menu.classList.toggle('hidden');
+        menuButton.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
+      });
+
+      menu.addEventListener('click', function (event) {
+        event.stopPropagation();
+      });
+
+      menu.addEventListener('change', function () {
+        var selected = [];
+        document.querySelectorAll('[data-column-toggle]').forEach(function (input) {
+          if (input.checked) selected.push(input.getAttribute('data-column-toggle'));
+        });
+        saveColumns(selected.length ? selected : defaultColumns.slice());
+        applyColumnVisibility();
+      });
+
+      document.addEventListener('click', function () {
+        menu.classList.add('hidden');
+        menuButton.setAttribute('aria-expanded', 'false');
+      });
+    }
 
     function onFirstInteraction() {
       if (userInteracted) return;
@@ -242,11 +347,14 @@
     });
 
     document.body.addEventListener('htmx:afterSettle', function () {
+      applyColumnVisibility();
       if (pendingSseRefresh && document.getElementById('auto-refresh-ok')) {
         pendingSseRefresh = false;
         dismissBadge();
       }
     });
+
+    applyColumnVisibility();
   })();
 </script>
 {% endblock %}

@@ -23,7 +23,7 @@
   <table class="data-table">
     <thead>
       <tr>
-        <th>
+        <th data-column="date">
           <span class="inline-flex items-center gap-2">
             <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
                hx-get="/log/view?sort={% if sort == '-qso_date_utc' %}qso_date_utc{% else %}-qso_date_utc{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
@@ -57,7 +57,7 @@
             </a>
           </span>
         </th>
-        <th>
+        <th data-column="call">
           <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
              hx-get="/log/view?sort={% if sort == '-CALL' %}CALL{% else %}-CALL{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
              hx-target="#log-table"
@@ -73,7 +73,9 @@
             {% endif %}
           </a>
         </th>
-        <th>
+        <th data-column="operator">Operator</th>
+        <th data-column="station">Station Callsign</th>
+        <th data-column="band">
           <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
              hx-get="/log/view?sort={% if sort == '-BAND' %}BAND{% else %}-BAND{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
              hx-target="#log-table"
@@ -89,7 +91,7 @@
             {% endif %}
           </a>
         </th>
-        <th>
+        <th data-column="mode">
           <a class="inline-flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer"
              hx-get="/log/view?sort={% if sort == 'MODE' %}-MODE{% else %}MODE{% endif %}&call={{ filters.call or '' }}&band={{ filters.band or '' }}&mode={{ filters.mode or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}"
              hx-target="#log-table"
@@ -105,8 +107,8 @@
             {% endif %}
           </a>
         </th>
-        <th>Freq (MHz)</th>
-        <th>RST S / R</th>
+        <th data-column="freq">Freq (MHz)</th>
+        <th data-column="rst">RST S / R</th>
         <th>Actions</th>
       </tr>
     </thead>
