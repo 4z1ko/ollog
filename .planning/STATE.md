@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Configurable QSO Log Fields
 status: planning
-stopped_at: Phase 58 research completed manually 2026-06-03 — gsd-sdk is not on PATH
+stopped_at: Phase 58 UI-SPEC approved manually 2026-06-03 — gsd-sdk is not on PATH
 last_updated: "2026-06-03T00:00:00Z"
 last_activity: 2026-06-03
 progress:
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-03 for v3.0 milestone)
 ## Current Position
 
 Milestone: v3.0 Configurable QSO Log Fields
-Phase: 58 Configurable QSO Field Catalog and Log View Columns — research complete
-Status: Ready for Phase 58 UI-SPEC/planning gate
+Phase: 58 Configurable QSO Field Catalog and Log View Columns — UI-SPEC approved
+Status: Ready for Phase 58 planning
 Last activity: 2026-06-03
 
 ```
@@ -78,6 +78,7 @@ v3.0 Progress: [--------------------] 0% (0/1 phases)
 - v3.0 milestone started: Configurable QSO Log Fields (Phase 58 planned, 2026-06-03)
 - Phase 58 context gathered: field catalog limited to known ADIF/common fields, single scrollable checklist, extra selected fields append after defaults, humanized display values, only current sortable fields remain sortable (2026-06-03)
 - Phase 58 research completed: official ADIF 3.1.7 confirmed as current external reference; recommended curated server-side known-field catalog, client-side localStorage normalization, generated table headers/cells, and no sort expansion (2026-06-03)
+- Phase 58 UI-SPEC approved: keep gear-menu entry point, use one bounded scrollable checklist, preserve default table view and Actions column, reuse existing `data-table`/`btn-ghost` styling, and avoid new UI libraries or broad visual redesign (2026-06-03)
 
 ### v3.0 Phase Structure
 
@@ -155,5 +156,5 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 ## Session Continuity
 
 Last session: 2026-06-02 (Phase 57 local ship)
-Stopped at: Phase 58 research completed manually because `gsd-sdk` is not on PATH
-Next: run `/gsd-ui-phase 58` or continue `/gsd plan phase 58 --skip-ui` to create the implementation plan, then execute Phase 58
+Stopped at: Phase 58 UI-SPEC approved manually because `gsd-sdk` is not on PATH
+Next: run `/gsd plan phase 58` to create the implementation plan, then execute Phase 58
