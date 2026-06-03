@@ -34,31 +34,12 @@
           </svg>
         </button>
         <div id="column-menu"
-             class="hidden absolute right-0 z-20 mt-2 w-48 rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-2">
+             class="hidden absolute right-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-8rem)] overflow-y-auto rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-2">
+          {% for field in field_catalog %}
           <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="date" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Date / Time
+            <input type="checkbox" data-column-toggle="{{ field.key }}" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> {{ field.label }}
           </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="call" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Callsign
-          </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="operator" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Operator
-          </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="station" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Station Callsign
-          </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="band" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Band
-          </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="mode" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Mode
-          </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="freq" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> Frequency
-          </label>
-          <label class="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input type="checkbox" data-column-toggle="rst" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600"> RST
-          </label>
+          {% endfor %}
         </div>
       </div>
       <a href="/log/export" class="btn-ghost btn-sm">
@@ -179,28 +160,39 @@
     var newQsoCount = 0;
     var pendingSseRefresh = false;
     var columnStorageKey = 'ollog.log.columns';
-    var defaultColumns = ['date', 'call', 'band', 'mode', 'freq', 'rst'];
-    var configurableColumns = ['date', 'call', 'operator', 'station', 'band', 'mode', 'freq', 'rst'];
+    var defaultColumns = {{ default_column_keys | tojson }};
+    var configurableColumns = {{ configurable_column_keys | tojson }};
     var menuButton = document.getElementById('column-menu-button');
     var menu = document.getElementById('column-menu');
+
+    function normalizeColumns(columns) {
+      if (!Array.isArray(columns)) return defaultColumns.slice();
+      var allowed = {};
+      configurableColumns.forEach(function (column) { allowed[column] = true; });
+      var seen = {};
+      var filtered = [];
+      columns.forEach(function (column) {
+        if (allowed[column] && !seen[column]) {
+          filtered.push(column);
+          seen[column] = true;
+        }
+      });
+      return filtered.length ? filtered : defaultColumns.slice();
+    }
 
     function loadColumns() {
       try {
         var raw = localStorage.getItem(columnStorageKey);
         if (!raw) return defaultColumns.slice();
         var parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return defaultColumns.slice();
-        var allowed = {};
-        configurableColumns.forEach(function (column) { allowed[column] = true; });
-        var filtered = parsed.filter(function (column) { return allowed[column]; });
-        return filtered.length ? filtered : defaultColumns.slice();
+        return normalizeColumns(parsed);
       } catch (e) {
         return defaultColumns.slice();
       }
     }
 
     function saveColumns(columns) {
-      localStorage.setItem(columnStorageKey, JSON.stringify(columns));
+      localStorage.setItem(columnStorageKey, JSON.stringify(normalizeColumns(columns)));
     }
 
     function applyColumnVisibility() {

@@ -1,18 +1,29 @@
 <tr id="qso-{{ qso.id }}">
-  <td data-column="date">
+  {% for field in field_catalog %}
+  <td data-column="{{ field.key }}">
+    {% if field.key == 'date' %}
     <input type="text" name="QSO_DATE" value="{{ qso.QSO_DATE or '' }}" class="form-input font-mono w-24">
     <input type="text" name="TIME_ON" value="{{ qso.TIME_ON or '' }}" class="form-input font-mono w-16">
-  </td>
-  <td data-column="call"><input type="text" name="CALL" value="{{ qso.CALL }}" class="form-input font-mono uppercase w-20"></td>
-  <td data-column="operator">{{ qso.operator or '' }}</td>
-  <td data-column="station">{{ qso.STATION_CALLSIGN or '' }}</td>
-  <td data-column="band"><input type="text" name="BAND" value="{{ qso.BAND or '' }}" class="form-input font-mono w-16"></td>
-  <td data-column="mode"><input type="text" name="MODE" value="{{ qso.MODE or '' }}" class="form-input font-mono w-16"></td>
-  <td data-column="freq"><input type="text" name="FREQ" value="{{ qso.FREQ or '' }}" class="form-input font-mono w-20"></td>
-  <td data-column="rst">
+    {% elif field.key == 'call' %}
+    <input type="text" name="CALL" value="{{ qso.CALL }}" class="form-input font-mono uppercase w-20">
+    {% elif field.key == 'operator' %}
+    {{ qso.operator or '' }}
+    {% elif field.key == 'station' %}
+    {{ qso.STATION_CALLSIGN or '' }}
+    {% elif field.key == 'band' %}
+    <input type="text" name="BAND" value="{{ qso.BAND or '' }}" class="form-input font-mono w-16">
+    {% elif field.key == 'mode' %}
+    <input type="text" name="MODE" value="{{ qso.MODE or '' }}" class="form-input font-mono w-16">
+    {% elif field.key == 'freq' %}
+    <input type="text" name="FREQ" value="{{ qso.FREQ or '' }}" class="form-input font-mono w-20">
+    {% elif field.key == 'rst' %}
     <input type="text" name="RST_SENT" value="{{ qso.RST_SENT or '' }}" class="form-input font-mono w-10"> /
     <input type="text" name="RST_RCVD" value="{{ qso.RST_RCVD or '' }}" class="form-input font-mono w-10">
+    {% else %}
+    {{ qso.fields.get(field.key, '') }}
+    {% endif %}
   </td>
+  {% endfor %}
   <td class="actions">
     <button class="safe"
             hx-patch="/log/qsos/{{ qso.id }}"

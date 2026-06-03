@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Configurable QSO Log Fields
-status: planned
-stopped_at: Phase 58 planned manually 2026-06-03 — gsd-sdk is not on PATH
+status: phase_complete
+stopped_at: Phase 58 executed manually 2026-06-03 — ready for verify-work
 last_updated: "2026-06-03T00:00:00Z"
 last_activity: 2026-06-03
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 100
 ---
 
 # Project State
@@ -21,18 +21,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-03 for v3.0 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.0 planning — enable operators to select all supported QSO fields from the Log View column configuration menu.
+**Current focus:** v3.0 execution complete — enable operators to select all supported QSO fields from the Log View column configuration menu.
 
 ## Current Position
 
 Milestone: v3.0 Configurable QSO Log Fields
-Phase: 58 Configurable QSO Field Catalog and Log View Columns — planned
+Phase: 58 Configurable QSO Field Catalog and Log View Columns — complete
 Plan: 58-01-PLAN.md
-Status: Ready for Phase 58 execution
+Status: Ready for Phase 58 verification
 Last activity: 2026-06-03
 
 ```
-v3.0 Progress: [--------------------] 0% (0/1 phases)
+v3.0 Progress: [####################] 100% (1/1 phases)
 ```
 
 ## Performance Metrics
@@ -81,6 +81,7 @@ v3.0 Progress: [--------------------] 0% (0/1 phases)
 - Phase 58 research completed: official ADIF 3.1.7 confirmed as current external reference; recommended curated server-side known-field catalog, client-side localStorage normalization, generated table headers/cells, and no sort expansion (2026-06-03)
 - Phase 58 UI-SPEC approved: keep gear-menu entry point, use one bounded scrollable checklist, preserve default table view and Actions column, reuse existing `data-table`/`btn-ghost` styling, and avoid new UI libraries or broad visual redesign (2026-06-03)
 - Phase 58 planned: one vertical implementation plan covering field catalog/value extraction, route context, generated menu/table rendering, localStorage normalization, tests, CSS build, and validation strategy (2026-06-03)
+- Phase 58 executed: shared curated QSO field catalog added, Log View menu/table/rows now render from catalog, defaults/localStorage/sort controls/actions preserved, focused tests/build passed with Mongo-backed checks skipped when MongoDB unavailable (2026-06-03)
 
 ### v3.0 Phase Structure
 
@@ -138,7 +139,7 @@ v3.0 Progress: [--------------------] 0% (0/1 phases)
 
 ### Pending Todos
 
-- Execute Phase 58 plan `.planning/phases/58-configurable-qso-field-catalog-and-log-view-columns/58-01-PLAN.md`.
+- Run `/gsd verify-work phase 58`.
 
 ### Ship Blockers
 
@@ -158,5 +159,5 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 ## Session Continuity
 
 Last session: 2026-06-02 (Phase 57 local ship)
-Stopped at: Phase 58 planned manually because `gsd-sdk` is not on PATH
-Next: run `/gsd execute phase 58` to implement `.planning/phases/58-configurable-qso-field-catalog-and-log-view-columns/58-01-PLAN.md`
+Stopped at: Phase 58 executed manually because `gsd-sdk` is not on PATH
+Next: run `/gsd verify-work phase 58`

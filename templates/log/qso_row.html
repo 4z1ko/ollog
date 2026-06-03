@@ -1,6 +1,7 @@
 <tr id="qso-{{ qso.id }}">
-  <td data-column="date">{{ qso.qso_date_utc.strftime('%Y-%m-%d %H:%M') if qso.qso_date_utc else '' }} UTC</td>
-  <td data-column="call">
+  {% for field in field_catalog %}
+  <td data-column="{{ field.key }}">
+    {% if field.key == 'call' %}
     {% if qso.flag_iso %}
     <img src="/static/flags/{{ qso.flag_iso }}.svg"
          width="20" height="15"
@@ -8,14 +9,12 @@
          title="{{ qso.flag_country or '' }}"
          class="inline align-middle mr-1">
     {% endif %}
-    {{ qso.CALL }}
+    {{ qso.fields.get(field.key, '') }}
+    {% else %}
+    {{ qso.fields.get(field.key, '') }}
+    {% endif %}
   </td>
-  <td data-column="operator">{{ qso.operator or '' }}</td>
-  <td data-column="station">{{ qso.STATION_CALLSIGN or '' }}</td>
-  <td data-column="band">{{ qso.BAND or '' }}</td>
-  <td data-column="mode">{{ qso.MODE or '' }}</td>
-  <td data-column="freq">{{ qso.FREQ or '' }}</td>
-  <td data-column="rst">{{ qso.RST_SENT or '' }} / {{ qso.RST_RCVD or '' }}</td>
+  {% endfor %}
   <td class="actions">
     <button hx-get="/log/qsos/{{ qso.id }}/edit"
             hx-target="#qso-{{ qso.id }}"

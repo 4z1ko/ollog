@@ -31,6 +31,12 @@ from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
 from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
+from app.qso.fields import (
+    build_field_values,
+    get_configurable_column_keys,
+    get_default_column_keys,
+    get_field_catalog,
+)
 from app.qso.models import QSO
 from app.qso.service import (
     build_qso_dict,
@@ -284,6 +290,7 @@ def _qso_to_view_dict(qso: QSO) -> dict:
     d["QSO_DATE"] = extra.get("QSO_DATE", "")
     d["TIME_ON"] = extra.get("TIME_ON", "")
     d["STATION_CALLSIGN"] = extra.get("STATION_CALLSIGN", "")
+    d["fields"] = build_field_values(qso)
     # Flag enrichment — render-time lookup, not stored
     iso = lookup_prefix(qso.CALL) if qso.CALL else None
     d["flag_iso"] = iso.lower() if iso else None
@@ -361,6 +368,9 @@ async def log_view(
         "sort": sort,
         "callsign": callsign,
         "notify_sound": user.notify_sound,
+        "field_catalog": get_field_catalog(),
+        "default_column_keys": get_default_column_keys(),
+        "configurable_column_keys": get_configurable_column_keys(),
     }
 
     # HTMX partial swap: return only the table, not the full page
@@ -389,7 +399,7 @@ async def qso_edit_row(
     return templates.TemplateResponse(
         request,
         "log/qso_row_edit.html",
-        {"qso": _qso_to_view_dict(qso)},
+        {"qso": _qso_to_view_dict(qso), "field_catalog": get_field_catalog()},
     )
 
 
@@ -412,7 +422,7 @@ async def qso_view_row(
     return templates.TemplateResponse(
         request,
         "log/qso_row.html",
-        {"qso": _qso_to_view_dict(qso)},
+        {"qso": _qso_to_view_dict(qso), "field_catalog": get_field_catalog()},
     )
 
 
@@ -512,7 +522,7 @@ async def qso_update(
     return templates.TemplateResponse(
         request,
         "log/qso_row.html",
-        {"qso": _qso_to_view_dict(updated)},
+        {"qso": _qso_to_view_dict(updated), "field_catalog": get_field_catalog()},
     )
 
 

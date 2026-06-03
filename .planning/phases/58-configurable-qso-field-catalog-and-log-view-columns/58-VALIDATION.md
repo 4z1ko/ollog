@@ -38,11 +38,11 @@ created: 2026-06-03
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 58-01-01 | 01 | 1 | FIELDS-01..04, VERIFY-01..02 | T-58-01 | Unsafe internal/security fields cannot appear in selectable catalog | unit | `uv run pytest tests/test_view_dict.py` | yes | pending |
-| 58-01-02 | 01 | 1 | TABLE-01..04, COLUMNS-02 | T-58-02 | Actions remain outside configurable fields; missing values render blank | unit/template | `uv run pytest tests/test_view_dict.py` | yes | pending |
-| 58-01-03 | 01 | 1 | COLUMNS-01..05, TABLE-05 | T-58-03 | Stale localStorage keys are ignored; HTMX swaps reapply selected columns | source + integration | `uv run pytest tests/test_sse_sentinel.py` | yes | pending |
-| 58-01-04 | 01 | 1 | TABLE-04..05 | T-58-04 | Sort allowlist remains restricted to current sortable fields | unit/integration | `uv run pytest tests/test_service_sort.py tests/test_sse_sentinel.py` | yes | pending |
-| 58-01-05 | 01 | 1 | COLUMNS-05, VERIFY-03 | — | UI classes compile and bounded menu classes exist in generated CSS | build/source | `npm run build` | yes | pending |
+| 58-01-01 | 01 | 1 | FIELDS-01..04, VERIFY-01..02 | T-58-01 | Unsafe internal/security fields cannot appear in selectable catalog | unit | `.venv/bin/python -m pytest tests/test_view_dict.py` | yes | green |
+| 58-01-02 | 01 | 1 | TABLE-01..04, COLUMNS-02 | T-58-02 | Actions remain outside configurable fields; missing values render blank | unit/template | `.venv/bin/python -m pytest tests/test_view_dict.py` | yes | green |
+| 58-01-03 | 01 | 1 | COLUMNS-01..05, TABLE-05 | T-58-03 | Stale localStorage keys are ignored; HTMX swaps reapply selected columns | source + integration | `.venv/bin/python -m pytest tests/test_sse_sentinel.py` | yes | green |
+| 58-01-04 | 01 | 1 | TABLE-04..05 | T-58-04 | Sort allowlist remains restricted to current sortable fields | unit/integration | `.venv/bin/python -m pytest tests/test_service_sort.py tests/test_sse_sentinel.py` | yes | green |
+| 58-01-05 | 01 | 1 | COLUMNS-05, VERIFY-03 | — | UI classes compile and bounded menu classes exist in generated CSS | build/source | `npm run build` | yes | green |
 
 *Status: pending / green / red / flaky*
 
