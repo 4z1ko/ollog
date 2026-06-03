@@ -8,6 +8,16 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
+## Current Milestone: v3.0 Configurable QSO Log Fields
+
+**Goal:** Operators can choose any available QSO/ADIF field to show in the Log View table from the existing column configuration menu.
+
+**Target features:**
+- The Log View column configuration menu exposes the full supported QSO field catalog, not only the current fixed eight fields.
+- Operators can select/deselect visible fields while retaining the current default columns for fresh browsers.
+- Selected columns persist across page loads and HTMX table refreshes.
+- The table renders selected ADIF-native field values losslessly while preserving sorting, filtering, pagination, inline edit, SSE refresh, and the Actions column.
+
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
 **Goal achieved:** Operators can permanently delete all their QSOs from the profile page; admins can clear any operator's log from the admin console — both gated behind password confirmation against the requester's OWN hashed password. A single `clear_operator_log()` service powers both flows. Guide documentation updated with Danger Zone and Clear Operator Log sections rendered as `!!! danger` admonitions; MkDocs site rebuilt with the admonition extension. All 13 requirements (CLR-01..05, ACLR-01..05, DOC-01..03) verified; integration check PASS; all 3 phases Nyquist-compliant.
@@ -17,6 +27,18 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 **Goal achieved:** Log QSO form now displays live UTC date/time by default with padlock toggles, HHMMSS precision (idempotent DB migration for existing records), and a `localStorage`-backed post-submit reset mode. All 14 requirements (DB-01–02, DATE-01–04, TIME-01–05, RESET-01–03) verified in a live browser session.
 
 ## Requirements
+
+### Active (v3.0)
+
+- [ ] **FIELDS-01:** The Log View configuration menu lists every selectable QSO field from the supported display catalog, including core fields, profile-stamped fields, common ADIF fields, app-specific fields, and safe internal display fields.
+- [ ] **FIELDS-02:** A fresh browser uses the current default visible columns: Date / Time, Callsign, Band, Mode, Frequency, and RST.
+- [ ] **FIELDS-03:** Operators can select or deselect any configurable field without hiding the Actions column or breaking row actions.
+- [ ] **FIELDS-04:** The selected column set persists across page loads and HTMX partial table swaps.
+- [ ] **FIELDS-05:** The table header and every QSO row render selected fields from the same field catalog, using ADIF-native field names and human-readable labels.
+- [ ] **FIELDS-06:** Unknown or absent values render as blank cells without raising template errors.
+- [ ] **FIELDS-07:** Existing sort, filter, pagination, inline edit, delete, SSE auto-refresh, LIVE indicator, new-QSO badge, and sound-notification behavior continue to work with configurable columns.
+- [ ] **FIELDS-08:** The column menu remains usable on desktop and mobile, with a scrollable bounded menu and readable labels in light and dark themes.
+- [ ] **FIELDS-09:** Tests cover field catalog construction, row value extraction, default/persisted column behavior, and HTMX partial refresh compatibility.
 
 ### Validated (v1.0)
 
@@ -285,7 +307,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Version:** v2.8 Clear Log — **SHIPPED** (2026-05-18)
+**Version:** v3.0 Configurable QSO Log Fields — **PLANNING** (2026-06-03)
 **Tech stack:** FastAPI 0.135+, Beanie 2.1+, pymongo 4.16+ (sync MongoClient for backup/restore, AsyncMongoClient for app), HTMX 2.0.4, Jinja2, Tailwind CSS v3 + PostCSS (autoprefixer), Docker Compose, maidenhead 1.8+, pydantic[email] 2.0+, pycountry 26.2.16+, mkdocs-material 9.7.6 (dev-only), APScheduler 3.x (backup scheduler)
 **Database:** MongoDB 7 (single-node replica set for change streams)
 **Auth:** PyJWT + pwdlib Argon2; HTTP-only cookie auth for UI/SSE, Bearer token for REST API, `X-API-Key` for REST API (v1.7+), `admin_token` cookie for admin UI (v1.8+)
@@ -437,4 +459,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-18 — v2.8 Clear Log milestone shipped (Phases 54–56, 13 requirements verified)*
+*Last updated: 2026-06-03 — v3.0 Configurable QSO Log Fields milestone started*

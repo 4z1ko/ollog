@@ -1,37 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.9
-milestone_name: QSO Deduplication and ADIF Duplicate Review
-status: phase_complete
-stopped_at: Phase 57 complete locally 2026-06-02 — PR creation blocked because gh CLI is not installed
-last_updated: "2026-06-02T19:47:12Z"
-last_activity: 2026-06-02
+milestone: v3.0
+milestone_name: Configurable QSO Log Fields
+status: planning
+stopped_at: Milestone v3.0 started manually 2026-06-03 — gsd-sdk is not on PATH
+last_updated: "2026-06-03T00:00:00Z"
+last_activity: 2026-06-03
 progress:
   total_phases: 1
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 1
-  completed_plans: 1
-  percent: 100
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-18 after v2.8 milestone)
+See: .planning/PROJECT.md (updated 2026-06-03 for v3.0 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v2.9 Phase 57 complete locally — push/PR still pending because `gh` is not installed.
+**Current focus:** v3.0 planning — enable operators to select all supported QSO fields from the Log View column configuration menu.
 
 ## Current Position
 
-Milestone: v2.9 QSO Deduplication and ADIF Duplicate Review
-Phase: 57 QSO RowHash Deduplication and ADIF Duplicate Review — **COMPLETE LOCALLY** (2026-06-02)
-Status: Ready for PR creation once `gh` is available
-Last activity: 2026-06-02
+Milestone: v3.0 Configurable QSO Log Fields
+Phase: Not started (defining Phase 58 plan)
+Status: Defining requirements and roadmap
+Last activity: 2026-06-03
 
 ```
-v2.9 Progress: [████████████████████] 100% (1/1 phases)
+v3.0 Progress: [--------------------] 0% (0/1 phases)
 ```
 
 ## Performance Metrics
@@ -65,6 +65,7 @@ v2.9 Progress: [████████████████████] 10
 | v2.7 | 52–53 | 3 |
 | v2.8 | 54–56 | 6 |
 | v2.9 | 57 | 1 |
+| v3.0 | 58 | 1 |
 
 ## Accumulated Context
 
@@ -74,6 +75,11 @@ v2.9 Progress: [████████████████████] 10
 - v2.7 milestone complete: UTC Date/Time Entry (Phases 52–53, 2026-05-02)
 - v2.8 milestone complete: Clear Log (Phases 54–56, 2026-05-18)
 - v2.9 phase complete locally: QSO Deduplication and ADIF Duplicate Review (Phase 57, 2026-06-02)
+- v3.0 milestone started: Configurable QSO Log Fields (Phase 58 planned, 2026-06-03)
+
+### v3.0 Phase Structure
+
+- **Phase 58** — Configurable QSO Field Catalog and Log View Columns: replace hard-coded Log View column menu/table fields with a shared selectable field catalog, render selected ADIF-native values across headers and rows, preserve current defaults and localStorage persistence, and verify HTMX/SSE/table action behavior.
 
 ### v2.9 Phase Structure
 
@@ -127,7 +133,7 @@ v2.9 Progress: [████████████████████] 10
 
 ### Pending Todos
 
-None.
+- Create and execute Phase 58 plan.
 
 ### Ship Blockers
 
@@ -147,5 +153,5 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 ## Session Continuity
 
 Last session: 2026-06-02 (Phase 57 local ship)
-Stopped at: v2.9 Phase 57 complete locally — implementation and GSD artifacts ready; PR creation blocked by missing `gh`
-Next: install/authenticate `gh`, push the feature branch, and create the PR
+Stopped at: v3.0 milestone started manually because `gsd-sdk` is not on PATH
+Next: run `/gsd plan phase 58` to create the implementation plan, then execute Phase 58

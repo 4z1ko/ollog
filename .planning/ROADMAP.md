@@ -22,6 +22,7 @@
 - ✅ **v2.7 UTC Date/Time Entry** — Phases 52–53 (shipped 2026-05-02)
 - ✅ **v2.8 Clear Log** — Phases 54–56 (shipped 2026-05-18)
 - 🚢 **v2.9 QSO Deduplication and ADIF Duplicate Review** — Phase 57 (phase complete locally 2026-06-02)
+- 🧭 **v3.0 Configurable QSO Log Fields** — Phase 58 (planning started 2026-06-03)
 
 
 ## Phases
@@ -236,7 +237,33 @@ Full archive: `.planning/milestones/v2.8-ROADMAP.md`
 
 - [x] **Phase 57: QSO RowHash Deduplication and ADIF Duplicate Review** — canonical hashing utility, QSO `rowHash` model/index/backfill, explicit duplicate handling across insert paths, soft-delete hash updates, ADIF duplicate review table with checkboxes, and focused validation (completed 2026-06-02)
 
+### 🧭 v3.0 Configurable QSO Log Fields — PLANNING STARTED 2026-06-03
+
+**Milestone Goal:** Operators can choose any available QSO/ADIF field to show in the Log View table from the existing column configuration menu.
+
+- [ ] **Phase 58: Configurable QSO Field Catalog and Log View Columns** — replace hard-coded column menu/table fields with a shared selectable field catalog, render selected ADIF-native values across headers and rows, preserve current defaults and localStorage persistence, and verify HTMX/SSE/table action behavior.
+
 ## Phase Details
+
+### Phase 58: Configurable QSO Field Catalog and Log View Columns
+
+**Goal:** The existing Log View column configuration menu can show all supported QSO fields, and the table renders whichever fields the operator selects while preserving the current live, sortable, paginated workflow.
+**Depends on:** Phase 57 (v2.9 complete locally)
+**Requirements:** FIELDS-01..04, COLUMNS-01..05, TABLE-01..05, VERIFY-01..03
+**Success Criteria** (what must be TRUE):
+  1. The column menu is generated from a shared field catalog rather than a hard-coded eight-item list.
+  2. Fresh browsers still show Date / Time, Callsign, Band, Mode, Frequency, and RST by default.
+  3. Operators can show profile-stamped fields, common ADIF fields, app-specific fields, and safe internal display fields in the Log View table.
+  4. Missing field values render as blank cells, and stale localStorage keys cannot break the table.
+  5. Sortable headers still work when their fields are visible; non-sortable selected fields render as plain headers.
+  6. Pagination, filters, inline edit/delete actions, SSE auto-refresh, LIVE/OFFLINE state, new-QSO badge, and sound notification behavior are preserved.
+  7. Focused tests cover catalog normalization, value extraction, and table/HTMX behavior.
+**Plans:** 1 plan
+
+Plans:
+- [ ] 058-01-PLAN.md — Shared field catalog, configurable table rendering, menu UX, persistence guards, and focused tests
+
+---
 
 ### Phase 25: Token Model and Service Layer
 
