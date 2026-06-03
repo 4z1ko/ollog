@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Configurable QSO Log Fields
 status: planning
-stopped_at: Milestone v3.0 started manually 2026-06-03 — gsd-sdk is not on PATH
+stopped_at: Phase 58 context gathered manually 2026-06-03 — gsd-sdk is not on PATH
 last_updated: "2026-06-03T00:00:00Z"
 last_activity: 2026-06-03
 progress:
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-03 for v3.0 milestone)
 ## Current Position
 
 Milestone: v3.0 Configurable QSO Log Fields
-Phase: Not started (defining Phase 58 plan)
-Status: Defining requirements and roadmap
+Phase: 58 Configurable QSO Field Catalog and Log View Columns — context gathered
+Status: Ready for Phase 58 planning
 Last activity: 2026-06-03
 
 ```
@@ -76,6 +76,7 @@ v3.0 Progress: [--------------------] 0% (0/1 phases)
 - v2.8 milestone complete: Clear Log (Phases 54–56, 2026-05-18)
 - v2.9 phase complete locally: QSO Deduplication and ADIF Duplicate Review (Phase 57, 2026-06-02)
 - v3.0 milestone started: Configurable QSO Log Fields (Phase 58 planned, 2026-06-03)
+- Phase 58 context gathered: field catalog limited to known ADIF/common fields, single scrollable checklist, extra selected fields append after defaults, humanized display values, only current sortable fields remain sortable (2026-06-03)
 
 ### v3.0 Phase Structure
 
@@ -133,7 +134,7 @@ v3.0 Progress: [--------------------] 0% (0/1 phases)
 
 ### Pending Todos
 
-- Create and execute Phase 58 plan.
+- Create and execute Phase 58 plan using `.planning/phases/58-configurable-qso-field-catalog-and-log-view-columns/58-CONTEXT.md`.
 
 ### Ship Blockers
 
@@ -153,5 +154,5 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 ## Session Continuity
 
 Last session: 2026-06-02 (Phase 57 local ship)
-Stopped at: v3.0 milestone started manually because `gsd-sdk` is not on PATH
+Stopped at: Phase 58 context gathered manually because `gsd-sdk` is not on PATH
 Next: run `/gsd plan phase 58` to create the implementation plan, then execute Phase 58
