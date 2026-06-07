@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Configurable QSO Log Fields
-status: milestone_complete
-stopped_at: v3.0 milestone archived 2026-06-07 — ready for new milestone
-last_updated: "2026-06-07T17:49:15Z"
+milestone: v3.1
+milestone_name: Per-User QSO Collections
+status: planning
+stopped_at: v3.1 milestone started 2026-06-07 — ready for Phase 59 planning
+last_updated: "2026-06-07T00:00:00Z"
 last_activity: 2026-06-07
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-03 for v3.0 milestone)
+See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.0 shipped — ready to define the next milestone.
+**Current focus:** v3.1 planning — move QSO storage from one shared collection to per-user `<username>_qsos` collections.
 
 ## Current Position
 
-Milestone: v3.0 Configurable QSO Log Fields — shipped
-Phase: 58 Configurable QSO Field Catalog and Log View Columns — complete
-Plan: 58-01-PLAN.md
-Status: Milestone archived; ready for next milestone
+Milestone: v3.1 Per-User QSO Collections
+Phase: 59 Collection Routing Foundation — not started
+Plan: —
+Status: Ready to plan Phase 59
 Last activity: 2026-06-07
 
 ```
-v3.0 Progress: [####################] 100% (1/1 phases)
+v3.1 Progress: [--------------------] 0% (0/4 phases)
 ```
 
 ## Performance Metrics
@@ -67,6 +67,7 @@ v3.0 Progress: [####################] 100% (1/1 phases)
 | v2.8 | 54–56 | 6 |
 | v2.9 | 57 | 1 |
 | v3.0 | 58 | 1 |
+| v3.1 | 59–62 | TBD |
 
 ## Accumulated Context
 
@@ -84,6 +85,14 @@ v3.0 Progress: [####################] 100% (1/1 phases)
 - Phase 58 executed: shared curated QSO field catalog added, Log View menu/table/rows now render from catalog, defaults/localStorage/sort controls/actions preserved, focused tests/build passed with Mongo-backed checks skipped when MongoDB unavailable (2026-06-03)
 - Phase 58 UAT verified: automated/source checks passed, manual bounded column-menu viewport check passed, and `58-UAT.md` marked complete with 5/5 tests passing and 0 issues (2026-06-07)
 - v3.0 milestone archived: requirements and roadmap copied to `.planning/milestones/`, milestone audit passed, and active `REQUIREMENTS.md` removed for the next milestone cycle (2026-06-07)
+- v3.1 milestone started: refactor QSO storage so every user writes to a dedicated MongoDB collection named `<username>_qsos`; include idempotent migration from the shared `qsos` collection and preserve all current QSO workflows (2026-06-07)
+
+### v3.1 Phase Structure
+
+- **Phase 59** — Collection Routing Foundation: shared collection-name helper, per-user raw collection access, index setup, and tests.
+- **Phase 60** — Existing Data Migration: idempotently migrate shared `qsos` data into `<username>_qsos`, report unresolved operators, and preserve rowHash/ADIF extras.
+- **Phase 61** — QSO CRUD and Import/Export Routing: refactor REST/UI/service/ADIF/API-token/UDP write paths to use authenticated username-derived collections.
+- **Phase 62** — Cross-Feature Integration and Verification: stats, admin clear-log, live feed/SSE, backup/restore, isolation tests, and compatibility verification.
 
 ### v3.0 Phase Structure
 
@@ -141,7 +150,7 @@ v3.0 Progress: [####################] 100% (1/1 phases)
 
 ### Pending Todos
 
-- Run `/gsd-new-milestone` to define the next milestone.
+- Run `/gsd-plan-phase 59` to design the collection-routing foundation.
 
 ### Ship Blockers
 
@@ -160,6 +169,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-07 (v3.0 milestone completion)
-Stopped at: v3.0 archived; `gsd-sdk` is not on PATH, so archive bookkeeping was applied manually
-Next: run `/gsd-new-milestone`
+Last session: 2026-06-07 (v3.1 milestone start)
+Stopped at: v3.1 requirements and roadmap created; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
+Next: run `/gsd-plan-phase 59`

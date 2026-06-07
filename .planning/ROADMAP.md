@@ -23,6 +23,7 @@
 - ✅ **v2.8 Clear Log** — Phases 54–56 (shipped 2026-05-18)
 - 🚢 **v2.9 QSO Deduplication and ADIF Duplicate Review** — Phase 57 (phase complete locally 2026-06-02)
 - ✅ **v3.0 Configurable QSO Log Fields** — Phase 58 (shipped 2026-06-07)
+- 🧭 **v3.1 Per-User QSO Collections** — Phases 59–62 (planning started 2026-06-07)
 
 
 ## Phases
@@ -248,7 +249,90 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 
 </details>
 
+### 🧭 v3.1 Per-User QSO Collections — PLANNING STARTED 2026-06-07
+
+**Milestone Goal:** Store each user's QSO records in a dedicated MongoDB collection named `<username>_qsos` while preserving all existing operator-facing behavior.
+
+- [ ] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests.
+- [ ] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting.
+- [ ] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection.
+- [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections.
+
 ## Phase Details
+
+### Phase 59: Collection Routing Foundation
+
+**Goal:** The codebase has one safe, tested way to derive and access a user's QSO collection named exactly `<username>_qsos`.
+**Depends on:** Phase 58 (v3.0 shipped)
+**Requirements:** COLL-01..05, VERIFY-01
+**Success Criteria** (what must be TRUE):
+  1. A shared helper derives `<username>_qsos` from `User.username` and rejects unsafe collection names.
+  2. QSO storage code can obtain the correct raw MongoDB collection for any authenticated `User`.
+  3. Per-user collections can be initialized with the indexes required for existing sort, duplicate, rowHash, and created-at behavior.
+  4. The existing `QSO` model remains usable as a document validation/serialization shape without forcing all CRUD through a fixed `qsos` collection.
+  5. Unit tests cover valid/invalid username handling, collection-name derivation, index setup, and helper behavior.
+**Plans:** TBD
+
+Plans:
+- [ ] 059-01-PLAN.md — Dynamic collection helper, collection access boundary, index initialization, and unit tests.
+
+---
+
+### Phase 60: Shared Collection Migration
+
+**Goal:** Existing deployments can move all documents from the shared `qsos` collection into username-derived collections safely and repeatedly.
+**Depends on:** Phase 59
+**Requirements:** MIGR-01..05, VERIFY-02
+**Success Criteria** (what must be TRUE):
+  1. Migration resolves each legacy QSO's `_operator` callsign to a `User.username` and writes it to `<username>_qsos`.
+  2. Migration preserves `_operator`, `_deleted`, `_created_at`, `rowHash`, ADIF extras, profile-stamped fields, custom fields, and ObjectId where feasible.
+  3. Migration is idempotent: rerunning does not duplicate rows or overwrite newer per-user collection changes.
+  4. Unresolved `_operator` rows are logged and reported, never silently dropped.
+  5. Per-user collection indexes exist before migrated documents rely on them.
+**Plans:** TBD
+
+Plans:
+- [ ] 060-01-PLAN.md — Idempotent migration/backfill command, startup integration, unresolved-operator report, and tests.
+
+---
+
+### Phase 61: QSO Workflow Refactor
+
+**Goal:** All QSO CRUD and logging workflows dynamically target the authenticated user's `<username>_qsos` collection while preserving public behavior.
+**Depends on:** Phase 60
+**Requirements:** QSO-01..06, COLL-05
+**Success Criteria** (what must be TRUE):
+  1. REST QSO list/create/read/update/delete routes keep the same API contract while using the authenticated user's collection.
+  2. Browser QSO entry, Log View, inline edit/delete, pagination, filtering, sorting, and operator clear-log use the logged-in user's collection.
+  3. ADIF import/export and duplicate review use the user's collection for duplicate detection, inserts, existing-QSO review, and exports.
+  4. API-token requests route through the token owner's username-derived collection.
+  5. UDP logging resolves the target `User` from `APP_OLLOG_TOKEN` or `UDP_OPERATOR` and writes to that user's collection.
+  6. RowHash duplicate handling remains scoped to the user's collection.
+**Plans:** TBD
+
+Plans:
+- [ ] 061-01-PLAN.md — Service/router refactor for REST, UI, ADIF, API-token, and UDP collection routing.
+
+---
+
+### Phase 62: Cross-Feature Integration and Verification
+
+**Goal:** Features outside direct QSO CRUD continue to work across dynamic user collections, with coverage for isolation and compatibility.
+**Depends on:** Phase 61
+**Requirements:** INT-01..05, VERIFY-03..04
+**Success Criteria** (what must be TRUE):
+  1. `/log/stats` aggregates from the logged-in user's collection with unchanged UI behavior.
+  2. Admin clear-log counts and deletes from the target user's collection while preserving admin password verification.
+  3. Live feed/SSE still detects new QSOs from dynamic collections and preserves auto-refresh/new-QSO badge behavior.
+  4. Backup and restore include dynamically named QSO collections.
+  5. Integration tests prove operators cannot read, edit, delete, export, import-review, or clear another user's QSOs by guessing IDs or collection names.
+  6. Regression tests cover existing API schemas, UI contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels.
+**Plans:** TBD
+
+Plans:
+- [ ] 062-01-PLAN.md — Stats/admin/live-feed/backup integration plus isolation and compatibility verification.
+
+---
 
 ### Phase 25: Token Model and Service Layer
 

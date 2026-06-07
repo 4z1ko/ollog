@@ -8,19 +8,15 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
-## Current State
+## Current Milestone: v3.1 Per-User QSO Collections
 
-v3.0 Configurable QSO Log Fields shipped on 2026-06-07. Operators can choose supported QSO/ADIF fields to show in the Log View table from the existing column configuration menu while keeping ollog's ADIF-native, live-updating workflow intact.
+**Goal:** Store each user's QSO records in a dedicated MongoDB collection named `<username>_qsos` while preserving all existing operator-facing behavior.
 
-**Shipped in v3.0:**
-- The Log View column configuration menu exposes the supported QSO field catalog, not only the previous fixed field list.
-- Operators can select/deselect visible fields while retaining the current default columns for fresh browsers.
-- Selected columns persist across page loads and HTMX table refreshes.
-- The table renders selected ADIF-native field values while preserving sorting, filtering, pagination, inline edit, SSE refresh, and the Actions column.
-
-## Next Milestone Goals
-
-Not defined yet. Run `/gsd-new-milestone` to choose the next product slice and generate fresh requirements.
+**Target features:**
+- Every user has a dedicated QSO collection using the exact naming format `<username>_qsos`.
+- QSO CRUD, browser logging, REST API, ADIF import/export, duplicate review, stats, admin clear-log, and UDP/API-token logging dynamically target the correct collection from the authenticated `User.username`.
+- Existing documents in the shared `qsos` collection are migrated idempotently into per-user collections.
+- Existing external behavior remains unchanged: authentication, API routes, UI workflows, ADIF shape, rowHash duplicate handling, soft-delete semantics, live updates, filtering, sorting, and pagination keep working.
 
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
@@ -34,7 +30,11 @@ Not defined yet. Run `/gsd-new-milestone` to choose the next product slice and g
 
 ### Active
 
-None.
+- [ ] **UCOLL-01:** Each user has a dedicated MongoDB QSO collection named exactly `<username>_qsos`.
+- [ ] **UCOLL-02:** All QSO reads/writes dynamically target the collection derived from the authenticated `User.username`.
+- [ ] **UCOLL-03:** Existing shared-collection QSO data is migrated idempotently into per-user collections without data loss.
+- [ ] **UCOLL-04:** Existing QSO workflows remain externally unchanged across REST, browser UI, ADIF, UDP, stats, admin, and live-feed paths.
+- [ ] **UCOLL-05:** Tests cover collection-name derivation, migration behavior, operator isolation, and representative CRUD/import/export flows.
 
 ### Validated (v3.0)
 
@@ -467,4 +467,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-07 — v3.0 milestone archived*
+*Last updated: 2026-06-07 — v3.1 Per-User QSO Collections milestone started*
