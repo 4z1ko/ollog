@@ -15,11 +15,11 @@
 
 ### Data Migration
 
-- [ ] **MIGR-01:** Existing documents from the shared `qsos` collection are copied into the correct `<username>_qsos` collection by resolving each document's `_operator` callsign to a `User.username`.
-- [ ] **MIGR-02:** The migration is idempotent and can safely rerun without duplicating migrated QSOs or overwriting newer per-user data.
-- [ ] **MIGR-03:** Documents whose `_operator` cannot be resolved to a user are not silently discarded; they are logged and reported for operator review.
-- [ ] **MIGR-04:** Existing `rowHash`, `_created_at`, `_deleted`, ADIF extras, profile-stamped fields, and custom QSO fields are preserved byte-for-byte where possible.
-- [ ] **MIGR-05:** Startup/backfill ordering ensures per-user collection indexes exist before migrated or newly inserted QSOs depend on them.
+- [x] **MIGR-01:** Existing documents from the shared `qsos` collection are copied into the correct `<username>_qsos` collection by resolving each document's `_operator` callsign to a `User.username`.
+- [x] **MIGR-02:** The migration is idempotent and can safely rerun without duplicating migrated QSOs or overwriting newer per-user data.
+- [x] **MIGR-03:** Documents whose `_operator` cannot be resolved to a user are not silently discarded; they are logged and reported for operator review.
+- [x] **MIGR-04:** Existing `rowHash`, `_created_at`, `_deleted`, ADIF extras, profile-stamped fields, and custom QSO fields are preserved byte-for-byte where possible.
+- [x] **MIGR-05:** Startup/backfill ordering ensures per-user collection indexes exist before migrated or newly inserted QSOs depend on them.
 
 ### QSO Workflows
 
@@ -41,7 +41,7 @@
 ### Verification
 
 - [x] **VERIFY-01:** Unit tests cover collection-name derivation, invalid username handling, per-user collection helper behavior, and index setup.
-- [ ] **VERIFY-02:** Migration tests cover normal migration, idempotent reruns, unresolved operators, soft-deleted rows, rowHash preservation, and ADIF extras.
+- [x] **VERIFY-02:** Migration tests cover normal migration, idempotent reruns, unresolved operators, soft-deleted rows, rowHash preservation, and ADIF extras.
 - [ ] **VERIFY-03:** Integration tests cover representative REST, browser/service, ADIF import/export, stats, admin clear-log, API-token, and UDP paths against per-user collections.
 - [ ] **VERIFY-04:** Regression tests prove existing API schemas, UI template contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels remain compatible.
 
@@ -70,11 +70,11 @@
 | COLL-03 | Phase 59 | Complete |
 | COLL-04 | Phase 59 | Complete |
 | COLL-05 | Phase 59 | Complete |
-| MIGR-01 | Phase 60 | Pending |
-| MIGR-02 | Phase 60 | Pending |
-| MIGR-03 | Phase 60 | Pending |
-| MIGR-04 | Phase 60 | Pending |
-| MIGR-05 | Phase 60 | Pending |
+| MIGR-01 | Phase 60 | Complete |
+| MIGR-02 | Phase 60 | Complete |
+| MIGR-03 | Phase 60 | Complete |
+| MIGR-04 | Phase 60 | Complete |
+| MIGR-05 | Phase 60 | Complete |
 | QSO-01 | Phase 61 | Pending |
 | QSO-02 | Phase 61 | Pending |
 | QSO-03 | Phase 61 | Pending |
@@ -87,7 +87,7 @@
 | INT-04 | Phase 62 | Pending |
 | INT-05 | Phase 62 | Pending |
 | VERIFY-01 | Phase 59 | Complete |
-| VERIFY-02 | Phase 60 | Pending |
+| VERIFY-02 | Phase 60 | Complete |
 | VERIFY-03 | Phase 62 | Pending |
 | VERIFY-04 | Phase 62 | Pending |
 
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-07 after Phase 59 UAT completion*
+*Last updated: 2026-06-07 after Phase 60 UAT completion*

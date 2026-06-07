@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
 status: planning
-stopped_at: Phase 60 executed 2026-06-07 — ready for verification
+stopped_at: Phase 60 verified 2026-06-07 — ready for Phase 61 planning
 last_updated: "2026-06-07T00:00:00Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 2
   completed_plans: 2
-  percent: 25
+  percent: 50
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 ## Current Position
 
 Milestone: v3.1 Per-User QSO Collections
-Phase: 60 Shared Collection Migration — implementation complete
-Plan: 60-01 Idempotent Shared QSO Collection Migration
-Status: Ready to verify Phase 60
+Phase: 61 QSO Workflow Refactor — ready to plan
+Plan: —
+Status: Ready to plan Phase 61
 Last activity: 2026-06-07
 
 ```
-v3.1 Progress: [#####---------------] 25% (1/4 phases)
+v3.1 Progress: [##########----------] 50% (2/4 phases)
 ```
 
 ## Performance Metrics
@@ -90,11 +90,12 @@ v3.1 Progress: [#####---------------] 25% (1/4 phases)
 - Phase 59 UAT verified: 5/5 acceptance checkpoints passed with no gaps; Phase 60 migration planning is next (2026-06-07)
 - Phase 60 planned: one implementation plan for an idempotent copy-only migration from shared `qsos` into `<username>_qsos`, with unresolved/ambiguous ownership reporting, target index setup, startup/CLI integration, and focused tests (2026-06-07)
 - Phase 60 executed: added copy-only shared QSO migration module, CLI/report support, startup wiring, unresolved/ambiguous ownership reporting, insert-only target writes, and focused tests; verification passed with 33 tests (2026-06-07)
+- Phase 60 UAT verified: 5/5 acceptance checkpoints passed with no gaps; Phase 61 workflow refactor planning is next (2026-06-07)
 
 ### v3.1 Phase Structure
 
 - **Phase 59** — Collection Routing Foundation: shared collection-name helper, per-user raw collection access, index setup, and tests. Completed 2026-06-07.
-- **Phase 60** — Existing Data Migration: idempotently migrate shared `qsos` data into `<username>_qsos`, report unresolved operators, and preserve rowHash/ADIF extras.
+- **Phase 60** — Existing Data Migration: idempotently migrate shared `qsos` data into `<username>_qsos`, report unresolved operators, and preserve rowHash/ADIF extras. Completed 2026-06-07.
 - **Phase 61** — QSO CRUD and Import/Export Routing: refactor REST/UI/service/ADIF/API-token/UDP write paths to use authenticated username-derived collections.
 - **Phase 62** — Cross-Feature Integration and Verification: stats, admin clear-log, live feed/SSE, backup/restore, isolation tests, and compatibility verification.
 
@@ -154,7 +155,7 @@ v3.1 Progress: [#####---------------] 25% (1/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-verify-work phase 60` to complete UAT verification for the shared collection migration.
+- Run `/gsd-plan-phase 61` to plan the QSO workflow refactor.
 
 ### Ship Blockers
 
@@ -175,4 +176,4 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 Last session: 2026-06-07 (v3.1 milestone start)
 Stopped at: v3.1 requirements and roadmap created; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
-Next: run `/gsd-verify-work phase 60`
+Next: run `/gsd-plan-phase 61`
