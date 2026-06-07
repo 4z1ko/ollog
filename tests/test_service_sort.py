@@ -18,7 +18,7 @@ from beanie import init_beanie
 from pymongo import AsyncMongoClient
 
 from app.qso.models import QSO
-from app.qso.service import _ALLOWED_SORT_FIELDS, _DEFAULT_SORT, get_qso_page
+from app.qso.service import _ALLOWED_SORT_FIELDS, get_qso_page
 
 
 # ---------------------------------------------------------------------------

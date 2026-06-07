@@ -6,6 +6,7 @@ from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.profile.schemas import ProfileResponse, ProfileUpdateRequest
 from app.profile.service import update_profile
+from app.qso.custom_fields import custom_fields_for_user
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
@@ -20,7 +21,9 @@ async def get_profile(
     parameter is accepted. A user with no profile fields set receives
     all-null optional fields (not an error).
     """
-    return ProfileResponse.model_validate(user.model_dump())
+    data = user.model_dump()
+    data["custom_qso_fields"] = [field.model_dump() for field in custom_fields_for_user(user)]
+    return ProfileResponse.model_validate(data)
 
 
 @router.patch("/", response_model=ProfileResponse, status_code=200)
@@ -36,4 +39,8 @@ async def patch_profile(
     """
     updates = body.model_dump(exclude_unset=True)
     updated_user = await update_profile(user, updates)
-    return ProfileResponse.model_validate(updated_user.model_dump())
+    data = updated_user.model_dump()
+    data["custom_qso_fields"] = [
+        field.model_dump() for field in custom_fields_for_user(updated_user)
+    ]
+    return ProfileResponse.model_validate(data)

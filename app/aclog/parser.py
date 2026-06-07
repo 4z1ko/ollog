@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 
 _TAG_RE = re.compile(r"<([A-Z0-9_]+)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
+_ADIF_NAME_RE = re.compile(r"^[A-Z0-9_]+$")
+_OTHER_CONTROL_RE = re.compile(r"^TXTENTRYOTHER([1-8])$")
 
 _UPDATE_CONTROL_MAP = {
     "TXTENTRYFREQUENCY": "FREQ",
@@ -13,6 +15,11 @@ _UPDATE_CONTROL_MAP = {
     "TXTENTRYRSTR": "RST_RCVD",
     "TXTENTRYSENT": "RST_SENT",
     "TXTENTRYRECEIVED": "RST_RCVD",
+}
+
+_ENTEREVENT_SKIP_FIELDS = {
+    "QSOCOUNT",
+    "MODETEST",
 }
 
 
@@ -74,6 +81,19 @@ def aclog_enterevent_to_adif(
         if key not in result and state.get(key):
             result[key] = state[key]
 
+    for source, value in fields.items():
+        key = source.strip().upper()
+        if key in _ENTEREVENT_SKIP_FIELDS or key in result:
+            continue
+        if key in {"RSTS", "RSTR"}:
+            continue
+        if value and _ADIF_NAME_RE.match(key):
+            result[key] = value.strip()
+
+    for key, value in state.items():
+        if key.startswith("OTHER_") and key not in result and value:
+            result[key] = value
+
     band = fields.get("BAND")
     if band:
         band = band.strip().upper()
@@ -101,6 +121,9 @@ def update_state_from_message(
     control = fields.get("CONTROL", "").strip().upper()
     value = fields.get("VALUE", "").strip()
     dest = _UPDATE_CONTROL_MAP.get(control)
+    other_match = _OTHER_CONTROL_RE.match(control)
+    if dest is None and other_match is not None:
+        dest = f"OTHER_{other_match.group(1)}"
     if dest is not None:
         if value:
             state[dest] = value

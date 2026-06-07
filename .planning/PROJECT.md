@@ -8,15 +8,19 @@ A self-hosted, ADIF-native, multi-operator logbook for amateur radio operators. 
 
 Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss — the shared platform stays out of their way and just works.
 
-## Current Milestone: v3.0 Configurable QSO Log Fields
+## Current State
 
-**Goal:** Operators can choose any available QSO/ADIF field to show in the Log View table from the existing column configuration menu.
+v3.0 Configurable QSO Log Fields shipped on 2026-06-07. Operators can choose supported QSO/ADIF fields to show in the Log View table from the existing column configuration menu while keeping ollog's ADIF-native, live-updating workflow intact.
 
-**Target features:**
-- The Log View column configuration menu exposes the full supported QSO field catalog, not only the current fixed eight fields.
+**Shipped in v3.0:**
+- The Log View column configuration menu exposes the supported QSO field catalog, not only the previous fixed field list.
 - Operators can select/deselect visible fields while retaining the current default columns for fresh browsers.
 - Selected columns persist across page loads and HTMX table refreshes.
-- The table renders selected ADIF-native field values losslessly while preserving sorting, filtering, pagination, inline edit, SSE refresh, and the Actions column.
+- The table renders selected ADIF-native field values while preserving sorting, filtering, pagination, inline edit, SSE refresh, and the Actions column.
+
+## Next Milestone Goals
+
+Not defined yet. Run `/gsd-new-milestone` to choose the next product slice and generate fresh requirements.
 
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
@@ -28,17 +32,21 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Requirements
 
-### Active (v3.0)
+### Active
 
-- [ ] **FIELDS-01:** The Log View configuration menu lists every selectable QSO field from the supported display catalog, including core fields, profile-stamped fields, common ADIF fields, app-specific fields, and safe internal display fields.
-- [ ] **FIELDS-02:** A fresh browser uses the current default visible columns: Date / Time, Callsign, Band, Mode, Frequency, and RST.
-- [ ] **FIELDS-03:** Operators can select or deselect any configurable field without hiding the Actions column or breaking row actions.
-- [ ] **FIELDS-04:** The selected column set persists across page loads and HTMX partial table swaps.
-- [ ] **FIELDS-05:** The table header and every QSO row render selected fields from the same field catalog, using ADIF-native field names and human-readable labels.
-- [ ] **FIELDS-06:** Unknown or absent values render as blank cells without raising template errors.
-- [ ] **FIELDS-07:** Existing sort, filter, pagination, inline edit, delete, SSE auto-refresh, LIVE indicator, new-QSO badge, and sound-notification behavior continue to work with configurable columns.
-- [ ] **FIELDS-08:** The column menu remains usable on desktop and mobile, with a scrollable bounded menu and readable labels in light and dark themes.
-- [ ] **FIELDS-09:** Tests cover field catalog construction, row value extraction, default/persisted column behavior, and HTMX partial refresh compatibility.
+None.
+
+### Validated (v3.0)
+
+- ✓ **FIELDS-01:** The Log View configuration menu lists every selectable QSO field from the supported display catalog, including core fields, profile-stamped fields, common ADIF fields, app-specific fields, and safe internal display fields — Phase 58.
+- ✓ **FIELDS-02:** A fresh browser uses the current default visible columns: Date / Time, Callsign, Band, Mode, Frequency, and RST — Phase 58.
+- ✓ **FIELDS-03:** Operators can select or deselect any configurable field without hiding the Actions column or breaking row actions — Phase 58.
+- ✓ **FIELDS-04:** The selected column set persists across page loads and HTMX partial table swaps — Phase 58.
+- ✓ **FIELDS-05:** The table header and every QSO row render selected fields from the same field catalog, using ADIF-native field names and human-readable labels — Phase 58.
+- ✓ **FIELDS-06:** Unknown or absent values render as blank cells without raising template errors — Phase 58.
+- ✓ **FIELDS-07:** Existing sort, filter, pagination, inline edit, delete, SSE auto-refresh, LIVE indicator, new-QSO badge, and sound-notification behavior continue to work with configurable columns — Phase 58.
+- ✓ **FIELDS-08:** The column menu remains usable on desktop and mobile, with a scrollable bounded menu and readable labels in light and dark themes — Phase 58.
+- ✓ **FIELDS-09:** Tests cover field catalog construction, row value extraction, default/persisted column behavior, and HTMX partial refresh compatibility — Phase 58.
 
 ### Validated (v1.0)
 
@@ -459,4 +467,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-03 — v3.0 Configurable QSO Log Fields milestone started*
+*Last updated: 2026-06-07 — v3.0 milestone archived*

@@ -2,6 +2,7 @@
 
 from app.auth.models import User
 from app.profile.grid import grid_to_latlon
+from app.qso.custom_fields import normalize_custom_qso_fields
 
 
 async def update_profile(user: User, updates: dict) -> User:
@@ -27,6 +28,12 @@ async def update_profile(user: User, updates: dict) -> User:
         else:
             updates["latitude"] = None
             updates["longitude"] = None
+
+    if "custom_qso_fields" in updates:
+        updates["custom_qso_fields"] = [
+            field.model_dump()
+            for field in normalize_custom_qso_fields(updates["custom_qso_fields"])
+        ]
 
     if updates:
         await user.update({"$set": updates})

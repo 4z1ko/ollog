@@ -133,6 +133,19 @@
                    class="form-input font-mono">
           </div>
 
+          {% for field in custom_fields %}
+          <div>
+            <label class="form-label">{{ field.label }}</label>
+            <input type="text"
+                   name="{{ field.adif_name }}"
+                   value="{{ custom_field_defaults.get(field.adif_name, '') }}"
+                   autocomplete="off"
+                   data-custom-qso-field="{{ field.adif_name }}"
+                   data-fill-behavior="{{ field.fill_behavior }}"
+                   class="form-input font-mono">
+          </div>
+          {% endfor %}
+
         </div>
 
         <div class="flex items-center gap-3 flex-wrap">
@@ -389,6 +402,32 @@
     var name = e.target.getAttribute('name');
     if (rules[name]) setError(e.target, !rules[name](e.target.value));
   });
+
+  function applyCustomDefaults() {
+    var callEl = field('CALL');
+    if (!callEl) return;
+    var call = callEl.value.trim();
+    if (!call) return;
+    var targets = Array.prototype.slice.call(form.querySelectorAll('[data-custom-qso-field][data-fill-behavior="previous_same_call"]'));
+    if (!targets.length) return;
+    fetch('/log/custom-field-defaults?call=' + encodeURIComponent(call))
+      .then(function (response) { return response.ok ? response.json() : {}; })
+      .then(function (defaults) {
+        targets.forEach(function (input) {
+          var name = input.getAttribute('data-custom-qso-field');
+          if (!input.value && defaults[name]) {
+            input.value = defaults[name];
+          }
+        });
+      })
+      .catch(function () {});
+  }
+
+  var callInput = field('CALL');
+  if (callInput) {
+    callInput.addEventListener('blur', applyCustomDefaults);
+    callInput.addEventListener('change', applyCustomDefaults);
+  }
 
   // ── Enter key on text inputs submits the form ───────────────────────────────
   form.addEventListener('keydown', function (e) {

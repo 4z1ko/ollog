@@ -33,9 +33,14 @@ from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
 from app.qso.fields import (
     build_field_values,
-    get_configurable_column_keys,
-    get_default_column_keys,
-    get_field_catalog,
+    get_configurable_column_keys_for_user,
+    get_default_column_keys_for_user,
+    get_field_catalog_for_user,
+)
+from app.qso.custom_fields import (
+    custom_field_defaults,
+    custom_fields_for_user,
+    enabled_custom_fields_for_user,
 )
 from app.qso.models import QSO
 from app.qso.service import (
@@ -66,6 +71,18 @@ def _decode_import_record(token: str) -> dict:
     if not isinstance(record, dict):
         raise ValueError("Invalid duplicate record payload")
     return record
+
+
+def _custom_qso_values_from_form(form, user: User, include_empty: bool = False) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for field in enabled_custom_fields_for_user(user):
+        if field.adif_name not in form:
+            continue
+        value = str(form.get(field.adif_name, "")).strip()
+        if not include_empty and not value:
+            continue
+        values[field.adif_name] = value.upper() if field.force_uppercase else value
+    return values
 
 
 # ---------------------------------------------------------------------------
@@ -142,13 +159,17 @@ async def logout():
 @ui_router.get("/", response_class=HTMLResponse)
 async def form_page(
     request: Request,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Render the main QSO entry form page."""
     return templates.TemplateResponse(
         request,
         "log/form.html",
-        {"callsign": callsign},
+        {
+            "callsign": user.callsign,
+            "custom_fields": enabled_custom_fields_for_user(user),
+            "custom_field_defaults": await custom_field_defaults(user),
+        },
     )
 
 
@@ -174,6 +195,9 @@ async def submit_qso(
     Profile fields (OPERATOR, STATION_CALLSIGN, etc.) are auto-stamped from the User document.
     """
     callsign = user.callsign
+    submitted_form = await request.form()
+    custom_values = _custom_qso_values_from_form(submitted_form, user)
+
     form_data = {
         "CALL": CALL,
         "QSO_DATE": QSO_DATE,
@@ -184,6 +208,7 @@ async def submit_qso(
         "RST_SENT": RST_SENT,
         "RST_RCVD": RST_RCVD,
     }
+    form_data.update(custom_values)
 
     qso_dict = build_qso_dict(
         {k: v for k, v in form_data.items() if v is not None},
@@ -262,11 +287,20 @@ async def submit_qso(
     )
 
 
+@ui_router.get("/custom-field-defaults")
+async def get_custom_qso_field_defaults(
+    call: str = Query(""),
+    user: User = Depends(get_current_user_cookie),
+) -> dict[str, str]:
+    """Return CALL-dependent custom field defaults for the QSO entry form."""
+    return await custom_field_defaults(user, call=call)
+
+
 # ---------------------------------------------------------------------------
 # Log view — paginated list with filtering, sorting, inline edit, soft-delete
 # ---------------------------------------------------------------------------
 
-def _qso_to_view_dict(qso: QSO) -> dict:
+def _qso_to_view_dict(qso: QSO, user: User | None = None) -> dict:
     """Convert a QSO Beanie document to a plain dict for Jinja2 templates.
 
     Extra fields (FREQ, RST_SENT, RST_RCVD, QSO_DATE, TIME_ON) live in
@@ -290,7 +324,7 @@ def _qso_to_view_dict(qso: QSO) -> dict:
     d["QSO_DATE"] = extra.get("QSO_DATE", "")
     d["TIME_ON"] = extra.get("TIME_ON", "")
     d["STATION_CALLSIGN"] = extra.get("STATION_CALLSIGN", "")
-    d["fields"] = build_field_values(qso)
+    d["fields"] = build_field_values(qso, user=user)
     # Flag enrichment — render-time lookup, not stored
     iso = lookup_prefix(qso.CALL) if qso.CALL else None
     d["flag_iso"] = iso.lower() if iso else None
@@ -349,7 +383,7 @@ async def log_view(
         sort_by=sort,
     )
 
-    qsos = [_qso_to_view_dict(q) for q in qsos_raw]
+    qsos = [_qso_to_view_dict(q, user=user) for q in qsos_raw]
     total_pages = max(1, math.ceil(total / page_size))
 
     ctx = {
@@ -368,9 +402,9 @@ async def log_view(
         "sort": sort,
         "callsign": callsign,
         "notify_sound": user.notify_sound,
-        "field_catalog": get_field_catalog(),
-        "default_column_keys": get_default_column_keys(),
-        "configurable_column_keys": get_configurable_column_keys(),
+        "field_catalog": get_field_catalog_for_user(user),
+        "default_column_keys": get_default_column_keys_for_user(user),
+        "configurable_column_keys": get_configurable_column_keys_for_user(user),
     }
 
     # HTMX partial swap: return only the table, not the full page
@@ -384,7 +418,7 @@ async def log_view(
 async def qso_edit_row(
     request: Request,
     qso_id: str,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Return the editable row partial for a QSO (HTMX outerHTML swap)."""
     try:
@@ -393,13 +427,16 @@ async def qso_edit_row(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     return templates.TemplateResponse(
         request,
         "log/qso_row_edit.html",
-        {"qso": _qso_to_view_dict(qso), "field_catalog": get_field_catalog()},
+        {
+            "qso": _qso_to_view_dict(qso, user=user),
+            "field_catalog": get_field_catalog_for_user(user),
+        },
     )
 
 
@@ -407,7 +444,7 @@ async def qso_edit_row(
 async def qso_view_row(
     request: Request,
     qso_id: str,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Return the view-mode row partial for a QSO (used by Cancel button)."""
     try:
@@ -416,13 +453,16 @@ async def qso_view_row(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     return templates.TemplateResponse(
         request,
         "log/qso_row.html",
-        {"qso": _qso_to_view_dict(qso), "field_catalog": get_field_catalog()},
+        {
+            "qso": _qso_to_view_dict(qso, user=user),
+            "field_catalog": get_field_catalog_for_user(user),
+        },
     )
 
 
@@ -438,7 +478,7 @@ async def qso_update(
     MODE: Annotated[Optional[str], Form()] = None,
     RST_SENT: Annotated[Optional[str], Form()] = None,
     RST_RCVD: Annotated[Optional[str], Form()] = None,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """PATCH a QSO with form-encoded data from the inline edit row.
 
@@ -452,7 +492,7 @@ async def qso_update(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     update_dict: dict = {}
@@ -469,6 +509,9 @@ async def qso_update(
         update_dict["RST_SENT"] = RST_SENT.strip()
     if RST_RCVD is not None and RST_RCVD.strip():
         update_dict["RST_RCVD"] = RST_RCVD.strip()
+
+    submitted_form = await request.form()
+    update_dict.update(_custom_qso_values_from_form(submitted_form, user, include_empty=True))
 
     # Recalculate qso_date_utc if date or time changed
     date_changed = QSO_DATE and QSO_DATE.strip()
@@ -522,7 +565,10 @@ async def qso_update(
     return templates.TemplateResponse(
         request,
         "log/qso_row.html",
-        {"qso": _qso_to_view_dict(updated), "field_catalog": get_field_catalog()},
+        {
+            "qso": _qso_to_view_dict(updated, user=user),
+            "field_catalog": get_field_catalog_for_user(user),
+        },
     )
 
 
@@ -703,7 +749,11 @@ async def profile_page(
     return templates.TemplateResponse(
         request,
         "log/profile.html",
-        {"callsign": user.callsign, "profile": user},
+        {
+            "callsign": user.callsign,
+            "profile": user,
+            "custom_qso_fields": custom_fields_for_user(user),
+        },
     )
 
 
@@ -727,6 +777,12 @@ async def profile_update(
     aclog_bridge_host: Annotated[Optional[list[str]], Form()] = None,
     aclog_bridge_port: Annotated[Optional[list[str]], Form()] = None,
     aclog_bridge_enabled: Annotated[Optional[list[str]], Form()] = None,
+    custom_field_slot: Annotated[Optional[list[str]], Form()] = None,
+    custom_field_label: Annotated[Optional[list[str]], Form()] = None,
+    custom_field_adif_name: Annotated[Optional[list[str]], Form()] = None,
+    custom_field_enabled: Annotated[Optional[list[str]], Form()] = None,
+    custom_field_fill_behavior: Annotated[Optional[list[str]], Form()] = None,
+    custom_field_force_uppercase: Annotated[Optional[list[str]], Form()] = None,
 ):
     """Process profile settings form submission via HTMX.
 
@@ -763,6 +819,14 @@ async def profile_update(
             hosts=aclog_bridge_host or [],
             ports=aclog_bridge_port or [],
             enabled_ids=set(aclog_bridge_enabled or []),
+        )
+        raw["custom_qso_fields"] = _parse_custom_qso_field_form(
+            slots=custom_field_slot or [],
+            labels=custom_field_label or [],
+            adif_names=custom_field_adif_name or [],
+            fill_behaviors=custom_field_fill_behavior or [],
+            enabled_slots=set(custom_field_enabled or []),
+            uppercase_slots=set(custom_field_force_uppercase or []),
         )
     except ValueError as exc:
         return templates.TemplateResponse(
@@ -831,6 +895,43 @@ def _parse_aclog_bridge_form(
         })
 
     return bridges
+
+
+def _parse_custom_qso_field_form(
+    slots: list[str],
+    labels: list[str],
+    adif_names: list[str],
+    fill_behaviors: list[str],
+    enabled_slots: set[str],
+    uppercase_slots: set[str],
+) -> list[dict]:
+    fields: list[dict] = []
+    total = max(len(slots), len(labels), len(adif_names), len(fill_behaviors), 0)
+
+    for idx in range(total):
+        slot_text = slots[idx].strip() if idx < len(slots) else str(idx + 1)
+        try:
+            slot = int(slot_text)
+        except ValueError as exc:
+            raise ValueError("Custom QSO field slot must be a number") from exc
+        label = labels[idx].strip() if idx < len(labels) else f"Other {slot}"
+        adif_name = adif_names[idx].strip() if idx < len(adif_names) else f"OTHER_{slot}"
+        fill_behavior = (
+            fill_behaviors[idx].strip()
+            if idx < len(fill_behaviors) and fill_behaviors[idx].strip()
+            else "none"
+        )
+
+        fields.append({
+            "slot": slot,
+            "label": label,
+            "adif_name": adif_name,
+            "enabled": str(slot) in enabled_slots,
+            "fill_behavior": fill_behavior,
+            "force_uppercase": str(slot) in uppercase_slots,
+        })
+
+    return fields
 
 
 # ---------------------------------------------------------------------------

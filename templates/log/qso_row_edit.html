@@ -19,6 +19,11 @@
     {% elif field.key == 'rst' %}
     <input type="text" name="RST_SENT" value="{{ qso.RST_SENT or '' }}" class="form-input font-mono w-10"> /
     <input type="text" name="RST_RCVD" value="{{ qso.RST_RCVD or '' }}" class="form-input font-mono w-10">
+    {% elif field.key.startswith('custom_') and field.adif_name %}
+    <input type="text"
+           name="{{ field.adif_name }}"
+           value="{{ qso.fields.get(field.key, '') }}"
+           class="form-input font-mono w-28">
     {% else %}
     {{ qso.fields.get(field.key, '') }}
     {% endif %}

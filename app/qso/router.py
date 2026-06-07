@@ -26,6 +26,7 @@ from app.qso.service import (
     parse_adif_datetime,
     row_hash_for_updated_qso,
 )
+from app.qso.custom_fields import apply_custom_field_normalization
 
 router = APIRouter(prefix="/api/qsos", tags=["qsos"])
 
@@ -238,7 +239,7 @@ async def get_qso(
 async def patch_qso(
     qso_id: str,
     body: Dict[str, Any],
-    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
+    user: User = Depends(get_current_user_jwt_or_apikey),
 ) -> dict:
     """Partially update a QSO using raw $set for ADIF field compatibility.
 
@@ -252,7 +253,7 @@ async def patch_qso(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != operator or qso.is_deleted:
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     # Strip protected / immutable fields
@@ -265,6 +266,8 @@ async def patch_qso(
         body["BAND"] = body["BAND"].upper()
     if "MODE" in body and body["MODE"] is not None:
         body["MODE"] = body["MODE"].upper()
+
+    body = apply_custom_field_normalization(body, user)
 
     # Recalculate qso_date_utc if either ADIF time field changed
     if "QSO_DATE" in body or "TIME_ON" in body:

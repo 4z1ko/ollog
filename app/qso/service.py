@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional
 from pymongo.errors import DuplicateKeyError
 
 from app.qso.models import QSO
+from app.qso.custom_fields import apply_custom_field_normalization
 
 if TYPE_CHECKING:
     from app.auth.models import User
@@ -66,6 +67,7 @@ def build_qso_dict(body_dict: dict, operator: str, profile: Optional[User] = Non
     When profile is None (ADIF import path), no profile-derived fields are injected (STAMP-03).
     """
     result = dict(body_dict)
+    result = apply_custom_field_normalization(result, profile)
 
     # Normalise BAND and MODE to uppercase
     if "BAND" in result and result["BAND"] is not None:

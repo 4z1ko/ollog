@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Configurable QSO Log Fields
-status: phase_complete
-stopped_at: Phase 58 executed manually 2026-06-03 — ready for verify-work
-last_updated: "2026-06-03T00:00:00Z"
-last_activity: 2026-06-03
+status: milestone_complete
+stopped_at: v3.0 milestone archived 2026-06-07 — ready for new milestone
+last_updated: "2026-06-07T17:49:15Z"
+last_activity: 2026-06-07
 progress:
   total_phases: 1
   completed_phases: 1
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-03 for v3.0 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.0 execution complete — enable operators to select all supported QSO fields from the Log View column configuration menu.
+**Current focus:** v3.0 shipped — ready to define the next milestone.
 
 ## Current Position
 
-Milestone: v3.0 Configurable QSO Log Fields
+Milestone: v3.0 Configurable QSO Log Fields — shipped
 Phase: 58 Configurable QSO Field Catalog and Log View Columns — complete
 Plan: 58-01-PLAN.md
-Status: Ready for Phase 58 verification
-Last activity: 2026-06-03
+Status: Milestone archived; ready for next milestone
+Last activity: 2026-06-07
 
 ```
 v3.0 Progress: [####################] 100% (1/1 phases)
@@ -82,6 +82,8 @@ v3.0 Progress: [####################] 100% (1/1 phases)
 - Phase 58 UI-SPEC approved: keep gear-menu entry point, use one bounded scrollable checklist, preserve default table view and Actions column, reuse existing `data-table`/`btn-ghost` styling, and avoid new UI libraries or broad visual redesign (2026-06-03)
 - Phase 58 planned: one vertical implementation plan covering field catalog/value extraction, route context, generated menu/table rendering, localStorage normalization, tests, CSS build, and validation strategy (2026-06-03)
 - Phase 58 executed: shared curated QSO field catalog added, Log View menu/table/rows now render from catalog, defaults/localStorage/sort controls/actions preserved, focused tests/build passed with Mongo-backed checks skipped when MongoDB unavailable (2026-06-03)
+- Phase 58 UAT verified: automated/source checks passed, manual bounded column-menu viewport check passed, and `58-UAT.md` marked complete with 5/5 tests passing and 0 issues (2026-06-07)
+- v3.0 milestone archived: requirements and roadmap copied to `.planning/milestones/`, milestone audit passed, and active `REQUIREMENTS.md` removed for the next milestone cycle (2026-06-07)
 
 ### v3.0 Phase Structure
 
@@ -139,7 +141,7 @@ v3.0 Progress: [####################] 100% (1/1 phases)
 
 ### Pending Todos
 
-- Run `/gsd verify-work phase 58`.
+- Run `/gsd-new-milestone` to define the next milestone.
 
 ### Ship Blockers
 
@@ -158,6 +160,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-02 (Phase 57 local ship)
-Stopped at: Phase 58 executed manually because `gsd-sdk` is not on PATH
-Next: run `/gsd verify-work phase 58`
+Last session: 2026-06-07 (v3.0 milestone completion)
+Stopped at: v3.0 archived; `gsd-sdk` is not on PATH, so archive bookkeeping was applied manually
+Next: run `/gsd-new-milestone`

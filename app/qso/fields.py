@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from app.auth.models import User
+from app.qso.custom_fields import enabled_custom_fields_for_user
 from app.qso.models import QSO
 
 
@@ -81,6 +83,26 @@ QSO_FIELD_CATALOG: tuple[QSOField, ...] = (
 
 def get_field_catalog() -> list[dict[str, Any]]:
     """Return a template-friendly copy of the configured field catalog."""
+    return _serialize_field_catalog(QSO_FIELD_CATALOG)
+
+
+def get_field_catalog_for_user(user: User | None) -> list[dict[str, Any]]:
+    """Return the configured field catalog plus enabled custom fields."""
+    return _serialize_field_catalog((*QSO_FIELD_CATALOG, *custom_qso_field_catalog(user)))
+
+
+def custom_qso_field_catalog(user: User | None) -> tuple[QSOField, ...]:
+    return tuple(
+        QSOField(
+            key=f"custom_{field.slot}",
+            label=field.label,
+            adif_name=field.adif_name,
+        )
+        for field in enabled_custom_fields_for_user(user)
+    )
+
+
+def _serialize_field_catalog(fields: tuple[QSOField, ...]) -> list[dict[str, Any]]:
     return [
         {
             "key": field.key,
@@ -89,7 +111,7 @@ def get_field_catalog() -> list[dict[str, Any]]:
             "default": field.default,
             "sortable": field.sortable,
         }
-        for field in QSO_FIELD_CATALOG
+        for field in fields
     ]
 
 
@@ -101,12 +123,20 @@ def get_configurable_column_keys() -> list[str]:
     return [field.key for field in QSO_FIELD_CATALOG]
 
 
-def build_field_values(qso: QSO) -> dict[str, str]:
+def get_default_column_keys_for_user(user: User | None) -> list[str]:
+    return get_default_column_keys()
+
+
+def get_configurable_column_keys_for_user(user: User | None) -> list[str]:
+    return [field["key"] for field in get_field_catalog_for_user(user)]
+
+
+def build_field_values(qso: QSO, user: User | None = None) -> dict[str, str]:
     """Build human-readable field values keyed by catalog key."""
     extra = qso.model_extra or {}
     values: dict[str, str] = {}
 
-    for field in QSO_FIELD_CATALOG:
+    for field in (*QSO_FIELD_CATALOG, *custom_qso_field_catalog(user)):
         if field.key == "date":
             values[field.key] = _format_utc(qso.qso_date_utc)
         elif field.key == "created_at":

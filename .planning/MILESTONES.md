@@ -1,5 +1,25 @@
 # Milestones
 
+## v3.0 Configurable QSO Log Fields (Shipped: 2026-06-07)
+
+**Phases:** 58 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-03 → 2026-06-07 (5 days)
+**Requirements:** 17/17 satisfied | **UAT:** 5/5 passed | **Audit:** PASS
+
+**Key accomplishments:**
+
+- Shared QSO field catalog and extraction layer added for Log View rendering, with stable keys, human-readable labels, default metadata, and safe value formatting.
+- Fresh-browser defaults preserved exactly: Date / Time, Callsign, Band, Mode, Frequency, and RST.
+- Column configuration menu, table headers, view rows, and edit rows now render from the shared catalog while keeping the Actions column always visible.
+- `ollog.log.columns` persistence preserved with stale/invalid key normalization and HTMX table-swap reapplication.
+- Sort controls remain restricted to the existing Date/Time, entry timestamp, Callsign, Band, and Mode targets; non-sortable fields render plain headers.
+- Focused verification passed: 7 pytest cases passed, 7 Mongo-dependent cases skipped cleanly, ruff passed, CSS build passed, and manual viewport UAT passed.
+
+**Known deferred items at close:** 0 for v3.0.
+
+**Archive:** `.planning/milestones/v3.0-ROADMAP.md` | `.planning/milestones/v3.0-REQUIREMENTS.md` | `.planning/milestones/v3.0-MILESTONE-AUDIT.md`
+
+---
+
 ## v2.8 Clear Log (Shipped: 2026-05-18)
 
 **Phases:** 54–56 (3 phases) | **Plans:** 6 | **Timeline:** 2026-05-06 → 2026-05-18 (13 days)

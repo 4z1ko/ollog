@@ -10,6 +10,7 @@ from beanie import PydanticObjectId
 
 from app.aclog.parser import aclog_enterevent_to_adif, parse_cmd, update_state_from_message
 from app.auth.models import User
+from app.qso.custom_fields import custom_fields_for_user
 from app.qso.service import ingest_qso_record
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ async def _initialize_connection(writer: asyncio.StreamWriter) -> None:
     for command in [
         "<CMD><SETUPDATESTATE><VALUE>TRUE</VALUE></CMD>\r\n",
         "<CMD><READBMF></CMD>\r\n",
+        "<CMD><GETOTHERFIELDTITLES></CMD>\r\n",
     ]:
         writer.write(command.encode("utf-8"))
     await writer.drain()
@@ -89,6 +91,7 @@ async def _handle_message(
         return
 
     record = aclog_enterevent_to_adif(fields, state=state)
+    record = _map_other_slots_to_custom_fields(record, user)
     result = await ingest_qso_record(
         record=record,
         operator=user.callsign,
@@ -101,3 +104,12 @@ async def _handle_message(
         record.get("CALL", "?"),
         result["status"],
     )
+
+
+def _map_other_slots_to_custom_fields(record: dict[str, str], user: User) -> dict[str, str]:
+    mapped = dict(record)
+    for field in custom_fields_for_user(user):
+        slot_key = f"OTHER_{field.slot}"
+        if slot_key in mapped and field.adif_name != slot_key:
+            mapped[field.adif_name] = mapped.pop(slot_key)
+    return mapped

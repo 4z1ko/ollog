@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.qso.custom_fields import FILL_BEHAVIORS, normalize_custom_qso_fields
+
 MY_GRIDSQUARE_RE = re.compile(r"^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$")
 
 
@@ -33,6 +35,22 @@ class ACLogBridgeConfig(BaseModel):
         return v
 
 
+class CustomQSOFieldConfig(BaseModel):
+    slot: int
+    label: str
+    adif_name: str
+    enabled: bool = False
+    fill_behavior: str = "none"
+    force_uppercase: bool = False
+
+    @field_validator("fill_behavior")
+    @classmethod
+    def validate_fill_behavior(cls, v: str) -> str:
+        if v not in FILL_BEHAVIORS:
+            raise ValueError(f"Invalid fill behavior: {v!r}")
+        return v
+
+
 class ProfileUpdateRequest(BaseModel):
     station_callsign: Optional[str] = None
     name: Optional[str] = None
@@ -46,6 +64,7 @@ class ProfileUpdateRequest(BaseModel):
     tx_pwr: Optional[float] = None
     notify_sound: bool = False
     aclog_bridges: list[ACLogBridgeConfig] = Field(default_factory=list)
+    custom_qso_fields: list[CustomQSOFieldConfig] = Field(default_factory=list)
 
     @field_validator("my_gridsquare")
     @classmethod
@@ -60,6 +79,17 @@ class ProfileUpdateRequest(BaseModel):
         if v is not None and v.strip() == "":
             return None
         return v
+
+    @field_validator("custom_qso_fields")
+    @classmethod
+    def validate_custom_qso_fields(
+        cls,
+        v: list[CustomQSOFieldConfig],
+    ) -> list[CustomQSOFieldConfig]:
+        return [
+            CustomQSOFieldConfig(**field.model_dump())
+            for field in normalize_custom_qso_fields(v)
+        ]
 
 
 class ProfileResponse(BaseModel):
@@ -78,3 +108,4 @@ class ProfileResponse(BaseModel):
     tx_pwr: Optional[float] = None
     notify_sound: bool = False
     aclog_bridges: list[ACLogBridgeConfig] = Field(default_factory=list)
+    custom_qso_fields: list[CustomQSOFieldConfig] = Field(default_factory=list)

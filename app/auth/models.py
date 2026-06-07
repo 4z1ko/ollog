@@ -15,6 +15,17 @@ class ACLogBridge(BaseModel):
     enabled: bool = True
 
 
+class CustomQSOField(BaseModel):
+    """Per-user ACLog-style custom QSO field configuration."""
+
+    slot: int
+    label: str
+    adif_name: str
+    enabled: bool = False
+    fill_behavior: str = "none"
+    force_uppercase: bool = False
+
+
 class User(Document):
     """Beanie Document representing an ollog user account.
 
@@ -45,6 +56,7 @@ class User(Document):
     tx_pwr: Optional[float] = None       # watts
     notify_sound: bool = False  # SND-03: off by default; missing field reads as False (no migration)
     aclog_bridges: list[ACLogBridge] = Field(default_factory=list)
+    custom_qso_fields: list[CustomQSOField] = Field(default_factory=list)
 
     class Settings:
         name = "users"
