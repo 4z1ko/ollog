@@ -73,6 +73,13 @@ async def backfill_row_hash():
     await backfill_qso_row_hash()
 
 
+async def migrate_shared_qsos():
+    """Idempotently copy shared QSO rows into per-user collections."""
+    from app.qso.collection_migration import migrate_shared_qsos_to_user_collections
+
+    await migrate_shared_qsos_to_user_collections()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -80,6 +87,7 @@ async def lifespan(app: FastAPI):
     await backfill_created_at()   # D-05: one-time idempotent migration
     await normalize_time_on()     # Phase 52 (D-02): pad 4-digit TIME_ON to 6-digit
     await backfill_row_hash()      # Deterministic document-level deduplication
+    await migrate_shared_qsos()    # Copy shared rows into username-routed collections
     # Start change stream watcher for live feed
     client = get_client()
     app.state.watcher_task = None

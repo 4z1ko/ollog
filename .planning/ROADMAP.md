@@ -254,7 +254,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 **Milestone Goal:** Store each user's QSO records in a dedicated MongoDB collection named `<username>_qsos` while preserving all existing operator-facing behavior.
 
 - [x] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Completed 2026-06-07.
-- [ ] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting.
+- [ ] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting. Implementation complete; awaiting UAT verification.
 - [ ] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection.
 - [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections.
 
@@ -290,10 +290,10 @@ Plans:
   3. Migration is idempotent: rerunning does not duplicate rows or overwrite newer per-user collection changes.
   4. Unresolved `_operator` rows are logged and reported, never silently dropped.
   5. Per-user collection indexes exist before migrated documents rely on them.
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 060-01-PLAN.md — Idempotent migration/backfill command, startup integration, unresolved-operator report, and tests.
+- [x] 060-01-PLAN.md — Idempotent migration/backfill command, startup integration, unresolved-operator report, and tests.
 
 ---
 
