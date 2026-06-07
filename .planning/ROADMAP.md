@@ -253,7 +253,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 
 **Milestone Goal:** Store each user's QSO records in a dedicated MongoDB collection named `<username>_qsos` while preserving all existing operator-facing behavior.
 
-- [ ] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests.
+- [ ] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Implementation complete; awaiting UAT verification.
 - [ ] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting.
 - [ ] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection.
 - [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections.
@@ -271,10 +271,10 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
   3. Per-user collections can be initialized with the indexes required for existing sort, duplicate, rowHash, and created-at behavior.
   4. The existing `QSO` model remains usable as a document validation/serialization shape without forcing all CRUD through a fixed `qsos` collection.
   5. Unit tests cover valid/invalid username handling, collection-name derivation, index setup, and helper behavior.
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 059-01-PLAN.md — Dynamic collection helper, collection access boundary, index initialization, and unit tests.
+- [x] 059-01-PLAN.md — Dynamic collection helper, collection access boundary, index initialization, and unit tests.
 
 ---
 
