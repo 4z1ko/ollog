@@ -290,7 +290,7 @@ Plans:
   3. Migration is idempotent: rerunning does not duplicate rows or overwrite newer per-user collection changes.
   4. Unresolved `_operator` rows are logged and reported, never silently dropped.
   5. Per-user collection indexes exist before migrated documents rely on them.
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 060-01-PLAN.md — Idempotent migration/backfill command, startup integration, unresolved-operator report, and tests.

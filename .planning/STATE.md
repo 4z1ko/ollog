@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
 status: planning
-stopped_at: Phase 59 verified 2026-06-07 — ready for Phase 60 planning
+stopped_at: Phase 60 planned 2026-06-07 — ready for execution
 last_updated: "2026-06-07T00:00:00Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 1
+  total_plans: 2
   completed_plans: 1
   percent: 25
 ---
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 ## Current Position
 
 Milestone: v3.1 Per-User QSO Collections
-Phase: 60 Shared Collection Migration — ready to plan
-Plan: —
-Status: Ready to plan Phase 60
+Phase: 60 Shared Collection Migration — planned
+Plan: 60-01 Idempotent Shared QSO Collection Migration
+Status: Ready to execute Phase 60
 Last activity: 2026-06-07
 
 ```
@@ -88,6 +88,7 @@ v3.1 Progress: [#####---------------] 25% (1/4 phases)
 - v3.1 milestone started: refactor QSO storage so every user writes to a dedicated MongoDB collection named `<username>_qsos`; include idempotent migration from the shared `qsos` collection and preserve all current QSO workflows (2026-06-07)
 - Phase 59 executed: added shared username-derived QSO collection helpers, raw per-user MongoDB collection access, idempotent per-user index setup, and focused tests; verification passed with 40 passed and 16 MongoDB-dependent schema tests skipped (2026-06-07)
 - Phase 59 UAT verified: 5/5 acceptance checkpoints passed with no gaps; Phase 60 migration planning is next (2026-06-07)
+- Phase 60 planned: one implementation plan for an idempotent copy-only migration from shared `qsos` into `<username>_qsos`, with unresolved/ambiguous ownership reporting, target index setup, startup/CLI integration, and focused tests (2026-06-07)
 
 ### v3.1 Phase Structure
 
@@ -152,7 +153,7 @@ v3.1 Progress: [#####---------------] 25% (1/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 60` to plan the shared collection migration.
+- Run `/gsd-execute-phase 60` to implement the shared collection migration.
 
 ### Ship Blockers
 
@@ -173,4 +174,4 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 Last session: 2026-06-07 (v3.1 milestone start)
 Stopped at: v3.1 requirements and roadmap created; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
-Next: run `/gsd-plan-phase 60`
+Next: run `/gsd-execute-phase 60`
