@@ -310,7 +310,7 @@ Plans:
   4. API-token requests route through the token owner's username-derived collection.
   5. UDP logging resolves the target `User` from `APP_OLLOG_TOKEN` or `UDP_OPERATOR` and writes to that user's collection.
   6. RowHash duplicate handling remains scoped to the user's collection.
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 061-01-PLAN.md — Service/router refactor for REST, UI, ADIF, API-token, and UDP collection routing.

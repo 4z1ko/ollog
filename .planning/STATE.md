@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
 status: planning
-stopped_at: Phase 60 verified 2026-06-07 — ready for Phase 61 planning
+stopped_at: Phase 61 planned 2026-06-07 — ready for execution
 last_updated: "2026-06-07T00:00:00Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 2
+  total_plans: 3
   completed_plans: 2
   percent: 50
 ---
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 ## Current Position
 
 Milestone: v3.1 Per-User QSO Collections
-Phase: 61 QSO Workflow Refactor — ready to plan
-Plan: —
-Status: Ready to plan Phase 61
+Phase: 61 QSO Workflow Refactor — planned
+Plan: 61-01 Dynamic QSO Workflow Collection Routing
+Status: Ready to execute Phase 61
 Last activity: 2026-06-07
 
 ```
@@ -91,6 +91,7 @@ v3.1 Progress: [##########----------] 50% (2/4 phases)
 - Phase 60 planned: one implementation plan for an idempotent copy-only migration from shared `qsos` into `<username>_qsos`, with unresolved/ambiguous ownership reporting, target index setup, startup/CLI integration, and focused tests (2026-06-07)
 - Phase 60 executed: added copy-only shared QSO migration module, CLI/report support, startup wiring, unresolved/ambiguous ownership reporting, insert-only target writes, and focused tests; verification passed with 33 tests (2026-06-07)
 - Phase 60 UAT verified: 5/5 acceptance checkpoints passed with no gaps; Phase 61 workflow refactor planning is next (2026-06-07)
+- Phase 61 planned: one high-complexity implementation plan to route REST, browser, ADIF, API-token, UDP, duplicate handling, rowHash, custom defaults, and clear-log through authenticated username-derived collections while preserving public behavior (2026-06-07)
 
 ### v3.1 Phase Structure
 
@@ -155,7 +156,7 @@ v3.1 Progress: [##########----------] 50% (2/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 61` to plan the QSO workflow refactor.
+- Run `/gsd-execute-phase 61` to implement the QSO workflow collection routing refactor.
 
 ### Ship Blockers
 
@@ -176,4 +177,4 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 Last session: 2026-06-07 (v3.1 milestone start)
 Stopped at: v3.1 requirements and roadmap created; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
-Next: run `/gsd-plan-phase 61`
+Next: run `/gsd-execute-phase 61`
