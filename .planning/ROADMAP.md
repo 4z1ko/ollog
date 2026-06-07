@@ -271,7 +271,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
   3. Per-user collections can be initialized with the indexes required for existing sort, duplicate, rowHash, and created-at behavior.
   4. The existing `QSO` model remains usable as a document validation/serialization shape without forcing all CRUD through a fixed `qsos` collection.
   5. Unit tests cover valid/invalid username handling, collection-name derivation, index setup, and helper behavior.
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 059-01-PLAN.md — Dynamic collection helper, collection access boundary, index initialization, and unit tests.

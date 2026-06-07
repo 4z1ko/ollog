@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
 status: planning
-stopped_at: v3.1 milestone started 2026-06-07 — ready for Phase 59 planning
+stopped_at: Phase 59 planned 2026-06-07 — ready for execution
 last_updated: "2026-06-07T00:00:00Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 ## Current Position
 
 Milestone: v3.1 Per-User QSO Collections
-Phase: 59 Collection Routing Foundation — not started
-Plan: —
-Status: Ready to plan Phase 59
+Phase: 59 Collection Routing Foundation — planned
+Plan: 59-01 Dynamic Collection Helper and Index Foundation
+Status: Ready to execute Phase 59
 Last activity: 2026-06-07
 
 ```
@@ -150,7 +150,7 @@ v3.1 Progress: [--------------------] 0% (0/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 59` to design the collection-routing foundation.
+- Run `/gsd-execute-phase 59` to implement the collection-routing foundation.
 
 ### Ship Blockers
 
