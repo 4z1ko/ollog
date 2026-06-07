@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
 status: planning
-stopped_at: Phase 59 executed 2026-06-07 — ready for verification
+stopped_at: Phase 59 verified 2026-06-07 — ready for Phase 60 planning
 last_updated: "2026-06-07T00:00:00Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
   completed_plans: 1
-  percent: 0
+  percent: 25
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 ## Current Position
 
 Milestone: v3.1 Per-User QSO Collections
-Phase: 59 Collection Routing Foundation — implementation complete
-Plan: 59-01 Dynamic Collection Helper and Index Foundation
-Status: Ready to verify Phase 59
+Phase: 60 Shared Collection Migration — ready to plan
+Plan: —
+Status: Ready to plan Phase 60
 Last activity: 2026-06-07
 
 ```
-v3.1 Progress: [--------------------] 0% (0/4 phases)
+v3.1 Progress: [#####---------------] 25% (1/4 phases)
 ```
 
 ## Performance Metrics
@@ -87,10 +87,11 @@ v3.1 Progress: [--------------------] 0% (0/4 phases)
 - v3.0 milestone archived: requirements and roadmap copied to `.planning/milestones/`, milestone audit passed, and active `REQUIREMENTS.md` removed for the next milestone cycle (2026-06-07)
 - v3.1 milestone started: refactor QSO storage so every user writes to a dedicated MongoDB collection named `<username>_qsos`; include idempotent migration from the shared `qsos` collection and preserve all current QSO workflows (2026-06-07)
 - Phase 59 executed: added shared username-derived QSO collection helpers, raw per-user MongoDB collection access, idempotent per-user index setup, and focused tests; verification passed with 40 passed and 16 MongoDB-dependent schema tests skipped (2026-06-07)
+- Phase 59 UAT verified: 5/5 acceptance checkpoints passed with no gaps; Phase 60 migration planning is next (2026-06-07)
 
 ### v3.1 Phase Structure
 
-- **Phase 59** — Collection Routing Foundation: shared collection-name helper, per-user raw collection access, index setup, and tests.
+- **Phase 59** — Collection Routing Foundation: shared collection-name helper, per-user raw collection access, index setup, and tests. Completed 2026-06-07.
 - **Phase 60** — Existing Data Migration: idempotently migrate shared `qsos` data into `<username>_qsos`, report unresolved operators, and preserve rowHash/ADIF extras.
 - **Phase 61** — QSO CRUD and Import/Export Routing: refactor REST/UI/service/ADIF/API-token/UDP write paths to use authenticated username-derived collections.
 - **Phase 62** — Cross-Feature Integration and Verification: stats, admin clear-log, live feed/SSE, backup/restore, isolation tests, and compatibility verification.
@@ -151,7 +152,7 @@ v3.1 Progress: [--------------------] 0% (0/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-verify-work phase 59` to complete UAT verification for the collection-routing foundation.
+- Run `/gsd-plan-phase 60` to plan the shared collection migration.
 
 ### Ship Blockers
 
@@ -172,4 +173,4 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 Last session: 2026-06-07 (v3.1 milestone start)
 Stopped at: v3.1 requirements and roadmap created; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
-Next: run `/gsd-plan-phase 59`
+Next: run `/gsd-plan-phase 60`

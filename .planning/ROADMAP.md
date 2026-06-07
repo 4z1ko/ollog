@@ -253,7 +253,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 
 **Milestone Goal:** Store each user's QSO records in a dedicated MongoDB collection named `<username>_qsos` while preserving all existing operator-facing behavior.
 
-- [ ] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Implementation complete; awaiting UAT verification.
+- [x] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Completed 2026-06-07.
 - [ ] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting.
 - [ ] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection.
 - [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections.
@@ -265,6 +265,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 **Goal:** The codebase has one safe, tested way to derive and access a user's QSO collection named exactly `<username>_qsos`.
 **Depends on:** Phase 58 (v3.0 shipped)
 **Requirements:** COLL-01..05, VERIFY-01
+**Status:** Completed 2026-06-07
 **Success Criteria** (what must be TRUE):
   1. A shared helper derives `<username>_qsos` from `User.username` and rejects unsafe collection names.
   2. QSO storage code can obtain the correct raw MongoDB collection for any authenticated `User`.

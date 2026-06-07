@@ -7,11 +7,11 @@
 
 ### Collection Naming And Routing
 
-- [ ] **COLL-01:** Every user has a dedicated MongoDB QSO collection named exactly `<username>_qsos`, where `<username>` is `User.username`.
-- [ ] **COLL-02:** Collection names are derived through one shared helper that validates/sanitizes usernames for MongoDB collection safety without changing valid usernames such as `john_doe`.
-- [ ] **COLL-03:** QSO collection access does not rely on Beanie's fixed `QSO.Settings.name = "qsos"` for per-user CRUD paths.
-- [ ] **COLL-04:** Per-user collections receive the indexes required for existing behavior, including date/sort indexes and rowHash uniqueness within each user collection.
-- [ ] **COLL-05:** The `_operator`/callsign field remains present in QSO documents for ADIF compatibility, display, and historical semantics, even though physical collection routing is username-based.
+- [x] **COLL-01:** Every user has a dedicated MongoDB QSO collection named exactly `<username>_qsos`, where `<username>` is `User.username`.
+- [x] **COLL-02:** Collection names are derived through one shared helper that validates/sanitizes usernames for MongoDB collection safety without changing valid usernames such as `john_doe`.
+- [x] **COLL-03:** QSO collection access does not rely on Beanie's fixed `QSO.Settings.name = "qsos"` for per-user CRUD paths.
+- [x] **COLL-04:** Per-user collections receive the indexes required for existing behavior, including date/sort indexes and rowHash uniqueness within each user collection.
+- [x] **COLL-05:** The `_operator`/callsign field remains present in QSO documents for ADIF compatibility, display, and historical semantics, even though physical collection routing is username-based.
 
 ### Data Migration
 
@@ -40,7 +40,7 @@
 
 ### Verification
 
-- [ ] **VERIFY-01:** Unit tests cover collection-name derivation, invalid username handling, per-user collection helper behavior, and index setup.
+- [x] **VERIFY-01:** Unit tests cover collection-name derivation, invalid username handling, per-user collection helper behavior, and index setup.
 - [ ] **VERIFY-02:** Migration tests cover normal migration, idempotent reruns, unresolved operators, soft-deleted rows, rowHash preservation, and ADIF extras.
 - [ ] **VERIFY-03:** Integration tests cover representative REST, browser/service, ADIF import/export, stats, admin clear-log, API-token, and UDP paths against per-user collections.
 - [ ] **VERIFY-04:** Regression tests prove existing API schemas, UI template contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels remain compatible.
@@ -65,11 +65,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COLL-01 | Phase 59 | Pending |
-| COLL-02 | Phase 59 | Pending |
-| COLL-03 | Phase 59 | Pending |
-| COLL-04 | Phase 59 | Pending |
-| COLL-05 | Phase 59 | Pending |
+| COLL-01 | Phase 59 | Complete |
+| COLL-02 | Phase 59 | Complete |
+| COLL-03 | Phase 59 | Complete |
+| COLL-04 | Phase 59 | Complete |
+| COLL-05 | Phase 59 | Complete |
 | MIGR-01 | Phase 60 | Pending |
 | MIGR-02 | Phase 60 | Pending |
 | MIGR-03 | Phase 60 | Pending |
@@ -86,7 +86,7 @@
 | INT-03 | Phase 62 | Pending |
 | INT-04 | Phase 62 | Pending |
 | INT-05 | Phase 62 | Pending |
-| VERIFY-01 | Phase 59 | Pending |
+| VERIFY-01 | Phase 59 | Complete |
 | VERIFY-02 | Phase 60 | Pending |
 | VERIFY-03 | Phase 62 | Pending |
 | VERIFY-04 | Phase 62 | Pending |
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-07 after v3.1 milestone start*
+*Last updated: 2026-06-07 after Phase 59 UAT completion*
