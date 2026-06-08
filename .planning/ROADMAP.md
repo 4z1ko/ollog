@@ -255,7 +255,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 
 - [x] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Completed 2026-06-07.
 - [x] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting. Completed 2026-06-07.
-- [ ] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection. Implementation complete 2026-06-08; UAT pending.
+- [x] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection. Completed 2026-06-08.
 - [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections.
 
 ## Phase Details
@@ -303,7 +303,7 @@ Plans:
 **Goal:** All QSO CRUD and logging workflows dynamically target the authenticated user's `<username>_qsos` collection while preserving public behavior.
 **Depends on:** Phase 60
 **Requirements:** QSO-01..06, COLL-05
-**Status:** Implementation complete 2026-06-08; ready for UAT
+**Status:** Completed 2026-06-08
 **Success Criteria** (what must be TRUE):
   1. REST QSO list/create/read/update/delete routes keep the same API contract while using the authenticated user's collection.
   2. Browser QSO entry, Log View, inline edit/delete, pagination, filtering, sorting, and operator clear-log use the logged-in user's collection.
