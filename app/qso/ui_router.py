@@ -873,7 +873,14 @@ async def profile_update(
         )
 
     updates = validated.model_dump(exclude_unset=True)
-    await update_profile(user, updates)
+    try:
+        await update_profile(user, updates)
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "log/profile_result.html",
+            {"error": str(exc), "success": False},
+        )
 
     return templates.TemplateResponse(
         request,

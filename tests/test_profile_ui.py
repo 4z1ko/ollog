@@ -17,6 +17,15 @@ from app.qso.ui_router import profile_update
 from app.qso.models import QSO
 
 
+def _default_custom_field_form() -> dict[str, list[str]]:
+    return {
+        "custom_field_slot": [str(slot) for slot in range(1, 9)],
+        "custom_field_label": [f"Other {slot}" for slot in range(1, 9)],
+        "custom_field_adif_name": [f"OTHER_{slot}" for slot in range(1, 9)],
+        "custom_field_fill_behavior": ["none" for _ in range(1, 9)],
+    }
+
+
 @pytest_asyncio.fixture(scope="function")
 async def profile_ui_db(monkeypatch):
     client = AsyncMongoClient(
@@ -85,6 +94,94 @@ async def test_profile_update_invalid_tx_pwr_does_not_raise_without_mongo():
 
     assert resp.status_code == 200
     assert "TX power must be a number" in resp.body.decode()
+
+
+@pytest.mark.asyncio
+async def test_profile_update_full_form_builds_profile_updates(monkeypatch):
+    request = Request({
+        "type": "http",
+        "method": "POST",
+        "path": "/log/profile",
+        "headers": [],
+    })
+    user = User.model_construct(
+        username="profileop",
+        hashed_password=hash_password("testpass"),
+        callsign="W1AW",
+    )
+    captured: dict = {}
+
+    async def fake_update_profile(received_user: User, updates: dict) -> User:
+        captured["user"] = received_user
+        captured["updates"] = updates
+        return received_user
+
+    monkeypatch.setattr("app.qso.ui_router.update_profile", fake_update_profile)
+
+    resp = await profile_update(
+        request,
+        user=user,
+        station_callsign="K1ABC",
+        name="Test Operator",
+        my_gridsquare="fn31pr",
+        tx_pwr="100",
+        notify_sound="true",
+        aclog_bridge_id=["new-0"],
+        aclog_bridge_name=["Shack PC"],
+        aclog_bridge_host=["127.0.0.1"],
+        aclog_bridge_port=["1100"],
+        aclog_bridge_enabled=["new-0"],
+        **_default_custom_field_form(),
+    )
+
+    assert resp.status_code == 200
+    assert "Profile updated successfully" in resp.body.decode()
+    assert captured["user"] is user
+    updates = captured["updates"]
+    assert updates["station_callsign"] == "K1ABC"
+    assert updates["name"] == "Test Operator"
+    assert updates["my_gridsquare"] == "FN31PR"
+    assert updates["tx_pwr"] == 100
+    assert updates["notify_sound"] is True
+    assert len(updates["aclog_bridges"]) == 1
+    bridge = updates["aclog_bridges"][0]
+    assert bridge["id"] != "new-0"
+    assert bridge["name"] == "Shack PC"
+    assert bridge["host"] == "127.0.0.1"
+    assert bridge["port"] == 1100
+    assert bridge["enabled"] is True
+    assert len(updates["custom_qso_fields"]) == 8
+    assert updates["custom_qso_fields"][0]["adif_name"] == "OTHER_1"
+
+
+@pytest.mark.asyncio
+async def test_profile_update_service_value_error_returns_htmx_error(monkeypatch):
+    request = Request({
+        "type": "http",
+        "method": "POST",
+        "path": "/log/profile",
+        "headers": [],
+    })
+    user = User.model_construct(
+        username="profileop",
+        hashed_password=hash_password("testpass"),
+        callsign="W1AW",
+    )
+
+    async def fake_update_profile(received_user: User, updates: dict) -> User:
+        raise ValueError("Duplicate custom ADIF field name: OTHER_1")
+
+    monkeypatch.setattr("app.qso.ui_router.update_profile", fake_update_profile)
+
+    resp = await profile_update(
+        request,
+        user=user,
+        station_callsign="K1ABC",
+        **_default_custom_field_form(),
+    )
+
+    assert resp.status_code == 200
+    assert "Duplicate custom ADIF field name: OTHER_1" in resp.body.decode()
 
 
 @pytest.mark.asyncio

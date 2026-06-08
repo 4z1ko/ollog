@@ -46,7 +46,12 @@ def normalize_custom_qso_fields(fields: Iterable[Any] | None) -> list[CustomQSOF
     }
 
     for item in fields or []:
-        field = item if isinstance(item, CustomQSOField) else CustomQSOField(**item)
+        if isinstance(item, CustomQSOField):
+            field = item
+        elif hasattr(item, "model_dump"):
+            field = CustomQSOField(**item.model_dump())
+        else:
+            field = CustomQSOField(**item)
         slot = int(field.slot)
         if slot < 1 or slot > 8:
             raise ValueError("Custom QSO field slot must be between 1 and 8")
