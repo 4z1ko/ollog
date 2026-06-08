@@ -810,29 +810,32 @@ async def profile_update(
     Validates via ProfileUpdateRequest, calls update_profile() directly.
     Returns a success or error partial into #profile-result.
     """
-    # Collect form fields into dict, converting empty strings to None
-    raw: dict = {}
-    for field_name, value in [
-        ("station_callsign", station_callsign),
-        ("name", name),
-        ("email", email),
-        ("qth", qth),
-        ("state", state),
-        ("country", country),
-        ("my_gridsquare", my_gridsquare),
-        ("my_rig", my_rig),
-        ("my_antenna", my_antenna),
-        ("tx_pwr", tx_pwr),
-    ]:
-        if value is not None:
-            stripped = value.strip()
-            if field_name == "tx_pwr":
-                raw[field_name] = float(stripped) if stripped else None
-            else:
-                raw[field_name] = stripped if stripped else None
-
-    raw["notify_sound"] = (notify_sound == "true")
     try:
+        # Collect form fields into dict, converting empty strings to None.
+        raw: dict = {}
+        for field_name, value in [
+            ("station_callsign", station_callsign),
+            ("name", name),
+            ("email", email),
+            ("qth", qth),
+            ("state", state),
+            ("country", country),
+            ("my_gridsquare", my_gridsquare),
+            ("my_rig", my_rig),
+            ("my_antenna", my_antenna),
+            ("tx_pwr", tx_pwr),
+        ]:
+            if value is not None:
+                stripped = value.strip()
+                if field_name == "tx_pwr":
+                    try:
+                        raw[field_name] = float(stripped) if stripped else None
+                    except ValueError as exc:
+                        raise ValueError("TX power must be a number") from exc
+                else:
+                    raw[field_name] = stripped if stripped else None
+
+        raw["notify_sound"] = (notify_sound == "true")
         raw["aclog_bridges"] = _parse_aclog_bridge_form(
             ids=aclog_bridge_id or [],
             names=aclog_bridge_name or [],
