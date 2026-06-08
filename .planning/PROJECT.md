@@ -11,12 +11,13 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 ## Current State
 
 **Shipped through:** v3.1 Per-User QSO Collections (2026-06-08)
+**Current milestone:** v3.2 ACLog Full-Record Import
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
-## Next Milestone Goals
+## Current Milestone Goals
 
-Not defined yet. Start the next cycle with `/gsd-new-milestone`.
+Improve the ACLog bridge so imported QSOs can include the full ACLog record, including user-customized Other fields, by using ACLog's `INCLUDEALL` API flow rather than relying only on the minimal `ENTEREVENT` payload.
 
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
@@ -30,7 +31,11 @@ Not defined yet. Start the next cycle with `/gsd-new-milestone`.
 
 ### Active
 
-(None — next milestone requirements have not been defined yet.)
+- [ ] **ACLOG-FULL-01:** ACLog bridge can request and parse full-record data using ACLog's `INCLUDEALL` API flow after a saved QSO event.
+- [ ] **ACLOG-FULL-02:** ACLog imports preserve all non-empty fields exposed by ACLog, not only the `ENTEREVENT` subset.
+- [ ] **ACLOG-FULL-03:** ACLog Other fields map to the operator's configured Custom QSO Fields when configured and remain safely preserved otherwise.
+- [ ] **ACLOG-FULL-04:** Existing `ENTEREVENT` plus live textbox update behavior remains as a fallback for older ACLog versions or timing edge cases.
+- [ ] **ACLOG-FULL-05:** Tests cover parser behavior, full-record merge precedence, Other field mapping, and bridge ingestion compatibility.
 
 ### Validated (v3.1)
 
@@ -471,4 +476,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-08 after v3.1 Per-User QSO Collections milestone*
+*Last updated: 2026-06-08 after adding v3.2 ACLog Full-Record Import milestone*

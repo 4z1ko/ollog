@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: Per-User QSO Collections
-status: between_milestones
-stopped_at: v3.1 milestone archived 2026-06-08 — ready to start next milestone
-last_updated: "2026-06-08T17:30:00Z"
+milestone: v3.2
+milestone_name: ACLog Full-Record Import
+status: planning
+stopped_at: Phase 63 added 2026-06-08 — ready for planning
+last_updated: "2026-06-08T18:59:57Z"
 last_activity: 2026-06-08
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,18 +21,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Between milestones — v3.1 Per-User QSO Collections is archived and the next milestone is not defined yet.
+**Current focus:** v3.2 planning — improve ACLog bridge imports so saved QSOs can include full-record fields, including ACLog Other fields.
 
 ## Current Position
 
-Milestone: v3.1 Per-User QSO Collections — archived
-Phase: none active
+Milestone: v3.2 ACLog Full-Record Import
+Phase: 63 ACLog Full-Record Import via INCLUDEALL — not planned
 Plan: none active
-Status: Ready to start next milestone
+Status: Ready for Phase 63 planning
 Last activity: 2026-06-08
 
 ```
-v3.1 Progress: [####################] 100% (4/4 phases)
+v3.2 Progress: [--------------------] 0% (0/1 phases)
 ```
 
 ## Performance Metrics
@@ -67,7 +67,8 @@ v3.1 Progress: [####################] 100% (4/4 phases)
 | v2.8 | 54–56 | 6 |
 | v2.9 | 57 | 1 |
 | v3.0 | 58 | 1 |
-| v3.1 | 59–62 | TBD |
+| v3.1 | 59–62 | 4 |
+| v3.2 | 63 | 0 |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ v3.1 Progress: [####################] 100% (4/4 phases)
 - Phase 62 executed: stats and admin clear-log now use per-user collections, app-created inserts broadcast live feed rows from write paths, startup no longer watches shared `qsos`, backup/restore dynamic collection round-trip coverage was added, and layered verification passed with Mongo-dependent tests skipped where unavailable (2026-06-08)
 - Phase 62 UAT verified: 6/6 acceptance checkpoints passed with no gaps; v3.1 is ready for milestone completion (2026-06-08)
 - v3.1 milestone archived: roadmap and requirements copied to `.planning/milestones/`, active roadmap collapsed, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-08)
+- v3.2 milestone started: improve ACLog bridge imports by using ACLog `INCLUDEALL` full-record responses so imported QSOs can include all exposed fields and user-customized Other fields (2026-06-08)
+- Phase 63 added: ACLog Full-Record Import via INCLUDEALL (2026-06-08)
 
 ### v3.1 Phase Structure
 
@@ -106,6 +109,10 @@ v3.1 Progress: [####################] 100% (4/4 phases)
 - **Phase 60** — Existing Data Migration: idempotently migrate shared `qsos` data into `<username>_qsos`, report unresolved operators, and preserve rowHash/ADIF extras. Completed 2026-06-07.
 - **Phase 61** — QSO CRUD and Import/Export Routing: refactor REST/UI/service/ADIF/API-token/UDP write paths to use authenticated username-derived collections. Completed 2026-06-08.
 - **Phase 62** — Cross-Feature Integration and Verification: stats, admin clear-log, live feed/SSE, backup/restore, isolation tests, and compatibility verification. Completed 2026-06-08.
+
+### v3.2 Phase Structure
+
+- **Phase 63** — ACLog Full-Record Import via INCLUDEALL: request/parse full ACLog records after saved-QSO events, preserve non-empty fields, map Other fields, and keep current live-update behavior as fallback.
 
 ### v3.0 Phase Structure
 
@@ -163,7 +170,7 @@ v3.1 Progress: [####################] 100% (4/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-new-milestone` to define the next milestone.
+- Run `/gsd-plan-phase 63` to plan ACLog full-record import via INCLUDEALL.
 
 ### Ship Blockers
 
@@ -182,6 +189,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-08 (v3.1 milestone close)
-Stopped at: v3.1 archived and ready for the next milestone; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
-Next: run `/gsd-new-milestone`
+Last session: 2026-06-08 (Phase 63 added)
+Stopped at: Phase 63 added and ready for planning; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
+Next: run `/gsd-plan-phase 63`

@@ -1,0 +1,40 @@
+# Requirements: ollog v3.2 ACLog Full-Record Import
+
+**Defined:** 2026-06-08
+**Core Value:** ACLog bridge imports preserve the complete QSO information ACLog exposes, including user-customized Other fields.
+
+## v1 Requirements
+
+### ACLog Full-Record Import
+
+- [ ] **ACLOG-FULL-01:** ACLog bridge can request and parse full-record data using ACLog's `INCLUDEALL` API flow after a saved QSO event.
+- [ ] **ACLOG-FULL-02:** ACLog imports preserve all non-empty fields exposed by ACLog, not only the `ENTEREVENT` subset.
+- [ ] **ACLOG-FULL-03:** ACLog Other fields map to the operator's configured Custom QSO Fields when configured and remain safely preserved otherwise.
+- [ ] **ACLOG-FULL-04:** Existing `ENTEREVENT` plus live textbox update behavior remains as a fallback for older ACLog versions or timing edge cases.
+- [ ] **ACLOG-FULL-05:** Tests cover parser behavior, full-record merge precedence, Other field mapping, and bridge ingestion compatibility.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Replacing ACLog with a different logging integration | This milestone improves the existing ACLog TCP API bridge. |
+| Requiring live ACLog in every test run | Parser/merge behavior can be covered with deterministic message fixtures; live ACLog remains optional/manual verification. |
+| Changing operator-facing QSO schemas or ADIF export semantics | The imported data should remain compatible with existing ollog QSO storage and export behavior. |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ACLOG-FULL-01 | Phase 63 | Planned |
+| ACLOG-FULL-02 | Phase 63 | Planned |
+| ACLOG-FULL-03 | Phase 63 | Planned |
+| ACLOG-FULL-04 | Phase 63 | Planned |
+| ACLOG-FULL-05 | Phase 63 | Planned |
+
+**Coverage:**
+- v1 requirements: 5 total
+- Mapped to phases: 5
+- Unmapped: 0
+
+---
+*Requirements defined: 2026-06-08*
