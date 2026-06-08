@@ -7,11 +7,11 @@
 
 ### ACLog Full-Record Import
 
-- [ ] **ACLOG-FULL-01:** ACLog bridge can request and parse full-record data using ACLog's `INCLUDEALL` API flow after a saved QSO event.
-- [ ] **ACLOG-FULL-02:** ACLog imports preserve all non-empty fields exposed by ACLog, not only the `ENTEREVENT` subset.
-- [ ] **ACLOG-FULL-03:** ACLog Other fields map to the operator's configured Custom QSO Fields when configured and remain safely preserved otherwise.
-- [ ] **ACLOG-FULL-04:** Existing `ENTEREVENT` plus live textbox update behavior remains as a fallback for older ACLog versions or timing edge cases.
-- [ ] **ACLOG-FULL-05:** Tests cover parser behavior, full-record merge precedence, Other field mapping, and bridge ingestion compatibility.
+- [x] **ACLOG-FULL-01:** ACLog bridge can request and parse full-record data using ACLog's `INCLUDEALL` API flow after a saved QSO event.
+- [x] **ACLOG-FULL-02:** ACLog imports preserve all non-empty fields exposed by ACLog, not only the `ENTEREVENT` subset.
+- [x] **ACLOG-FULL-03:** ACLog Other fields map to the operator's configured Custom QSO Fields when configured and remain safely preserved otherwise.
+- [x] **ACLOG-FULL-04:** Existing `ENTEREVENT` plus live textbox update behavior remains as a fallback for older ACLog versions or timing edge cases.
+- [x] **ACLOG-FULL-05:** Tests cover parser behavior, full-record merge precedence, Other field mapping, and bridge ingestion compatibility.
 
 ## Out of Scope
 
@@ -25,11 +25,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACLOG-FULL-01 | Phase 63 | Planned |
-| ACLOG-FULL-02 | Phase 63 | Planned |
-| ACLOG-FULL-03 | Phase 63 | Planned |
-| ACLOG-FULL-04 | Phase 63 | Planned |
-| ACLOG-FULL-05 | Phase 63 | Planned |
+| ACLOG-FULL-01 | Phase 63 | Implemented |
+| ACLOG-FULL-02 | Phase 63 | Implemented |
+| ACLOG-FULL-03 | Phase 63 | Implemented |
+| ACLOG-FULL-04 | Phase 63 | Implemented |
+| ACLOG-FULL-05 | Phase 63 | Implemented |
 
 **Coverage:**
 - v1 requirements: 5 total

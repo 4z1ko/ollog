@@ -171,3 +171,11 @@ def test_aclog_other_slots_map_to_user_configured_adif_tags():
 
     assert mapped["POTA_REF"] == "K-1234"
     assert "OTHER_1" not in mapped
+
+
+def test_aclog_other_slots_remain_when_no_custom_mapping():
+    user = _user_with_custom_fields([])
+
+    mapped = _map_other_slots_to_custom_fields({"CALL": "K1ABC", "OTHER_1": "K-1234"}, user)
+
+    assert mapped["OTHER_1"] == "K-1234"

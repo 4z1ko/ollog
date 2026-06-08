@@ -24,7 +24,7 @@
 - 🚢 **v2.9 QSO Deduplication and ADIF Duplicate Review** — Phase 57 (phase complete locally 2026-06-02)
 - ✅ **v3.0 Configurable QSO Log Fields** — Phase 58 (shipped 2026-06-07)
 - ✅ **v3.1 Per-User QSO Collections** — Phases 59–62 (shipped 2026-06-08)
-- 🧭 **v3.2 ACLog Full-Record Import** — Phase 63 (planning started 2026-06-08)
+- 🧪 **v3.2 ACLog Full-Record Import** — Phase 63 (implementation complete 2026-06-08; UAT pending)
 
 
 ## Phases
@@ -264,11 +264,11 @@ Full archive: `.planning/milestones/v3.1-ROADMAP.md`
 
 </details>
 
-### 🧭 v3.2 ACLog Full-Record Import — PLANNING STARTED 2026-06-08
+### 🧪 v3.2 ACLog Full-Record Import — IMPLEMENTATION COMPLETE 2026-06-08
 
 **Milestone Goal:** Improve the ACLog bridge so imported QSOs can include the full ACLog record, including user-customized Other fields, by using ACLog's `INCLUDEALL` API flow rather than relying only on the minimal `ENTEREVENT` payload.
 
-- [ ] **Phase 63: ACLog Full-Record Import via INCLUDEALL** — after an ACLog `ENTEREVENT`, retrieve or merge the latest full ACLog record using `LIST INCLUDEALL`/related API responses, preserve all non-empty fields, map ACLog Other fields into configured custom QSO fields, and keep current live bridge behavior as fallback. Planned 2026-06-08.
+- [ ] **Phase 63: ACLog Full-Record Import via INCLUDEALL** — after an ACLog `ENTEREVENT`, retrieve or merge the latest full ACLog record using `LIST INCLUDEALL`/related API responses, preserve all non-empty fields, map ACLog Other fields into configured custom QSO fields, and keep current live bridge behavior as fallback. Implementation complete 2026-06-08; UAT pending.
 
 ## Phase Details
 
@@ -277,17 +277,17 @@ Full archive: `.planning/milestones/v3.1-ROADMAP.md`
 **Goal:** ACLog bridge imports include the complete saved QSO record where ACLog exposes it, including user-customized Other fields.
 **Depends on:** Phase 62 (v3.1 shipped)
 **Requirements:** ACLOG-FULL-01..05
-**Status:** Planned 2026-06-08
+**Status:** Implementation complete 2026-06-08; ready for UAT
 **Success Criteria** (what must be TRUE):
   1. ACLog bridge requests and parses full-record data using ACLog's `INCLUDEALL` API flow after a saved QSO event.
   2. Imported ACLog QSOs preserve all non-empty fields exposed by ACLog, not only the `ENTEREVENT` subset.
   3. ACLog Other fields are mapped to the operator's configured Custom QSO Fields when configured and preserved safely otherwise.
   4. Existing `ENTEREVENT` plus live textbox update behavior remains as a fallback for older ACLog versions or timing edge cases.
   5. Tests cover parser behavior, full-record merge precedence, Other field mapping, and bridge ingestion compatibility.
-**Plans:** 1/1 plans planned
+**Plans:** 1/1 plans complete
 
 Plans:
-- [x] 63-01-PLAN.md — ACLog INCLUDEALL full-record import.
+- [x] 63-01-PLAN.md — ACLog INCLUDEALL full-record import. Implemented 2026-06-08.
 
 ---
 

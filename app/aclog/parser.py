@@ -22,6 +22,25 @@ _ENTEREVENT_SKIP_FIELDS = {
     "MODETEST",
 }
 
+_FULL_RECORD_SKIP_FIELDS = {
+    "COUNT",
+    "ERROR",
+    "INDEX",
+    "MODETEST",
+    "QSOCOUNT",
+    "RECORD",
+    "RECORDS",
+    "RESULT",
+    "STATUS",
+}
+
+_FULL_RECORD_COMMANDS = {
+    "LIST",
+    "LISTRESPONSE",
+    "SEARCH",
+    "SEARCHRESPONSE",
+}
+
 
 def parse_cmd(message: str) -> tuple[str | None, dict[str, str]]:
     """Parse a single ACLog <CMD> message into command name and fields."""
@@ -94,12 +113,83 @@ def aclog_enterevent_to_adif(
         if key.startswith("OTHER_") and key not in result and value:
             result[key] = value
 
-    band = fields.get("BAND")
+    band = _normalize_band(fields.get("BAND"))
     if band:
-        band = band.strip().upper()
-        result["BAND"] = band if band.endswith("M") or band.endswith("CM") else f"{band}M"
+        result["BAND"] = band
 
     return result
+
+
+def aclog_full_record_to_adif(fields: dict[str, str]) -> dict[str, str]:
+    """Convert an ACLog INCLUDEALL full-record payload to ADIF-style fields."""
+    result: dict[str, str] = {}
+
+    for source, value in fields.items():
+        key = source.strip().upper()
+        if not value or key in _FULL_RECORD_SKIP_FIELDS:
+            continue
+        if not _ADIF_NAME_RE.match(key):
+            continue
+
+        dest = _normalize_field_name(key)
+        result[dest] = value.strip()
+
+    band = _normalize_band(result.get("BAND"))
+    if band:
+        result["BAND"] = band
+
+    return result
+
+
+def is_aclog_full_record_response(command: str | None, fields: dict[str, str]) -> bool:
+    """Return True when a parsed ACLog message looks like a full QSO record."""
+    if command not in _FULL_RECORD_COMMANDS:
+        return False
+    return any(key in fields for key in ("CALL", "QSO_DATE", "TIME_ON"))
+
+
+def merge_aclog_records(
+    base: dict[str, str],
+    full: dict[str, str] | None = None,
+    state: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Merge live ENTEREVENT, INCLUDEALL, and cached state fields deterministically."""
+    merged = {key: value for key, value in base.items() if value}
+
+    for key, value in (full or {}).items():
+        if value:
+            merged[key] = value
+
+    for key, value in (state or {}).items():
+        if not value:
+            continue
+        if key in {"FREQ", "RST_SENT", "RST_RCVD"} or key.startswith("OTHER_"):
+            merged.setdefault(key, value)
+
+    band = _normalize_band(merged.get("BAND"))
+    if band:
+        merged["BAND"] = band
+
+    return merged
+
+
+def aclog_records_match(base: dict[str, str], full: dict[str, str]) -> bool:
+    """Check whether an ENTEREVENT record and INCLUDEALL record describe the same QSO."""
+    for key in ("CALL", "QSO_DATE", "TIME_ON"):
+        left = base.get(key)
+        right = full.get(key)
+        if not left or not right:
+            return False
+        if left.strip().upper() != right.strip().upper():
+            return False
+
+    for key in ("BAND", "MODE"):
+        left = _comparison_value(key, base.get(key))
+        right = _comparison_value(key, full.get(key))
+        if left and right and left != right:
+            return False
+
+    return True
 
 
 def update_state_from_message(
@@ -129,3 +219,28 @@ def update_state_from_message(
             state[dest] = value
         else:
             state.pop(dest, None)
+
+
+def _normalize_field_name(key: str) -> str:
+    if key == "RSTS":
+        return "RST_SENT"
+    if key == "RSTR":
+        return "RST_RCVD"
+    return key
+
+
+def _normalize_band(value: str | None) -> str | None:
+    if not value:
+        return None
+    band = value.strip().upper()
+    if not band:
+        return None
+    return band if band.endswith("M") or band.endswith("CM") else f"{band}M"
+
+
+def _comparison_value(key: str, value: str | None) -> str | None:
+    if not value:
+        return None
+    if key == "BAND":
+        return _normalize_band(value)
+    return value.strip().upper()
