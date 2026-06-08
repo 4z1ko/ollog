@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: ACLog Full-Record Import
-status: planning
-stopped_at: Phase 63 added 2026-06-08 — ready for planning
-last_updated: "2026-06-08T18:59:57Z"
+status: planned
+stopped_at: Phase 63 planned 2026-06-08 — ready for execution
+last_updated: "2026-06-08T19:05:06Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 ## Current Position
 
 Milestone: v3.2 ACLog Full-Record Import
-Phase: 63 ACLog Full-Record Import via INCLUDEALL — not planned
-Plan: none active
-Status: Ready for Phase 63 planning
+Phase: 63 ACLog Full-Record Import via INCLUDEALL — planned
+Plan: 63-01 ACLog INCLUDEALL Full-Record Import
+Status: Ready for Phase 63 execution
 Last activity: 2026-06-08
 
 ```
@@ -102,6 +102,7 @@ v3.2 Progress: [--------------------] 0% (0/1 phases)
 - v3.1 milestone archived: roadmap and requirements copied to `.planning/milestones/`, active roadmap collapsed, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-08)
 - v3.2 milestone started: improve ACLog bridge imports by using ACLog `INCLUDEALL` full-record responses so imported QSOs can include all exposed fields and user-customized Other fields (2026-06-08)
 - Phase 63 added: ACLog Full-Record Import via INCLUDEALL (2026-06-08)
+- Phase 63 planned: one implementation plan for parser full-record support, event/full/state merge logic, bridge INCLUDEALL enrichment, Other field mapping, docs, and deterministic tests (2026-06-08)
 
 ### v3.1 Phase Structure
 
@@ -112,7 +113,7 @@ v3.2 Progress: [--------------------] 0% (0/1 phases)
 
 ### v3.2 Phase Structure
 
-- **Phase 63** — ACLog Full-Record Import via INCLUDEALL: request/parse full ACLog records after saved-QSO events, preserve non-empty fields, map Other fields, and keep current live-update behavior as fallback.
+- **Phase 63** — ACLog Full-Record Import via INCLUDEALL: request/parse full ACLog records after saved-QSO events, preserve non-empty fields, map Other fields, and keep current live-update behavior as fallback. Planned 2026-06-08.
 
 ### v3.0 Phase Structure
 
@@ -170,7 +171,7 @@ v3.2 Progress: [--------------------] 0% (0/1 phases)
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 63` to plan ACLog full-record import via INCLUDEALL.
+- Run `/gsd-execute-phase 63` to implement ACLog full-record import via INCLUDEALL.
 
 ### Ship Blockers
 
@@ -189,6 +190,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-08 (Phase 63 added)
-Stopped at: Phase 63 added and ready for planning; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
-Next: run `/gsd-plan-phase 63`
+Last session: 2026-06-08 (Phase 63 planned)
+Stopped at: Phase 63 planned and ready for execution; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
+Next: run `/gsd-execute-phase 63`
