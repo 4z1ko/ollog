@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
 status: planning
-stopped_at: Phase 61 UAT complete 2026-06-08 — ready for Phase 62 planning
-last_updated: "2026-06-08T04:22:27Z"
+stopped_at: Phase 62 context gathered 2026-06-08 — ready for planning
+last_updated: "2026-06-08T04:36:12Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 4
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 Milestone: v3.1 Per-User QSO Collections
 Phase: 62 Cross-Feature Integration and Verification — not planned
 Plan: next plan pending
-Status: Ready to plan Phase 62
+Status: Phase 62 context gathered; ready to plan
 Last activity: 2026-06-08
 
 ```
@@ -94,6 +94,7 @@ v3.1 Progress: [###############-----] 75% (3/4 phases)
 - Phase 61 planned: one high-complexity implementation plan to route REST, browser, ADIF, API-token, UDP, duplicate handling, rowHash, custom defaults, and clear-log through authenticated username-derived collections while preserving public behavior (2026-06-07)
 - Phase 61 executed: direct QSO workflows now route through authenticated/resolved user collections for REST, browser UI, ADIF, API-token, UDP, ACLog, custom defaults, and operator clear-log; verification passed with focused and workflow tests, with Mongo-backed integration checks skipped where local MongoDB is unavailable (2026-06-08)
 - Phase 61 UAT verified: 5/5 acceptance checkpoints passed with no gaps; Phase 62 cross-feature integration planning is next (2026-06-08)
+- Phase 62 context gathered: use app-level live feed broadcasts from write paths, keep backup/restore full-database scoped, add small shared helpers for stats/admin routing, and use layered verification with live-Mongo checks only for highest-risk paths (2026-06-08)
 
 ### v3.1 Phase Structure
 
@@ -158,7 +159,7 @@ v3.1 Progress: [###############-----] 75% (3/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 62` to plan cross-feature dynamic collection integration.
+- Run `/gsd-plan-phase 62` to plan cross-feature dynamic collection integration using `.planning/phases/62-cross-feature-integration-and-verification/62-CONTEXT.md`.
 
 ### Ship Blockers
 
@@ -177,6 +178,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-08 (Phase 61 UAT)
-Stopped at: Phase 61 UAT complete; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
+Last session: 2026-06-08 (Phase 62 discussion)
+Stopped at: Phase 62 context gathered; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
 Next: run `/gsd-plan-phase 62`
