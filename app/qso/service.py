@@ -5,10 +5,12 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
+from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
+from app.hashing import canonical_document_hash
 from app.qso.models import QSO
 from app.qso.custom_fields import apply_custom_field_normalization
 
@@ -30,11 +32,104 @@ _ALLOWED_SORT_FIELDS: frozenset[str] = frozenset({
 })
 
 
+def _mongo_sort(sort_by: str) -> list[tuple[str, int]]:
+    if sort_by.startswith("-"):
+        return [(sort_by[1:], -1)]
+    return [(sort_by, 1)]
+
+
 @dataclass(frozen=True)
 class QSOInsertResult:
     status: str
     qso: QSO | None = None
     existing: QSO | None = None
+
+
+def qso_from_mongo_doc(doc: dict[str, Any] | None) -> QSO | None:
+    """Hydrate a raw MongoDB document into the existing QSO view/model shape."""
+    if doc is None:
+        return None
+
+    declared = {
+        "id": doc.get("_id"),
+        "operator_callsign": doc.get("_operator"),
+        "CALL": doc.get("CALL"),
+        "BAND": doc.get("BAND"),
+        "MODE": doc.get("MODE"),
+        "qso_date_utc": doc.get("qso_date_utc"),
+        "is_deleted": doc.get("_deleted", False),
+        "created_at": doc.get(
+            "_created_at",
+            QSO.model_fields["created_at"].default_factory(),
+        ),
+        "row_hash": doc.get("rowHash", ""),
+    }
+    extra = {
+        key: value
+        for key, value in doc.items()
+        if key not in {
+            "_id",
+            "_operator",
+            "CALL",
+            "BAND",
+            "MODE",
+            "qso_date_utc",
+            "_deleted",
+            "_created_at",
+            "rowHash",
+        }
+    }
+    return QSO.model_construct(**declared, **extra)
+
+
+def qso_to_mongo_doc(qso: QSO) -> dict[str, Any]:
+    """Serialize a QSO shape into a raw MongoDB document."""
+    doc = qso.model_dump(by_alias=True)
+    if doc.get("_id") is None:
+        doc["_id"] = ObjectId()
+    return doc
+
+
+def qso_from_input_dict(qso_dict: dict[str, Any]) -> QSO:
+    """Build a QSO object without invoking Beanie's initialized collection hooks."""
+    extras = {
+        key: value
+        for key, value in qso_dict.items()
+        if key
+        not in {
+            "_id",
+            "id",
+            "_operator",
+            "operator_callsign",
+            "CALL",
+            "BAND",
+            "MODE",
+            "qso_date_utc",
+            "_deleted",
+            "is_deleted",
+            "_created_at",
+            "created_at",
+            "rowHash",
+            "row_hash",
+        }
+    }
+    qso = QSO.model_construct(
+        id=qso_dict.get("_id") or qso_dict.get("id") or ObjectId(),
+        operator_callsign=qso_dict.get("operator_callsign") or qso_dict.get("_operator"),
+        CALL=qso_dict.get("CALL"),
+        BAND=qso_dict.get("BAND"),
+        MODE=qso_dict.get("MODE"),
+        qso_date_utc=qso_dict.get("qso_date_utc"),
+        is_deleted=qso_dict.get("is_deleted", qso_dict.get("_deleted", False)),
+        created_at=qso_dict.get(
+            "created_at",
+            qso_dict.get("_created_at", QSO.model_fields["created_at"].default_factory()),
+        ),
+        row_hash=qso_dict.get("row_hash", qso_dict.get("rowHash", "")),
+        **extras,
+    )
+    qso.refresh_row_hash()
+    return qso
 
 
 def parse_adif_datetime(qso_date: str, time_on: str) -> datetime:
@@ -101,17 +196,29 @@ def build_qso_dict(body_dict: dict, operator: str, profile: Optional[User] = Non
     return result
 
 
-async def insert_qso_dict(qso_dict: dict) -> QSOInsertResult:
+async def insert_qso_dict(qso_dict: dict, collection: Any | None = None) -> QSOInsertResult:
     """Insert a QSO dict, returning explicit status for exact rowHash duplicates."""
-    from app.qso.models import QSO as QSOModel
+    if collection is None:
+        from app.qso.models import QSO as QSOModel
 
-    qso = QSOModel(**qso_dict)
+        qso = QSOModel(**qso_dict)
+        try:
+            await qso.insert()
+        except DuplicateKeyError as exc:
+            if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
+                raise
+            existing = await QSOModel.find_one({"rowHash": qso.row_hash})
+            return QSOInsertResult(status="duplicate", existing=existing)
+        return QSOInsertResult(status="inserted", qso=qso)
+
+    qso = qso_from_input_dict(qso_dict)
+    doc = qso_to_mongo_doc(qso)
     try:
-        await qso.insert()
+        await collection.insert_one(doc)
     except DuplicateKeyError as exc:
         if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
             raise
-        existing = await QSOModel.find_one({"rowHash": qso.row_hash})
+        existing = qso_from_mongo_doc(await collection.find_one({"rowHash": qso.row_hash}))
         return QSOInsertResult(status="duplicate", existing=existing)
     return QSOInsertResult(status="inserted", qso=qso)
 
@@ -120,7 +227,7 @@ def row_hash_for_updated_qso(qso: QSO, updates: dict) -> str:
     """Compute the rowHash that a QSO would have after applying `$set` updates."""
     merged = qso.model_dump(by_alias=True)
     merged.update(updates)
-    return QSO(**merged).refresh_row_hash()
+    return canonical_document_hash(merged)
 
 
 async def find_duplicate(
@@ -129,6 +236,7 @@ async def find_duplicate(
     band: str,
     mode: str,
     qso_date_utc: datetime,
+    collection: Any | None = None,
 ) -> QSO | None:
     """Find an existing non-deleted QSO matching CALL, BAND, MODE within +/-2 min.
 
@@ -138,14 +246,17 @@ async def find_duplicate(
     window_start = qso_date_utc - timedelta(minutes=2)
     window_end = qso_date_utc + timedelta(minutes=2)
 
-    return await QSO.find_one({
+    query = {
         "_operator": operator,
         "CALL": call,
         "BAND": band,
         "MODE": mode,
         "_deleted": False,
         "qso_date_utc": {"$gte": window_start, "$lte": window_end},
-    })
+    }
+    if collection is None:
+        return await QSO.find_one(query)
+    return qso_from_mongo_doc(await collection.find_one(query))
 
 
 async def ingest_qso_record(
@@ -153,6 +264,7 @@ async def ingest_qso_record(
     operator: str,
     profile: Optional[User] = None,
     source: str = "unknown",
+    collection: Any | None = None,
 ) -> dict:
     """Validate, duplicate-check, and insert one ADIF-style QSO record.
 
@@ -177,11 +289,12 @@ async def ingest_qso_record(
         band=qso_dict["BAND"],
         mode=qso_dict["MODE"],
         qso_date_utc=qso_dict["qso_date_utc"],
+        collection=collection,
     )
     if dup is not None:
         return {"status": "duplicate", "existing_id": str(dup.id)}
 
-    insert_result = await insert_qso_dict(qso_dict)
+    insert_result = await insert_qso_dict(qso_dict, collection=collection)
     if insert_result.status == "duplicate":
         return {
             "status": "duplicate",
@@ -191,7 +304,11 @@ async def ingest_qso_record(
     return {"status": "accepted", "id": str(qso.id), "source": source}
 
 
-async def import_qsos_from_bytes(raw: bytes, operator: str) -> dict:
+async def import_qsos_from_bytes(
+    raw: bytes,
+    operator: str,
+    collection: Any | None = None,
+) -> dict:
     """Core ADIF import logic — raises ValueError, never HTTPException.
 
     Callable from HTTP routes (via thin wrapper) AND async background tasks
@@ -248,6 +365,7 @@ async def import_qsos_from_bytes(raw: bytes, operator: str) -> dict:
             band=qso_dict["BAND"],
             mode=qso_dict["MODE"],
             qso_date_utc=qso_dict["qso_date_utc"],
+            collection=collection,
         )
         if dup is not None:
             duplicates.append({
@@ -259,7 +377,7 @@ async def import_qsos_from_bytes(raw: bytes, operator: str) -> dict:
             continue
 
         # Insert accepted record
-        insert_result = await insert_qso_dict(qso_dict)
+        insert_result = await insert_qso_dict(qso_dict, collection=collection)
         if insert_result.status == "duplicate":
             duplicates.append({
                 "record_index": idx,
@@ -294,6 +412,7 @@ async def get_qso_page(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     sort_by: str = _DEFAULT_SORT,
+    collection: Any | None = None,
 ) -> tuple[list[QSO], int]:
     """Fetch a paginated, filtered page of active QSOs for an operator.
 
@@ -325,13 +444,50 @@ async def get_qso_page(
             date_query["$lte"] = date_to
         query["qso_date_utc"] = date_query
 
-    base = QSO.find(query)
-    total = await base.count()
-    items = await QSO.find(query).sort(sort_by).skip((page - 1) * page_size).limit(page_size).to_list()
+    if collection is None:
+        base = QSO.find(query)
+        total = await base.count()
+        items = await QSO.find(query).sort(sort_by).skip((page - 1) * page_size).limit(page_size).to_list()
+        return items, total
+
+    total = await collection.count_documents(query)
+    docs = await (
+        collection.find(query)
+        .sort(_mongo_sort(sort_by))
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list(length=page_size)
+    )
+    items = [qso for doc in docs if (qso := qso_from_mongo_doc(doc)) is not None]
     return items, total
 
 
-async def clear_operator_log(operator: str) -> int:
+async def get_qso_by_id(qso_id: Any, collection: Any) -> QSO | None:
+    """Fetch one QSO from a raw per-user collection by ObjectId."""
+    return qso_from_mongo_doc(await collection.find_one({"_id": qso_id}))
+
+
+async def update_qso_fields(qso: QSO, updates: dict[str, Any], collection: Any) -> QSO:
+    """Apply a raw $set update to a QSO in a per-user collection."""
+    set_doc = dict(updates)
+    set_doc["rowHash"] = row_hash_for_updated_qso(qso, set_doc)
+    await collection.update_one({"_id": qso.id}, {"$set": set_doc})
+    updated = await get_qso_by_id(qso.id, collection)
+    if updated is None:
+        raise RuntimeError("QSO disappeared during update")
+    return updated
+
+
+async def soft_delete_qso(qso: QSO, collection: Any) -> None:
+    """Soft-delete a QSO in a per-user collection and refresh rowHash."""
+    row_hash = row_hash_for_updated_qso(qso, {"_deleted": True})
+    await collection.update_one(
+        {"_id": qso.id},
+        {"$set": {"_deleted": True, "rowHash": row_hash}},
+    )
+
+
+async def clear_operator_log(operator: str, collection: Any | None = None) -> int:
     """Permanently delete all active (non-soft-deleted) QSOs for an operator.
 
     Returns the count of deleted documents. Permanent delete (not soft-delete)
@@ -345,7 +501,9 @@ async def clear_operator_log(operator: str) -> int:
         Number of QSO documents removed. Zero is a valid, non-error return value
         (operator may legitimately have an empty log).
     """
-    result = await QSO.find(
-        {"_operator": operator, "_deleted": False}
-    ).delete_many()
+    query = {"_operator": operator, "_deleted": False}
+    if collection is None:
+        result = await QSO.find(query).delete_many()
+    else:
+        result = await collection.delete_many(query)
     return result.deleted_count if result is not None else 0

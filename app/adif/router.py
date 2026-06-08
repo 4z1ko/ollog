@@ -19,9 +19,11 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.adif.serializer import serialize_adi
-from app.auth.dependencies import get_current_operator_callsign
+from app.auth.dependencies import get_current_user
+from app.auth.models import User
+from app.qso.collections import get_user_qso_collection
 from app.qso.models import QSO
-from app.qso.service import import_qsos_from_bytes
+from app.qso.service import import_qsos_from_bytes, qso_from_mongo_doc
 
 router = APIRouter(prefix="/api/adif", tags=["adif"])
 
@@ -54,7 +56,7 @@ class ADIFImportReport(BaseModel):
 @router.post("/import", response_model=ADIFImportReport)
 async def import_adif(
     file: UploadFile,
-    operator: str = Depends(get_current_operator_callsign),
+    user: User = Depends(get_current_user),
 ):
     """Import an ADIF file and return a JSON import report.
 
@@ -63,7 +65,11 @@ async def import_adif(
     """
     raw = await file.read()
     try:
-        return await import_qsos_from_bytes(raw, operator)
+        return await import_qsos_from_bytes(
+            raw,
+            user.callsign,
+            collection=get_user_qso_collection(user),
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -128,7 +134,7 @@ _ADIF_HEADER = "<ADIF_VER:5>3.1.4\n<PROGRAMID:5>ollog\n<EOH>\n\n"
     },
 )
 async def export_adif(
-    operator: str = Depends(get_current_operator_callsign),
+    user: User = Depends(get_current_user),
 ):
     """Stream the operator's logbook as a valid .adi file download.
 
@@ -136,14 +142,16 @@ async def export_adif(
     Output: ADIF header + one serialized record per QSO.
     Memory: uses StreamingResponse with an async generator.
     """
-    qsos = await QSO.find({"_operator": operator, "_deleted": False}).to_list()
+    collection = get_user_qso_collection(user)
+    docs = await collection.find({"_operator": user.callsign, "_deleted": False}).to_list()
+    qsos = [qso for doc in docs if (qso := qso_from_mongo_doc(doc)) is not None]
 
     async def _generate():
         yield _ADIF_HEADER
         for qso in qsos:
             yield serialize_adi([_qso_to_adif_dict(qso)])
 
-    filename = f"{operator}_logbook.adi"
+    filename = f"{user.callsign}_logbook.adi"
     return StreamingResponse(
         _generate(),
         media_type="text/plain",

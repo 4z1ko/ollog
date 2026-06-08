@@ -97,27 +97,41 @@ def apply_custom_field_normalization(record: dict[str, Any], user: User | None) 
     return result
 
 
-async def custom_field_defaults(user: User, call: str | None = None) -> dict[str, str]:
+async def custom_field_defaults(
+    user: User,
+    call: str | None = None,
+    collection: Any | None = None,
+) -> dict[str, str]:
     """Return configured custom field defaults for the QSO entry form."""
+    from app.qso.service import qso_from_mongo_doc
+
     defaults: dict[str, str] = {}
     for field in enabled_custom_fields_for_user(user):
         if field.fill_behavior == "previous_qso":
-            qso = await QSO.find(
-                {
-                    "_operator": user.callsign,
-                    "_deleted": False,
-                    field.adif_name: {"$exists": True, "$ne": ""},
-                }
-            ).sort("-_created_at").first_or_none()
+            query = {
+                "_operator": user.callsign,
+                "_deleted": False,
+                field.adif_name: {"$exists": True, "$ne": ""},
+            }
+            if collection is None:
+                qso = await QSO.find(query).sort("-_created_at").first_or_none()
+            else:
+                qso = qso_from_mongo_doc(
+                    await collection.find_one(query, sort=[("_created_at", -1)])
+                )
         elif field.fill_behavior == "previous_same_call" and call:
-            qso = await QSO.find(
-                {
-                    "_operator": user.callsign,
-                    "_deleted": False,
-                    "CALL": call.strip().upper(),
-                    field.adif_name: {"$exists": True, "$ne": ""},
-                }
-            ).sort("-_created_at").first_or_none()
+            query = {
+                "_operator": user.callsign,
+                "_deleted": False,
+                "CALL": call.strip().upper(),
+                field.adif_name: {"$exists": True, "$ne": ""},
+            }
+            if collection is None:
+                qso = await QSO.find(query).sort("-_created_at").first_or_none()
+            else:
+                qso = qso_from_mongo_doc(
+                    await collection.find_one(query, sort=[("_created_at", -1)])
+                )
         else:
             qso = None
 

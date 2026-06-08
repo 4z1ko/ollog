@@ -12,19 +12,21 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.auth.dependencies import (
-    get_current_operator_callsign_jwt_or_apikey,
-    get_current_user_jwt_or_apikey,
-)
+from app.auth.dependencies import get_current_user_jwt_or_apikey
 from app.auth.models import User
+from app.qso.collections import get_user_qso_collection
 from app.qso.models import QSO
 from app.qso.service import (
     build_qso_dict,
     find_duplicate,
+    get_qso_by_id,
     get_qso_page,
     insert_qso_dict,
     parse_adif_datetime,
+    qso_from_mongo_doc,
     row_hash_for_updated_qso,
+    soft_delete_qso,
+    update_qso_fields,
 )
 from app.qso.custom_fields import apply_custom_field_normalization
 
@@ -133,6 +135,7 @@ async def create_qso(
     Profile fields (OPERATOR, STATION_CALLSIGN, etc.) are auto-stamped from the User document.
     """
     operator = user.callsign
+    collection = get_user_qso_collection(user)
     # Merge declared fields and extra ADIF fields
     merged: dict = {**body.model_dump(exclude_unset=False), **(body.model_extra or {})}
     qso_dict = build_qso_dict(merged, operator, profile=user)
@@ -145,6 +148,7 @@ async def create_qso(
             band=qso_dict["BAND"],
             mode=qso_dict["MODE"],
             qso_date_utc=qso_dict["qso_date_utc"],
+            collection=collection,
         )
         if dup is not None:
             raise HTTPException(
@@ -159,7 +163,7 @@ async def create_qso(
                 },
             )
 
-    insert_result = await insert_qso_dict(qso_dict)
+    insert_result = await insert_qso_dict(qso_dict, collection=collection)
     if insert_result.status == "duplicate":
         existing = insert_result.existing
         raise HTTPException(
@@ -188,9 +192,11 @@ async def list_qsos(
     date_from: Optional[str] = Query(None, description="YYYYMMDD"),
     date_to: Optional[str] = Query(None, description="YYYYMMDD"),
     sort: str = Query("-qso_date_utc"),
-    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
+    user: User = Depends(get_current_user_jwt_or_apikey),
 ) -> dict:
     """List the authenticated operator's active QSOs with pagination and optional filters."""
+    operator = user.callsign
+    collection = get_user_qso_collection(user)
     dt_from = None
     dt_to = None
     if date_from:
@@ -209,6 +215,7 @@ async def list_qsos(
         date_from=dt_from,
         date_to=dt_to,
         sort_by=sort,
+        collection=collection,
     )
     return {
         "items": [_qso_to_dict(q) for q in items],
@@ -221,7 +228,7 @@ async def list_qsos(
 @router.get("/{qso_id}", status_code=status.HTTP_200_OK, response_model=QSOResponse)
 async def get_qso(
     qso_id: str,
-    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
+    user: User = Depends(get_current_user_jwt_or_apikey),
 ) -> dict:
     """Fetch a single QSO by ID. Returns 404 if not found, not owned, or soft-deleted."""
     try:
@@ -229,8 +236,9 @@ async def get_qso(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != operator or qso.is_deleted:
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
     return _qso_to_dict(qso)
 
@@ -252,7 +260,8 @@ async def patch_qso(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
     if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
@@ -279,11 +288,14 @@ async def patch_qso(
     if body:
         body["rowHash"] = row_hash_for_updated_qso(qso, body)
         try:
-            await qso.update({"$set": body})
+            await update_qso_fields(qso, body, collection)
         except Exception as exc:
             if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
                 raise
-            existing = await QSO.find_one({"rowHash": body["rowHash"]})
+            existing = await get_qso_by_id(qso.id, collection)
+            duplicate = await collection.find_one({"rowHash": body["rowHash"]})
+            if duplicate is not None:
+                existing = qso_from_mongo_doc(duplicate)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -297,14 +309,14 @@ async def patch_qso(
                 },
             )
 
-    updated = await QSO.get(oid)
+    updated = await get_qso_by_id(oid, collection)
     return _qso_to_dict(updated)
 
 
 @router.delete("/{qso_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_qso(
     qso_id: str,
-    operator: str = Depends(get_current_operator_callsign_jwt_or_apikey),
+    user: User = Depends(get_current_user_jwt_or_apikey),
 ) -> None:
     """Soft-delete a QSO by ID.
 
@@ -320,9 +332,9 @@ async def delete_qso(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != operator or qso.is_deleted:
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    # Use MongoDB alias _deleted, not Python attribute is_deleted
-    await qso.update({"$set": {"_deleted": True}})
+    await soft_delete_qso(qso, collection)

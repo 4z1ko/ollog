@@ -90,19 +90,25 @@ async def _handle_datagram(
             operator = resolved_op_user.callsign
             user = resolved_op_user
 
-        if operator is None:
+        if operator is None or user is None:
             logger.warning(
-                "UDP datagram src=%s:%s disposition=rejected reason=no-operator-configured",
+                "UDP datagram src=%s:%s disposition=rejected reason=no-user-resolved",
                 addr[0],
                 addr[1],
             )
             return
+
+        from app.database import get_client
+        from app.qso.collections import get_user_qso_collection
+
+        collection = get_user_qso_collection(user) if get_client() is not None else None
 
         result = await ingest_qso_record(
             record=record,
             operator=operator,
             profile=user,
             source="udp",
+            collection=collection,
         )
 
         if result["status"] == "rejected":

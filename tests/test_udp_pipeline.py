@@ -168,13 +168,19 @@ async def test_handle_datagram_duplicate_skipped(udp_user: User) -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_datagram_operator_from_config_not_datagram(udp_user: User) -> None:
-    """Operator attribution comes from config parameter, not ADIF datagram content."""
-    # Datagram contains a different OPERATOR field value
+async def test_handle_datagram_operator_field_resolves_user_override(udp_user: User) -> None:
+    """An ADIF OPERATOR field can resolve the target user for collection routing."""
     adif_with_operator = (
         "<CALL:4>W1AW<BAND:3>20M<MODE:3>SSB"
         "<QSO_DATE:8>20260406<TIME_ON:4>1200"
         "<OPERATOR:5>W1XXX<EOR>"
+    )
+    override_user = User.model_construct(
+        callsign="W1XXX",
+        username="w1xxx",
+        hashed_password="x",
+        role="operator",
+        enabled=True,
     )
     captured: list[dict] = []
 
@@ -188,6 +194,7 @@ async def test_handle_datagram_operator_from_config_not_datagram(udp_user: User)
     with (
         patch("app.qso.service.find_duplicate", new=AsyncMock(return_value=None)),
         patch("app.qso.models.QSO", side_effect=_capture_qso_dict),
+        patch("app.udp.operator_cache.operator_cache.resolve", new=AsyncMock(return_value=override_user)),
     ):
         await _handle_datagram(
             adif_with_operator.encode(),
@@ -198,10 +205,8 @@ async def test_handle_datagram_operator_from_config_not_datagram(udp_user: User)
 
     assert len(captured) == 1
     qso_kwargs = captured[0]
-    # operator_callsign must come from config ("VK2ABC"), not from ADIF ("W1XXX")
-    assert qso_kwargs.get("operator_callsign") == "VK2ABC"
-    # OPERATOR field is overwritten by profile stamping to profile.callsign
-    assert qso_kwargs.get("OPERATOR") == "VK2ABC"
+    assert qso_kwargs.get("operator_callsign") == "W1XXX"
+    assert qso_kwargs.get("OPERATOR") == "W1XXX"
 
 
 @pytest.mark.asyncio

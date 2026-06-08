@@ -31,6 +31,7 @@ from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
 from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
+from app.qso.collections import get_user_qso_collection
 from app.qso.fields import (
     build_field_values,
     get_configurable_column_keys_for_user,
@@ -47,10 +48,14 @@ from app.qso.service import (
     build_qso_dict,
     clear_operator_log,
     find_duplicate,
+    get_qso_by_id,
     get_qso_page,
     insert_qso_dict,
     parse_adif_datetime,
+    qso_from_mongo_doc,
     row_hash_for_updated_qso,
+    soft_delete_qso,
+    update_qso_fields,
 )
 from app.tokens.models import ApiToken
 from app.tokens.service import generate_api_token, hash_api_token, validate_token_name
@@ -195,6 +200,7 @@ async def submit_qso(
     Profile fields (OPERATOR, STATION_CALLSIGN, etc.) are auto-stamped from the User document.
     """
     callsign = user.callsign
+    collection = get_user_qso_collection(user)
     submitted_form = await request.form()
     custom_values = _custom_qso_values_from_form(submitted_form, user)
 
@@ -223,6 +229,7 @@ async def submit_qso(
             band=qso_dict["BAND"],
             mode=qso_dict["MODE"],
             qso_date_utc=qso_dict["qso_date_utc"],
+            collection=collection,
         )
         if dup is not None:
             # Return duplicate warning — HTTP 200 so HTMX swaps the content
@@ -245,7 +252,7 @@ async def submit_qso(
             )
 
     # No duplicate or force=True: insert the QSO
-    insert_result = await insert_qso_dict(qso_dict)
+    insert_result = await insert_qso_dict(qso_dict, collection=collection)
     if insert_result.status == "duplicate":
         existing = insert_result.existing
         dup_dict = {
@@ -293,7 +300,7 @@ async def get_custom_qso_field_defaults(
     user: User = Depends(get_current_user_cookie),
 ) -> dict[str, str]:
     """Return CALL-dependent custom field defaults for the QSO entry form."""
-    return await custom_field_defaults(user, call=call)
+    return await custom_field_defaults(user, call=call, collection=get_user_qso_collection(user))
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +361,7 @@ async def log_view(
     Full page requests return the complete log.html page.
     """
     callsign = user.callsign
+    collection = get_user_qso_collection(user)
     # Parse optional date range strings (YYYYMMDD) to UTC-aware datetimes
     date_from_dt: Optional[datetime] = None
     date_to_dt: Optional[datetime] = None
@@ -381,6 +389,7 @@ async def log_view(
         date_from=date_from_dt,
         date_to=date_to_dt,
         sort_by=sort,
+        collection=collection,
     )
 
     qsos = [_qso_to_view_dict(q, user=user) for q in qsos_raw]
@@ -426,7 +435,8 @@ async def qso_edit_row(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
     if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
@@ -452,7 +462,8 @@ async def qso_view_row(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
     if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
@@ -491,7 +502,8 @@ async def qso_update(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
     if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
@@ -548,7 +560,7 @@ async def qso_update(
         )
     update_dict["rowHash"] = row_hash_for_updated_qso(qso, update_dict)
     try:
-        await qso.update({"$set": update_dict})
+        await update_qso_fields(qso, update_dict, collection)
     except Exception as exc:
         if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
             raise
@@ -558,7 +570,7 @@ async def qso_update(
         )
 
     # Refetch to get the updated document
-    updated = await QSO.get(oid)
+    updated = await get_qso_by_id(oid, collection)
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
@@ -579,13 +591,13 @@ async def qso_update(
 @ui_router.get("/import", response_class=HTMLResponse)
 async def import_page(
     request: Request,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Render the ADIF import upload form."""
     return templates.TemplateResponse(
         request,
         "log/import.html",
-        {"callsign": callsign},
+        {"callsign": user.callsign},
     )
 
 
@@ -593,7 +605,7 @@ async def import_page(
 async def import_submit(
     request: Request,
     file: UploadFile,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Process an uploaded ADIF file and return the import report partial.
 
@@ -602,7 +614,11 @@ async def import_submit(
     """
     raw = await file.read()
     try:
-        report = await import_qsos_from_bytes(raw, callsign)
+        report = await import_qsos_from_bytes(
+            raw,
+            user.callsign,
+            collection=get_user_qso_collection(user),
+        )
     except ValueError as exc:
         # Size limit exceeded — render a simple error message in the target div
         return HTMLResponse(
@@ -623,7 +639,7 @@ async def import_submit(
 async def import_selected_duplicates(
     request: Request,
     records: Annotated[list[str] | None, Form()] = None,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Force-import selected duplicate ADIF records from the import review table."""
     accepted: list[dict] = []
@@ -631,11 +647,12 @@ async def import_selected_duplicates(
     errors: list[dict] = []
 
     selected = records or []
+    collection = get_user_qso_collection(user)
     for idx, token in enumerate(selected):
         try:
             record = _decode_import_record(token)
-            qso_dict = build_qso_dict(record, callsign)
-            insert_result = await insert_qso_dict(qso_dict)
+            qso_dict = build_qso_dict(record, user.callsign)
+            insert_result = await insert_qso_dict(qso_dict, collection=collection)
         except Exception as exc:
             errors.append({
                 "record_index": idx,
@@ -675,14 +692,16 @@ async def import_selected_duplicates(
 
 @ui_router.get("/export")
 async def export_logbook(
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Stream the operator's logbook as a .adi file download.
 
     Cookie-auth mirror of GET /api/adif/export (which uses Bearer auth).
     Identical filtering and serialization — only the auth dependency differs.
     """
-    qsos = await QSO.find({"_operator": callsign, "_deleted": False}).to_list()
+    collection = get_user_qso_collection(user)
+    docs = await collection.find({"_operator": user.callsign, "_deleted": False}).to_list()
+    qsos = [qso for doc in docs if (qso := qso_from_mongo_doc(doc)) is not None]
 
     _adif_header = "<ADIF_VER:5>3.1.4\n<PROGRAMID:5>ollog\n<EOH>\n\n"
 
@@ -691,7 +710,7 @@ async def export_logbook(
         for qso in qsos:
             yield serialize_adi([_qso_to_adif_dict(qso)])
 
-    filename = f"{callsign}_logbook.adi"
+    filename = f"{user.callsign}_logbook.adi"
     return StreamingResponse(
         _generate(),
         media_type="text/plain",
@@ -703,7 +722,7 @@ async def export_logbook(
 async def qso_delete(
     request: Request,
     qso_id: str,
-    callsign: str = Depends(get_current_operator_callsign_cookie),
+    user: User = Depends(get_current_user_cookie),
 ):
     """Soft-delete a QSO. Returns empty 200 — HTMX outerHTML swap removes the row."""
     try:
@@ -711,11 +730,12 @@ async def qso_delete(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    qso = await QSO.get(oid)
-    if qso is None or qso.operator_callsign != callsign or qso.is_deleted:
+    collection = get_user_qso_collection(user)
+    qso = await get_qso_by_id(oid, collection)
+    if qso is None or qso.operator_callsign != user.callsign or qso.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
-    await qso.update({"$set": {"_deleted": True}})
+    await soft_delete_qso(qso, collection)
     return Response(content="", status_code=200)
 
 
@@ -1061,9 +1081,8 @@ async def clear_log_modal(
     The count is queried server-side — never trust a client-supplied number.
     Always returns HTTP 200 — HTMX 2.x will not swap on 4xx.
     """
-    count = await QSO.find(
-        {"_operator": user.callsign, "_deleted": False}
-    ).count()
+    collection = get_user_qso_collection(user)
+    count = await collection.count_documents({"_operator": user.callsign, "_deleted": False})
     return templates.TemplateResponse(
         request,
         "log/clear_log_modal.html",
@@ -1084,9 +1103,8 @@ async def clear_log_confirm(
     Correct password → delete and return the success fragment (modal replaced).
     """
     if not verify_password(password, user.hashed_password):
-        count = await QSO.find(
-            {"_operator": user.callsign, "_deleted": False}
-        ).count()
+        collection = get_user_qso_collection(user)
+        count = await collection.count_documents({"_operator": user.callsign, "_deleted": False})
         return templates.TemplateResponse(
             request,
             "log/clear_log_modal.html",
@@ -1094,7 +1112,7 @@ async def clear_log_confirm(
             status_code=200,
         )
 
-    deleted = await clear_operator_log(user.callsign)
+    deleted = await clear_operator_log(user.callsign, collection=get_user_qso_collection(user))
     return templates.TemplateResponse(
         request,
         "log/clear_log_success.html",

@@ -92,11 +92,14 @@ async def _handle_message(
 
     record = aclog_enterevent_to_adif(fields, state=state)
     record = _map_other_slots_to_custom_fields(record, user)
+    from app.qso.collections import get_user_qso_collection
+
     result = await ingest_qso_record(
         record=record,
         operator=user.callsign,
         profile=user,
         source=f"aclog:{config.bridge_id}",
+        collection=get_user_qso_collection(user),
     )
     logger.info(
         "ACLog bridge %s call=%s disposition=%s",
