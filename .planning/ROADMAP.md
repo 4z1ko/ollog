@@ -256,7 +256,7 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 - [x] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Completed 2026-06-07.
 - [x] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting. Completed 2026-06-07.
 - [x] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection. Completed 2026-06-08.
-- [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections.
+- [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections. Implementation complete 2026-06-08; UAT pending.
 
 ## Phase Details
 
@@ -323,7 +323,7 @@ Plans:
 **Goal:** Features outside direct QSO CRUD continue to work across dynamic user collections, with coverage for isolation and compatibility.
 **Depends on:** Phase 61
 **Requirements:** INT-01..05, VERIFY-03..04
-**Status:** Planned 2026-06-08
+**Status:** Implementation complete 2026-06-08; ready for UAT
 **Success Criteria** (what must be TRUE):
   1. `/log/stats` aggregates from the logged-in user's collection with unchanged UI behavior.
   2. Admin clear-log counts and deletes from the target user's collection while preserving admin password verification.
@@ -331,10 +331,10 @@ Plans:
   4. Backup and restore include dynamically named QSO collections.
   5. Integration tests prove operators cannot read, edit, delete, export, import-review, or clear another user's QSOs by guessing IDs or collection names.
   6. Regression tests cover existing API schemas, UI contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels.
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 062-01-PLAN.md — Stats/admin/live-feed/backup integration plus isolation and compatibility verification.
+- [x] 062-01-PLAN.md — Stats/admin/live-feed/backup integration plus isolation and compatibility verification.
 
 ---
 

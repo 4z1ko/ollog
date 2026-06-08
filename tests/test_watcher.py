@@ -12,7 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.feed.manager import ConnectionManager, watch_qsos
+from app.feed.manager import ConnectionManager, broadcast_qso, watch_qsos
+from app.qso.models import QSO
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +45,28 @@ def _make_mock_collection(changes: list[dict]):
 # ---------------------------------------------------------------------------
 # LIVE-01a: Exception isolation
 # ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_broadcast_qso_renders_feed_row():
+    """App-level QSO broadcast renders the existing feed row and queues it."""
+    mgr = ConnectionManager()
+    q = await mgr.connect()
+    qso = QSO.model_construct(
+        CALL="W1AW",
+        BAND="20M",
+        MODE="SSB",
+        operator_callsign="VK2ABC",
+        qso_date_utc=None,
+        FREQ="14.250",
+    )
+
+    await broadcast_qso(qso, mgr=mgr)
+
+    html = q.get_nowait()
+    assert "W1AW" in html
+    assert "20M" in html
+    assert "VK2ABC" in html
+
 
 @pytest.mark.asyncio
 async def test_watcher_survives_render_exception():
@@ -106,7 +129,7 @@ async def test_watcher_task_stored_in_app_state():
         patch.object(_main, "backfill_created_at", new=AsyncMock()),
         patch.object(_main, "normalize_time_on", new=AsyncMock()),
         patch.object(_main, "backfill_row_hash", new=AsyncMock()),
-        patch.object(_main, "get_client", return_value=None),
+        patch.object(_main, "migrate_shared_qsos", new=AsyncMock()),
         patch.object(_main, "close_db", new=AsyncMock()),
         patch("app.main.settings") as mock_settings,
     ):
@@ -117,7 +140,7 @@ async def test_watcher_task_stored_in_app_state():
         async with _main.lifespan(app):
             assert hasattr(app.state, "watcher_task"), \
                 "app.state.watcher_task must exist after startup (even when client is None)"
-            # client is None in this mock — watcher_task stays None
+            # Live feed broadcasts from app write paths, so no shared collection watcher starts.
             assert app.state.watcher_task is None
 
 

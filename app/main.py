@@ -88,15 +88,8 @@ async def lifespan(app: FastAPI):
     await normalize_time_on()     # Phase 52 (D-02): pad 4-digit TIME_ON to 6-digit
     await backfill_row_hash()      # Deterministic document-level deduplication
     await migrate_shared_qsos()    # Copy shared rows into username-routed collections
-    # Start change stream watcher for live feed
-    client = get_client()
+    # Live feed broadcasts are emitted from app write paths.
     app.state.watcher_task = None
-    if client is not None:
-        from app.feed.manager import manager as feed_manager, watch_qsos  # noqa: E402
-        collection = client[settings.mongodb_db]["qsos"]
-        app.state.watcher_task = asyncio.create_task(
-            watch_qsos(collection, feed_manager, _templates)
-        )
     # Start UDP listener (conditional on UDP_ENABLED)
     udp_transport = None
     if settings.udp_enabled:
@@ -151,7 +144,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown order: UDP first, then change-stream watcher, then backup scheduler, then database.
+    # Shutdown order: UDP first, then backup scheduler, then database.
     # transport.close() is synchronous — do NOT await it.
     if udp_transport is not None:
         udp_transport.close()

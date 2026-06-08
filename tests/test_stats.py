@@ -11,10 +11,14 @@ from beanie import init_beanie
 from httpx import ASGITransport, AsyncClient
 from pymongo import AsyncMongoClient
 
+from app import database
 from app.auth.models import User
 from app.auth.service import create_access_token, hash_password
+from app.config import settings
 from app.main import app
+from app.qso.collections import ensure_user_qso_collection_indexes, get_user_qso_collection
 from app.qso.models import QSO
+from app.qso.service import qso_to_mongo_doc
 from app.stats.service import get_stats
 
 
@@ -49,12 +53,60 @@ def _make_qso_doc(operator: str, call: str, **kwargs) -> QSO:
     )
 
 
+class FakeAggCursor:
+    def __init__(self, docs):
+        self.docs = docs
+
+    async def to_list(self, length=None):
+        return self.docs if length is None else self.docs[:length]
+
+
+class FakeStatsCollection:
+    def __init__(self, docs):
+        self.docs = list(docs)
+
+    def aggregate(self, pipeline):
+        docs = list(self.docs)
+        match = pipeline[0].get("$match", {})
+        docs = [
+            doc for doc in docs
+            if all(doc.get(key) == value for key, value in match.items())
+        ]
+        if "$count" in pipeline[1]:
+            return FakeAggCursor([{"total": len(docs)}] if docs else [])
+
+        group_key = pipeline[1]["$group"]["_id"].removeprefix("$")
+        grouped: dict[str, int] = {}
+        for doc in docs:
+            grouped[doc.get(group_key)] = grouped.get(doc.get(group_key), 0) + 1
+        return FakeAggCursor([
+            {"_id": key, "count": count}
+            for key, count in grouped.items()
+        ])
+
+
+async def _create_user(username: str, callsign: str, password: str = "testpass") -> User:
+    user = User(
+        username=username,
+        hashed_password=hash_password(password),
+        callsign=callsign,
+    )
+    await user.insert()
+    await ensure_user_qso_collection_indexes(user)
+    return user
+
+
+async def _insert_qso(user: User, call: str, **kwargs) -> None:
+    qso = _make_qso_doc(user.callsign, call, **kwargs)
+    await get_user_qso_collection(user).insert_one(qso_to_mongo_doc(qso))
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 @pytest_asyncio.fixture(scope="function")
-async def stats_test_db():
+async def stats_test_db(monkeypatch):
     """Function-scoped test database for stats tests."""
     if not _mongo_available():
         pytest.skip("MongoDB not available at localhost:27017")
@@ -63,10 +115,13 @@ async def stats_test_db():
         "mongodb://localhost:27017/?directConnection=true",
         serverSelectionTimeoutMS=2000,
     )
-    db = client["ollog_test"]
+    db_name = "ollog_stats_test"
+    db = client[db_name]
+    monkeypatch.setattr(database, "_client", client)
+    monkeypatch.setattr(settings, "mongodb_db", db_name)
     await init_beanie(database=db, document_models=[QSO, User])
     yield db
-    await client.drop_database("ollog_test")
+    await client.drop_database(db_name)
     await client.aclose()
 
 
@@ -88,9 +143,27 @@ async def http_client(stats_test_db):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
+async def test_stats_uses_supplied_collection_without_mongo():
+    """Collection-aware stats can be verified without live MongoDB."""
+    collection = FakeStatsCollection([
+        {"_operator": "AA1AA", "_deleted": False, "CALL": "W1AW", "BAND": "20M", "MODE": "SSB"},
+        {"_operator": "AA1AA", "_deleted": False, "CALL": "DL1ABC", "BAND": "40M", "MODE": "FT8"},
+        {"_operator": "BB2BB", "_deleted": False, "CALL": "JA1ABC", "BAND": "15M", "MODE": "CW"},
+        {"_operator": "AA1AA", "_deleted": True, "CALL": "K1TTT", "BAND": "10M", "MODE": "CW"},
+    ])
+
+    result = await get_stats("AA1AA", collection=collection)
+
+    assert result["total_qsos"] == 2
+    assert result["band_counts"] == {"20M": 1, "40M": 1}
+    assert result["mode_counts"] == {"SSB": 1, "FT8": 1}
+
+
+@pytest.mark.asyncio
 async def test_stats_empty_log(stats_test_db):
     """get_stats() returns complete shape with total_qsos=0 for empty log."""
-    result = await get_stats("NOCALL")
+    user = await _create_user("nocall", "NOCALL")
+    result = await get_stats("NOCALL", collection=get_user_qso_collection(user))
     assert result["total_qsos"] == 0
     assert result["band_counts"] == {}
     assert result["mode_counts"] == {}
@@ -105,17 +178,19 @@ async def test_stats_empty_log(stats_test_db):
 @pytest.mark.asyncio
 async def test_stats_operator_isolation(stats_test_db):
     """get_stats() returns only the queried operator's data — no cross-contamination."""
+    aa = await _create_user("aa1aa", "AA1AA")
+    bb = await _create_user("bb2bb", "BB2BB")
     # Seed QSOs for AA1AA (US callsigns on 20M SSB)
-    await _make_qso_doc("AA1AA", "W1AW", BAND="20M", MODE="SSB").insert()
-    await _make_qso_doc("AA1AA", "W2AW", BAND="40M", MODE="FT8").insert()
-    await _make_qso_doc("AA1AA", "W3AW", BAND="20M", MODE="SSB").insert()
+    await _insert_qso(aa, "W1AW", BAND="20M", MODE="SSB")
+    await _insert_qso(aa, "W2AW", BAND="40M", MODE="FT8")
+    await _insert_qso(aa, "W3AW", BAND="20M", MODE="SSB")
 
     # Seed QSOs for BB2BB (different callsigns)
-    await _make_qso_doc("BB2BB", "DL1ABC", BAND="10M", MODE="CW").insert()
-    await _make_qso_doc("BB2BB", "JA1YWX", BAND="15M", MODE="CW").insert()
+    await _insert_qso(bb, "DL1ABC", BAND="10M", MODE="CW")
+    await _insert_qso(bb, "JA1YWX", BAND="15M", MODE="CW")
 
     # Query AA1AA stats
-    aa_stats = await get_stats("AA1AA")
+    aa_stats = await get_stats("AA1AA", collection=get_user_qso_collection(aa))
     assert aa_stats["total_qsos"] == 3
     assert "20M" in aa_stats["band_counts"]
     assert "40M" in aa_stats["band_counts"]
@@ -123,7 +198,7 @@ async def test_stats_operator_isolation(stats_test_db):
     assert aa_stats["band_counts"].get("15M") is None  # BB2BB's band
 
     # Query BB2BB stats
-    bb_stats = await get_stats("BB2BB")
+    bb_stats = await get_stats("BB2BB", collection=get_user_qso_collection(bb))
     assert bb_stats["total_qsos"] == 2
     assert "10M" in bb_stats["band_counts"]
     assert "15M" in bb_stats["band_counts"]
@@ -134,12 +209,13 @@ async def test_stats_operator_isolation(stats_test_db):
 @pytest.mark.asyncio
 async def test_stats_excludes_soft_deleted(stats_test_db):
     """get_stats() excludes soft-deleted QSOs from all counts."""
-    await _make_qso_doc("AA1AA", "W1AW").insert()
+    user = await _create_user("aa1aa", "AA1AA")
+    await _insert_qso(user, "W1AW")
     deleted_qso = _make_qso_doc("AA1AA", "K1TTT")
     deleted_qso.is_deleted = True  # Beanie field name (alias _deleted stored in MongoDB)
-    await deleted_qso.insert()
+    await get_user_qso_collection(user).insert_one(qso_to_mongo_doc(deleted_qso))
 
-    result = await get_stats("AA1AA")
+    result = await get_stats("AA1AA", collection=get_user_qso_collection(user))
     assert result["total_qsos"] == 1
     assert sum(result["band_counts"].values()) == 1
 
@@ -147,10 +223,11 @@ async def test_stats_excludes_soft_deleted(stats_test_db):
 @pytest.mark.asyncio
 async def test_stats_dxcc_entity_resolution(stats_test_db):
     """get_stats() resolves callsigns to DXCC entity names via pycountry (D-01)."""
-    await _make_qso_doc("AA1AA", "W1AW").insert()  # US callsign
-    await _make_qso_doc("AA1AA", "DL1ABC").insert()  # German callsign
+    user = await _create_user("aa1aa", "AA1AA")
+    await _insert_qso(user, "W1AW")  # US callsign
+    await _insert_qso(user, "DL1ABC")  # German callsign
 
-    result = await get_stats("AA1AA")
+    result = await get_stats("AA1AA", collection=get_user_qso_collection(user))
     entity_names = [e["name"] for e in result["entity_counts"]]
     assert "United States" in entity_names
     assert "Germany" in entity_names
@@ -162,9 +239,10 @@ async def test_stats_unknown_callsign_bucket(stats_test_db):
     """Unresolvable callsigns are grouped under 'Unknown' (D-02)."""
     # Insert a QSO with a callsign that lookup_prefix cannot resolve
     # Use a maritime mobile suffix as an example
-    await _make_qso_doc("AA1AA", "W1AW").insert()
+    user = await _create_user("aa1aa", "AA1AA")
+    await _insert_qso(user, "W1AW")
 
-    result = await get_stats("AA1AA")
+    result = await get_stats("AA1AA", collection=get_user_qso_collection(user))
     # At minimum, we verify the function does not crash and returns entity_counts
     assert isinstance(result["entity_counts"], list)
     assert result["total_qsos"] == 1
@@ -185,13 +263,7 @@ async def test_stats_route_requires_auth(http_client):
 @pytest.mark.asyncio
 async def test_stats_route_empty_log(stats_test_db, http_client):
     """GET /log/stats returns 200 for authenticated operator with zero QSOs."""
-    # Create a test user
-    user = User(
-        username="testop",
-        hashed_password=hash_password("testpass"),
-        callsign="TESTOP",
-    )
-    await user.insert()
+    await _create_user("testop", "TESTOP")
 
     # Create JWT cookie
     token = create_access_token(data={"sub": "testop", "callsign": "TESTOP"})
@@ -211,17 +283,12 @@ async def test_stats_route_empty_log(stats_test_db, http_client):
 @pytest.mark.asyncio
 async def test_stats_route_with_data(stats_test_db, http_client):
     """GET /log/stats renders three canvas elements when operator has QSOs (STATS-02)."""
-    user = User(
-        username="chartop",
-        hashed_password=hash_password("chartpass"),
-        callsign="CHARTOP",
-    )
-    await user.insert()
+    user = await _create_user("chartop", "CHARTOP", password="chartpass")
 
     # Insert QSOs across different bands and modes so charts have data
-    await _make_qso_doc("CHARTOP", "W1AW", BAND="20M", MODE="SSB").insert()
-    await _make_qso_doc("CHARTOP", "DL1ABC", BAND="40M", MODE="FT8").insert()
-    await _make_qso_doc("CHARTOP", "JA1YWX", BAND="15M", MODE="CW").insert()
+    await _insert_qso(user, "W1AW", BAND="20M", MODE="SSB")
+    await _insert_qso(user, "DL1ABC", BAND="40M", MODE="FT8")
+    await _insert_qso(user, "JA1YWX", BAND="15M", MODE="CW")
 
     token = create_access_token(data={"sub": "chartop", "callsign": "CHARTOP"})
     http_client.cookies.set("access_token", token)
@@ -240,6 +307,7 @@ async def test_stats_route_with_data(stats_test_db, http_client):
 @pytest.mark.asyncio
 async def test_stats_dxcc_top8_truncation(stats_test_db):
     """get_stats() caps entity_counts to at most 9 entries (8 named + Other) for >8 unique DXCC entities (STATS-03)."""
+    user = await _create_user("dxccop", "DXCCOP")
     # Insert 9 QSOs with callsigns from distinct DXCC entities.
     # Prefixes chosen so lookup_prefix resolves them to different countries:
     # W=US, DL=Germany, JA=Japan, VK=Australia, PA=Netherlands, OZ=Denmark,
@@ -256,9 +324,9 @@ async def test_stats_dxcc_top8_truncation(stats_test_db):
         ("EA3ABC", "20M", "CW"),   # Spain
     ]
     for call, band, mode in distinct_calls:
-        await _make_qso_doc("DXCCOP", call, BAND=band, MODE=mode).insert()
+        await _insert_qso(user, call, BAND=band, MODE=mode)
 
-    result = await get_stats("DXCCOP")
+    result = await get_stats("DXCCOP", collection=get_user_qso_collection(user))
     # Must have at least 9 unique source callsigns seeded
     assert result["total_qsos"] == 9
     # Service must cap to ≤9 entries: at most 8 named + 1 "Other"

@@ -3,16 +3,21 @@ from __future__ import annotations
 
 import pycountry
 from app.callsign.prefixes import lookup_prefix
-from app.qso.models import QSO
 
 
-async def get_stats(callsign: str) -> dict:
+async def _aggregate_to_list(collection, pipeline: list[dict]) -> list[dict]:
+    cursor = collection.aggregate(pipeline)
+    if hasattr(cursor, "__await__"):
+        cursor = await cursor
+    return await cursor.to_list(length=None)
+
+
+async def get_stats(callsign: str, collection) -> dict:
     """Compute band counts, mode counts, DXCC entity counts for one operator.
 
     Returns same dict shape for empty and non-empty logs (STATS-07).
     All pipelines begin with $match guard (STATS-06).
     """
-    collection = QSO.get_pymongo_collection()
     match_stage = {"$match": {"_operator": callsign, "_deleted": False}}
 
     # --- Band counts ---
@@ -20,7 +25,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$group": {"_id": "$BAND", "count": {"$sum": 1}}},
     ]
-    band_results = await (await collection.aggregate(band_pipeline)).to_list(length=None)
+    band_results = await _aggregate_to_list(collection, band_pipeline)
     band_counts = {doc["_id"]: doc["count"] for doc in band_results if doc["_id"]}
 
     # --- Mode counts ---
@@ -28,7 +33,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$group": {"_id": "$MODE", "count": {"$sum": 1}}},
     ]
-    mode_results = await (await collection.aggregate(mode_pipeline)).to_list(length=None)
+    mode_results = await _aggregate_to_list(collection, mode_pipeline)
     mode_counts = {doc["_id"]: doc["count"] for doc in mode_results if doc["_id"]}
 
     # --- Total QSO count (includes QSOs with null BAND/MODE — WR-02) ---
@@ -41,7 +46,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$count": "total"},
     ]
-    count_result = await (await collection.aggregate(count_pipeline)).to_list(length=None)
+    count_result = await _aggregate_to_list(collection, count_pipeline)
     total_qsos = count_result[0]["total"] if count_result else 0
 
     # --- CALL-level counts for DXCC rollup (kept separate from total_qsos) ---
@@ -49,7 +54,7 @@ async def get_stats(callsign: str) -> dict:
         match_stage,
         {"$group": {"_id": "$CALL", "count": {"$sum": 1}}},
     ]
-    call_results = await (await collection.aggregate(call_pipeline)).to_list(length=None)
+    call_results = await _aggregate_to_list(collection, call_pipeline)
 
     # Early return for empty log (STATS-07)
     if total_qsos == 0:

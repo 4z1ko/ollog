@@ -9,14 +9,14 @@ Mounted at /admin/ui by app/main.py.
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Header, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, Header, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_admin_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, hash_password, verify_password
-from app.qso.models import QSO
+from app.qso.collections import get_user_qso_collection
 from app.qso.service import clear_operator_log
 from app.udp.operator_cache import operator_cache
 
@@ -426,9 +426,10 @@ async def admin_clear_log_modal(
             status_code=200,
         )
 
-    count = await QSO.find(
+    target_collection = get_user_qso_collection(target_user)
+    count = await target_collection.count_documents(
         {"_operator": target_user.callsign, "_deleted": False}
-    ).count()
+    )
     return templates.TemplateResponse(
         request,
         "admin/clear_log_modal.html",
@@ -465,9 +466,10 @@ async def admin_clear_log_confirm(
         )
 
     if not verify_password(password, current_user.hashed_password):
-        count = await QSO.find(
+        target_collection = get_user_qso_collection(target_user)
+        count = await target_collection.count_documents(
             {"_operator": target_user.callsign, "_deleted": False}
-        ).count()
+        )
         return templates.TemplateResponse(
             request,
             "admin/clear_log_modal.html",
@@ -480,7 +482,10 @@ async def admin_clear_log_confirm(
             status_code=200,
         )
 
-    deleted = await clear_operator_log(target_user.callsign)
+    deleted = await clear_operator_log(
+        target_user.callsign,
+        collection=get_user_qso_collection(target_user),
+    )
     return templates.TemplateResponse(
         request,
         "admin/clear_log_success.html",

@@ -209,6 +209,9 @@ async def insert_qso_dict(qso_dict: dict, collection: Any | None = None) -> QSOI
                 raise
             existing = await QSOModel.find_one({"rowHash": qso.row_hash})
             return QSOInsertResult(status="duplicate", existing=existing)
+        from app.feed.manager import broadcast_qso
+
+        await broadcast_qso(qso)
         return QSOInsertResult(status="inserted", qso=qso)
 
     qso = qso_from_input_dict(qso_dict)
@@ -220,6 +223,9 @@ async def insert_qso_dict(qso_dict: dict, collection: Any | None = None) -> QSOI
             raise
         existing = qso_from_mongo_doc(await collection.find_one({"rowHash": qso.row_hash}))
         return QSOInsertResult(status="duplicate", existing=existing)
+    from app.feed.manager import broadcast_qso
+
+    await broadcast_qso(qso)
     return QSOInsertResult(status="inserted", qso=qso)
 
 

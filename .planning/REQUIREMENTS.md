@@ -23,27 +23,27 @@
 
 ### QSO Workflows
 
-- [ ] **QSO-01:** REST QSO list/create/read/update/delete routes dynamically target the authenticated user's `<username>_qsos` collection while keeping request/response schemas unchanged.
-- [ ] **QSO-02:** Browser QSO entry, Log View pagination/filtering/sorting, inline edit, delete, and clear-log workflows dynamically target the logged-in user's collection.
-- [ ] **QSO-03:** ADIF import/export and duplicate review use the user's collection for duplicate checks, inserts, selectable existing-QSO review rows, and exported data.
-- [ ] **QSO-04:** Duplicate detection and rowHash uniqueness remain scoped to the user's own QSO collection.
-- [ ] **QSO-05:** API-token authenticated requests route to the token owner's username-derived collection.
-- [ ] **QSO-06:** UDP logging resolves the destination user from `APP_OLLOG_TOKEN` or `UDP_OPERATOR`, then writes to that user's username-derived collection.
+- [x] **QSO-01:** REST QSO list/create/read/update/delete routes dynamically target the authenticated user's `<username>_qsos` collection while keeping request/response schemas unchanged.
+- [x] **QSO-02:** Browser QSO entry, Log View pagination/filtering/sorting, inline edit, delete, and clear-log workflows dynamically target the logged-in user's collection.
+- [x] **QSO-03:** ADIF import/export and duplicate review use the user's collection for duplicate checks, inserts, selectable existing-QSO review rows, and exported data.
+- [x] **QSO-04:** Duplicate detection and rowHash uniqueness remain scoped to the user's own QSO collection.
+- [x] **QSO-05:** API-token authenticated requests route to the token owner's username-derived collection.
+- [x] **QSO-06:** UDP logging resolves the destination user from `APP_OLLOG_TOKEN` or `UDP_OPERATOR`, then writes to that user's username-derived collection.
 
 ### Cross-Feature Integration
 
-- [ ] **INT-01:** Operator stats aggregate from the logged-in user's QSO collection without changing the `/log/stats` UI.
-- [ ] **INT-02:** Admin clear-log counts and deletes from the target user's QSO collection while continuing to verify the admin's own password.
-- [ ] **INT-03:** Live feed/SSE behavior still announces new QSOs and preserves existing auto-refresh/new-QSO badge behavior after the physical collection split.
-- [ ] **INT-04:** Backup and restore continue to include all QSO data collections, including dynamically named `<username>_qsos` collections.
-- [ ] **INT-05:** Existing security boundaries remain intact: one operator cannot read, edit, delete, export, import-review, or clear another operator's QSOs by guessing IDs or collection names.
+- [x] **INT-01:** Operator stats aggregate from the logged-in user's QSO collection without changing the `/log/stats` UI.
+- [x] **INT-02:** Admin clear-log counts and deletes from the target user's QSO collection while continuing to verify the admin's own password.
+- [x] **INT-03:** Live feed/SSE behavior still announces new QSOs and preserves existing auto-refresh/new-QSO badge behavior after the physical collection split.
+- [x] **INT-04:** Backup and restore continue to include all QSO data collections, including dynamically named `<username>_qsos` collections.
+- [x] **INT-05:** Existing security boundaries remain intact: one operator cannot read, edit, delete, export, import-review, or clear another operator's QSOs by guessing IDs or collection names.
 
 ### Verification
 
 - [x] **VERIFY-01:** Unit tests cover collection-name derivation, invalid username handling, per-user collection helper behavior, and index setup.
 - [x] **VERIFY-02:** Migration tests cover normal migration, idempotent reruns, unresolved operators, soft-deleted rows, rowHash preservation, and ADIF extras.
-- [ ] **VERIFY-03:** Integration tests cover representative REST, browser/service, ADIF import/export, stats, admin clear-log, API-token, and UDP paths against per-user collections.
-- [ ] **VERIFY-04:** Regression tests prove existing API schemas, UI template contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels remain compatible.
+- [x] **VERIFY-03:** Integration tests cover representative REST, browser/service, ADIF import/export, stats, admin clear-log, API-token, and UDP paths against per-user collections.
+- [x] **VERIFY-04:** Regression tests prove existing API schemas, UI template contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels remain compatible.
 
 ## v2 Requirements
 
@@ -75,21 +75,21 @@
 | MIGR-03 | Phase 60 | Complete |
 | MIGR-04 | Phase 60 | Complete |
 | MIGR-05 | Phase 60 | Complete |
-| QSO-01 | Phase 61 | Pending |
-| QSO-02 | Phase 61 | Pending |
-| QSO-03 | Phase 61 | Pending |
-| QSO-04 | Phase 61 | Pending |
-| QSO-05 | Phase 61 | Pending |
-| QSO-06 | Phase 61 | Pending |
-| INT-01 | Phase 62 | Pending |
-| INT-02 | Phase 62 | Pending |
-| INT-03 | Phase 62 | Pending |
-| INT-04 | Phase 62 | Pending |
-| INT-05 | Phase 62 | Pending |
+| QSO-01 | Phase 61 | Complete |
+| QSO-02 | Phase 61 | Complete |
+| QSO-03 | Phase 61 | Complete |
+| QSO-04 | Phase 61 | Complete |
+| QSO-05 | Phase 61 | Complete |
+| QSO-06 | Phase 61 | Complete |
+| INT-01 | Phase 62 | Complete |
+| INT-02 | Phase 62 | Complete |
+| INT-03 | Phase 62 | Complete |
+| INT-04 | Phase 62 | Complete |
+| INT-05 | Phase 62 | Complete |
 | VERIFY-01 | Phase 59 | Complete |
 | VERIFY-02 | Phase 60 | Complete |
-| VERIFY-03 | Phase 62 | Pending |
-| VERIFY-04 | Phase 62 | Pending |
+| VERIFY-03 | Phase 62 | Complete |
+| VERIFY-04 | Phase 62 | Complete |
 
 **Coverage:**
 - v1 requirements: 25 total
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-07 after Phase 60 UAT completion*
+*Last updated: 2026-06-08 after Phase 62 execution*

@@ -131,6 +131,22 @@ def _qso_dict(call="K1ABC", operator="W1AW", qso_date="20260607", time_on="12000
 
 
 @pytest.mark.asyncio
+async def test_insert_broadcasts_app_created_qso(monkeypatch):
+    collection = FakeCollection()
+    broadcasted = []
+
+    async def _capture_broadcast(qso):
+        broadcasted.append(qso)
+
+    monkeypatch.setattr("app.feed.manager.broadcast_qso", _capture_broadcast)
+
+    inserted = await insert_qso_dict(_qso_dict(call="K4LIVE"), collection=collection)
+
+    assert inserted.status == "inserted"
+    assert [qso.CALL for qso in broadcasted] == ["K4LIVE"]
+
+
+@pytest.mark.asyncio
 async def test_insert_duplicate_scope_is_per_collection():
     first = FakeCollection()
     second = FakeCollection()
@@ -205,4 +221,3 @@ async def test_clear_operator_log_deletes_only_active_operator_docs():
     assert deleted == 1
     assert await get_qso_by_id(other.qso.id, collection) is not None
     assert await get_qso_by_id(deleted_doc.qso.id, collection) is not None
-
