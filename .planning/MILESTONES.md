@@ -1,5 +1,25 @@
 # Milestones
 
+## v3.1 Per-User QSO Collections (Shipped: 2026-06-08)
+
+**Phases:** 59–62 (4 phases) | **Plans:** 4 | **Timeline:** 2026-06-07 → 2026-06-08 (2 days)
+**Requirements:** 25/25 satisfied | **UAT:** 21/21 passed | **Audit:** Not run in this environment; all phase UAT and verification artifacts passed
+
+**Key accomplishments:**
+
+- Added a single username-derived QSO collection routing foundation with strict `<username>_qsos` naming, validation, raw MongoDB access, and per-user index setup.
+- Added a copy-only idempotent migration from the shared `qsos` collection into per-user collections, preserving rowHash, soft-delete state, ObjectIds, ADIF extras, profile-stamped fields, and custom fields.
+- Routed REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, UDP, ACLog, custom defaults, and operator clear-log paths through the authenticated or resolved user's collection.
+- Routed stats and admin clear-log to per-user collections while preserving UI shape, admin-owned password verification, and HTMX 200-fragment behavior.
+- Replaced startup dependence on a shared `qsos` live-feed watcher with app-level broadcasts from successful write paths.
+- Added dynamic collection backup/restore coverage and layered regression checks for representative QSO workflows, import/export, stats, admin, feed, UDP, custom fields, and SSE sentinels.
+
+**Known deferred items at close:** optional migration-status admin UI, optional username rename tooling, and Docker/live-Mongo end-to-end verification.
+
+**Archive:** `.planning/milestones/v3.1-ROADMAP.md` | `.planning/milestones/v3.1-REQUIREMENTS.md`
+
+---
+
 ## v3.0 Configurable QSO Log Fields (Shipped: 2026-06-07)
 
 **Phases:** 58 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-03 → 2026-06-07 (5 days)

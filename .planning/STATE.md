@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
-status: ready_to_complete_milestone
-stopped_at: Phase 62 UAT complete 2026-06-08 — ready to complete v3.1 milestone
-last_updated: "2026-06-08T17:03:54Z"
+status: between_milestones
+stopped_at: v3.1 milestone archived 2026-06-08 — ready to start next milestone
+last_updated: "2026-06-08T17:30:00Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.1 completion — per-user `<username>_qsos` collection refactor is implemented and UAT-verified.
+**Current focus:** Between milestones — v3.1 Per-User QSO Collections is archived and the next milestone is not defined yet.
 
 ## Current Position
 
-Milestone: v3.1 Per-User QSO Collections
-Phase: 62 Cross-Feature Integration and Verification — UAT complete
-Plan: 62-01 Cross-Feature Dynamic Collection Integration
-Status: Ready to complete v3.1 milestone
+Milestone: v3.1 Per-User QSO Collections — archived
+Phase: none active
+Plan: none active
+Status: Ready to start next milestone
 Last activity: 2026-06-08
 
 ```
@@ -98,6 +98,7 @@ v3.1 Progress: [####################] 100% (4/4 phases)
 - Phase 62 planned: one implementation plan for stats/admin dynamic collection routing, app-level live feed broadcasts, backup/restore dynamic collection tests, and layered cross-feature isolation/regression verification (2026-06-08)
 - Phase 62 executed: stats and admin clear-log now use per-user collections, app-created inserts broadcast live feed rows from write paths, startup no longer watches shared `qsos`, backup/restore dynamic collection round-trip coverage was added, and layered verification passed with Mongo-dependent tests skipped where unavailable (2026-06-08)
 - Phase 62 UAT verified: 6/6 acceptance checkpoints passed with no gaps; v3.1 is ready for milestone completion (2026-06-08)
+- v3.1 milestone archived: roadmap and requirements copied to `.planning/milestones/`, active roadmap collapsed, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-08)
 
 ### v3.1 Phase Structure
 
@@ -162,7 +163,7 @@ v3.1 Progress: [####################] 100% (4/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-complete-milestone` to archive v3.1 Per-User QSO Collections.
+- Run `/gsd-new-milestone` to define the next milestone.
 
 ### Ship Blockers
 
@@ -181,6 +182,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-08 (Phase 62 UAT)
-Stopped at: Phase 62 UAT complete with 6/6 checkpoints passing; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
-Next: run `/gsd-complete-milestone`
+Last session: 2026-06-08 (v3.1 milestone close)
+Stopped at: v3.1 archived and ready for the next milestone; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
+Next: run `/gsd-new-milestone`
