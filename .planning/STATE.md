@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Per-User QSO Collections
-status: verification
-stopped_at: Phase 62 implementation complete 2026-06-08 — ready for UAT
-last_updated: "2026-06-08T04:53:04Z"
+status: ready_to_complete_milestone
+stopped_at: Phase 62 UAT complete 2026-06-08 — ready to complete v3.1 milestone
+last_updated: "2026-06-08T17:03:54Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 4
   completed_plans: 4
-  percent: 75
+  percent: 100
 ---
 
 # Project State
@@ -21,18 +21,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07 for v3.1 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.1 planning — move QSO storage from one shared collection to per-user `<username>_qsos` collections.
+**Current focus:** v3.1 completion — per-user `<username>_qsos` collection refactor is implemented and UAT-verified.
 
 ## Current Position
 
 Milestone: v3.1 Per-User QSO Collections
-Phase: 62 Cross-Feature Integration and Verification — implementation complete
+Phase: 62 Cross-Feature Integration and Verification — UAT complete
 Plan: 62-01 Cross-Feature Dynamic Collection Integration
-Status: Ready for Phase 62 UAT
+Status: Ready to complete v3.1 milestone
 Last activity: 2026-06-08
 
 ```
-v3.1 Progress: [###############-----] 75% (3/4 phases)
+v3.1 Progress: [####################] 100% (4/4 phases)
 ```
 
 ## Performance Metrics
@@ -97,13 +97,14 @@ v3.1 Progress: [###############-----] 75% (3/4 phases)
 - Phase 62 context gathered: use app-level live feed broadcasts from write paths, keep backup/restore full-database scoped, add small shared helpers for stats/admin routing, and use layered verification with live-Mongo checks only for highest-risk paths (2026-06-08)
 - Phase 62 planned: one implementation plan for stats/admin dynamic collection routing, app-level live feed broadcasts, backup/restore dynamic collection tests, and layered cross-feature isolation/regression verification (2026-06-08)
 - Phase 62 executed: stats and admin clear-log now use per-user collections, app-created inserts broadcast live feed rows from write paths, startup no longer watches shared `qsos`, backup/restore dynamic collection round-trip coverage was added, and layered verification passed with Mongo-dependent tests skipped where unavailable (2026-06-08)
+- Phase 62 UAT verified: 6/6 acceptance checkpoints passed with no gaps; v3.1 is ready for milestone completion (2026-06-08)
 
 ### v3.1 Phase Structure
 
 - **Phase 59** — Collection Routing Foundation: shared collection-name helper, per-user raw collection access, index setup, and tests. Completed 2026-06-07.
 - **Phase 60** — Existing Data Migration: idempotently migrate shared `qsos` data into `<username>_qsos`, report unresolved operators, and preserve rowHash/ADIF extras. Completed 2026-06-07.
-- **Phase 61** — QSO CRUD and Import/Export Routing: refactor REST/UI/service/ADIF/API-token/UDP write paths to use authenticated username-derived collections.
-- **Phase 62** — Cross-Feature Integration and Verification: stats, admin clear-log, live feed/SSE, backup/restore, isolation tests, and compatibility verification.
+- **Phase 61** — QSO CRUD and Import/Export Routing: refactor REST/UI/service/ADIF/API-token/UDP write paths to use authenticated username-derived collections. Completed 2026-06-08.
+- **Phase 62** — Cross-Feature Integration and Verification: stats, admin clear-log, live feed/SSE, backup/restore, isolation tests, and compatibility verification. Completed 2026-06-08.
 
 ### v3.0 Phase Structure
 
@@ -161,7 +162,7 @@ v3.1 Progress: [###############-----] 75% (3/4 phases)
 
 ### Pending Todos
 
-- Run `/gsd-verify-work phase 62` to complete UAT for cross-feature dynamic collection integration.
+- Run `/gsd-complete-milestone` to archive v3.1 Per-User QSO Collections.
 
 ### Ship Blockers
 
@@ -180,6 +181,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-08 (Phase 62 execution)
-Stopped at: Phase 62 implementation complete and ready for UAT; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
-Next: run `/gsd-verify-work phase 62`
+Last session: 2026-06-08 (Phase 62 UAT)
+Stopped at: Phase 62 UAT complete with 6/6 checkpoints passing; `gsd-sdk` is not on PATH, so phase bookkeeping was applied manually
+Next: run `/gsd-complete-milestone`

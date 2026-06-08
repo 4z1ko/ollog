@@ -23,7 +23,7 @@
 - ✅ **v2.8 Clear Log** — Phases 54–56 (shipped 2026-05-18)
 - 🚢 **v2.9 QSO Deduplication and ADIF Duplicate Review** — Phase 57 (phase complete locally 2026-06-02)
 - ✅ **v3.0 Configurable QSO Log Fields** — Phase 58 (shipped 2026-06-07)
-- 🧭 **v3.1 Per-User QSO Collections** — Phases 59–62 (planning started 2026-06-07)
+- 🧭 **v3.1 Per-User QSO Collections** — Phases 59–62 (all phases complete 2026-06-08; archive pending)
 
 
 ## Phases
@@ -249,14 +249,14 @@ Full archive: `.planning/milestones/v3.0-ROADMAP.md`
 
 </details>
 
-### 🧭 v3.1 Per-User QSO Collections — PLANNING STARTED 2026-06-07
+### 🧭 v3.1 Per-User QSO Collections — READY TO ARCHIVE 2026-06-08
 
 **Milestone Goal:** Store each user's QSO records in a dedicated MongoDB collection named `<username>_qsos` while preserving all existing operator-facing behavior.
 
 - [x] **Phase 59: Collection Routing Foundation** — introduce username-derived collection naming, per-user QSO collection access, required indexes, and focused unit tests. Completed 2026-06-07.
 - [x] **Phase 60: Shared Collection Migration** — migrate existing shared `qsos` documents into `<username>_qsos` collections idempotently, preserving rowHash, ADIF extras, soft-delete state, and unresolved-operator reporting. Completed 2026-06-07.
 - [x] **Phase 61: QSO Workflow Refactor** — route REST, browser UI, service-layer CRUD, ADIF import/export/review, API-token, and UDP QSO paths through the authenticated user's collection. Completed 2026-06-08.
-- [ ] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections. Implementation complete 2026-06-08; UAT pending.
+- [x] **Phase 62: Cross-Feature Integration and Verification** — wire stats, admin clear-log, live feed/SSE, backup/restore, compatibility tests, and isolation verification across dynamic collections. Completed 2026-06-08.
 
 ## Phase Details
 
@@ -323,7 +323,7 @@ Plans:
 **Goal:** Features outside direct QSO CRUD continue to work across dynamic user collections, with coverage for isolation and compatibility.
 **Depends on:** Phase 61
 **Requirements:** INT-01..05, VERIFY-03..04
-**Status:** Implementation complete 2026-06-08; ready for UAT
+**Status:** Completed 2026-06-08
 **Success Criteria** (what must be TRUE):
   1. `/log/stats` aggregates from the logged-in user's collection with unchanged UI behavior.
   2. Admin clear-log counts and deletes from the target user's collection while preserving admin password verification.
