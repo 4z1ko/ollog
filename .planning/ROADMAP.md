@@ -323,6 +323,7 @@ Plans:
 **Goal:** Features outside direct QSO CRUD continue to work across dynamic user collections, with coverage for isolation and compatibility.
 **Depends on:** Phase 61
 **Requirements:** INT-01..05, VERIFY-03..04
+**Status:** Planned 2026-06-08
 **Success Criteria** (what must be TRUE):
   1. `/log/stats` aggregates from the logged-in user's collection with unchanged UI behavior.
   2. Admin clear-log counts and deletes from the target user's collection while preserving admin password verification.
@@ -330,7 +331,7 @@ Plans:
   4. Backup and restore include dynamically named QSO collections.
   5. Integration tests prove operators cannot read, edit, delete, export, import-review, or clear another user's QSOs by guessing IDs or collection names.
   6. Regression tests cover existing API schemas, UI contexts, duplicate handling, sorting, filtering, pagination, and live-update sentinels.
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
 - [ ] 062-01-PLAN.md — Stats/admin/live-feed/backup integration plus isolation and compatibility verification.
