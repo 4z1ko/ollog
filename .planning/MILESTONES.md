@@ -1,5 +1,25 @@
 # Milestones
 
+## v3.2 ACLog Full-Record Import (Shipped: 2026-06-09)
+
+**Phases:** 63 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-08 → 2026-06-09 (2 days)
+**Requirements:** 5/5 satisfied | **UAT:** 5/5 passed | **Audit:** Not run in this environment; Phase 63 UAT and verification artifacts passed
+
+**Key accomplishments:**
+
+- Added ACLog full-record parsing for `LIST INCLUDEALL` responses, preserving all non-empty safe ADIF-like fields.
+- Updated the ACLog bridge to request `LIST INCLUDEALL` after each saved-QSO `ENTEREVENT` and ingest the enriched record only when it matches the pending event.
+- Added deterministic merge behavior where full-record fields win, event fields fill gaps, and cached live textbox state provides fallback frequency, reports, and Other fields.
+- Preserved ACLog `OTHER_1` through `OTHER_8` values and kept configured Custom QSO Field mapping intact.
+- Preserved existing event-only fallback behavior for missing, nonmatching, or interrupted full-record responses.
+- Added parser/client/custom-field coverage and updated operator ACLog bridge documentation.
+
+**Known deferred items at close:** live ACLog end-to-end verification, local pytest execution in this shell, and formal milestone audit because `gsd-sdk` is unavailable.
+
+**Archive:** `.planning/milestones/v3.2-ROADMAP.md` | `.planning/milestones/v3.2-REQUIREMENTS.md`
+
+---
+
 ## v3.1 Per-User QSO Collections (Shipped: 2026-06-08)
 
 **Phases:** 59–62 (4 phases) | **Plans:** 4 | **Timeline:** 2026-06-07 → 2026-06-08 (2 days)
