@@ -264,11 +264,11 @@ Full archive: `.planning/milestones/v3.1-ROADMAP.md`
 
 </details>
 
-### 🧪 v3.2 ACLog Full-Record Import — IMPLEMENTATION COMPLETE 2026-06-08
+### ✅ v3.2 ACLog Full-Record Import — PHASE COMPLETE 2026-06-09
 
 **Milestone Goal:** Improve the ACLog bridge so imported QSOs can include the full ACLog record, including user-customized Other fields, by using ACLog's `INCLUDEALL` API flow rather than relying only on the minimal `ENTEREVENT` payload.
 
-- [ ] **Phase 63: ACLog Full-Record Import via INCLUDEALL** — after an ACLog `ENTEREVENT`, retrieve or merge the latest full ACLog record using `LIST INCLUDEALL`/related API responses, preserve all non-empty fields, map ACLog Other fields into configured custom QSO fields, and keep current live bridge behavior as fallback. Implementation complete 2026-06-08; UAT pending.
+- [x] **Phase 63: ACLog Full-Record Import via INCLUDEALL** — after an ACLog `ENTEREVENT`, retrieve or merge the latest full ACLog record using `LIST INCLUDEALL`/related API responses, preserve all non-empty fields, map ACLog Other fields into configured custom QSO fields, and keep current live bridge behavior as fallback. Completed 2026-06-09.
 
 ## Phase Details
 
@@ -277,7 +277,7 @@ Full archive: `.planning/milestones/v3.1-ROADMAP.md`
 **Goal:** ACLog bridge imports include the complete saved QSO record where ACLog exposes it, including user-customized Other fields.
 **Depends on:** Phase 62 (v3.1 shipped)
 **Requirements:** ACLOG-FULL-01..05
-**Status:** Implementation complete 2026-06-08; ready for UAT
+**Status:** Completed 2026-06-09
 **Success Criteria** (what must be TRUE):
   1. ACLog bridge requests and parses full-record data using ACLog's `INCLUDEALL` API flow after a saved QSO event.
   2. Imported ACLog QSOs preserve all non-empty fields exposed by ACLog, not only the `ENTEREVENT` subset.

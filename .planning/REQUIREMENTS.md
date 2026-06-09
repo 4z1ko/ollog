@@ -25,11 +25,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACLOG-FULL-01 | Phase 63 | Implemented |
-| ACLOG-FULL-02 | Phase 63 | Implemented |
-| ACLOG-FULL-03 | Phase 63 | Implemented |
-| ACLOG-FULL-04 | Phase 63 | Implemented |
-| ACLOG-FULL-05 | Phase 63 | Implemented |
+| ACLOG-FULL-01 | Phase 63 | Verified |
+| ACLOG-FULL-02 | Phase 63 | Verified |
+| ACLOG-FULL-03 | Phase 63 | Verified |
+| ACLOG-FULL-04 | Phase 63 | Verified |
+| ACLOG-FULL-05 | Phase 63 | Verified |
 
 **Coverage:**
 - v1 requirements: 5 total
