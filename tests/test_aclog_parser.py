@@ -1,7 +1,9 @@
 from app.aclog.parser import (
     aclog_enterevent_to_adif,
+    aclog_full_records_from_message,
     aclog_full_record_to_adif,
     aclog_records_match,
+    iter_cmd_messages,
     merge_aclog_records,
     parse_cmd,
     update_state_from_message,
@@ -130,6 +132,67 @@ def test_aclog_full_record_to_adif_preserves_includeall_fields():
     }
 
 
+def test_aclog_full_records_from_nested_includeall_response():
+    message = (
+        "<CMD><LIST><RECORD><CALL>OLD1</CALL><BAND>40</BAND><MODE>CW</MODE>"
+        "<DATE>2024-05-31</DATE><TIMEON>23:59</TIMEON></RECORD>"
+        "<RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+        "<DATE>2024-06-01</DATE><TIMEON>12:30:00</TIMEON>"
+        "<FREQUENCY>14.255</FREQUENCY><POTA_REF>K-1234</POTA_REF>"
+        "<OTHER_2>County</OTHER_2></RECORD></LIST></CMD>"
+    )
+
+    command, records = aclog_full_records_from_message(message)
+
+    assert command == "LIST"
+    assert records == [
+        {
+            "CALL": "OLD1",
+            "BAND": "40M",
+            "MODE": "CW",
+            "QSO_DATE": "20240531",
+            "TIME_ON": "235900",
+        },
+        {
+            "CALL": "K1ABC",
+            "BAND": "20M",
+            "MODE": "SSB",
+            "QSO_DATE": "20240601",
+            "TIME_ON": "123000",
+            "FREQ": "14.255",
+            "POTA_REF": "K-1234",
+            "OTHER_2": "County",
+        },
+    ]
+
+
+def test_aclog_full_records_from_repeated_flat_includeall_response():
+    message = (
+        "<CMD><LIST><CALL>OLD1</CALL><BAND>40</BAND><MODE>CW</MODE>"
+        "<QSO_DATE>20240531</QSO_DATE><TIME_ON>235900</TIME_ON>"
+        "<CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+        "<QSO_DATE>20240601</QSO_DATE><TIME_ON>123000</TIME_ON>"
+        "<STATE>MA</STATE></LIST></CMD>"
+    )
+
+    _, records = aclog_full_records_from_message(message)
+
+    assert records[-1]["CALL"] == "K1ABC"
+    assert records[-1]["STATE"] == "MA"
+
+
+def test_iter_cmd_messages_splits_concatenated_tcp_payload():
+    payload = (
+        "<CMD><UPDATERESPONSE><CONTROL>txtEntryRSTS</CONTROL><VALUE>59</VALUE>"
+        "</UPDATERESPONSE></CMD><CMD><LIST><CALL>K1ABC</CALL></LIST></CMD>"
+    )
+
+    assert iter_cmd_messages(payload) == [
+        "<CMD><UPDATERESPONSE><CONTROL>txtEntryRSTS</CONTROL><VALUE>59</VALUE></UPDATERESPONSE></CMD>",
+        "<CMD><LIST><CALL>K1ABC</CALL></LIST></CMD>",
+    ]
+
+
 def test_merge_aclog_records_prefers_full_record_and_fills_state():
     base = {
         "CALL": "K1ABC",
@@ -167,7 +230,15 @@ def test_aclog_records_match_normalizes_band_and_detects_mismatch():
     }
     different_full = {**matching_full, "CALL": "N0CALL"}
     incomplete_full = {key: value for key, value in matching_full.items() if key != "TIME_ON"}
+    aliased_full = {
+        "CALL": "K1ABC",
+        "BAND": "20",
+        "MODE": "SSB",
+        "QSO_DATE": "2024-06-01",
+        "TIME_ON": "12:30",
+    }
 
     assert aclog_records_match(base, matching_full)
+    assert aclog_records_match(base, aliased_full)
     assert not aclog_records_match(base, different_full)
     assert not aclog_records_match(base, incomplete_full)

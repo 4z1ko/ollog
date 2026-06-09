@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 _TAG_RE = re.compile(r"<([A-Z0-9_]+)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
+_CMD_RE = re.compile(r"<CMD>.*?</CMD>", re.DOTALL | re.IGNORECASE)
 _ADIF_NAME_RE = re.compile(r"^[A-Z0-9_]+$")
 _OTHER_CONTROL_RE = re.compile(r"^TXTENTRYOTHER([1-8])$")
 
@@ -41,33 +42,43 @@ _FULL_RECORD_COMMANDS = {
     "SEARCHRESPONSE",
 }
 
+_FULL_RECORD_WRAPPERS = {
+    "CONTACT",
+    "QSO",
+    "RECORD",
+}
+
+_FIELD_ALIASES = {
+    "DATE": "QSO_DATE",
+    "DATESTR": "QSO_DATE",
+    "FREQUENCY": "FREQ",
+    "RSTS": "RST_SENT",
+    "RSTR": "RST_RCVD",
+    "TIMEON": "TIME_ON",
+    "TIMEONSTR": "TIME_ON",
+    "TIME_ON_STR": "TIME_ON",
+}
+
 
 def parse_cmd(message: str) -> tuple[str | None, dict[str, str]]:
     """Parse a single ACLog <CMD> message into command name and fields."""
-    cmd_match = re.search(r"<CMD>(.*)</CMD>", message, re.DOTALL | re.IGNORECASE)
-    if not cmd_match:
+    command, field_body = _command_and_field_body(message)
+    if command is None:
         return None, {}
-
-    body = cmd_match.group(1)
-    first = re.match(r"\s*<([A-Z0-9_]+)>", body, re.IGNORECASE)
-    if not first:
-        return None, {}
-
-    command = first.group(1).upper()
-    wrapped = re.search(
-        rf"<{re.escape(command)}>(.*)</{re.escape(command)}>",
-        body,
-        re.DOTALL | re.IGNORECASE,
-    )
-    field_body = wrapped.group(1) if wrapped else body
 
     fields: dict[str, str] = {}
-    for key, value in _TAG_RE.findall(field_body):
+    for key, value in _extract_ordered_leaf_tags(field_body):
         key = key.upper()
         if key == command:
             continue
         fields[key] = value
     return command, fields
+
+
+def iter_cmd_messages(data: str) -> list[str]:
+    """Split one TCP read into individual ACLog <CMD> messages."""
+    messages = [match.group(0) for match in _CMD_RE.finditer(data)]
+    return messages or ([data] if data.strip() else [])
 
 
 def aclog_enterevent_to_adif(
@@ -132,7 +143,9 @@ def aclog_full_record_to_adif(fields: dict[str, str]) -> dict[str, str]:
             continue
 
         dest = _normalize_field_name(key)
-        result[dest] = value.strip()
+        normalized = _normalize_field_value(dest, value)
+        if normalized:
+            result[dest] = normalized
 
     band = _normalize_band(result.get("BAND"))
     if band:
@@ -141,11 +154,50 @@ def aclog_full_record_to_adif(fields: dict[str, str]) -> dict[str, str]:
     return result
 
 
+def aclog_full_records_from_message(message: str) -> tuple[str | None, list[dict[str, str]]]:
+    """Parse one ACLog LIST/SEARCH response into one or more ADIF-style records."""
+    command, field_body = _command_and_field_body(message)
+    if command not in _FULL_RECORD_COMMANDS:
+        return command, []
+
+    records: list[dict[str, str]] = []
+    record_bodies = [
+        value
+        for key, value in _TAG_RE.findall(field_body)
+        if key.strip().upper() in _FULL_RECORD_WRAPPERS
+    ]
+    if record_bodies:
+        for body in record_bodies:
+            record = aclog_full_record_to_adif(dict(_extract_ordered_leaf_tags(body)))
+            if record:
+                records.append(record)
+        return command, records
+
+    current: dict[str, str] = {}
+    for key, value in _extract_ordered_leaf_tags(field_body):
+        key = key.strip().upper()
+        if key == command or key in _FULL_RECORD_SKIP_FIELDS:
+            continue
+        dest = _normalize_field_name(key)
+        if dest == "CALL" and current.get("CALL"):
+            record = aclog_full_record_to_adif(current)
+            if record:
+                records.append(record)
+            current = {}
+        current[key] = value
+
+    record = aclog_full_record_to_adif(current)
+    if record:
+        records.append(record)
+    return command, records
+
+
 def is_aclog_full_record_response(command: str | None, fields: dict[str, str]) -> bool:
     """Return True when a parsed ACLog message looks like a full QSO record."""
     if command not in _FULL_RECORD_COMMANDS:
         return False
-    return any(key in fields for key in ("CALL", "QSO_DATE", "TIME_ON"))
+    normalized_keys = {_normalize_field_name(key) for key in fields}
+    return any(key in normalized_keys for key in ("CALL", "QSO_DATE", "TIME_ON"))
 
 
 def merge_aclog_records(
@@ -222,11 +274,18 @@ def update_state_from_message(
 
 
 def _normalize_field_name(key: str) -> str:
-    if key == "RSTS":
-        return "RST_SENT"
-    if key == "RSTR":
-        return "RST_RCVD"
-    return key
+    return _FIELD_ALIASES.get(key, key)
+
+
+def _normalize_field_value(key: str, value: str) -> str | None:
+    value = value.strip()
+    if not value:
+        return None
+    if key == "QSO_DATE":
+        return _normalize_date(value) or value
+    if key == "TIME_ON":
+        return _normalize_time(value) or value
+    return value
 
 
 def _normalize_band(value: str | None) -> str | None:
@@ -243,4 +302,58 @@ def _comparison_value(key: str, value: str | None) -> str | None:
         return None
     if key == "BAND":
         return _normalize_band(value)
+    if key == "QSO_DATE":
+        return _normalize_date(value)
+    if key == "TIME_ON":
+        return _normalize_time(value)
     return value.strip().upper()
+
+
+def _command_and_field_body(message: str) -> tuple[str | None, str]:
+    cmd_match = re.search(r"<CMD>(.*?)</CMD>", message, re.DOTALL | re.IGNORECASE)
+    if not cmd_match:
+        return None, ""
+
+    body = cmd_match.group(1)
+    first = re.match(r"\s*<([A-Z0-9_]+)>", body, re.IGNORECASE)
+    if not first:
+        return None, ""
+
+    command = first.group(1).upper()
+    wrapped = re.search(
+        rf"<{re.escape(command)}>(.*)</{re.escape(command)}>",
+        body,
+        re.DOTALL | re.IGNORECASE,
+    )
+    return command, wrapped.group(1) if wrapped else body
+
+
+def _extract_ordered_leaf_tags(text: str) -> list[tuple[str, str]]:
+    fields: list[tuple[str, str]] = []
+    for key, value in _TAG_RE.findall(text):
+        nested = _extract_ordered_leaf_tags(value)
+        if nested:
+            fields.extend(nested)
+        else:
+            fields.append((key.upper(), value))
+    return fields
+
+
+def _normalize_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    digits = re.sub(r"\D", "", value)
+    if len(digits) == 8:
+        return digits
+    return None
+
+
+def _normalize_time(value: str | None) -> str | None:
+    if not value:
+        return None
+    digits = re.sub(r"\D", "", value)
+    if len(digits) == 4:
+        return f"{digits}00"
+    if len(digits) == 6:
+        return digits
+    return None

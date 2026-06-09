@@ -34,6 +34,7 @@ async def test_handle_enterevent_requests_includeall_before_ingest(monkeypatch):
         ingested.append(record)
 
     monkeypatch.setattr("app.aclog.client._ingest_aclog_record", fake_ingest)
+    monkeypatch.setattr("app.aclog.client.ACLOG_FULL_RECORD_DELAY_SECONDS", 0)
     writer = FakeWriter()
 
     pending = await _handle_message(
@@ -48,7 +49,7 @@ async def test_handle_enterevent_requests_includeall_before_ingest(monkeypatch):
 
     assert pending is not None
     assert ingested == []
-    assert writer.writes == [b"<CMD><LIST><INCLUDEALL><VALUE>1</VALUE></CMD>\r\n"]
+    assert writer.writes == [b"<CMD><LIST><INCLUDEALL><VALUE>5</VALUE></CMD>\r\n"]
 
 
 @pytest.mark.asyncio
@@ -59,6 +60,7 @@ async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
         ingested.append(record)
 
     monkeypatch.setattr("app.aclog.client._ingest_aclog_record", fake_ingest)
+    monkeypatch.setattr("app.aclog.client.ACLOG_FULL_RECORD_DELAY_SECONDS", 0)
     config = _config()
     writer = FakeWriter()
     state = {"RST_SENT": "59"}
@@ -75,10 +77,12 @@ async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
     pending = await _handle_message(
         config,
         (
-            "<CMD><LISTRESPONSE><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
-            "<QSO_DATE>20240601</QSO_DATE><TIME_ON>123000</TIME_ON>"
-            "<FREQ>14.255</FREQ><POTA_REF>K-1234</POTA_REF>"
-            "<OTHER_1>Summit</OTHER_1></LISTRESPONSE></CMD>"
+            "<CMD><LIST><RECORD><CALL>OLD1</CALL><BAND>40</BAND><MODE>CW</MODE>"
+            "<DATE>20240531</DATE><TIMEON>235900</TIMEON></RECORD>"
+            "<RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+            "<DATE>2024-06-01</DATE><TIMEON>12:30</TIMEON>"
+            "<FREQUENCY>14.255</FREQUENCY><POTA_REF>K-1234</POTA_REF>"
+            "<OTHER_1>Summit</OTHER_1></RECORD></LIST></CMD>"
         ),
         state,
         pending=pending,
@@ -108,6 +112,7 @@ async def test_handle_full_record_mismatch_falls_back_to_enterevent(monkeypatch)
         ingested.append(record)
 
     monkeypatch.setattr("app.aclog.client._ingest_aclog_record", fake_ingest)
+    monkeypatch.setattr("app.aclog.client.ACLOG_FULL_RECORD_DELAY_SECONDS", 0)
     config = _config()
     pending = await _handle_message(
         config,

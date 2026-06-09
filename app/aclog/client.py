@@ -12,7 +12,9 @@ from beanie import PydanticObjectId
 from app.aclog.parser import (
     aclog_enterevent_to_adif,
     aclog_full_record_to_adif,
+    aclog_full_records_from_message,
     aclog_records_match,
+    iter_cmd_messages,
     is_aclog_full_record_response,
     merge_aclog_records,
     parse_cmd,
@@ -23,6 +25,9 @@ from app.qso.custom_fields import custom_fields_for_user
 from app.qso.service import ingest_qso_record
 
 logger = logging.getLogger(__name__)
+
+ACLOG_FULL_RECORD_DELAY_SECONDS = 0.25
+ACLOG_FULL_RECORD_RECENT_COUNT = 5
 
 
 @dataclass(frozen=True)
@@ -74,8 +79,8 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
                         logger.warning("ACLog bridge disconnected: %s", config.label)
                         break
 
-                    message = raw.decode("utf-8", errors="replace").strip()
-                    if message:
+                    raw_message = raw.decode("utf-8", errors="replace").strip()
+                    for message in iter_cmd_messages(raw_message):
                         pending = await _handle_message(
                             config,
                             message,
@@ -135,8 +140,19 @@ async def _handle_message(
     if not is_aclog_full_record_response(command, fields):
         return pending
 
-    full_record = aclog_full_record_to_adif(fields)
-    if not full_record or not aclog_records_match(pending.record, full_record):
+    _, full_records = aclog_full_records_from_message(message)
+    if not full_records:
+        full_records = [aclog_full_record_to_adif(fields)]
+
+    full_record = next(
+        (
+            candidate
+            for candidate in full_records
+            if candidate and aclog_records_match(pending.record, candidate)
+        ),
+        None,
+    )
+    if full_record is None:
         await _ingest_aclog_record(config, pending.record)
         return None
 
@@ -146,7 +162,12 @@ async def _handle_message(
 
 
 async def _request_full_record(writer: _ACLogWriter) -> None:
-    writer.write(b"<CMD><LIST><INCLUDEALL><VALUE>1</VALUE></CMD>\r\n")
+    await asyncio.sleep(ACLOG_FULL_RECORD_DELAY_SECONDS)
+    writer.write(
+        f"<CMD><LIST><INCLUDEALL><VALUE>{ACLOG_FULL_RECORD_RECENT_COUNT}</VALUE></CMD>\r\n".encode(
+            "utf-8"
+        )
+    )
     await writer.drain()
 
 
