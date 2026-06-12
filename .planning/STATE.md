@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.3
 milestone_name: ACLog QSO Sync
 status: planning
-stopped_at: Phase 64 context gathered
-last_updated: "2026-06-12T20:25:10Z"
+stopped_at: Phase 64 research complete; UI-SPEC required before PLAN.md
+last_updated: "2026-06-12T20:31:00Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 1
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-12 after starting v3.3 milestone)
 Milestone: v3.3 ACLog QSO Sync
 Phase: 64 — ACLog Bridge Manual Sync
 Plan: Not started
-Status: Context gathered; ready for phase planning
+Status: Research complete; UI design contract required before final plan
 Last activity: 2026-06-12
 
 ```
@@ -112,6 +112,7 @@ v3.3 Progress: [--------------------] 0% (0/1 phases)
 
 - **Phase 64** — ACLog Bridge Manual Sync: add per-bridge Sync action on Profile Settings, all-record `LIST INCLUDEALL` client flow, additive-only import with duplicate/rowHash preservation, inline report, tests, and docs. Planned 2026-06-12.
 - Phase 64 context gathered: Sync applies only to saved bridges, reports via existing `#profile-result`, runs synchronously with fixed timeout and no app-side cap, uses "Missing QSOs imported" report wording, and prefers exact rowHash pre-check while preserving existing duplicate blocking (2026-06-12)
+- Phase 64 research and validation strategy completed: reuse `app/aclog/parser.py` multi-record LIST parsing, add separate manual sync helper/route, keep live bridge behavior unchanged, and verify with parser/client/profile UI tests; PLAN.md is blocked by missing UI-SPEC per GSD UI safety gate (2026-06-12)
 
 ### v3.1 Phase Structure
 
@@ -180,7 +181,7 @@ v3.3 Progress: [--------------------] 0% (0/1 phases)
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 64` to plan ACLog Bridge Manual Sync implementation.
+- Run `/gsd-ui-phase 64` to generate the UI design contract, then rerun `/gsd-plan-phase 64`.
 
 ### Ship Blockers
 
@@ -199,7 +200,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-12 (Phase 64 context gathered)
-Stopped at: Phase 64 ready for planning; `gsd-sdk` is not on PATH, so state bookkeeping was applied manually
+Last session: 2026-06-12 (Phase 64 research complete)
+Stopped at: Phase 64 research/validation done; PLAN.md blocked by missing UI-SPEC; `gsd-sdk` is not on PATH, so state bookkeeping was applied manually
 Resume file: `.planning/phases/64-aclog-bridge-manual-sync/64-CONTEXT.md`
-Next: run `/gsd-plan-phase 64`
+Next: run `/gsd-ui-phase 64`, then `/gsd-plan-phase 64`
