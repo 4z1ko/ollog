@@ -234,7 +234,7 @@
     <div class="card-body">
       <div class="space-y-3" id="aclog-bridge-list" data-next-index="1">
         {% for bridge in profile.aclog_bridges %}
-        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px_88px_40px] gap-3 items-end aclog-bridge-row">
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px_88px_132px] gap-3 items-end aclog-bridge-row">
           <input form="profile-form" type="hidden" name="aclog_bridge_id" value="{{ bridge.id }}">
           <div>
             <label class="form-label">Name</label>
@@ -253,14 +253,24 @@
                    class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600">
             Enabled
           </label>
-          <button type="button" class="btn-secondary h-10 w-10 justify-center" aria-label="Remove ACLog bridge" data-remove-aclog-bridge>
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            <button type="button"
+                    class="btn-secondary h-10"
+                    hx-post="/log/profile/aclog/{{ bridge.id }}/sync"
+                    hx-target="#profile-result"
+                    hx-swap="innerHTML"
+                    aria-label="Sync ACLog bridge {{ bridge.name or bridge.host }}">
+              Sync
+            </button>
+            <button type="button" class="btn-secondary h-10 w-10 justify-center" aria-label="Remove ACLog bridge" data-remove-aclog-bridge>
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         {% endfor %}
-        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px_88px_40px] gap-3 items-end aclog-bridge-row">
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px_88px_132px] gap-3 items-end aclog-bridge-row">
           <input form="profile-form" type="hidden" name="aclog_bridge_id" value="new-0">
           <div>
             <label class="form-label">Name</label>
@@ -279,11 +289,13 @@
                    class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800 dark:checked:bg-indigo-600">
             Enabled
           </label>
-          <button type="button" class="btn-secondary h-10 w-10 justify-center" aria-label="Remove ACLog bridge" data-remove-aclog-bridge>
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" class="btn-secondary h-10 w-10 justify-center" aria-label="Remove ACLog bridge" data-remove-aclog-bridge>
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       <div class="mt-4">

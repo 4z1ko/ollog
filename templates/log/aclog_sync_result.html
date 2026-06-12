@@ -1,0 +1,23 @@
+{% if report.failed %}
+<div class="error-msg">
+  ACLog sync failed: {{ report.failure_reason }}
+  <div class="mt-1 text-sm">Confirm ACLog is running and the API port is reachable.</div>
+</div>
+{% else %}
+<div class="success-msg">
+  <div class="font-semibold">ACLog sync complete</div>
+  <div class="mt-1 text-sm">
+    Remote records received: {{ report.received }} |
+    Missing QSOs imported: {{ report.imported }} |
+    Already present: {{ report.skipped }} |
+    Errors: {{ report.errors }}
+  </div>
+  {% if report.examples %}
+  <ul class="mt-2 list-disc pl-5 text-sm">
+    {% for example in report.examples %}
+    <li>#{{ example.index }} {{ example.call }} - {{ example.reason }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}

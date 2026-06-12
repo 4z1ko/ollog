@@ -228,11 +228,11 @@ def merge_aclog_records(
 def aclog_records_match(base: dict[str, str], full: dict[str, str]) -> bool:
     """Check whether an ENTEREVENT record and INCLUDEALL record describe the same QSO."""
     for key in ("CALL", "QSO_DATE", "TIME_ON"):
-        left = base.get(key)
-        right = full.get(key)
+        left = _comparison_value(key, base.get(key))
+        right = _comparison_value(key, full.get(key))
         if not left or not right:
             return False
-        if left.strip().upper() != right.strip().upper():
+        if left != right:
             return False
 
     for key in ("BAND", "MODE"):

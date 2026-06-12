@@ -59,6 +59,18 @@ address as the bridge host.
 You can add more than one bridge. This is useful when the same operator logs from
 multiple ACLog installations, such as a shack PC and a laptop.
 
+## Manual Sync
+
+Saved bridge rows also show a **Sync** button. Pressing Sync asks that ACLog API
+location for all logged records with `LIST INCLUDEALL`, then imports only QSOs
+that are missing from the signed-in operator's ollog collection.
+
+Manual sync is additive only. It does not update, merge, or delete existing local
+QSOs. If you run Sync again against the same ACLog database, records already in
+ollog are reported as already present instead of being inserted a second time.
+The result appears inline on the Profile page with counts for missing QSOs
+imported, already-present records, and any errors.
+
 ## Connection Behavior
 
 ollog scans configured bridges periodically and starts one background TCP client

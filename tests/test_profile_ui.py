@@ -9,7 +9,8 @@ from pymongo.errors import ServerSelectionTimeoutError
 from starlette.requests import Request
 
 from app import database
-from app.auth.models import User
+from app.aclog.sync import ACLogSyncReport
+from app.auth.models import ACLogBridge, User
 from app.auth.service import create_access_token, hash_password
 from app.config import settings
 from app.main import app
@@ -224,3 +225,90 @@ async def test_profile_update_invalid_tx_pwr_returns_htmx_error(
 
     assert resp.status_code == 200
     assert "TX power must be a number" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_profile_page_renders_sync_only_for_saved_aclog_bridges(
+    http_client,
+    operator,
+    profile_ui_db,
+):
+    operator.aclog_bridges = [
+        ACLogBridge(
+            id="bridge-1",
+            name="Shack PC",
+            host="127.0.0.1",
+            port=1100,
+            enabled=True,
+        )
+    ]
+    await operator.save()
+
+    resp = await http_client.get("/log/profile", headers=_auth_cookie(operator))
+
+    assert resp.status_code == 200
+    assert "Sync" in resp.text
+    assert 'hx-post="/log/profile/aclog/bridge-1/sync"' in resp.text
+    assert 'hx-target="#profile-result"' in resp.text
+    assert "/log/profile/aclog/new-0/sync" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_profile_aclog_sync_unknown_bridge_returns_htmx_error(
+    http_client,
+    operator,
+    profile_ui_db,
+):
+    resp = await http_client.post(
+        "/log/profile/aclog/missing/sync",
+        headers=_auth_cookie(operator),
+    )
+
+    assert resp.status_code == 200
+    assert "ACLog bridge not found" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_profile_aclog_sync_saved_bridge_renders_report(
+    monkeypatch,
+    http_client,
+    operator,
+    profile_ui_db,
+):
+    operator.aclog_bridges = [
+        ACLogBridge(
+            id="bridge-1",
+            name="Shack PC",
+            host="127.0.0.1",
+            port=1100,
+            enabled=True,
+        )
+    ]
+    await operator.save()
+    captured: dict[str, object] = {}
+
+    async def fake_sync_aclog_bridge(user: User, bridge: ACLogBridge) -> ACLogSyncReport:
+        captured["user"] = user
+        captured["bridge"] = bridge
+        return ACLogSyncReport(
+            bridge_name=bridge.name,
+            host=bridge.host,
+            port=bridge.port,
+            received=3,
+            imported=1,
+            skipped=2,
+            errors=0,
+        )
+
+    monkeypatch.setattr("app.qso.ui_router.sync_aclog_bridge", fake_sync_aclog_bridge)
+
+    resp = await http_client.post(
+        "/log/profile/aclog/bridge-1/sync",
+        headers=_auth_cookie(operator),
+    )
+
+    assert resp.status_code == 200
+    assert "ACLog sync complete" in resp.text
+    assert "Missing QSOs imported: 1" in resp.text
+    assert "Already present: 2" in resp.text
+    assert captured["bridge"].id == "bridge-1"

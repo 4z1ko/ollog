@@ -22,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.adif.router import _qso_to_adif_dict
+from app.aclog.sync import sync_aclog_bridge
 from app.qso.service import import_qsos_from_bytes
 from app.callsign.prefixes import lookup_prefix
 import pycountry
@@ -774,6 +775,32 @@ async def profile_page(
             "profile": user,
             "custom_qso_fields": custom_fields_for_user(user),
         },
+    )
+
+
+@ui_router.post("/profile/aclog/{bridge_id}/sync", response_class=HTMLResponse)
+async def profile_aclog_sync(
+    request: Request,
+    bridge_id: str,
+    user: User = Depends(get_current_user_cookie),
+):
+    """Synchronize all missing QSOs from one saved ACLog bridge."""
+    bridge = next((item for item in user.aclog_bridges if item.id == bridge_id), None)
+    if bridge is None:
+        return templates.TemplateResponse(
+            request,
+            "log/profile_result.html",
+            {
+                "error": "ACLog bridge not found. Save the bridge, then try again.",
+                "success": False,
+            },
+        )
+
+    report = await sync_aclog_bridge(user, bridge)
+    return templates.TemplateResponse(
+        request,
+        "log/aclog_sync_result.html",
+        {"report": report},
     )
 
 
