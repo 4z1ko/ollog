@@ -11,7 +11,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 ## Current State
 
 **Shipped through:** v3.2 ACLog Full-Record Import (2026-06-09)
-**Current milestone:** Between milestones
+**Current milestone:** v3.3 ACLog QSO Sync
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
@@ -19,7 +19,16 @@ The ACLog bridge now enriches saved QSO events by requesting ACLog `LIST INCLUDE
 
 ## Current Milestone Goals
 
-No active milestone. Start the next cycle with `$gsd-new-milestone`.
+**v3.3 ACLog QSO Sync**
+
+**Goal:** Let an operator manually synchronize their local ollog collection with all QSOs available from a configured remote ACLog bridge.
+
+**Target features:**
+- Add a Sync button next to every configured ACLog bridge on the Profile Settings page.
+- When pressed, connect to that bridge and request all remote QSOs using ACLog `<CMD><LIST><INCLUDEALL></CMD>`.
+- Parse the returned full-record ACLog response and preserve all non-empty safe ADIF-like fields, including Other fields.
+- Insert only QSOs that are missing from the authenticated operator's `<username>_qsos` collection.
+- Show a completion report with how many remote QSOs were missing/imported and enough surrounding counts to verify the sync result.
 
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
@@ -33,7 +42,12 @@ No active milestone. Start the next cycle with `$gsd-new-milestone`.
 
 ### Active
 
-(None — next milestone requirements will be defined by `$gsd-new-milestone`.)
+- [ ] **ACSYNC-01:** Operator can start a manual sync for an enabled configured ACLog bridge from Profile Settings.
+- [ ] **ACSYNC-02:** Sync requests all remote ACLog QSOs with `<CMD><LIST><INCLUDEALL></CMD>`.
+- [ ] **ACSYNC-03:** Sync parses all returned full-record responses and preserves non-empty safe ADIF-like fields, including Other fields.
+- [ ] **ACSYNC-04:** Sync inserts only QSOs missing from the authenticated operator's username-derived collection and skips existing duplicates.
+- [ ] **ACSYNC-05:** Operator sees an inline sync report with imported/missing count and useful totals/errors after the process finishes.
+- [ ] **ACSYNC-06:** Existing ACLog live bridge behavior, profile saving, and custom QSO field mapping continue to work unchanged.
 
 ### Validated (v3.2)
 
@@ -482,4 +496,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-09 after shipping v3.2 ACLog Full-Record Import*
+*Last updated: 2026-06-12 after starting v3.3 ACLog QSO Sync*

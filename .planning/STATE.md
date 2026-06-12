@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.2
-milestone_name: ACLog Full-Record Import
-status: between_milestones
-stopped_at: v3.2 archived 2026-06-09 — ready for next milestone
-last_updated: "2026-06-09T03:51:05Z"
-last_activity: 2026-06-09
+milestone: v3.3
+milestone_name: ACLog QSO Sync
+status: planning
+stopped_at: v3.3 started 2026-06-12 — ready for Phase 64 discussion/planning
+last_updated: "2026-06-12T20:02:50Z"
+last_activity: 2026-06-12
 progress:
   total_phases: 1
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 1
-  completed_plans: 1
-  percent: 100
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-09 after v3.2 milestone)
+See: .planning/PROJECT.md (updated 2026-06-12 after starting v3.3 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Between milestones — v3.2 ACLog Full-Record Import is archived; next milestone has not been defined.
+**Current focus:** v3.3 ACLog QSO Sync — manual bridge sync from remote ACLog into the operator's local username-derived QSO collection.
 
 ## Current Position
 
-Milestone: Between milestones
-Phase: None active
-Plan: None active
-Status: Ready for next milestone definition
-Last activity: 2026-06-09
+Milestone: v3.3 ACLog QSO Sync
+Phase: 64 — ACLog Bridge Manual Sync
+Plan: Not started
+Status: Ready for phase discussion/planning
+Last activity: 2026-06-12
 
 ```
-v3.2 Progress: [####################] 100% (1/1 phases)
+v3.3 Progress: [--------------------] 0% (0/1 phases)
 ```
 
 ## Performance Metrics
@@ -106,6 +106,11 @@ v3.2 Progress: [####################] 100% (1/1 phases)
 - Phase 63 executed: ACLog parser now converts INCLUDEALL full-record responses, the bridge requests `LIST INCLUDEALL` after `ENTEREVENT` and ingests matched enriched records, Other fields are preserved/mapped, docs were updated, and focused tests were added; local pytest execution is blocked because pytest is not installed in this shell, while Python syntax compilation passed (2026-06-08)
 - Phase 63 UAT verified: 5/5 acceptance checkpoints passed with no gaps; v3.2 is ready for milestone completion (2026-06-09)
 - v3.2 milestone archived: roadmap and requirements copied to `.planning/milestones/`, active roadmap collapsed, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-09)
+- v3.3 milestone started: add manual ACLog bridge synchronization from Profile Settings using `<CMD><LIST><INCLUDEALL></CMD>`, insert only remote QSOs missing from the operator's local collection, and show an inline sync report (2026-06-12)
+
+### v3.3 Phase Structure
+
+- **Phase 64** — ACLog Bridge Manual Sync: add per-bridge Sync action on Profile Settings, all-record `LIST INCLUDEALL` client flow, additive-only import with duplicate/rowHash preservation, inline report, tests, and docs. Planned 2026-06-12.
 
 ### v3.1 Phase Structure
 
@@ -174,7 +179,7 @@ v3.2 Progress: [####################] 100% (1/1 phases)
 
 ### Pending Todos
 
-- Run `/gsd-new-milestone` to start the next milestone cycle.
+- Run `/gsd-discuss-phase 64` or `/gsd-plan-phase 64` to start ACLog Bridge Manual Sync implementation.
 
 ### Ship Blockers
 
@@ -193,6 +198,6 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-09 (Phase 63 verified)
-Stopped at: v3.2 archived and ready for next milestone; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
-Next: run `/gsd-new-milestone`
+Last session: 2026-06-12 (v3.3 milestone initialized)
+Stopped at: v3.3 ACLog QSO Sync ready for Phase 64; `gsd-sdk` is not on PATH, so milestone bookkeeping was applied manually
+Next: run `/gsd-discuss-phase 64` or `/gsd-plan-phase 64`

@@ -25,6 +25,7 @@
 - ✅ **v3.0 Configurable QSO Log Fields** — Phase 58 (shipped 2026-06-07)
 - ✅ **v3.1 Per-User QSO Collections** — Phases 59–62 (shipped 2026-06-08)
 - ✅ **v3.2 ACLog Full-Record Import** — Phase 63 (shipped 2026-06-09)
+- ◆ **v3.3 ACLog QSO Sync** — Phase 64 (active)
 
 
 ## Phases
@@ -275,7 +276,36 @@ Full archive: `.planning/milestones/v3.2-ROADMAP.md`
 
 </details>
 
+<details open>
+<summary>◆ v3.3 ACLog QSO Sync (Phase 64) — ACTIVE</summary>
+
+**Milestone Goal:** Let an operator manually synchronize their local ollog collection with all QSOs available from a configured remote ACLog bridge.
+
+- [ ] Phase 64: ACLog Bridge Manual Sync (0/1 plans) — not started
+
+</details>
+
 ## Phase Details
+
+### Phase 64: ACLog Bridge Manual Sync
+
+**Goal:** Operators can press a Sync button beside a configured ACLog bridge, fetch all remote QSOs with `<CMD><LIST><INCLUDEALL></CMD>`, import only missing QSOs into their own `<username>_qsos` collection, and see an inline completion report.
+**Depends on:** Phase 63 (ACLog full-record parsing), Phase 61 (per-user QSO workflow routing), Phase 57 (rowHash duplicate behavior)
+**Requirements:** ACSYNC-01, ACSYNC-02, ACSYNC-03, ACSYNC-04, ACSYNC-05, ACSYNC-06, ACSYNC-07, ACSYNC-08, ACSYNC-09
+**Success Criteria** (what must be TRUE):
+  1. Each configured ACLog bridge row on `/log/profile` exposes a Sync action that targets only that bridge for the authenticated operator.
+  2. Pressing Sync connects to the selected ACLog host/port and sends exactly the all-record full-data request `<CMD><LIST><INCLUDEALL></CMD>`.
+  3. Multi-record ACLog LIST responses are parsed into ollog ADIF-style QSO dicts, preserving non-empty safe fields and existing Other/custom-field behavior.
+  4. Sync inserts only records missing from the logged-in user's username-derived collection; locally existing QSOs are skipped through the existing duplicate/rowHash-compatible path.
+  5. The operator receives an HTMX-friendly inline report with remote records received, imported/missing count, already-present/skipped count, and any connection/parse errors.
+  6. Existing live ACLog bridge ingestion, profile save, bridge add/remove, and custom QSO field configuration still work unchanged.
+**Plans:** 0/1 plans complete
+**UI hint:** yes
+
+Plans:
+- [ ] 064-01-PLAN.md — Sync client/service, profile route and button, additive import report, tests, and docs.
+
+---
 
 ### Phase 25: Token Model and Service Layer
 
@@ -966,3 +996,4 @@ Plans:
 | 54. Operator Clear Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 55. Admin Clear Operator Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 56. Documentation | v2.8 | 2/2 | Complete    | 2026-05-11 |
+| 64. ACLog Bridge Manual Sync | v3.3 | 0/1 | Planned | — |
