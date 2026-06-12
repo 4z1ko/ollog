@@ -281,7 +281,7 @@ Full archive: `.planning/milestones/v3.2-ROADMAP.md`
 
 **Milestone Goal:** Let an operator manually synchronize their local ollog collection with all QSOs available from a configured remote ACLog bridge.
 
-- [ ] Phase 64: ACLog Bridge Manual Sync (0/1 plans) — not started
+- [ ] Phase 64: ACLog Bridge Manual Sync (1/1 plan) — planned 2026-06-12
 
 </details>
 
@@ -299,11 +299,11 @@ Full archive: `.planning/milestones/v3.2-ROADMAP.md`
   4. Sync inserts only records missing from the logged-in user's username-derived collection; locally existing QSOs are skipped through the existing duplicate/rowHash-compatible path.
   5. The operator receives an HTMX-friendly inline report with remote records received, imported/missing count, already-present/skipped count, and any connection/parse errors.
   6. Existing live ACLog bridge ingestion, profile save, bridge add/remove, and custom QSO field configuration still work unchanged.
-**Plans:** 0/1 plans complete
+**Plans:** 1/1 plan ready
 **UI hint:** yes
 
 Plans:
-- [ ] 064-01-PLAN.md — Sync client/service, profile route and button, additive import report, tests, and docs.
+- [ ] 64-01-PLAN.md — Sync client/service, profile route and button, additive import report, tests, and docs.
 
 ---
 
@@ -996,4 +996,4 @@ Plans:
 | 54. Operator Clear Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 55. Admin Clear Operator Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 56. Documentation | v2.8 | 2/2 | Complete    | 2026-05-11 |
-| 64. ACLog Bridge Manual Sync | v3.3 | 0/1 | Planned | — |
+| 64. ACLog Bridge Manual Sync | v3.3 | 1/1 | Planned | — |
