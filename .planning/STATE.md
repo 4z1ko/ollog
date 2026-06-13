@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.3
-milestone_name: ACLog QSO Sync
-status: implementation-complete
-stopped_at: Phase 64 implementation complete; UAT pending
-last_updated: "2026-06-12T21:42:00Z"
-last_activity: 2026-06-12
+milestone: between
+milestone_name: Between milestones
+status: ready-for-next-milestone
+stopped_at: v3.3 archived; ready for next milestone
+last_updated: "2026-06-13T15:05:00Z"
+last_activity: 2026-06-13
 progress:
-  total_phases: 1
+  total_phases: 0
   completed_phases: 0
-  total_plans: 1
-  completed_plans: 1
-  percent: 80
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-12 after starting v3.3 milestone)
+See: .planning/PROJECT.md (updated 2026-06-13 after completing v3.3 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.3 ACLog QSO Sync — manual bridge sync from remote ACLog into the operator's local username-derived QSO collection.
+**Current focus:** Between milestones — v3.3 is archived and the project is ready for the next milestone.
 
 ## Current Position
 
-Milestone: v3.3 ACLog QSO Sync
-Phase: 64 — ACLog Bridge Manual Sync
-Plan: 64-01-PLAN.md
-Status: Implementation complete; UAT pending
-Last activity: 2026-06-12
+Milestone: Between milestones
+Phase: Not started
+Plan: —
+Status: Ready for next milestone
+Last activity: 2026-06-13
 
 ```
-v3.3 Progress: [################----] 80% (0/1 phases, 1/1 plans)
+Next milestone: [--------------------] 0% (0/0 phases, 0/0 plans)
 ```
 
 ## Performance Metrics
@@ -69,6 +69,7 @@ v3.3 Progress: [################----] 80% (0/1 phases, 1/1 plans)
 | v3.0 | 58 | 1 |
 | v3.1 | 59–62 | 4 |
 | v3.2 | 63 | 1 |
+| v3.3 | 64 | 1 |
 
 ## Accumulated Context
 
@@ -110,12 +111,14 @@ v3.3 Progress: [################----] 80% (0/1 phases, 1/1 plans)
 
 ### v3.3 Phase Structure
 
-- **Phase 64** — ACLog Bridge Manual Sync: add per-bridge Sync action on Profile Settings, all-record `LIST INCLUDEALL` client flow, additive-only import with duplicate/rowHash preservation, inline report, tests, and docs. Implementation complete 2026-06-12; UAT pending.
+- **Phase 64** — ACLog Bridge Manual Sync: add per-bridge Sync action on Profile Settings, all-record `LIST INCLUDEALL` client flow, additive-only import with duplicate/rowHash preservation, inline report, tests, and docs. Completed 2026-06-13.
 - Phase 64 context gathered: Sync applies only to saved bridges, reports via existing `#profile-result`, runs synchronously with fixed timeout and no app-side cap, uses "Missing QSOs imported" report wording, and prefers exact rowHash pre-check while preserving existing duplicate blocking (2026-06-12)
 - Phase 64 research and validation strategy completed: reuse `app/aclog/parser.py` multi-record LIST parsing, add separate manual sync helper/route, keep live bridge behavior unchanged, and verify with parser/client/profile UI tests; PLAN.md is blocked by missing UI-SPEC per GSD UI safety gate (2026-06-12)
 - Phase 64 UI-SPEC approved: reuse existing Profile Settings design system, render Sync only for saved bridge rows, target `#profile-result`, use compact report copy, and avoid new UI libraries or broad redesign (2026-06-12)
 - Phase 64 planned: one implementation plan covering failing tests, manual `LIST INCLUDEALL` sync service, authenticated saved-bridge route, saved-row-only Sync button, compact HTMX report, docs, and focused verification (2026-06-12)
 - Phase 64 executed: manual sync helper, saved-bridge Profile route, saved-row-only Sync button, compact HTMX report, docs, parser match normalization, and focused tests/build completed; verification passed with 25 passed and 5 Mongo-backed skips (2026-06-12)
+- Phase 64 UAT verified: 6/6 acceptance checkpoints passed with no gaps (2026-06-13)
+- v3.3 milestone archived: roadmap and requirements copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-13)
 
 ### v3.1 Phase Structure
 
@@ -184,7 +187,7 @@ v3.3 Progress: [################----] 80% (0/1 phases, 1/1 plans)
 
 ### Pending Todos
 
-- Run `/gsd-verify-work phase 64` for UAT.
+- Start the next milestone with `/gsd-new-milestone`.
 
 ### Ship Blockers
 
@@ -203,7 +206,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-12 (Phase 64 implementation complete)
-Stopped at: Phase 64 UAT pending; `gsd-sdk` is not on PATH, so state bookkeeping was applied manually
-Resume file: `.planning/phases/64-aclog-bridge-manual-sync/64-VERIFICATION.md`
-Next: run `/gsd-verify-work phase 64`
+Last session: 2026-06-13 (v3.3 milestone archived)
+Stopped at: Ready for next milestone; `gsd-sdk` is not on PATH, so state bookkeeping was applied manually
+Resume file: `.planning/MILESTONES.md`
+Next: run `/gsd-new-milestone`

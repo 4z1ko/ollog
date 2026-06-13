@@ -10,25 +10,16 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Shipped through:** v3.2 ACLog Full-Record Import (2026-06-09)
-**Current milestone:** v3.3 ACLog QSO Sync
+**Shipped through:** v3.3 ACLog QSO Sync (2026-06-13)
+**Current milestone:** None — ready for next milestone
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
-The ACLog bridge now enriches saved QSO events by requesting ACLog `LIST INCLUDEALL` full-record data, preserving non-empty ADIF-like fields including ACLog Other fields, mapping configured custom fields, and falling back to the original `ENTEREVENT` behavior when enrichment is unavailable.
+The ACLog bridge now enriches saved QSO events by requesting ACLog `LIST INCLUDEALL` full-record data, preserving non-empty ADIF-like fields including ACLog Other fields, mapping configured custom fields, and falling back to the original `ENTEREVENT` behavior when enrichment is unavailable. Operators can also manually sync a saved ACLog bridge from Profile Settings to import missing remote QSOs into their own username-derived collection.
 
-## Current Milestone Goals
+## Next Milestone Goals
 
-**v3.3 ACLog QSO Sync**
-
-**Goal:** Let an operator manually synchronize their local ollog collection with all QSOs available from a configured remote ACLog bridge.
-
-**Target features:**
-- Add a Sync button next to every configured ACLog bridge on the Profile Settings page.
-- When pressed, connect to that bridge and request all remote QSOs using ACLog `<CMD><LIST><INCLUDEALL></CMD>`.
-- Parse the returned full-record ACLog response and preserve all non-empty safe ADIF-like fields, including Other fields.
-- Insert only QSOs that are missing from the authenticated operator's `<username>_qsos` collection.
-- Show a completion report with how many remote QSOs were missing/imported and enough surrounding counts to verify the sync result.
+No active milestone. Start the next milestone with `/gsd-new-milestone`.
 
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
@@ -42,12 +33,19 @@ The ACLog bridge now enriches saved QSO events by requesting ACLog `LIST INCLUDE
 
 ### Active
 
-- [ ] **ACSYNC-01:** Operator can start a manual sync for an enabled configured ACLog bridge from Profile Settings.
-- [ ] **ACSYNC-02:** Sync requests all remote ACLog QSOs with `<CMD><LIST><INCLUDEALL></CMD>`.
-- [ ] **ACSYNC-03:** Sync parses all returned full-record responses and preserves non-empty safe ADIF-like fields, including Other fields.
-- [ ] **ACSYNC-04:** Sync inserts only QSOs missing from the authenticated operator's username-derived collection and skips existing duplicates.
-- [ ] **ACSYNC-05:** Operator sees an inline sync report with imported/missing count and useful totals/errors after the process finishes.
-- [ ] **ACSYNC-06:** Existing ACLog live bridge behavior, profile saving, and custom QSO field mapping continue to work unchanged.
+No active requirements. Start the next milestone with `/gsd-new-milestone`.
+
+### Validated (v3.3)
+
+- ✓ **ACSYNC-01:** Operator can start a manual sync for an enabled configured ACLog bridge from Profile Settings — Phase 64.
+- ✓ **ACSYNC-02:** Sync requests all remote ACLog QSOs with `<CMD><LIST><INCLUDEALL></CMD>` — Phase 64.
+- ✓ **ACSYNC-03:** Sync parses all returned full-record responses and preserves non-empty safe ADIF-like fields, including Other fields — Phase 64.
+- ✓ **ACSYNC-04:** Sync inserts only QSOs missing from the authenticated operator's username-derived collection and skips existing duplicates — Phase 64.
+- ✓ **ACSYNC-05:** Operator sees an inline sync report with imported/missing count and useful totals/errors after the process finishes — Phase 64.
+- ✓ **ACSYNC-06:** Existing ACLog live bridge behavior, profile saving, and custom QSO field mapping continue to work unchanged — Phase 64.
+- ✓ **ACSYNC-07:** Sync is available only for saved bridge rows and preserves unsaved draft bridge behavior — Phase 64.
+- ✓ **ACSYNC-08:** Sync failures use a fixed timeout and report failure inline without saving partial UI state — Phase 64.
+- ✓ **ACSYNC-09:** Duplicate remote QSOs are skipped and counted as duplicates using exact `rowHash` matching before insert — Phase 64.
 
 ### Validated (v3.2)
 
@@ -496,4 +494,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-12 after starting v3.3 ACLog QSO Sync*
+*Last updated: 2026-06-13 after completing v3.3 ACLog QSO Sync*

@@ -1,5 +1,25 @@
 # Milestones
 
+## v3.3 ACLog QSO Sync (Shipped: 2026-06-13)
+
+**Phases:** 64 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-12 → 2026-06-13 (2 days)
+**Requirements:** 9/9 satisfied | **UAT:** 6/6 passed | **Audit:** Not run in this environment; Phase 64 UAT and verification artifacts passed
+
+**Key accomplishments:**
+
+- Added a saved-row-only Sync button to each configured ACLog bridge on the Profile Settings page.
+- Added a manual ACLog sync helper that sends `<CMD><LIST><INCLUDEALL></CMD>`, parses full-record responses, and imports only addable records.
+- Routed manual sync writes through the logged-in user's username-derived QSO collection while preserving duplicate, rowHash, profile stamping, and custom Other-field mapping behavior.
+- Added an authenticated saved-bridge route and compact HTMX report with received, missing/imported, already-present, error, and example rejection counts.
+- Preserved existing live ACLog bridge enrichment and fallback behavior.
+- Updated operator documentation and focused tests for client, parser, profile UI, and collection routing behavior.
+
+**Known deferred items at close:** formal milestone audit because `gsd-sdk` is unavailable.
+
+**Archive:** `.planning/milestones/v3.3-ROADMAP.md` | `.planning/milestones/v3.3-REQUIREMENTS.md`
+
+---
+
 ## v3.2 ACLog Full-Record Import (Shipped: 2026-06-09)
 
 **Phases:** 63 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-08 → 2026-06-09 (2 days)
