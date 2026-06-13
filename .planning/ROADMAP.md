@@ -293,7 +293,7 @@ Full archive: `.planning/milestones/v3.3-ROADMAP.md`
 
 **Milestone Goal:** Add one responsive favicon to all ollog web pages using `favicon/favicon.ico` as the favicon basis, without changing app functionality.
 
-- [ ] Phase 65: Responsive Favicon Integration (1/1 plans) — planned 2026-06-13
+- [ ] Phase 65: Responsive Favicon Integration (1/1 plans) — implementation complete 2026-06-13; UAT pending
 
 </details>
 
@@ -1029,4 +1029,4 @@ Plans:
 | 55. Admin Clear Operator Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 56. Documentation | v2.8 | 2/2 | Complete    | 2026-05-11 |
 | 64. ACLog Bridge Manual Sync | v3.3 | 1/1 | Complete | 2026-06-13 |
-| 65. Responsive Favicon Integration | v3.4 | 1/1 | Planned | — |
+| 65. Responsive Favicon Integration | v3.4 | 1/1 | Implemented | — |
