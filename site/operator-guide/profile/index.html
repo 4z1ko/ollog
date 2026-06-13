@@ -645,6 +645,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#custom-qso-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom QSO Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#aclog-bridges" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -653,7 +664,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="ACLog Bridges">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sound-notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sound Notifications
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sound Notifications">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1403,6 +1425,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#custom-qso-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom QSO Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#aclog-bridges" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1411,7 +1444,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="ACLog Bridges">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sound-notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sound Notifications
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sound Notifications">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1470,7 +1514,9 @@
 
 
 <h1 id="profile">Profile</h1>
-<p>Your ollog profile stores your station information. Fields set in your profile are auto-stamped on QSOs you log.</p>
+<p>Your ollog profile stores station information, display preferences, custom QSO
+fields, and ACLog bridge settings. Profile fields are used when ollog stamps new
+QSOs that you log through the web UI, REST API, UDP, or ACLog integrations.</p>
 <h2 id="auto-stamping-behavior">Auto-Stamping Behavior</h2>
 <table>
 <thead>
@@ -1489,6 +1535,26 @@
 <tr>
 <td><code>station_callsign</code></td>
 <td><code>STATION_CALLSIGN</code> ADIF field</td>
+<td>When set in profile</td>
+</tr>
+<tr>
+<td><code>my_gridsquare</code></td>
+<td><code>MY_GRIDSQUARE</code> ADIF field</td>
+<td>When set in profile</td>
+</tr>
+<tr>
+<td><code>my_rig</code></td>
+<td><code>MY_RIG</code> ADIF field</td>
+<td>When set in profile</td>
+</tr>
+<tr>
+<td><code>my_antenna</code></td>
+<td><code>MY_ANTENNA</code> ADIF field</td>
+<td>When set in profile</td>
+</tr>
+<tr>
+<td><code>tx_pwr</code></td>
+<td><code>TX_PWR</code> ADIF field</td>
 <td>When set in profile</td>
 </tr>
 </tbody>
@@ -1514,7 +1580,27 @@
   &quot;longitude&quot;: -72.75,
   &quot;my_rig&quot;: &quot;Icom IC-7300&quot;,
   &quot;my_antenna&quot;: &quot;Dipole&quot;,
-  &quot;tx_pwr&quot;: 100.0
+  &quot;tx_pwr&quot;: 100.0,
+  &quot;notify_sound&quot;: true,
+  &quot;aclog_bridges&quot;: [
+    {
+      &quot;id&quot;: &quot;shack-pc&quot;,
+      &quot;name&quot;: &quot;Shack PC&quot;,
+      &quot;host&quot;: &quot;192.168.1.50&quot;,
+      &quot;port&quot;: 1100,
+      &quot;enabled&quot;: true
+    }
+  ],
+  &quot;custom_qso_fields&quot;: [
+    {
+      &quot;slot&quot;: 1,
+      &quot;label&quot;: &quot;POTA Ref&quot;,
+      &quot;adif_name&quot;: &quot;POTA_REF&quot;,
+      &quot;enabled&quot;: true,
+      &quot;fill_behavior&quot;: &quot;previous_same_call&quot;,
+      &quot;force_uppercase&quot;: true
+    }
+  ]
 }
 </code></pre>
 <h2 id="update-profile">Update Profile</h2>
@@ -1586,17 +1672,70 @@
 <td>Transmit power in watts</td>
 </tr>
 <tr>
+<td><code>notify_sound</code></td>
+<td>boolean</td>
+<td>Whether the browser should play a short tone when new QSOs arrive</td>
+</tr>
+<tr>
 <td><code>aclog_bridges</code></td>
 <td>array</td>
 <td>Optional per-user ACLog TCP API bridge locations</td>
 </tr>
+<tr>
+<td><code>custom_qso_fields</code></td>
+<td>array</td>
+<td>Up to 8 operator-defined fields for QSO entry, ACLog Other mapping, and Log View columns</td>
+</tr>
 </tbody>
 </table>
+<h2 id="custom-qso-fields">Custom QSO Fields</h2>
+<p>The <strong>Custom QSO Fields</strong> section lets you configure up to eight operator-owned
+fields. These fields are useful for ACLog <code>Other</code> slots, activator/reference
+fields, contest notes, or any ADIF-like tag you want to preserve with each QSO.</p>
+<p>Each custom field has:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Slot</td>
+<td>Fixed slot number, 1 through 8</td>
+</tr>
+<tr>
+<td>Label</td>
+<td>Human-friendly label shown in the UI</td>
+</tr>
+<tr>
+<td>ADIF tag</td>
+<td>Field name stored on the QSO, such as <code>POTA_REF</code> or <code>MY_SPECIAL_NOTE</code></td>
+</tr>
+<tr>
+<td>Fill</td>
+<td>Whether the QSO form should prefill from a previous QSO</td>
+</tr>
+<tr>
+<td>Visible</td>
+<td>Whether the field appears in the QSO form and Log View column menu</td>
+</tr>
+<tr>
+<td>Uppercase</td>
+<td>Whether submitted values are forced to uppercase</td>
+</tr>
+</tbody>
+</table>
+<p>Custom fields also appear in the Log View column chooser when enabled. If an
+ACLog bridge provides <code>OTHER_1</code> through <code>OTHER_8</code>, ollog maps those values to
+your configured ADIF tags for the matching slots.</p>
 <h2 id="aclog-bridges">ACLog Bridges</h2>
 <p>The <strong>ACLog Bridges</strong> section on the profile page lets you connect ollog to one
 or more N3FJP ACLog installations through ACLog's TCP API. Each enabled bridge
 listens for ACLog <code>ENTEREVENT</code> messages and logs those contacts to your ollog
-account.</p>
+account. Saved bridge rows also include a <strong>Sync</strong> button for manual all-record
+sync from that ACLog instance.</p>
 <p>Each bridge has:</p>
 <table>
 <thead>
@@ -1624,7 +1763,13 @@ account.</p>
 </tr>
 </tbody>
 </table>
-<p>For setup steps and troubleshooting, see <a href="../aclog-bridges/">ACLog Bridges</a>.</p>
+<p>Use <strong>Save Bridges</strong> after adding or editing bridge rows. The Sync button appears
+only for saved bridge rows, not for the blank new row.</p>
+<p>For setup, manual sync behavior, and troubleshooting, see <a href="../aclog-bridges/">ACLog Bridges</a>.</p>
+<h2 id="sound-notifications">Sound Notifications</h2>
+<p>The <strong>Sound Notifications</strong> setting controls whether the browser plays a short
+tone when a new QSO arrives through the live feed. Browser autoplay policies may
+require at least one interaction with the page before sound can play.</p>
 <h3 id="clearing-a-field">Clearing a Field</h3>
 <p>To clear <code>station_callsign</code> (stop auto-stamping it on QSOs):</p>
 <pre><code class="language-bash">curl -X PATCH http://localhost:8000/api/profile/ \

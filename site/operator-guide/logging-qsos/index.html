@@ -494,6 +494,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#log-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log View
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rest-api" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1324,6 +1335,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#log-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log View
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rest-api" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1446,7 +1468,9 @@
 
 
 <h1 id="logging-qsos">Logging QSOs</h1>
-<p>ollog supports logging QSOs via the web UI, the REST API, ADIF file import, and UDP datagrams. This page covers the web UI and REST API methods.</p>
+<p>ollog supports logging QSOs via the web UI, the REST API, ADIF file import, UDP
+datagrams, and ACLog bridges. This page covers the web UI, Log View, and REST
+API methods.</p>
 <h2 id="web-ui">Web UI</h2>
 <ol>
 <li>Log in at <code>http://localhost:8000</code></li>
@@ -1456,10 +1480,19 @@
 <li><strong>Band</strong> — e.g., <code>20m</code>, <code>40m</code>, <code>2m</code> (required)</li>
 <li><strong>Mode</strong> — e.g., <code>SSB</code>, <code>CW</code>, <code>FT8</code> (required)</li>
 <li><strong>RST Sent / Received</strong> — signal reports (optional)</li>
-<li><strong>Date / Time</strong> — defaults to now (UTC); adjust for past QSOs</li>
+<li><strong>Date / Time</strong> — UTC date and time; lock the clock for live logging or unlock it for past QSOs</li>
+<li>Any enabled <strong>Custom QSO Fields</strong> from your profile</li>
 <li>Click <strong>Submit</strong></li>
 </ol>
-<p>Your OPERATOR callsign is auto-stamped — you do not enter it manually.</p>
+<p>Your OPERATOR callsign and configured profile fields are auto-stamped — you do
+not enter them manually.</p>
+<h2 id="log-view">Log View</h2>
+<p>The Log View shows your own QSOs only. Use the filter controls to narrow by call,
+band, mode, or date range. The table supports pagination and sorting by the
+current sortable fields.</p>
+<p>Use the column chooser to select which fields are visible. The defaults are kept
+for a compact logbook view, and additional ADIF/custom fields can be added as
+columns when you need them. Your browser remembers the selected columns locally.</p>
 <h2 id="rest-api">REST API</h2>
 <h3 id="post-apiqsos">POST /api/qsos/</h3>
 <p>Create a new QSO record.</p>
@@ -1468,7 +1501,7 @@
 <li><strong>Request:</strong> JSON body. Required fields: <code>CALL</code>, <code>QSO_DATE</code> (YYYYMMDD), <code>TIME_ON</code> (HHMM or HHMMSS), <code>BAND</code>, <code>MODE</code>. Optional: <code>FREQ</code>, <code>RST_SENT</code>, <code>RST_RCVD</code>, and any other standard ADIF fields.</li>
 <li><strong>Response:</strong> 201 with QSO object including generated <code>id</code> and auto-stamped <code>_operator</code></li>
 <li><strong>Errors:</strong></li>
-<li>409 if a duplicate is detected (same CALL+BAND+MODE+operator within ±2 min)</li>
+<li>409 if a duplicate is detected (same CALL+BAND+MODE+operator within +/-2 min, or an exact rowHash duplicate)</li>
 <li>422 if required fields are missing or validation fails</li>
 </ul>
 <pre><code class="language-bash">curl -X POST http://localhost:8000/api/qsos/ \
@@ -1542,8 +1575,9 @@
 <h2 id="duplicate-detection">Duplicate Detection</h2>
 <p>ollog checks for duplicate QSOs on every new record:</p>
 <ul>
-<li><strong>Window:</strong> ±2 minutes on <code>QSO_DATE</code> + <code>TIME_ON</code></li>
+<li><strong>Window:</strong> +/- 2 minutes on <code>QSO_DATE</code> + <code>TIME_ON</code></li>
 <li><strong>Match fields:</strong> <code>CALL</code> + <code>BAND</code> + <code>MODE</code> + operator</li>
+<li><strong>Exact duplicate guard:</strong> every QSO also gets a deterministic <code>rowHash</code>; exact duplicate documents are rejected even if they arrive through another import path</li>
 <li><strong>Response:</strong> 409 Conflict with <code>existing_id</code>, <code>existing_call</code>, <code>existing_band</code>, <code>existing_mode</code></li>
 <li><strong>Override:</strong> Append <code>?force=true</code> to the POST URL to bypass for single QSO creation</li>
 </ul>

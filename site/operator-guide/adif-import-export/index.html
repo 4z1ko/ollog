@@ -1448,8 +1448,14 @@
 
 
 <h1 id="adif-importexport">ADIF Import/Export</h1>
-<p>ollog supports bulk import of existing logbooks in ADIF format and export of your complete log as an ADIF file.</p>
+<p>ollog supports bulk import of existing logbooks in ADIF format and export of your
+complete operator log as an ADIF file.</p>
 <h2 id="importing-an-adif-file">Importing an ADIF File</h2>
+<p>Use <strong>Import</strong> in the operator navigation to upload an <code>.adi</code> or <code>.adif</code> file
+from the browser. The report shows accepted records, existing QSOs, and errors.
+When existing QSOs are found, the browser report lets you select specific
+duplicates and click <strong>Import Selected</strong> when you intentionally want to keep a
+second copy.</p>
 <h3 id="post-apiadifimport">POST /api/adif/import</h3>
 <p>Import QSOs from an ADIF (.adi or .adif) file.</p>
 <ul>
@@ -1470,10 +1476,11 @@
 </code></pre>
 <h3 id="import-behavior-notes">Import Behavior Notes</h3>
 <ul>
-<li><strong>Duplicate detection:</strong> Same ±2 minute window as manual QSO entry (CALL + BAND + MODE + operator).</li>
+<li><strong>Duplicate detection:</strong> Same +/- 2 minute window as manual QSO entry (CALL + BAND + MODE + operator), plus exact rowHash duplicate protection.</li>
 <li><strong>OPERATOR / STATION_CALLSIGN:</strong> Values from the file are preserved as-is. They are NOT auto-stamped from your profile. This maintains historical record fidelity.</li>
 <li><strong>All errors accumulated:</strong> Every record error is returned in the report — no records are silently dropped.</li>
-<li><strong>No force override:</strong> The import endpoint does not support <code>?force=true</code>. To re-import an already-imported file, delete the existing records first, then import again.</li>
+<li><strong>REST API duplicate behavior:</strong> The import endpoint reports duplicates; it does not support <code>?force=true</code>.</li>
+<li><strong>Browser duplicate review:</strong> The operator UI can import selected duplicates from the duplicate review table.</li>
 <li><strong>File size limit:</strong> 10 MB. Files larger than this receive a 413 response.</li>
 </ul>
 <h2 id="exporting-your-log">Exporting Your Log</h2>
@@ -1482,7 +1489,7 @@
 <ul>
 <li><strong>Auth:</strong> Bearer token or X-API-Key</li>
 <li><strong>Response:</strong> 200 with <code>text/plain</code> streaming body (Content-Disposition: attachment). Filename is <code>{callsign}_logbook.adi</code>.</li>
-<li><strong>Includes:</strong> Only your own QSOs (operator-isolated). Soft-deleted QSOs are excluded.</li>
+<li><strong>Includes:</strong> Only your own QSOs from your operator collection. Soft-deleted QSOs are excluded.</li>
 </ul>
 <pre><code class="language-bash">curl http://localhost:8000/api/adif/export \
   -H &quot;Authorization: Bearer $TOKEN&quot; \

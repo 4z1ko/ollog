@@ -62,14 +62,29 @@ multiple ACLog installations, such as a shack PC and a laptop.
 ## Manual Sync
 
 Saved bridge rows also show a **Sync** button. Pressing Sync asks that ACLog API
-location for all logged records with `LIST INCLUDEALL`, then imports only QSOs
-that are missing from the signed-in operator's ollog collection.
+location for all logged records with `<CMD><LIST><INCLUDEALL></CMD>`, then
+imports only QSOs that are missing from the signed-in operator's ollog
+collection.
 
 Manual sync is additive only. It does not update, merge, or delete existing local
 QSOs. If you run Sync again against the same ACLog database, records already in
 ollog are reported as already present instead of being inserted a second time.
 The result appears inline on the Profile page with counts for missing QSOs
 imported, already-present records, and any errors.
+
+The sync report includes:
+
+| Report line | Meaning |
+|-------------|---------|
+| Remote records received | Number of QSO records returned by ACLog |
+| Missing QSOs imported | Records inserted into your ollog collection |
+| Already present | Records skipped because ollog already had them |
+| Errors | Records rejected because required fields were missing or invalid |
+
+If ACLog is offline, the host/port is wrong, or the API does not respond before
+the fixed timeout, ollog shows `ACLog sync failed` with a reminder to confirm
+that ACLog is running and the API port is reachable. The error stays on the
+Profile page; it does not navigate away or clear your bridge settings.
 
 ## Connection Behavior
 

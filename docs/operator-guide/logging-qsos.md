@@ -1,6 +1,8 @@
 # Logging QSOs
 
-ollog supports logging QSOs via the web UI, the REST API, ADIF file import, and UDP datagrams. This page covers the web UI and REST API methods.
+ollog supports logging QSOs via the web UI, the REST API, ADIF file import, UDP
+datagrams, and ACLog bridges. This page covers the web UI, Log View, and REST
+API methods.
 
 ## Web UI
 
@@ -11,10 +13,22 @@ ollog supports logging QSOs via the web UI, the REST API, ADIF file import, and 
    - **Band** — e.g., `20m`, `40m`, `2m` (required)
    - **Mode** — e.g., `SSB`, `CW`, `FT8` (required)
    - **RST Sent / Received** — signal reports (optional)
-   - **Date / Time** — defaults to now (UTC); adjust for past QSOs
+   - **Date / Time** — UTC date and time; lock the clock for live logging or unlock it for past QSOs
+   - Any enabled **Custom QSO Fields** from your profile
 4. Click **Submit**
 
-Your OPERATOR callsign is auto-stamped — you do not enter it manually.
+Your OPERATOR callsign and configured profile fields are auto-stamped — you do
+not enter them manually.
+
+## Log View
+
+The Log View shows your own QSOs only. Use the filter controls to narrow by call,
+band, mode, or date range. The table supports pagination and sorting by the
+current sortable fields.
+
+Use the column chooser to select which fields are visible. The defaults are kept
+for a compact logbook view, and additional ADIF/custom fields can be added as
+columns when you need them. Your browser remembers the selected columns locally.
 
 ## REST API
 
@@ -26,7 +40,7 @@ Create a new QSO record.
 - **Request:** JSON body. Required fields: `CALL`, `QSO_DATE` (YYYYMMDD), `TIME_ON` (HHMM or HHMMSS), `BAND`, `MODE`. Optional: `FREQ`, `RST_SENT`, `RST_RCVD`, and any other standard ADIF fields.
 - **Response:** 201 with QSO object including generated `id` and auto-stamped `_operator`
 - **Errors:**
-  - 409 if a duplicate is detected (same CALL+BAND+MODE+operator within ±2 min)
+  - 409 if a duplicate is detected (same CALL+BAND+MODE+operator within +/-2 min, or an exact rowHash duplicate)
   - 422 if required fields are missing or validation fails
 
 ```bash
@@ -103,8 +117,9 @@ Returns 204 No Content.
 
 ollog checks for duplicate QSOs on every new record:
 
-- **Window:** ±2 minutes on `QSO_DATE` + `TIME_ON`
+- **Window:** +/- 2 minutes on `QSO_DATE` + `TIME_ON`
 - **Match fields:** `CALL` + `BAND` + `MODE` + operator
+- **Exact duplicate guard:** every QSO also gets a deterministic `rowHash`; exact duplicate documents are rejected even if they arrive through another import path
 - **Response:** 409 Conflict with `existing_id`, `existing_call`, `existing_band`, `existing_mode`
 - **Override:** Append `?force=true` to the POST URL to bypass for single QSO creation
 

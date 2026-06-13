@@ -1185,11 +1185,11 @@
 
 
 <h1 id="ollog-ham-radio-online-logbook">ollog — Ham Radio Online Logbook</h1>
-<p>ollog is a self-hosted, multi-operator ham radio logbook with ADIF import/export, live station feed, REST API, and automated database backup.</p>
+<p>ollog is a self-hosted, multi-operator ham radio logbook with ADIF import/export, live station feed, REST API, ACLog integration, configurable operator fields, and automated database backup.</p>
 <h2 id="quick-links">Quick Links</h2>
 <ul>
 <li><a href="getting-started/quickstart/">Getting Started</a> — Deploy and log your first QSO</li>
-<li><a href="operator-guide/">Operator Guide</a> — Logging QSOs, ADIF, API tokens, UDP ADIF</li>
+<li><a href="operator-guide/">Operator Guide</a> — Logging QSOs, ADIF, ACLog bridges, API tokens, UDP ADIF</li>
 <li><a href="admin-guide/">Admin Guide</a> — Deployment, admin container, backup, account management</li>
 <li><a href="api-reference/">API Reference</a> — All endpoints with interactive Swagger UI</li>
 <li><a href="reference/">Reference</a> — ADIF field reference and environment variables</li>
@@ -1197,13 +1197,15 @@
 </ul>
 <h2 id="features">Features</h2>
 <ul>
-<li>Multi-operator: each operator sees only their own QSOs</li>
+<li>Multi-operator: each operator writes to and sees only their own QSO collection</li>
 <li>ADIF 3.1.4 import and export</li>
+<li>Configurable Log View columns and custom QSO fields</li>
 <li>Live station feed via Server-Sent Events</li>
 <li>REST API with interactive Swagger docs at <a href="api-reference/interactive/">/guide/api-reference/interactive/</a></li>
 <li>Auto-stamping of OPERATOR and STATION_CALLSIGN</li>
-<li>Duplicate QSO detection with force override</li>
+<li>Duplicate QSO detection with deterministic rowHash protection</li>
 <li>API tokens for programmatic/automation access (v1.7)</li>
+<li>ACLog live bridge ingestion and manual all-record sync via <code>LIST INCLUDEALL</code></li>
 <li>Separate admin container on port 8001 with independent lifecycle (v1.8)</li>
 <li>Database backup CLI with cron scheduling and S3 upload (v1.8)</li>
 </ul>

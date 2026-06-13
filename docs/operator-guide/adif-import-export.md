@@ -1,8 +1,15 @@
 # ADIF Import/Export
 
-ollog supports bulk import of existing logbooks in ADIF format and export of your complete log as an ADIF file.
+ollog supports bulk import of existing logbooks in ADIF format and export of your
+complete operator log as an ADIF file.
 
 ## Importing an ADIF File
+
+Use **Import** in the operator navigation to upload an `.adi` or `.adif` file
+from the browser. The report shows accepted records, existing QSOs, and errors.
+When existing QSOs are found, the browser report lets you select specific
+duplicates and click **Import Selected** when you intentionally want to keep a
+second copy.
 
 ### POST /api/adif/import
 
@@ -29,10 +36,11 @@ curl -X POST http://localhost:8000/api/adif/import \
 
 ### Import Behavior Notes
 
-- **Duplicate detection:** Same ±2 minute window as manual QSO entry (CALL + BAND + MODE + operator).
+- **Duplicate detection:** Same +/- 2 minute window as manual QSO entry (CALL + BAND + MODE + operator), plus exact rowHash duplicate protection.
 - **OPERATOR / STATION_CALLSIGN:** Values from the file are preserved as-is. They are NOT auto-stamped from your profile. This maintains historical record fidelity.
 - **All errors accumulated:** Every record error is returned in the report — no records are silently dropped.
-- **No force override:** The import endpoint does not support `?force=true`. To re-import an already-imported file, delete the existing records first, then import again.
+- **REST API duplicate behavior:** The import endpoint reports duplicates; it does not support `?force=true`.
+- **Browser duplicate review:** The operator UI can import selected duplicates from the duplicate review table.
 - **File size limit:** 10 MB. Files larger than this receive a 413 response.
 
 ## Exporting Your Log
@@ -43,7 +51,7 @@ Export your complete log as an ADIF 3.1.4 file.
 
 - **Auth:** Bearer token or X-API-Key
 - **Response:** 200 with `text/plain` streaming body (Content-Disposition: attachment). Filename is `{callsign}_logbook.adi`.
-- **Includes:** Only your own QSOs (operator-isolated). Soft-deleted QSOs are excluded.
+- **Includes:** Only your own QSOs from your operator collection. Soft-deleted QSOs are excluded.
 
 ```bash
 curl http://localhost:8000/api/adif/export \

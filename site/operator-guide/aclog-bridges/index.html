@@ -628,6 +628,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#manual-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Sync
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#connection-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1285,6 +1296,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#manual-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Sync
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#connection-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1329,21 +1351,29 @@ operator can configure one or more ACLog bridge locations from their own profile
 page.</p>
 <h2 id="how-it-works">How It Works</h2>
 <p>When ACLog saves a contact, its API emits an <code>ENTEREVENT</code> message. ollog keeps a
-background TCP connection open to each enabled bridge and imports those events as
-QSOs for the operator who configured the bridge.</p>
+background TCP connection open to each enabled bridge, then asks ACLog for the
+latest full record with <code>LIST INCLUDEALL</code>. If the full-record response matches
+the saved event, ollog imports the enriched record for the operator who
+configured the bridge. If ACLog does not return a matching full record, ollog
+falls back to the original <code>ENTEREVENT</code> data.</p>
 <p>Imported ACLog QSOs use the same QSO rules as other live ingestion paths:</p>
 <ul>
 <li><code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, and <code>MODE</code> are required.</li>
 <li>Numeric ACLog bands such as <code>20</code> are stored as ADIF-style bands such as <code>20M</code>.</li>
-<li><code>FREQ</code>, <code>RST_SENT</code>, and <code>RST_RCVD</code> are imported when ACLog provides them.</li>
+<li><code>FREQ</code>, <code>RST_SENT</code>, <code>RST_RCVD</code>, and other non-empty ACLog fields are imported
+  when ACLog provides them.</li>
+<li>ACLog Other fields are mapped to the operator's configured Custom QSO Fields
+  when configured; otherwise they remain preserved as <code>OTHER_1</code> through
+  <code>OTHER_8</code>.</li>
 <li>Duplicate detection uses the same per-operator ±2 minute window.</li>
 <li>Profile stamping still applies, including <code>OPERATOR</code>, <code>STATION_CALLSIGN</code>,
   <code>MY_GRIDSQUARE</code>, <code>MY_RIG</code>, <code>MY_ANTENNA</code>, and <code>TX_PWR</code> when those profile fields
   are set.</li>
 </ul>
-<p>To capture frequency and reports, ollog asks ACLog for all text-box updates after
-connecting and keeps the latest frequency, sent report, and received report in
-memory until the next <code>ENTEREVENT</code> arrives.</p>
+<p>To capture frequency, reports, and Other field values even when full-record
+enrichment is unavailable, ollog asks ACLog for all text-box updates after
+connecting and keeps the latest frequency, sent report, received report, and
+Other slot values in memory until the next <code>ENTEREVENT</code> arrives.</p>
 <h2 id="enable-the-aclog-api">Enable the ACLog API</h2>
 <p>In ACLog:</p>
 <ol>
@@ -1368,6 +1398,47 @@ address as the bridge host.</p>
 </ol>
 <p>You can add more than one bridge. This is useful when the same operator logs from
 multiple ACLog installations, such as a shack PC and a laptop.</p>
+<h2 id="manual-sync">Manual Sync</h2>
+<p>Saved bridge rows also show a <strong>Sync</strong> button. Pressing Sync asks that ACLog API
+location for all logged records with <code>&lt;CMD&gt;&lt;LIST&gt;&lt;INCLUDEALL&gt;&lt;/CMD&gt;</code>, then
+imports only QSOs that are missing from the signed-in operator's ollog
+collection.</p>
+<p>Manual sync is additive only. It does not update, merge, or delete existing local
+QSOs. If you run Sync again against the same ACLog database, records already in
+ollog are reported as already present instead of being inserted a second time.
+The result appears inline on the Profile page with counts for missing QSOs
+imported, already-present records, and any errors.</p>
+<p>The sync report includes:</p>
+<table>
+<thead>
+<tr>
+<th>Report line</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Remote records received</td>
+<td>Number of QSO records returned by ACLog</td>
+</tr>
+<tr>
+<td>Missing QSOs imported</td>
+<td>Records inserted into your ollog collection</td>
+</tr>
+<tr>
+<td>Already present</td>
+<td>Records skipped because ollog already had them</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td>Records rejected because required fields were missing or invalid</td>
+</tr>
+</tbody>
+</table>
+<p>If ACLog is offline, the host/port is wrong, or the API does not respond before
+the fixed timeout, ollog shows <code>ACLog sync failed</code> with a reminder to confirm
+that ACLog is running and the API port is reachable. The error stays on the
+Profile page; it does not navigate away or clear your bridge settings.</p>
 <h2 id="connection-behavior">Connection Behavior</h2>
 <p>ollog scans configured bridges periodically and starts one background TCP client
 per enabled bridge. If ACLog closes or restarts, ollog retries automatically.</p>
@@ -1411,8 +1482,9 @@ is not required after editing bridge rows.</p>
    <code>ACLog bridge ... disposition=</code> messages.</li>
 <li>Confirm the contact saved in ACLog includes <code>CALL</code>, <code>BAND</code>, <code>MODE</code>,
    <code>QSO_DATE</code>, and <code>TIME_ON</code>.</li>
-<li>If frequency or RST values are missing, confirm ACLog is sending field update
-   notifications. Restarting the bridge connection usually refreshes this state.</li>
+<li>If frequency, RST, or Other field values are missing, confirm ACLog is sending
+   full-record responses for <code>LIST INCLUDEALL</code> or field update notifications.
+   Restarting the bridge connection usually refreshes this state.</li>
 </ol>
 <p>If ollog logs a QSO as <code>duplicate</code>, the contact matched an existing QSO for the
 same operator, call, band, mode, and time window.</p>

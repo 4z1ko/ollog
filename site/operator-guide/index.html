@@ -466,6 +466,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#data-isolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Isolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#authentication-quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1230,6 +1241,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#data-isolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Isolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#authentication-quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1258,15 +1280,21 @@
 
 
 <h1 id="operator-guide">Operator Guide</h1>
-<p>This section is for licensed amateur radio operators using ollog to log QSOs. It covers all day-to-day features: logging contacts, importing and exporting ADIF files, managing API tokens for automation, configuring your station profile, and sending QSOs over UDP.</p>
+<p>This section is for licensed amateur radio operators using ollog to log QSOs. It covers all day-to-day features: logging contacts, configuring the Log View, importing and exporting ADIF files, syncing with ACLog, managing API tokens for automation, configuring your station profile, and sending QSOs over UDP.</p>
 <h2 id="in-this-section">In This Section</h2>
 <ul>
-<li><a href="logging-qsos/">Logging QSOs</a> — Log contacts via the web UI or REST API; covers all fields, duplicate detection, and pagination</li>
+<li><a href="logging-qsos/">Logging QSOs</a> — Log contacts via the web UI or REST API; covers UTC date/time, configurable columns, duplicate detection, and pagination</li>
 <li><a href="adif-import-export/">ADIF Import/Export</a> — Bulk import from existing logbooks and export your log as ADIF 3.1.4</li>
 <li><a href="api-tokens/">API Tokens</a> — Create long-lived tokens for scripts, automation, and UDP per-datagram authentication</li>
-<li><a href="profile/">Profile</a> — Set your station callsign, gridsquare, and other fields; understand auto-stamping behavior</li>
+<li><a href="profile/">Profile</a> — Set your station callsign, gridsquare, custom QSO fields, ACLog bridges, and sound preferences</li>
+<li><a href="aclog-bridges/">ACLog Bridges</a> — Import live ACLog saves and manually sync missing QSOs from a configured ACLog API bridge</li>
 <li><a href="udp-adif/">UDP ADIF</a> — Send QSOs from Log4OM and other software via UDP ADIF datagrams</li>
 </ul>
+<h2 id="data-isolation">Data Isolation</h2>
+<p>Each operator's log is stored in a dedicated MongoDB collection named from the
+login username. Browser views, REST API calls, ADIF import/export, UDP ingest,
+ACLog live ingest, and ACLog manual sync all route to the signed-in operator's
+own collection.</p>
 <h2 id="authentication-quick-reference">Authentication Quick Reference</h2>
 <table>
 <thead>
