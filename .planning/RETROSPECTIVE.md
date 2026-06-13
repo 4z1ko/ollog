@@ -242,6 +242,49 @@
 
 ---
 
+## Milestone: v3.4 — Responsive Favicon
+
+**Shipped:** 2026-06-13
+**Phases:** 1 (65) | **Plans:** 1 | **Sessions:** 1
+
+### What Was Built
+
+- `favicon/favicon.ico` committed as the source favicon and copied into app, docs, and generated guide asset paths.
+- `templates/base.html` now emits one fixed ICO favicon link inherited by operator and admin full-page templates.
+- `mkdocs.yml` uses `theme.favicon: assets/favicon.ico`; generated `/guide` pages reference the same favicon.
+- Phase artifacts cover UAT, security, validation, and milestone audit with no critical gaps.
+
+### What Worked
+
+- **Shared-base-template integration.** One edit in `templates/base.html` covered operator and admin pages while leaving HTMX partials headless.
+- **Static asset scoping.** Reusing existing `/static` and `/guide` mounts avoided adding a broad source-folder mount.
+- **Focused validation.** `cmp` and `rg` checks were the right weight for a static/favicon phase, and browser UAT covered the user-agent favicon behavior.
+
+### What Was Inefficient
+
+- **MkDocs toolchain looked blocked until escalation.** The first validation pass marked the docs build as unavailable because `uv` cache access was sandboxed; rerunning with permission closed the gap.
+- **No formal `*-VERIFICATION.md` artifact.** Evidence was strong, but split across SUMMARY, UAT, SECURITY, VALIDATION, and milestone audit files.
+
+### Patterns Established
+
+- **Favicon metadata belongs in `templates/base.html`.** Full-page templates inherit it; HTMX partials stay headless.
+- **Guide favicon source lives in `docs/assets/favicon.ico`.** MkDocs Material can rebuild guide output from the same committed ICO source.
+- **Escalate `uv run` when cache access is sandboxed.** A cache permission failure is not the same as missing tooling.
+
+### Key Lessons
+
+1. **Try the intended build command with the right filesystem permission before accepting a tooling gap.** `uv run mkdocs build --strict` passed once cache access was allowed.
+2. **Static UI metadata changes still deserve UAT.** Browser favicon display and cache behavior are better confirmed visually than inferred from source alone.
+3. **Keep favicon scope narrow.** Serving committed assets through existing static mounts is simpler and safer than mounting the source favicon folder.
+
+### Cost Observations
+
+- Model: Codex/GPT-5 throughout
+- Sessions: 1 milestone session, with interrupted/continued turns
+- Notable: The entire milestone was one narrow plan; most time went into GSD artifact hygiene rather than implementation.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -258,6 +301,7 @@
 | v2.6 | 1 | 3 | Minimal single-phase content milestone; pure routing + static files, zero new deps |
 | v2.7 | 2 | 3 | Backend-first migration (Phase 52) + frontend-only JS (Phase 53); two-phase split worked cleanly |
 | v2.8 | 3 | 6 | Service-first three-phase split (Phase 54 service + ops UI, Phase 55 admin UI reusing service, Phase 56 docs); single shared `clear_operator_log()` consumed by both auth contexts |
+| v3.4 | 1 | 1 | Narrow static metadata milestone; shared base template plus MkDocs favicon config covered all web surfaces |
 
 ### Cumulative Quality
 

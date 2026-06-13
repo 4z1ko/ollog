@@ -10,24 +10,18 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Shipped through:** v3.3 ACLog QSO Sync (2026-06-13)
-**Current milestone:** v3.4 Responsive Favicon
+**Shipped through:** v3.4 Responsive Favicon (2026-06-13)
+**Current milestone:** Between milestones — ready to define v3.5
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
 The ACLog bridge now enriches saved QSO events by requesting ACLog `LIST INCLUDEALL` full-record data, preserving non-empty ADIF-like fields including ACLog Other fields, mapping configured custom fields, and falling back to the original `ENTEREVENT` behavior when enrichment is unavailable. Operators can also manually sync a saved ACLog bridge from Profile Settings to import missing remote QSOs into their own username-derived collection.
 
+All operator/admin full-page web surfaces now inherit one shared ICO favicon based on `favicon/favicon.ico` through the shared base template. The generated `/guide` site uses the same favicon through MkDocs Material configuration.
+
 ## Current Milestone Goals
 
-**v3.4 Responsive Favicon**
-
-**Goal:** Add one responsive favicon to all ollog web pages using `favicon/favicon.ico` as the favicon basis, without changing app functionality.
-
-**Target features:**
-- Research all rendered operator and admin web pages and identify the shared template path for favicon wiring.
-- Serve the favicon from an app-accessible static path for both the operator app and admin app.
-- Add favicon metadata once in the shared page head so all full-page templates inherit it.
-- Preserve HTMX partial templates, app behavior, authentication, styling, and guide/static serving.
+None active. Start the next milestone with `$gsd-new-milestone`.
 
 ## Shipped: v2.8 Clear Log (2026-05-18)
 
@@ -41,13 +35,17 @@ The ACLog bridge now enriches saved QSO events by requesting ACLog `LIST INCLUDE
 
 ### Active
 
-- [ ] **FAV-01:** Every full-page operator web page includes a favicon link based on `favicon/favicon.ico`.
-- [ ] **FAV-02:** Every full-page admin web page includes a favicon link based on `favicon/favicon.ico`.
-- [ ] **FAV-03:** The favicon is served from an app-accessible static URL in both the operator app and admin app.
-- [ ] **FAV-04:** Shared template wiring adds favicon metadata once without duplicating tags across individual pages.
-- [ ] **FAV-05:** Partial HTMX templates remain unchanged and do not gain invalid standalone `<head>` favicon markup.
-- [ ] **FAV-06:** Browser-friendly responsive favicon metadata is available for modern desktop browsers, including `.ico` and the provided PNG/manifest bundle when appropriate.
-- [ ] **FAV-07:** Existing page behavior, authentication, HTMX swaps, styling, and guide/static serving remain unchanged.
+None currently. Fresh requirements are created during the next milestone.
+
+### Validated (v3.4)
+
+- ✓ **FAV-01:** Every full-page operator web page includes a favicon link based on `favicon/favicon.ico` — Phase 65.
+- ✓ **FAV-02:** Every full-page admin web page includes a favicon link based on `favicon/favicon.ico` — Phase 65.
+- ✓ **FAV-03:** The favicon is served from an app-accessible static URL in both the operator app and admin app — Phase 65.
+- ✓ **FAV-04:** Shared template wiring adds favicon metadata once without duplicating tags across individual pages — Phase 65.
+- ✓ **FAV-05:** Partial HTMX templates remain unchanged and do not gain invalid standalone `<head>` favicon markup — Phase 65.
+- ✓ **FAV-06:** Browser-friendly responsive favicon metadata is available for modern desktop browsers using the ICO source and MkDocs guide configuration — Phase 65.
+- ✓ **FAV-07:** Existing page behavior, authentication, HTMX swaps, styling, and guide/static serving remain unchanged — Phase 65.
 
 ### Validated (v3.3)
 
@@ -508,4 +506,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-13 after starting v3.4 Responsive Favicon*
+*Last updated: 2026-06-13 after completing v3.4 Responsive Favicon*

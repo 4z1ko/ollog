@@ -1,5 +1,24 @@
 # Milestones
 
+## v3.4 Responsive Favicon (Shipped: 2026-06-13)
+
+**Phases:** 65 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-13 → 2026-06-13 (1 day)
+**Requirements:** 7/7 satisfied | **UAT:** 4/4 passed | **Audit:** PASS
+
+**Key accomplishments:**
+
+- Added `favicon/favicon.ico` as the source favicon and served matching ICO assets from app, docs, and generated guide paths.
+- Added one shared ICO-only favicon link in `templates/base.html` so operator and admin full pages inherit it without per-page duplication.
+- Configured MkDocs Material to use `assets/favicon.ico` and verified `uv run mkdocs build --strict` succeeds.
+- Preserved HTMX partial templates, authentication flows, page behavior, styling, and existing static mounts.
+- Completed UAT, security review, Nyquist validation, and milestone audit with no critical gaps.
+
+**Known deferred items at close:** 0 critical gaps. Note: Phase 65 does not have a formal `*-VERIFICATION.md`; equivalent evidence is split across SUMMARY, UAT, SECURITY, VALIDATION, and milestone audit artifacts.
+
+**Archive:** `.planning/milestones/v3.4-ROADMAP.md` | `.planning/milestones/v3.4-REQUIREMENTS.md` | `.planning/milestones/v3.4-MILESTONE-AUDIT.md`
+
+---
+
 ## v3.3 ACLog QSO Sync (Shipped: 2026-06-13)
 
 **Phases:** 64 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-12 → 2026-06-13 (2 days)

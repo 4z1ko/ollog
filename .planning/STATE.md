@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.4
 milestone_name: Responsive Favicon
-status: milestone-audit-passed
-stopped_at: v3.4 milestone audit passed; ready to complete milestone
-last_updated: "2026-06-13T13:35:00Z"
+status: between-milestones
+stopped_at: v3.4 milestone archived; ready for next milestone
+last_updated: "2026-06-13T13:45:00Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 1
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-13 after starting v3.4 milestone)
+See: .planning/PROJECT.md (updated 2026-06-13 after completing v3.4 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.4 Responsive Favicon — add a single responsive favicon based on `favicon/favicon.ico` to every full-page operator and admin web page without changing functionality.
+**Current focus:** Between milestones — ready to define v3.5.
 
 ## Current Position
 
 Milestone: v3.4 Responsive Favicon
 Phase: 65 — Responsive Favicon Integration
 Plan: 65-01-PLAN.md
-Status: Milestone audit passed; ready to complete milestone
+Status: Milestone archived; ready for next milestone
 Last activity: 2026-06-13
 
 ```
@@ -132,6 +132,7 @@ v3.4 Progress: [####################] 100% (1/1 phases, 1/1 plans)
 - Phase 65 security verified: 3/3 plan-time threats closed, `threats_open: 0`, no accepted risks (2026-06-13)
 - Phase 65 validation passed: all source/static/template/UAT/security checks passed, and `uv run mkdocs build --strict` passed with the expected docs output unchanged (2026-06-13)
 - v3.4 milestone audit passed: 7/7 requirements satisfied, 1/1 phases complete, no critical gaps; audit report written to `.planning/v3.4-MILESTONE-AUDIT.md` (2026-06-13)
+- v3.4 milestone archived: roadmap, requirements, and milestone audit copied to `.planning/milestones/`; active requirements removed for the next milestone cycle (2026-06-13)
 
 ### v3.1 Phase Structure
 
@@ -200,7 +201,7 @@ v3.4 Progress: [####################] 100% (1/1 phases, 1/1 plans)
 
 ### Pending Todos
 
-- Run `/gsd-complete-milestone` to archive v3.4.
+- Run `/gsd-new-milestone` to define the next milestone.
 
 ### Ship Blockers
 
@@ -219,7 +220,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-13 (v3.4 milestone audit passed)
-Stopped at: v3.4 milestone audit passed; ready to complete milestone
-Resume file: `.planning/v3.4-MILESTONE-AUDIT.md`
-Next: run `/gsd-complete-milestone`
+Last session: 2026-06-13 (v3.4 milestone archived)
+Stopped at: v3.4 milestone archived; ready for next milestone
+Resume file: `.planning/MILESTONES.md`
+Next: run `/gsd-new-milestone`
