@@ -26,6 +26,7 @@
 - ✅ **v3.1 Per-User QSO Collections** — Phases 59–62 (shipped 2026-06-08)
 - ✅ **v3.2 ACLog Full-Record Import** — Phase 63 (shipped 2026-06-09)
 - ✅ **v3.3 ACLog QSO Sync** — Phase 64 (shipped 2026-06-13)
+- ◆ **v3.4 Responsive Favicon** — Phase 65 (active)
 
 
 ## Phases
@@ -287,7 +288,36 @@ Full archive: `.planning/milestones/v3.3-ROADMAP.md`
 
 </details>
 
+<details open>
+<summary>◆ v3.4 Responsive Favicon (Phase 65) — ACTIVE</summary>
+
+**Milestone Goal:** Add one responsive favicon to all ollog web pages using `favicon/favicon.ico` as the favicon basis, without changing app functionality.
+
+- [ ] Phase 65: Responsive Favicon Integration (0/1 plans) — ready for discussion/planning
+
+</details>
+
 ## Phase Details
+
+### Phase 65: Responsive Favicon Integration
+
+**Goal:** Every full-page operator and admin web page includes responsive favicon metadata based on `favicon/favicon.ico`, served through app-accessible static paths, without changing HTMX partials or app functionality.
+**Depends on:** Existing shared template base chain (`templates/base.html`, `templates/base_app.html`) and FastAPI static mounts in `app/main.py` and `app/admin_main.py`
+**Requirements:** FAV-01, FAV-02, FAV-03, FAV-04, FAV-05, FAV-06, FAV-07
+**Success Criteria** (what must be TRUE):
+  1. `favicon/favicon.ico` and compatible responsive favicon assets are available through static URLs served by both the operator app and admin app.
+  2. `templates/base.html` contains the shared favicon metadata needed by login pages and all pages extending `base_app.html`.
+  3. Operator pages (`/log/...`) and admin pages (`/admin/ui/...`) inherit the favicon links without duplicating per-page head markup.
+  4. HTMX partial templates remain partial-only and do not include standalone `<head>` or favicon tags.
+  5. Existing authentication flows, page rendering, HTMX swaps, static guide serving, and styling remain unchanged.
+  6. Source or rendered-page checks verify the favicon link is present on representative operator login, admin login, operator app, and admin app pages.
+**Plans:** 0/1 plans
+**UI hint:** no
+
+Plans:
+- [ ] 65-01-PLAN.md — Static asset placement, shared head metadata, page inheritance verification, and regression checks.
+
+---
 
 ### Phase 64: ACLog Bridge Manual Sync
 
@@ -999,3 +1029,4 @@ Plans:
 | 55. Admin Clear Operator Log | v2.8 | 2/2 | Complete    | 2026-05-07 |
 | 56. Documentation | v2.8 | 2/2 | Complete    | 2026-05-11 |
 | 64. ACLog Bridge Manual Sync | v3.3 | 1/1 | Complete | 2026-06-13 |
+| 65. Responsive Favicon Integration | v3.4 | 0/1 | Planned | — |

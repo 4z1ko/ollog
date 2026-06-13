@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: between
-milestone_name: Between milestones
-status: ready-for-next-milestone
-stopped_at: v3.3 archived; ready for next milestone
-last_updated: "2026-06-13T15:05:00Z"
+milestone: v3.4
+milestone_name: Responsive Favicon
+status: planning
+stopped_at: Phase 65 ready for discussion/planning
+last_updated: "2026-06-13T15:35:00Z"
 last_activity: 2026-06-13
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
@@ -18,21 +18,21 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-13 after completing v3.3 milestone)
+See: .planning/PROJECT.md (updated 2026-06-13 after starting v3.4 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Between milestones — v3.3 is archived and the project is ready for the next milestone.
+**Current focus:** v3.4 Responsive Favicon — add a single responsive favicon based on `favicon/favicon.ico` to every full-page operator and admin web page without changing functionality.
 
 ## Current Position
 
-Milestone: Between milestones
-Phase: Not started
+Milestone: v3.4 Responsive Favicon
+Phase: 65 — Responsive Favicon Integration
 Plan: —
-Status: Ready for next milestone
+Status: Defining requirements and roadmap
 Last activity: 2026-06-13
 
 ```
-Next milestone: [--------------------] 0% (0/0 phases, 0/0 plans)
+v3.4 Progress: [--------------------] 0% (0/1 phases, 0/1 plans)
 ```
 
 ## Performance Metrics
@@ -70,6 +70,7 @@ Next milestone: [--------------------] 0% (0/0 phases, 0/0 plans)
 | v3.1 | 59–62 | 4 |
 | v3.2 | 63 | 1 |
 | v3.3 | 64 | 1 |
+| v3.4 | 65 | 1 |
 
 ## Accumulated Context
 
@@ -119,6 +120,11 @@ Next milestone: [--------------------] 0% (0/0 phases, 0/0 plans)
 - Phase 64 executed: manual sync helper, saved-bridge Profile route, saved-row-only Sync button, compact HTMX report, docs, parser match normalization, and focused tests/build completed; verification passed with 25 passed and 5 Mongo-backed skips (2026-06-12)
 - Phase 64 UAT verified: 6/6 acceptance checkpoints passed with no gaps (2026-06-13)
 - v3.3 milestone archived: roadmap and requirements copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-13)
+- v3.4 milestone started: add one responsive favicon to all web pages using `favicon/favicon.ico`, with page/template research confirming shared base-template wiring as the main integration path (2026-06-13)
+
+### v3.4 Phase Structure
+
+- **Phase 65** — Responsive Favicon Integration: serve the favicon bundle from app-accessible static paths, add shared head metadata, and verify all operator/admin full pages inherit it while HTMX partials and app behavior remain unchanged. Planned 2026-06-13.
 
 ### v3.1 Phase Structure
 
@@ -187,7 +193,7 @@ Next milestone: [--------------------] 0% (0/0 phases, 0/0 plans)
 
 ### Pending Todos
 
-- Start the next milestone with `/gsd-new-milestone`.
+- Discuss or plan Phase 65 with `/gsd-discuss-phase 65` or `/gsd-plan-phase 65`.
 
 ### Ship Blockers
 
@@ -206,7 +212,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-13 (v3.3 milestone archived)
-Stopped at: Ready for next milestone; `gsd-sdk` is not on PATH, so state bookkeeping was applied manually
-Resume file: `.planning/MILESTONES.md`
-Next: run `/gsd-new-milestone`
+Last session: 2026-06-13 (v3.4 milestone started)
+Stopped at: Phase 65 ready for discussion/planning; `gsd-sdk` is not on PATH, so state bookkeeping was applied manually
+Resume file: `.planning/ROADMAP.md`
+Next: run `/gsd-discuss-phase 65` or `/gsd-plan-phase 65`
