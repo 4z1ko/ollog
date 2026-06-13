@@ -293,7 +293,7 @@ Full archive: `.planning/milestones/v3.3-ROADMAP.md`
 
 **Milestone Goal:** Add one responsive favicon to all ollog web pages using `favicon/favicon.ico` as the favicon basis, without changing app functionality.
 
-- [ ] Phase 65: Responsive Favicon Integration (1/1 plans) — UAT and security passed 2026-06-13; validation pending
+- [ ] Phase 65: Responsive Favicon Integration (1/1 plans) — validation partial 2026-06-13; MkDocs rebuild tooling pending
 
 </details>
 

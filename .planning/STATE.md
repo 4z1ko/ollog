@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.4
 milestone_name: Responsive Favicon
-status: security-complete
-stopped_at: Phase 65 security verified; validation pending
-last_updated: "2026-06-13T13:05:00Z"
+status: validation-partial
+stopped_at: Phase 65 validation partial; MkDocs rebuild tooling unavailable
+last_updated: "2026-06-13T13:15:00Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 1
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-13 after starting v3.4 milestone)
 Milestone: v3.4 Responsive Favicon
 Phase: 65 — Responsive Favicon Integration
 Plan: 65-01-PLAN.md
-Status: UAT and security passed; validation pending
+Status: Validation partial; MkDocs rebuild tooling unavailable
 Last activity: 2026-06-13
 
 ```
@@ -130,6 +130,7 @@ v3.4 Progress: [###################-] 95% (0/1 phases, 1/1 plans)
 - Phase 65 executed: favicon ICO source committed, app and guide static favicon locations populated, shared app head metadata added, MkDocs favicon config updated, generated guide favicon links updated, and focused source checks passed; `uv run mkdocs build --strict` is blocked in this shell because `uv` is not installed (2026-06-13)
 - Phase 65 UAT verified: 4/4 acceptance checkpoints passed with no gaps (2026-06-13)
 - Phase 65 security verified: 3/3 plan-time threats closed, `threats_open: 0`, no accepted risks (2026-06-13)
+- Phase 65 validation checked: all source/static/template/UAT/security checks passed, but `uv run mkdocs build --strict` remains blocked because `uv` is not installed and the local `.venv/bin/mkdocs` has a stale interpreter path (2026-06-13)
 
 ### v3.1 Phase Structure
 
@@ -198,7 +199,7 @@ v3.4 Progress: [###################-] 95% (0/1 phases, 1/1 plans)
 
 ### Pending Todos
 
-- Run `/gsd-validate-phase 65` before marking the phase complete.
+- Run `uv run mkdocs build --strict` in a working docs toolchain, then update Phase 65 validation to compliant before milestone audit.
 
 ### Ship Blockers
 
@@ -217,7 +218,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-13 (Phase 65 security complete)
-Stopped at: Phase 65 security verified; validation pending
-Resume file: `.planning/phases/65-responsive-favicon-integration/65-SECURITY.md`
-Next: run `/gsd-validate-phase 65`
+Last session: 2026-06-13 (Phase 65 validation partial)
+Stopped at: Phase 65 validation partial; MkDocs rebuild tooling unavailable
+Resume file: `.planning/phases/65-responsive-favicon-integration/65-VALIDATION.md`
+Next: rerun `uv run mkdocs build --strict` once docs tooling is available, then `/gsd-audit-milestone`
