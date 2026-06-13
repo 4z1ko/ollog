@@ -212,6 +212,12 @@ app.mount("/guide", StaticFiles(directory="site", html=True), name="guide")
 
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/favicon", StaticFiles(directory="favicon"), name="favicon")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon_ico():
+    return FileResponse(path="favicon/favicon.ico")
 
 
 # llms.txt endpoints — static content served from disk via FileResponse.
