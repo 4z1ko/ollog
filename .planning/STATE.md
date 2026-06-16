@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.4
-milestone_name: Responsive Favicon
-status: between-milestones
-stopped_at: v3.4 milestone archived; ready for next milestone
-last_updated: "2026-06-13T13:45:00Z"
-last_activity: 2026-06-13
+milestone: v3.5
+milestone_name: ACLog Registered Operator Routing
+status: planning
+stopped_at: v3.5 milestone started; Phase 66 context gathered and ready for planning
+last_updated: "2026-06-16T00:00:00Z"
+last_activity: 2026-06-16
 progress:
   total_phases: 1
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 1
-  completed_plans: 1
-  percent: 100
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-13 after completing v3.4 milestone)
+See: .planning/PROJECT.md (updated 2026-06-16 after starting v3.5 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Between milestones — ready to define v3.5.
+**Current focus:** v3.5 ACLog registered operator routing for shared remote ACLog computers.
 
 ## Current Position
 
-Milestone: v3.4 Responsive Favicon
-Phase: 65 — Responsive Favicon Integration
-Plan: 65-01-PLAN.md
-Status: Milestone archived; ready for next milestone
-Last activity: 2026-06-13
+Milestone: v3.5 ACLog Registered Operator Routing
+Phase: 66 — ACLog Operator Identity Routing
+Plan: pending
+Status: Context gathered; ready for `/gsd-plan-phase 66`
+Last activity: 2026-06-16
 
 ```
-v3.4 Progress: [####################] 100% (1/1 phases, 1/1 plans)
+v3.5 Progress: [--------------------] 0% (0/1 phases, 0/1 plans)
 ```
 
 ## Performance Metrics
@@ -71,6 +71,7 @@ v3.4 Progress: [####################] 100% (1/1 phases, 1/1 plans)
 | v3.2 | 63 | 1 |
 | v3.3 | 64 | 1 |
 | v3.4 | 65 | 1 |
+| v3.5 | 66 | 1 |
 
 ## Accumulated Context
 
@@ -133,6 +134,11 @@ v3.4 Progress: [####################] 100% (1/1 phases, 1/1 plans)
 - Phase 65 validation passed: all source/static/template/UAT/security checks passed, and `uv run mkdocs build --strict` passed with the expected docs output unchanged (2026-06-13)
 - v3.4 milestone audit passed: 7/7 requirements satisfied, 1/1 phases complete, no critical gaps; audit report written to `.planning/v3.4-MILESTONE-AUDIT.md` (2026-06-13)
 - v3.4 milestone archived: roadmap, requirements, and milestone audit copied to `.planning/milestones/`; active requirements removed for the next milestone cycle (2026-06-13)
+- v3.5 milestone started: make shared remote ACLog computers safe for multiple ollog operators by filtering live bridge and manual sync imports through ACLog record-level operator identity; missing or unmatched ACLog operator records will be skipped and reported per user confirmation (2026-06-16)
+
+### v3.5 Phase Structure
+
+- **Phase 66** — ACLog Operator Identity Routing: discover ACLog record-level operator identity fields, filter live bridge/manual sync imports to the matching ollog operator, skip/report missing or unmatched identities, preserve existing full-record and per-user collection behavior, and document shared remote ACLog setup. Context gathered 2026-06-16.
 
 ### v3.1 Phase Structure
 
