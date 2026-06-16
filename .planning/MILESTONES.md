@@ -1,5 +1,27 @@
 # Milestones
 
+## v3.5 ACLog Registered Operator Routing (Shipped: 2026-06-16)
+
+**Phases:** 66 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-16 → 2026-06-16 (1 day)
+**Requirements:** 9/9 satisfied | **UAT:** 6/7 passed, 1 optional external smoke skipped | **Audit:** PASS
+
+**Key accomplishments:**
+
+- Added ACLog record-level `OPERATOR` identity matching and made it the import gate for shared remote ACLog computers.
+- Updated manual ACLog sync to skip missing or unmatched operator records before custom-field mapping or QSO ingest.
+- Updated live ACLog bridge ingestion to skip unmatched full records and block identity-less `ENTEREVENT` fallback imports.
+- Added Profile Settings sync report counts for missing and unmatched ACLog operator records.
+- Documented shared remote ACLog behavior, recognized identity fields, and skipped-record troubleshooting.
+- Completed focused tests, UAT, security review, Nyquist validation, and milestone audit with no critical gaps.
+
+**Stats:** 18 files changed, +1281 / -70 lines across planning, code, docs, and tests; 6 commits in the v3.5 slice.
+
+**Known deferred items at close:** 0 critical gaps. Notes: optional real shared-ACLog smoke test requires external station setup; local `ruff` smoke remains unavailable because `ruff` is not installed in the active virtual environment.
+
+**Archive:** `.planning/milestones/v3.5-ROADMAP.md` | `.planning/milestones/v3.5-REQUIREMENTS.md` | `.planning/milestones/v3.5-MILESTONE-AUDIT.md`
+
+---
+
 ## v3.4 Responsive Favicon (Shipped: 2026-06-13)
 
 **Phases:** 65 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-13 → 2026-06-13 (1 day)

@@ -27,7 +27,7 @@
 - ✅ **v3.2 ACLog Full-Record Import** — Phase 63 (shipped 2026-06-09)
 - ✅ **v3.3 ACLog QSO Sync** — Phase 64 (shipped 2026-06-13)
 - ✅ **v3.4 Responsive Favicon** — Phase 65 (shipped 2026-06-13)
-- 🔄 **v3.5 ACLog Registered Operator Routing** — Phase 66 (audit passed; completion next)
+- ✅ **v3.5 ACLog Registered Operator Routing** — Phase 66 (shipped 2026-06-16)
 
 
 ## Phases
@@ -300,38 +300,18 @@ Full archive: `.planning/milestones/v3.4-ROADMAP.md`
 
 </details>
 
-<details open>
-<summary>🔄 v3.5 ACLog Registered Operator Routing (Phase 66) — AUDIT PASSED</summary>
+<details>
+<summary>✅ v3.5 ACLog Registered Operator Routing (Phase 66) — SHIPPED 2026-06-16</summary>
 
 **Milestone Goal:** When multiple ollog operators point ACLog bridges at the same remote ACLog computer, ollog imports only QSOs whose ACLog record-level operator identity matches the ollog operator, and skips/reports records with missing or unmatched operator identity.
 
-- [x] Phase 66: ACLog Operator Identity Routing (1/1 plans) — audit passed 2026-06-16
+- [x] Phase 66: ACLog Operator Identity Routing (1/1 plans) — completed 2026-06-16
+
+Full archive: `.planning/milestones/v3.5-ROADMAP.md`
 
 </details>
 
 ## Phase Details
-
-### Phase 66: ACLog Operator Identity Routing
-
-**Goal:** Filter live ACLog bridge imports and manual ACLog sync records by ACLog record-level operator identity so two ollog operators can safely share one remote ACLog API endpoint.
-**Depends on:** Phase 63 (ACLog full-record parsing), Phase 64 (manual ACLog sync), Phase 61/62 (per-user QSO collection routing), Phase 57 (rowHash duplicate behavior)
-**Requirements:** ACOP-01, ACOP-02, ACOP-03, ACOP-04, ACOP-05, ACOP-06, ACOP-07, ACOP-08, ACOP-09
-**Success Criteria** (what must be TRUE):
-  1. ollog extracts a normalized ACLog operator identity from verified full-record fields such as `OPERATOR` or other discovered record-level identity tags.
-  2. Manual sync imports only records whose ACLog identity matches the authenticated ollog operator and skips missing/unmatched identities.
-  3. Live ACLog bridge ingestion imports only records whose ACLog identity matches the bridge-owning ollog operator and skips missing/unmatched identities.
-  4. Skipped missing/unmatched operator records are counted and reported without being inserted into any per-user QSO collection.
-  5. Two operators configured against the same ACLog host/port can sync or bridge without cross-importing each other's QSOs.
-  6. Matching records keep existing full-record field preservation, Other/custom-field mapping, duplicate detection, rowHash handling, and `<username>_qsos` collection routing.
-  7. Focused tests cover identity extraction, sync filtering, live bridge filtering, skip reports, and shared-remote two-operator behavior.
-  8. Operator documentation explains the shared ACLog remote setup and skip behavior for missing/unmatched operator identity.
-**Plans:** 1/1 plan
-**UI hint:** yes
-
-Plans:
-- [x] 66-01-PLAN.md — ACLog operator identity extraction, sync/live filtering, reports, tests, and docs.
-
----
 
 ### Phase 65: Responsive Favicon Integration
 

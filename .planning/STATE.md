@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.5
-milestone_name: ACLog Registered Operator Routing
-status: audited
-stopped_at: v3.5 milestone audit passed; ready for /gsd-complete-milestone v3.5
+milestone: none
+milestone_name: Between milestones
+status: between_milestones
+stopped_at: v3.5 milestone archived; ready for /gsd-new-milestone
 last_updated: "2026-06-16T00:00:00Z"
 last_activity: 2026-06-16
 progress:
@@ -18,21 +18,21 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-16 after v3.5 milestone audit)
+See: .planning/PROJECT.md (updated 2026-06-16 after completing v3.5 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.5 ACLog registered operator routing for shared remote ACLog computers.
+**Current focus:** Between milestones; ready to define the next milestone.
 
 ## Current Position
 
-Milestone: v3.5 ACLog Registered Operator Routing
-Phase: 66 — ACLog Operator Identity Routing
-Plan: 66-01-PLAN.md
-Status: Milestone audit passed; ready for `/gsd-complete-milestone v3.5`
+Milestone: none
+Phase: none
+Plan: none
+Status: v3.5 archived; ready for `/gsd-new-milestone`
 Last activity: 2026-06-16
 
 ```
-v3.5 Progress: [████████████████████] 100% (1/1 phases, 1/1 plans)
+v3.5 Progress: [████████████████████] 100% (1/1 phases, 1/1 plans) — shipped
 ```
 
 ## Performance Metrics
@@ -141,10 +141,11 @@ v3.5 Progress: [████████████████████] 10
 - Phase 66 security verified: 5/5 plan-time threats closed, `threats_open: 0`, no accepted risks; `66-SECURITY.md` records evidence for ACLog cross-import prevention, missing-identity fallback blocking, station-callsign safety, report minimization, and matching-record regression coverage (2026-06-16)
 - Phase 66 validation passed: ACOP-01 through ACOP-09 have deterministic automated/source evidence, plan-time threats remain closed, and `66-VALIDATION.md` records Nyquist-compliant coverage with the real shared-ACLog smoke test documented as optional external-environment confidence testing (2026-06-16)
 - v3.5 milestone audit passed: 9/9 requirements satisfied, Phase 66 complete, integration and E2E flows verified, no critical gaps, and `.planning/v3.5-MILESTONE-AUDIT.md` created (2026-06-16)
+- v3.5 milestone archived: roadmap, requirements, and milestone audit copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, `MILESTONES.md` updated, and PROJECT.md moved to between-milestones state (2026-06-16)
 
 ### v3.5 Phase Structure
 
-- **Phase 66** — ACLog Operator Identity Routing: discover ACLog record-level operator identity fields, filter live bridge/manual sync imports to the matching ollog operator, skip/report missing or unmatched identities, preserve existing full-record and per-user collection behavior, and document shared remote ACLog setup. Milestone audit passed 2026-06-16; milestone completion next.
+- **Phase 66** — ACLog Operator Identity Routing: discover ACLog record-level operator identity fields, filter live bridge/manual sync imports to the matching ollog operator, skip/report missing or unmatched identities, preserve existing full-record and per-user collection behavior, and document shared remote ACLog setup. Completed and archived 2026-06-16.
 
 ### v3.1 Phase Structure
 
@@ -219,7 +220,7 @@ v3.5 Progress: [████████████████████] 10
 
 - `gh` CLI is not installed, so `$gsd-ship` cannot create a PR from this environment.
 - `gsd-sdk` is not on PATH, so the formal automated ship workflow could not be executed end-to-end.
-- Full-suite pytest remains noisy from unrelated legacy Mongo fixture URI issues and existing non-phase failures; Phase 57 focused validation is passing.
+- Full-suite pytest has historically been noisy from unrelated legacy Mongo fixture URI issues and older non-phase failures; recent milestone work uses focused verification plus UAT/security/validation gates.
 
 ## Deferred Items
 
@@ -232,7 +233,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-16 (v3.5 Phase 66 security complete)
-Stopped at: Phase 66 security review complete; ready for `/gsd-validate-phase 66`
-Resume file: `.planning/phases/66-aclog-operator-identity-routing/66-SECURITY.md`
-Next: run `/gsd-validate-phase 66`
+Last session: 2026-06-16 (v3.5 milestone archived)
+Stopped at: v3.5 ACLog Registered Operator Routing shipped and archived.
+Resume file: `.planning/milestones/v3.5-ROADMAP.md`
+Next: run `/gsd-new-milestone`
