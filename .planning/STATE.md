@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v3.5
 milestone_name: ACLog Registered Operator Routing
-status: validated
-stopped_at: Phase 66 validation complete; ready for /gsd-audit-milestone
+status: audited
+stopped_at: v3.5 milestone audit passed; ready for /gsd-complete-milestone v3.5
 last_updated: "2026-06-16T00:00:00Z"
 last_activity: 2026-06-16
 progress:
@@ -18,7 +18,7 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-16 after starting v3.5 milestone)
+See: .planning/PROJECT.md (updated 2026-06-16 after v3.5 milestone audit)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
 **Current focus:** v3.5 ACLog registered operator routing for shared remote ACLog computers.
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-16 after starting v3.5 milestone)
 Milestone: v3.5 ACLog Registered Operator Routing
 Phase: 66 — ACLog Operator Identity Routing
 Plan: 66-01-PLAN.md
-Status: Validation complete; ready for `/gsd-audit-milestone`
+Status: Milestone audit passed; ready for `/gsd-complete-milestone v3.5`
 Last activity: 2026-06-16
 
 ```
@@ -140,10 +140,11 @@ v3.5 Progress: [████████████████████] 10
 - Phase 66 UAT verified: 6/7 checks passed, 0 issues, 1 live-ACLog smoke test skipped with reason because no real shared ACLog host is available in this environment; security review is next (2026-06-16)
 - Phase 66 security verified: 5/5 plan-time threats closed, `threats_open: 0`, no accepted risks; `66-SECURITY.md` records evidence for ACLog cross-import prevention, missing-identity fallback blocking, station-callsign safety, report minimization, and matching-record regression coverage (2026-06-16)
 - Phase 66 validation passed: ACOP-01 through ACOP-09 have deterministic automated/source evidence, plan-time threats remain closed, and `66-VALIDATION.md` records Nyquist-compliant coverage with the real shared-ACLog smoke test documented as optional external-environment confidence testing (2026-06-16)
+- v3.5 milestone audit passed: 9/9 requirements satisfied, Phase 66 complete, integration and E2E flows verified, no critical gaps, and `.planning/v3.5-MILESTONE-AUDIT.md` created (2026-06-16)
 
 ### v3.5 Phase Structure
 
-- **Phase 66** — ACLog Operator Identity Routing: discover ACLog record-level operator identity fields, filter live bridge/manual sync imports to the matching ollog operator, skip/report missing or unmatched identities, preserve existing full-record and per-user collection behavior, and document shared remote ACLog setup. Validation complete 2026-06-16; milestone audit next.
+- **Phase 66** — ACLog Operator Identity Routing: discover ACLog record-level operator identity fields, filter live bridge/manual sync imports to the matching ollog operator, skip/report missing or unmatched identities, preserve existing full-record and per-user collection behavior, and document shared remote ACLog setup. Milestone audit passed 2026-06-16; milestone completion next.
 
 ### v3.1 Phase Structure
 

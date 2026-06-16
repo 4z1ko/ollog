@@ -11,7 +11,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 ## Current State
 
 **Shipped through:** v3.4 Responsive Favicon (2026-06-13)
-**Current milestone:** v3.5 ACLog Registered Operator Routing (started 2026-06-16)
+**Current milestone:** v3.5 ACLog Registered Operator Routing (audit passed 2026-06-16; ready to archive)
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
