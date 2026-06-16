@@ -305,7 +305,7 @@ Full archive: `.planning/milestones/v3.4-ROADMAP.md`
 
 **Milestone Goal:** When multiple ollog operators point ACLog bridges at the same remote ACLog computer, ollog imports only QSOs whose ACLog record-level operator identity matches the ollog operator, and skips/reports records with missing or unmatched operator identity.
 
-- [ ] Phase 66: ACLog Operator Identity Routing (0/1 plans) — context gathered 2026-06-16
+- [ ] Phase 66: ACLog Operator Identity Routing (1/1 plans) — implementation complete 2026-06-16; verification next
 
 </details>
 
@@ -325,11 +325,11 @@ Full archive: `.planning/milestones/v3.4-ROADMAP.md`
   6. Matching records keep existing full-record field preservation, Other/custom-field mapping, duplicate detection, rowHash handling, and `<username>_qsos` collection routing.
   7. Focused tests cover identity extraction, sync filtering, live bridge filtering, skip reports, and shared-remote two-operator behavior.
   8. Operator documentation explains the shared ACLog remote setup and skip behavior for missing/unmatched operator identity.
-**Plans:** 0/1 plans
+**Plans:** 1/1 plan
 **UI hint:** yes
 
 Plans:
-- [ ] 66-01-PLAN.md — ACLog operator identity extraction, sync/live filtering, reports, tests, and docs.
+- [x] 66-01-PLAN.md — ACLog operator identity extraction, sync/live filtering, reports, tests, and docs.
 
 ---
 
