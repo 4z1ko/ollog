@@ -27,7 +27,7 @@
 - ✅ **v3.2 ACLog Full-Record Import** — Phase 63 (shipped 2026-06-09)
 - ✅ **v3.3 ACLog QSO Sync** — Phase 64 (shipped 2026-06-13)
 - ✅ **v3.4 Responsive Favicon** — Phase 65 (shipped 2026-06-13)
-- 🔄 **v3.5 ACLog Registered Operator Routing** — Phase 66 (active)
+- 🔄 **v3.5 ACLog Registered Operator Routing** — Phase 66 (validated; milestone audit next)
 
 
 ## Phases
@@ -301,11 +301,11 @@ Full archive: `.planning/milestones/v3.4-ROADMAP.md`
 </details>
 
 <details open>
-<summary>🔄 v3.5 ACLog Registered Operator Routing (Phase 66) — ACTIVE</summary>
+<summary>🔄 v3.5 ACLog Registered Operator Routing (Phase 66) — VALIDATED</summary>
 
 **Milestone Goal:** When multiple ollog operators point ACLog bridges at the same remote ACLog computer, ollog imports only QSOs whose ACLog record-level operator identity matches the ollog operator, and skips/reports records with missing or unmatched operator identity.
 
-- [ ] Phase 66: ACLog Operator Identity Routing (1/1 plans) — implementation complete 2026-06-16; verification next
+- [x] Phase 66: ACLog Operator Identity Routing (1/1 plans) — validated 2026-06-16
 
 </details>
 

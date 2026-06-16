@@ -7,15 +7,15 @@
 
 ### ACLog Operator Identity Routing
 
-- [ ] **ACOP-01**: ollog can identify an ACLog record's operator identity from full-record API data, using the safest available ACLog field names discovered from real `LIST INCLUDEALL` responses.
-- [ ] **ACOP-02**: Manual ACLog sync imports only remote QSOs whose ACLog operator identity matches the authenticated ollog operator's callsign/profile identity.
-- [ ] **ACOP-03**: Live ACLog bridge ingestion imports only saved ACLog QSOs whose ACLog operator identity matches the ollog operator who owns the bridge.
-- [ ] **ACOP-04**: ACLog records with missing, blank, or unmatched operator identity are skipped and counted/reported instead of being imported into the bridge owner's collection.
-- [ ] **ACOP-05**: Two ollog operators can point saved ACLog bridges at the same remote ACLog computer without importing each other's QSOs.
-- [ ] **ACOP-06**: Existing full-record import behavior remains intact for all matching records, including non-empty returned fields, Other/custom-field mapping, duplicate handling, rowHash behavior, and per-user `<username>_qsos` collection routing.
-- [ ] **ACOP-07**: Profile Settings sync reports include operator-filter results, including matched/imported records, skipped missing-operator records, skipped unmatched-operator records, duplicates/already-present records, and errors.
-- [ ] **ACOP-08**: Tests cover parser/operator-field detection, manual sync filtering, live bridge filtering, skip/report behavior, and the shared-remote two-operator scenario.
-- [ ] **ACOP-09**: Operator documentation explains how shared ACLog remote computers are handled, which ACLog operator identity fields ollog recognizes, and why records without a matching identity are skipped.
+- [x] **ACOP-01**: ollog can identify an ACLog record's operator identity from full-record API data, using the safest available ACLog field names discovered from real `LIST INCLUDEALL` responses.
+- [x] **ACOP-02**: Manual ACLog sync imports only remote QSOs whose ACLog operator identity matches the authenticated ollog operator's callsign/profile identity.
+- [x] **ACOP-03**: Live ACLog bridge ingestion imports only saved ACLog QSOs whose ACLog operator identity matches the ollog operator who owns the bridge.
+- [x] **ACOP-04**: ACLog records with missing, blank, or unmatched operator identity are skipped and counted/reported instead of being imported into the bridge owner's collection.
+- [x] **ACOP-05**: Two ollog operators can point saved ACLog bridges at the same remote ACLog computer without importing each other's QSOs.
+- [x] **ACOP-06**: Existing full-record import behavior remains intact for all matching records, including non-empty returned fields, Other/custom-field mapping, duplicate handling, rowHash behavior, and per-user `<username>_qsos` collection routing.
+- [x] **ACOP-07**: Profile Settings sync reports include operator-filter results, including matched/imported records, skipped missing-operator records, skipped unmatched-operator records, duplicates/already-present records, and errors.
+- [x] **ACOP-08**: Tests cover parser/operator-field detection, manual sync filtering, live bridge filtering, skip/report behavior, and the shared-remote two-operator scenario.
+- [x] **ACOP-09**: Operator documentation explains how shared ACLog remote computers are handled, which ACLog operator identity fields ollog recognizes, and why records without a matching identity are skipped.
 
 ## Research Findings
 
@@ -47,15 +47,15 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACOP-01 | Phase 66 | Planned |
-| ACOP-02 | Phase 66 | Planned |
-| ACOP-03 | Phase 66 | Planned |
-| ACOP-04 | Phase 66 | Planned |
-| ACOP-05 | Phase 66 | Planned |
-| ACOP-06 | Phase 66 | Planned |
-| ACOP-07 | Phase 66 | Planned |
-| ACOP-08 | Phase 66 | Planned |
-| ACOP-09 | Phase 66 | Planned |
+| ACOP-01 | Phase 66 | Validated |
+| ACOP-02 | Phase 66 | Validated |
+| ACOP-03 | Phase 66 | Validated |
+| ACOP-04 | Phase 66 | Validated |
+| ACOP-05 | Phase 66 | Validated |
+| ACOP-06 | Phase 66 | Validated |
+| ACOP-07 | Phase 66 | Validated |
+| ACOP-08 | Phase 66 | Validated |
+| ACOP-09 | Phase 66 | Validated |
 
 **Coverage:**
 - v3.5 requirements: 9 total
@@ -64,4 +64,4 @@
 
 ---
 *Requirements defined: 2026-06-16*
-*Last updated: 2026-06-16 at v3.5 milestone start*
+*Last updated: 2026-06-16 after Phase 66 validation*
