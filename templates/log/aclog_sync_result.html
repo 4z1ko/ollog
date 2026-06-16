@@ -10,6 +10,8 @@
     Remote records received: {{ report.received }} |
     Missing QSOs imported: {{ report.imported }} |
     Already present: {{ report.skipped }} |
+    Missing operator: {{ report.skipped_missing_operator }} |
+    Unmatched operator: {{ report.skipped_unmatched_operator }} |
     Errors: {{ report.errors }}
   </div>
   {% if report.examples %}

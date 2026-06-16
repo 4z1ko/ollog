@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.aclog.identity import match_aclog_operator_identity
 from app.aclog.parser import aclog_full_records_from_message, iter_cmd_messages
 from app.auth.models import ACLogBridge, User
 from app.qso.collections import get_user_qso_collection
@@ -24,6 +25,8 @@ class ACLogSyncReport:
     received: int = 0
     imported: int = 0
     skipped: int = 0
+    skipped_missing_operator: int = 0
+    skipped_unmatched_operator: int = 0
     errors: int = 0
     examples: list[dict[str, str]] = field(default_factory=list)
     failure_reason: str | None = None
@@ -80,6 +83,26 @@ async def sync_aclog_bridge(
     from app.aclog.client import _map_other_slots_to_custom_fields
 
     for index, record in enumerate(records):
+        identity = match_aclog_operator_identity(record, user)
+        if identity.disposition == "missing":
+            report.skipped_missing_operator += 1
+            _append_example(
+                report,
+                index,
+                record,
+                "missing ACLog operator identity",
+            )
+            continue
+        if identity.disposition == "unmatched":
+            report.skipped_unmatched_operator += 1
+            _append_example(
+                report,
+                index,
+                record,
+                f"unmatched ACLog {identity.field}: {identity.value}",
+            )
+            continue
+
         mapped = _map_other_slots_to_custom_fields(record, user)
         try:
             result = await ingest_qso_record(

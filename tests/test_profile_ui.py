@@ -297,6 +297,8 @@ async def test_profile_aclog_sync_saved_bridge_renders_report(
             received=3,
             imported=1,
             skipped=2,
+            skipped_missing_operator=1,
+            skipped_unmatched_operator=1,
             errors=0,
         )
 
@@ -311,4 +313,6 @@ async def test_profile_aclog_sync_saved_bridge_renders_report(
     assert "ACLog sync complete" in resp.text
     assert "Missing QSOs imported: 1" in resp.text
     assert "Already present: 2" in resp.text
+    assert "Missing operator: 1" in resp.text
+    assert "Unmatched operator: 1" in resp.text
     assert captured["bridge"].id == "bridge-1"

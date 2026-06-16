@@ -9,6 +9,7 @@ from typing import Protocol
 
 from beanie import PydanticObjectId
 
+from app.aclog.identity import match_aclog_operator_identity
 from app.aclog.parser import (
     aclog_enterevent_to_adif,
     aclog_full_record_to_adif,
@@ -74,7 +75,12 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
                     raw = await reader.readline()
                     if not raw:
                         if pending is not None:
-                            await _ingest_aclog_record(config, pending.record)
+                            _log_aclog_skip(
+                                config,
+                                pending.record,
+                                "missing",
+                                "ACLog disconnected before full record identity was available",
+                            )
                             pending = None
                         logger.warning("ACLog bridge disconnected: %s", config.label)
                         break
@@ -124,7 +130,12 @@ async def _handle_message(
 
     if command == "ENTEREVENT":
         if pending is not None:
-            await _ingest_aclog_record(config, pending.record)
+            _log_aclog_skip(
+                config,
+                pending.record,
+                "missing",
+                "new ACLog event arrived before previous full record identity was available",
+            )
 
         record = aclog_enterevent_to_adif(fields, state=state)
         if writer is None:
@@ -153,7 +164,12 @@ async def _handle_message(
         None,
     )
     if full_record is None:
-        await _ingest_aclog_record(config, pending.record)
+        _log_aclog_skip(
+            config,
+            pending.record,
+            "missing",
+            "no matching full ACLog record with operator identity",
+        )
         return None
 
     record = merge_aclog_records(pending.record, full=full_record, state=state)
@@ -180,6 +196,16 @@ async def _ingest_aclog_record(
         logger.warning("ACLog bridge %s skipped QSO: user unavailable", config.label)
         return
 
+    identity = match_aclog_operator_identity(record, user)
+    if not identity.matched:
+        detail = (
+            "missing ACLog operator identity"
+            if identity.disposition == "missing"
+            else f"expected={identity.expected} {identity.field}={identity.value}"
+        )
+        _log_aclog_skip(config, record, identity.disposition, detail)
+        return
+
     record = _map_other_slots_to_custom_fields(record, user)
     from app.qso.collections import get_user_qso_collection
 
@@ -195,6 +221,21 @@ async def _ingest_aclog_record(
         config.label,
         record.get("CALL", "?"),
         result["status"],
+    )
+
+
+def _log_aclog_skip(
+    config: ACLogBridgeRuntimeConfig,
+    record: dict[str, str],
+    disposition: str,
+    detail: str,
+) -> None:
+    logger.info(
+        "ACLog bridge %s call=%s skipped=%s reason=%s",
+        config.label,
+        record.get("CALL", "?"),
+        disposition,
+        detail,
     )
 
 

@@ -10,8 +10,11 @@ When ACLog saves a contact, its API emits an `ENTEREVENT` message. ollog keeps a
 background TCP connection open to each enabled bridge, then asks ACLog for the
 latest full record with `LIST INCLUDEALL`. If the full-record response matches
 the saved event, ollog imports the enriched record for the operator who
-configured the bridge. If ACLog does not return a matching full record, ollog
-falls back to the original `ENTEREVENT` data.
+configured the bridge. ollog only imports the record when the full ACLog record
+contains a matching record-level operator identity. If ACLog does not return a
+matching full record, or if the full record is missing or has a different
+operator identity, ollog skips the event instead of falling back to the original
+`ENTEREVENT` data.
 
 Imported ACLog QSOs use the same QSO rules as other live ingestion paths:
 
@@ -22,6 +25,8 @@ Imported ACLog QSOs use the same QSO rules as other live ingestion paths:
 - ACLog Other fields are mapped to the operator's configured Custom QSO Fields
   when configured; otherwise they remain preserved as `OTHER_1` through
   `OTHER_8`.
+- The ACLog record-level `OPERATOR` field must match the ollog operator callsign
+  for shared-remote imports.
 - Duplicate detection uses the same per-operator ±2 minute window.
 - Profile stamping still applies, including `OPERATOR`, `STATION_CALLSIGN`,
   `MY_GRIDSQUARE`, `MY_RIG`, `MY_ANTENNA`, and `TX_PWR` when those profile fields
@@ -59,18 +64,37 @@ address as the bridge host.
 You can add more than one bridge. This is useful when the same operator logs from
 multiple ACLog installations, such as a shack PC and a laptop.
 
+## Shared ACLog Computers
+
+Multiple ollog operators can point saved bridges at the same remote ACLog
+computer. To keep those operators isolated, ollog treats ACLog's record-level
+`OPERATOR` field as the import gate:
+
+- If `OPERATOR` matches your ollog callsign, the QSO can be imported normally.
+- If `OPERATOR` is missing or blank, the QSO is skipped and counted.
+- If `OPERATOR` belongs to a different callsign, the QSO is skipped and counted.
+- Station callsign-style fields are not used as a substitute for operator
+  identity, because a shared station callsign can be valid for more than one
+  operator.
+
+Before sharing one ACLog API endpoint between operators, confirm that the saved
+ACLog records include an `OPERATOR` value for each contact. N3FJP documents that
+`LIST INCLUDEALL` returns populated record fields, but field availability can
+depend on how the ACLog database and records are configured.
+
 ## Manual Sync
 
 Saved bridge rows also show a **Sync** button. Pressing Sync asks that ACLog API
 location for all logged records with `<CMD><LIST><INCLUDEALL></CMD>`, then
 imports only QSOs that are missing from the signed-in operator's ollog
-collection.
+collection and whose ACLog `OPERATOR` identity matches the signed-in operator.
 
 Manual sync is additive only. It does not update, merge, or delete existing local
 QSOs. If you run Sync again against the same ACLog database, records already in
 ollog are reported as already present instead of being inserted a second time.
 The result appears inline on the Profile page with counts for missing QSOs
-imported, already-present records, and any errors.
+imported, already-present records, missing-operator skips, unmatched-operator
+skips, and any errors.
 
 The sync report includes:
 
@@ -79,6 +103,8 @@ The sync report includes:
 | Remote records received | Number of QSO records returned by ACLog |
 | Missing QSOs imported | Records inserted into your ollog collection |
 | Already present | Records skipped because ollog already had them |
+| Missing operator | Records skipped because ACLog did not return a record-level operator identity |
+| Unmatched operator | Records skipped because ACLog returned a different operator identity |
 | Errors | Records rejected because required fields were missing or invalid |
 
 If ACLog is offline, the host/port is wrong, or the API does not respond before
@@ -114,7 +140,9 @@ If QSOs do not appear:
    `ACLog bridge ... disposition=` messages.
 5. Confirm the contact saved in ACLog includes `CALL`, `BAND`, `MODE`,
    `QSO_DATE`, and `TIME_ON`.
-6. If frequency, RST, or Other field values are missing, confirm ACLog is sending
+6. Confirm the contact saved in ACLog includes `OPERATOR` matching your ollog
+   callsign. Missing or unmatched operator values are skipped by design.
+7. If frequency, RST, or Other field values are missing, confirm ACLog is sending
    full-record responses for `LIST INCLUDEALL` or field update notifications.
    Restarting the bridge connection usually refreshes this state.
 

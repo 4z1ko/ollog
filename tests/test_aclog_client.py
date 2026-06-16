@@ -84,11 +84,11 @@ async def test_manual_sync_counts_imported_duplicates_and_errors(monkeypatch):
     payload = (
         "<CMD><LIST>"
         "<RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
-        "<DATE>20240601</DATE><TIMEON>123000</TIMEON></RECORD>"
+        "<DATE>20240601</DATE><TIMEON>123000</TIMEON><OPERATOR>W1AW</OPERATOR></RECORD>"
         "<RECORD><CALL>K1DEF</CALL><BAND>40</BAND><MODE>CW</MODE>"
-        "<DATE>20240601</DATE><TIMEON>124000</TIMEON></RECORD>"
+        "<DATE>20240601</DATE><TIMEON>124000</TIMEON><OPERATOR>W1AW</OPERATOR></RECORD>"
         "<RECORD><CALL>K1BAD</CALL><BAND>15</BAND><DATE>20240601</DATE>"
-        "<TIMEON>125000</TIMEON></RECORD>"
+        "<TIMEON>125000</TIMEON><OPERATOR>W1AW</OPERATOR></RECORD>"
         "</LIST></CMD>"
     ).encode()
     statuses = iter(
@@ -117,6 +117,61 @@ async def test_manual_sync_counts_imported_duplicates_and_errors(monkeypatch):
     assert report.errors == 1
     assert report.examples == [
         {"index": "3", "call": "K1BAD", "reason": "missing required field: MODE"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkeypatch):
+    writer = FakeWriter()
+    payload = (
+        "<CMD><LIST>"
+        "<RECORD><CALL>K1OK</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+        "<DATE>20240601</DATE><TIMEON>123000</TIMEON><OPERATOR>W1AW</OPERATOR></RECORD>"
+        "<RECORD><CALL>K1DUP</CALL><BAND>40</BAND><MODE>CW</MODE>"
+        "<DATE>20240601</DATE><TIMEON>124000</TIMEON><OPERATOR>W1AW</OPERATOR></RECORD>"
+        "<RECORD><CALL>K1MISS</CALL><BAND>15</BAND><MODE>FT8</MODE>"
+        "<DATE>20240601</DATE><TIMEON>125000</TIMEON></RECORD>"
+        "<RECORD><CALL>K1OTHER</CALL><BAND>10</BAND><MODE>SSB</MODE>"
+        "<DATE>20240601</DATE><TIMEON>130000</TIMEON><OPERATOR>K1ABC</OPERATOR></RECORD>"
+        "</LIST></CMD>"
+    ).encode()
+    statuses = iter([
+        {"status": "accepted", "id": "qso-1"},
+        {"status": "duplicate", "existing_id": "qso-2"},
+    ])
+    ingested: list[dict[str, str]] = []
+
+    async def fake_open_connection(host, port):
+        return FakeReader(payload), writer
+
+    async def fake_ingest_qso_record(**kwargs):
+        ingested.append(kwargs["record"])
+        return next(statuses)
+
+    monkeypatch.setattr("app.aclog.sync.asyncio.open_connection", fake_open_connection)
+    monkeypatch.setattr("app.aclog.sync.get_user_qso_collection", lambda user: object())
+    monkeypatch.setattr("app.aclog.sync.ingest_qso_record", fake_ingest_qso_record)
+
+    report = await sync_aclog_bridge(_user(), _bridge())
+
+    assert report.received == 4
+    assert report.imported == 1
+    assert report.skipped == 1
+    assert report.skipped_missing_operator == 1
+    assert report.skipped_unmatched_operator == 1
+    assert report.errors == 0
+    assert [record["CALL"] for record in ingested] == ["K1OK", "K1DUP"]
+    assert report.examples == [
+        {
+            "index": "3",
+            "call": "K1MISS",
+            "reason": "missing ACLog operator identity",
+        },
+        {
+            "index": "4",
+            "call": "K1OTHER",
+            "reason": "unmatched ACLog OPERATOR: K1ABC",
+        },
     ]
 
 
@@ -196,6 +251,7 @@ async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
             "<DATE>20240531</DATE><TIMEON>235900</TIMEON></RECORD>"
             "<RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
             "<DATE>2024-06-01</DATE><TIMEON>12:30</TIMEON>"
+            "<OPERATOR>W1AW</OPERATOR>"
             "<FREQUENCY>14.255</FREQUENCY><POTA_REF>K-1234</POTA_REF>"
             "<OTHER_1>Summit</OTHER_1></RECORD></LIST></CMD>"
         ),
@@ -211,6 +267,7 @@ async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
             "MODE": "SSB",
             "QSO_DATE": "20240601",
             "TIME_ON": "123000",
+            "OPERATOR": "W1AW",
             "FREQ": "14.255",
             "POTA_REF": "K-1234",
             "OTHER_1": "Summit",
@@ -220,7 +277,7 @@ async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_handle_full_record_mismatch_falls_back_to_enterevent(monkeypatch):
+async def test_handle_full_record_mismatch_skips_enterevent_fallback(monkeypatch):
     ingested: list[dict[str, str]] = []
 
     async def fake_ingest(config, record):
@@ -251,12 +308,89 @@ async def test_handle_full_record_mismatch_falls_back_to_enterevent(monkeypatch)
     )
 
     assert pending is None
-    assert ingested == [
-        {
-            "CALL": "K1ABC",
-            "BAND": "20M",
-            "MODE": "SSB",
-            "QSO_DATE": "20240601",
-            "TIME_ON": "123000",
-        }
-    ]
+    assert ingested == []
+
+
+@pytest.mark.asyncio
+async def test_live_bridge_ingests_only_matching_full_record_identity(monkeypatch):
+    ingested: list[dict[str, str]] = []
+
+    async def fake_user_get(user_id):
+        return _user()
+
+    async def fake_ingest_qso_record(**kwargs):
+        ingested.append(kwargs["record"])
+        return {"status": "accepted", "id": "qso-1"}
+
+    monkeypatch.setattr("app.aclog.client.User.get", fake_user_get)
+    monkeypatch.setattr("app.aclog.client.ingest_qso_record", fake_ingest_qso_record)
+    monkeypatch.setattr("app.qso.collections.get_user_qso_collection", lambda user: object())
+    monkeypatch.setattr("app.aclog.client.ACLOG_FULL_RECORD_DELAY_SECONDS", 0)
+    config = _config()
+
+    pending = await _handle_message(
+        config,
+        (
+            "<CMD><ENTEREVENT><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+            "<QSO_DATE>20240601</QSO_DATE><TIME_ON>123000</TIME_ON></ENTEREVENT></CMD>"
+        ),
+        {},
+        writer=FakeWriter(),
+    )
+
+    pending = await _handle_message(
+        config,
+        (
+            "<CMD><LIST><RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+            "<DATE>20240601</DATE><TIMEON>123000</TIMEON><OPERATOR>W1AW</OPERATOR>"
+            "<POTA_REF>K-1234</POTA_REF></RECORD></LIST></CMD>"
+        ),
+        {},
+        pending=pending,
+    )
+
+    assert pending is None
+    assert [record["CALL"] for record in ingested] == ["K1ABC"]
+    assert ingested[0]["OPERATOR"] == "W1AW"
+
+
+@pytest.mark.asyncio
+async def test_live_bridge_skips_unmatched_full_record_identity(monkeypatch):
+    ingested: list[dict[str, str]] = []
+
+    async def fake_user_get(user_id):
+        return _user()
+
+    async def fake_ingest_qso_record(**kwargs):
+        ingested.append(kwargs["record"])
+        return {"status": "accepted", "id": "qso-1"}
+
+    monkeypatch.setattr("app.aclog.client.User.get", fake_user_get)
+    monkeypatch.setattr("app.aclog.client.ingest_qso_record", fake_ingest_qso_record)
+    monkeypatch.setattr("app.qso.collections.get_user_qso_collection", lambda user: object())
+    monkeypatch.setattr("app.aclog.client.ACLOG_FULL_RECORD_DELAY_SECONDS", 0)
+    config = _config()
+
+    pending = await _handle_message(
+        config,
+        (
+            "<CMD><ENTEREVENT><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+            "<QSO_DATE>20240601</QSO_DATE><TIME_ON>123000</TIME_ON></ENTEREVENT></CMD>"
+        ),
+        {},
+        writer=FakeWriter(),
+    )
+
+    pending = await _handle_message(
+        config,
+        (
+            "<CMD><LIST><RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+            "<DATE>20240601</DATE><TIMEON>123000</TIMEON><OPERATOR>K1ABC</OPERATOR>"
+            "<POTA_REF>K-1234</POTA_REF></RECORD></LIST></CMD>"
+        ),
+        {},
+        pending=pending,
+    )
+
+    assert pending is None
+    assert ingested == []
