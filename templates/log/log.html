@@ -54,12 +54,30 @@
   <!-- Filter bar -->
   <div class="card">
     <div class="card-header">
-      <h2 class="card-title">Filters</h2>
-      {% if filters.call or filters.band or filters.mode or filters.date_from or filters.date_to %}
-      <span class="badge-blue">Active</span>
-      {% endif %}
+      <div class="flex items-center gap-2">
+        <h2 class="card-title">Filters</h2>
+        {% if filters.call or filters.band or filters.mode or filters.date_from or filters.date_to %}
+        <span class="badge-blue">Active</span>
+        {% endif %}
+      </div>
+      <button type="button"
+              id="filter-toggle"
+              class="btn-ghost btn-sm w-8 h-8 justify-center bg-lime-400 hover:bg-lime-300 dark:bg-lime-500 dark:hover:bg-lime-400"
+              aria-label="Collapse filters"
+              aria-controls="filter-panel"
+              aria-expanded="true"
+              title="Collapse filters">
+        <svg id="filter-toggle-icon"
+             class="w-4 h-4 transition-transform"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke-width="1.5"
+             stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
     </div>
-    <div class="card-body">
+    <div id="filter-panel" class="card-body">
       <form id="filter-form"
             hx-get="/log/view"
             hx-target="#log-table"
@@ -160,10 +178,14 @@
     var newQsoCount = 0;
     var pendingSseRefresh = false;
     var columnStorageKey = 'ollog.log.columns';
+    var filterStorageKey = 'ollog.log.filtersExpanded';
     var defaultColumns = {{ default_column_keys | tojson }};
     var configurableColumns = {{ configurable_column_keys | tojson }};
     var menuButton = document.getElementById('column-menu-button');
     var menu = document.getElementById('column-menu');
+    var filterToggle = document.getElementById('filter-toggle');
+    var filterPanel = document.getElementById('filter-panel');
+    var filterToggleIcon = document.getElementById('filter-toggle-icon');
 
     function normalizeColumns(columns) {
       if (!Array.isArray(columns)) return defaultColumns.slice();
@@ -233,6 +255,32 @@
       document.addEventListener('click', function () {
         menu.classList.add('hidden');
         menuButton.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    function setFiltersExpanded(expanded) {
+      if (!filterToggle || !filterPanel) return;
+      filterPanel.classList.toggle('hidden', !expanded);
+      filterToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      filterToggle.setAttribute('aria-label', expanded ? 'Collapse filters' : 'Expand filters');
+      filterToggle.setAttribute('title', expanded ? 'Collapse filters' : 'Expand filters');
+      if (filterToggleIcon) {
+        filterToggleIcon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+      }
+    }
+
+    if (filterToggle && filterPanel) {
+      try {
+        var savedFilterState = localStorage.getItem(filterStorageKey);
+        if (savedFilterState === 'collapsed') setFiltersExpanded(false);
+      } catch (e) {}
+
+      filterToggle.addEventListener('click', function () {
+        var expanded = filterToggle.getAttribute('aria-expanded') === 'true';
+        setFiltersExpanded(!expanded);
+        try {
+          localStorage.setItem(filterStorageKey, expanded ? 'collapsed' : 'expanded');
+        } catch (e) {}
       });
     }
 
