@@ -39,11 +39,15 @@
 
 | Phase | Name | Goal | Requirements |
 |-------|------|------|--------------|
-| 67 | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
+| 67 ✅ | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
 | 68 | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
 | 69 | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
 
 #### Phase 67: Logging Foundation
+
+**Status:** Executed 2026-06-18 in `a821a65`; summary written to `.planning/phases/67-logging-foundation/67-01-SUMMARY.md`. Ready for `/gsd-verify-work 67`.
+
+**Note:** The implementation commit also includes admin log viewer/configuration and broad instrumentation that overlap Phases 68 and 69. Reconcile those phases against existing work before reimplementing.
 
 Success criteria:
 1. Log model and settings model initialize with Beanie and store records in MongoDB.

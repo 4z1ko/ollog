@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.6
 milestone_name: Internal Application Logging
-status: planning
-stopped_at: defining requirements and roadmap
+status: active
+stopped_at: phase 67 executed, pending verification
 last_updated: "2026-06-18T00:00:00Z"
 last_activity: 2026-06-18
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
 
 Milestone: v3.6 Internal Application Logging
 Phase: 67 Logging Foundation
-Plan: Not started
-Status: Ready to implement backend logging foundation
+Plan: 67-01 complete
+Status: Ready to verify logging foundation
 Last activity: 2026-06-18
 
 ```
-v3.6 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/3 phases, 0/3 plans)
+v3.6 Progress: [███████░░░░░░░░░░░░░] 33% (0/3 phases, 1/3 plans)
 ```
 
 ## Performance Metrics
@@ -142,6 +142,8 @@ v3.6 Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 - Phase 66 validation passed: ACOP-01 through ACOP-09 have deterministic automated/source evidence, plan-time threats remain closed, and `66-VALIDATION.md` records Nyquist-compliant coverage with the real shared-ACLog smoke test documented as optional external-environment confidence testing (2026-06-16)
 - v3.5 milestone audit passed: 9/9 requirements satisfied, Phase 66 complete, integration and E2E flows verified, no critical gaps, and `.planning/v3.5-MILESTONE-AUDIT.md` created (2026-06-16)
 - v3.5 milestone archived: roadmap, requirements, and milestone audit copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, `MILESTONES.md` updated, and PROJECT.md moved to between-milestones state (2026-06-16)
+- v3.6 milestone started: internal application logging with MongoDB-backed records, admin configuration/viewer, live updates, retention, masking, and QSO/bridge/admin instrumentation (2026-06-18)
+- Phase 67 executed: internal log models/settings, logger service, retention/indexing, sensitive metadata masking, live broadcast manager, admin log API/UI, and broad core-flow instrumentation committed in `a821a65`; focused verification passed with 45 tests and build/doc checks, while `test_qso_api.py` remains blocked by local MongoDB replica-set hostname resolution (2026-06-18)
 
 ### v3.5 Phase Structure
 
@@ -214,7 +216,7 @@ v3.6 Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 
 ### Pending Todos
 
-- Run `/gsd-new-milestone` to define the next milestone.
+- Run `/gsd-verify-work 67` to formally verify Phase 67 execution.
 
 ### Ship Blockers
 
