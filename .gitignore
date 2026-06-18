@@ -31,5 +31,13 @@ node_modules/
 # Runtime backups
 backups/
 
+# Local agent workspaces and generated artifacts
+.claude/
+codex-skills/
+outputs/
+images/
+favicon/*.png
+favicon/site.webmanifest
+
 # Editor temp/lock files
 .planning/.!*
