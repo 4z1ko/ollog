@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.aclog.identity import match_aclog_operator_identity
-from app.aclog.parser import aclog_full_records_from_message, iter_cmd_messages
+from app.aclog.parser import aclog_full_records_from_message, iter_cmd_messages, parse_cmd
 from app.auth.models import ACLogBridge, User
 from app.qso.collections import get_user_qso_collection
 from app.qso.service import ingest_qso_record
 
 ACLOG_SYNC_COMMAND = "<CMD><LIST><INCLUDEALL></CMD>\r\n"
+ACLOG_USER_SETTINGS_COMMAND = "<CMD><GETUSERSETTINGS></CMD>\r\n"
 ACLOG_SYNC_TIMEOUT_SECONDS = 15.0
 ACLOG_SYNC_EXAMPLE_LIMIT = 5
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,9 +59,10 @@ async def sync_aclog_bridge(
             asyncio.open_connection(bridge.host, bridge.port),
             timeout=timeout,
         )
+        writer.write(ACLOG_USER_SETTINGS_COMMAND.encode("utf-8"))
         writer.write(ACLOG_SYNC_COMMAND.encode("utf-8"))
         await asyncio.wait_for(writer.drain(), timeout=timeout)
-        raw = await _read_cmd_response(reader, timeout)
+        setup_station_call, raw = await _read_sync_responses(reader, timeout)
     except (OSError, asyncio.TimeoutError) as exc:
         report.failure_reason = str(exc) or exc.__class__.__name__
         return report
@@ -83,18 +88,35 @@ async def sync_aclog_bridge(
     from app.aclog.client import _map_other_slots_to_custom_fields
 
     for index, record in enumerate(records):
-        identity = match_aclog_operator_identity(record, user)
+        identity = match_aclog_operator_identity(
+            record,
+            user,
+            setup_station_call=setup_station_call,
+        )
         if identity.disposition == "missing":
             report.skipped_missing_operator += 1
+            logger.info(
+                "ACLog sync %s call=%s skipped=missing reason=missing ACLog station/operator identity",
+                bridge.name or bridge.host,
+                record.get("CALL", "?"),
+            )
             _append_example(
                 report,
                 index,
                 record,
-                "missing ACLog operator identity",
+                "missing ACLog station/operator identity",
             )
             continue
         if identity.disposition == "unmatched":
             report.skipped_unmatched_operator += 1
+            logger.info(
+                "ACLog sync %s call=%s skipped=unmatched identity_field=%s identity_value=%s expected=%s",
+                bridge.name or bridge.host,
+                record.get("CALL", "?"),
+                identity.field,
+                identity.value,
+                identity.expected,
+            )
             _append_example(
                 report,
                 index,
@@ -125,17 +147,28 @@ async def sync_aclog_bridge(
         else:
             report.errors += 1
             _append_example(report, index, mapped, result.get("reason", "rejected"))
+            continue
+
+        logger.info(
+            "ACLog sync %s call=%s identity_field=%s identity_value=%s disposition=%s",
+            bridge.name or bridge.host,
+            mapped.get("CALL", "?"),
+            identity.field,
+            identity.value,
+            status,
+        )
 
     return report
 
 
-async def _read_cmd_response(reader: Any, timeout: float) -> bytes:
-    """Read one complete ACLog <CMD> response without waiting for socket EOF."""
+async def _read_sync_responses(reader: Any, timeout: float) -> tuple[str | None, bytes]:
+    """Read ACLog settings/list responses without requiring settings support."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     payload = b""
+    setup_station_call: str | None = None
 
-    while b"</CMD>" not in payload.upper():
+    while True:
         remaining = deadline - loop.time()
         if remaining <= 0:
             raise asyncio.TimeoutError
@@ -143,8 +176,17 @@ async def _read_cmd_response(reader: Any, timeout: float) -> bytes:
         if not line:
             break
         payload += line
+        for message in iter_cmd_messages(payload.decode("utf-8", errors="replace")):
+            command, fields = parse_cmd(message)
+            if command == "GETUSERSETTINGSRESPONSE":
+                setup_call = fields.get("CALL")
+                if setup_call and setup_call.strip():
+                    setup_station_call = setup_call.strip()
+                continue
+            if command in {"LIST", "LISTRESPONSE"}:
+                return setup_station_call, message.encode("utf-8")
 
-    return payload
+    return setup_station_call, payload
 
 
 def _append_example(

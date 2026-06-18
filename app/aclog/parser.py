@@ -257,6 +257,14 @@ def update_state_from_message(
                 state[key] = value.strip()
         return
 
+    if command == "GETUSERSETTINGSRESPONSE":
+        setup_call = fields.get("CALL")
+        if setup_call and setup_call.strip():
+            state["ACLOG_SETUP_CALL"] = setup_call.strip()
+        else:
+            state.pop("ACLOG_SETUP_CALL", None)
+        return
+
     if command != "UPDATERESPONSE":
         return
 

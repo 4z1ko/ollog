@@ -9,6 +9,7 @@ ollog uses ADIF (Amateur Data Interchange Format) for QSO data. This page descri
 | QSO_DATE | YYYYMMDD | 20240415 | UTC date of contact |
 | TIME_ON | HHMM or HHMMSS | 1430 or 143045 | UTC time of contact |
 | CALL | Callsign string | DL1ABC | Station worked |
+| MYCALL | Callsign string | W1AW | Local station/setup callsign when supplied by an external logger such as ACLog |
 | BAND | Amateur band designator | 20m, 40m, 2m | Standard ADIF band values |
 | MODE | Uppercased mode | SSB, CW, FT8, FM | Standard ADIF mode values |
 | RST_SENT | Signal report string | 59, 599 | 599 for CW, 59 for phone |
@@ -22,6 +23,11 @@ ollog uses ADIF (Amateur Data Interchange Format) for QSO data. This page descri
 | STATION_CALLSIGN | Profile station_callsign | When profile has station_callsign set | Optional. Represents the station being operated (e.g., club call). |
 
 When importing ADIF files, OPERATOR and STATION_CALLSIGN are **not** auto-stamped. The values from the file are preserved as-is. This ensures historical records maintain their original attribution.
+
+For ACLog imports, `CALL` is always treated as the contacted station. ollog never
+uses QSO `CALL` to decide which local operator should receive the record. ACLog
+station identity is taken from `MYCALL` when present, or from ACLog's setup
+**Call** value read through the API, then `OPERATOR` is used as the fallback.
 
 ## Application-Specific Fields
 

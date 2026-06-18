@@ -2,102 +2,102 @@
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
-    
+
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-      
-      
+
+
+
         <link rel="canonical" href="http://localhost:8000/guide/operator-guide/aclog-bridges/">
-      
-      
+
+
         <link rel="prev" href="../profile/">
-      
-      
+
+
         <link rel="next" href="../udp-adif/">
-      
-      
-        
-      
-      
+
+
+
+
+
       <link rel="icon" href="../../assets/favicon.ico">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
-    
-    
-      
+
+
+
         <title>ACLog Bridges - ollog</title>
-      
-    
-    
+
+
+
       <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
+
+
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
 
 
-    
-    
-      
-    
-    
-      
-        
-        
+
+
+
+
+
+
+
+
+
+
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
 
-    
-    
+
+
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+
+
+
+
+
   </head>
-  
-  
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
     <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
+
+
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
-      
-        
+
+
         <a href="#aclog-bridges" class="md-skip">
           Skip to content
         </a>
-      
+
     </div>
     <div data-md-component="announce">
-      
-    </div>
-    
-    
-      
 
-  
+    </div>
+
+
+
+
+
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="ollog" class="md-header__button md-logo" aria-label="ollog" data-md-component="logo">
-      
-  
+
+
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
-      
+
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
     </label>
     <div class="md-header__title" data-md-component="header-title">
@@ -109,23 +109,23 @@
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
-            
+
               ACLog Bridges
-            
+
           </span>
         </div>
       </div>
     </div>
-    
-      
-    
-    
-    
-    
-      
-      
+
+
+
+
+
+
+
+
         <label class="md-header__button md-icon" for="__search">
-          
+
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
         </label>
         <div class="md-search" data-md-component="search" role="dialog">
@@ -134,19 +134,19 @@
     <form class="md-search__form" name="search">
       <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
       <label class="md-search__icon md-icon" for="__search">
-        
+
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
+
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
       </label>
       <nav class="md-search__options" aria-label="Search">
-        
+
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
-          
+
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
-      
+
     </form>
     <div class="md-search__output">
       <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
@@ -160,1188 +160,1210 @@
     </div>
   </div>
 </div>
-      
-    
-    
+
+
+
   </nav>
-  
+
 </header>
-    
+
     <div class="md-container" data-md-component="container">
-      
-      
-        
-          
-        
-      
+
+
+
+
+
+
       <main class="md-main" data-md-component="main">
         <div class="md-main__inner md-grid">
-          
-            
-              
+
+
+
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+
 
 
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="ollog" class="md-nav__button md-logo" aria-label="ollog" data-md-component="logo">
-      
-  
+
+
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
     ollog
   </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Getting Started
-  
 
-    
+  <ul class="md-nav__list" data-md-scrollfix>
+
+
+
+
+
+
+
+
+
+
+
+
+    <li class="md-nav__item md-nav__item--nested">
+
+
+
+
+
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+
+
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+
+
+
+  <span class="md-ellipsis">
+
+
+    Getting Started
+
+
+
   </span>
-  
-  
+
+
 
             <span class="md-nav__icon md-icon"></span>
           </label>
-        
+
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_1">
             <span class="md-nav__icon md-icon"></span>
-            
-  
+
+
     Getting Started
-  
+
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../getting-started/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Getting Started
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Getting Started
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../getting-started/quickstart/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Quickstart
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Quickstart
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../getting-started/first-qso/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    First QSO
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    First QSO
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
+
+
+
           </ul>
         </nav>
-      
+
     </li>
-  
 
-    
-      
-      
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Operator Guide
-  
 
-    
+
+
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+
+
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+
+
+
+  <span class="md-ellipsis">
+
+
+    Operator Guide
+
+
+
   </span>
-  
-  
+
+
 
             <span class="md-nav__icon md-icon"></span>
           </label>
-        
+
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
-            
-  
+
+
     Operator Guide
-  
+
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Operator Guide
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Operator Guide
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../logging-qsos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Logging QSOs
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Logging QSOs
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../adif-import-export/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ADIF Import/Export
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    ADIF Import/Export
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../api-tokens/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API Tokens
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    API Tokens
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../profile/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Profile
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Profile
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ACLog Bridges
-  
 
-    
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+
+
+
+
+
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+
+
+
+  <span class="md-ellipsis">
+
+
+    ACLog Bridges
+
+
+
   </span>
-  
-  
+
+
 
           <span class="md-nav__icon md-icon"></span>
         </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ACLog Bridges
-  
 
-    
+      <a href="./" class="md-nav__link md-nav__link--active">
+
+
+
+  <span class="md-ellipsis">
+
+
+    ACLog Bridges
+
+
+
   </span>
-  
-  
+
+
 
       </a>
-      
-        
+
+
 
 <nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
+
+
+
+
+
+
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
+
         <li class="md-nav__item">
   <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         How It Works
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#enable-the-aclog-api" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Enable the ACLog API
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#add-a-bridge-in-ollog" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Add a Bridge in ollog
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
+        <li class="md-nav__item">
+  <a href="#shared-aclog-computers" class="md-nav__link">
+    <span class="md-ellipsis">
+
+        Shared ACLog Computers
+
+    </span>
+  </a>
+
+</li>
+
         <li class="md-nav__item">
   <a href="#manual-sync" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Manual Sync
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#connection-behavior" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Connection Behavior
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Troubleshooting
-      
+
     </span>
   </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+</li>
+
+    </ul>
+
+</nav>
+
+    </li>
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../udp-adif/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    UDP ADIF
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    UDP ADIF
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
+
+
+
           </ul>
         </nav>
-      
+
     </li>
-  
 
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Admin Guide
-  
 
-    
+
+
+
+
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+
+
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+
+
+
+  <span class="md-ellipsis">
+
+
+    Admin Guide
+
+
+
   </span>
-  
-  
+
+
 
             <span class="md-nav__icon md-icon"></span>
           </label>
-        
+
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
-            
-  
+
+
     Admin Guide
-  
+
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../admin-guide/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Admin Guide
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Admin Guide
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../admin-guide/deployment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Deployment
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Deployment
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../admin-guide/admin-container/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Admin Container
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Admin Container
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../admin-guide/account-management/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Account Management
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Account Management
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../admin-guide/backup/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Backup
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Backup
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
+
+
+
           </ul>
         </nav>
-      
+
     </li>
-  
 
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API Reference
-  
 
-    
+
+
+
+
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+
+
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+
+
+
+  <span class="md-ellipsis">
+
+
+    API Reference
+
+
+
   </span>
-  
-  
+
+
 
             <span class="md-nav__icon md-icon"></span>
           </label>
-        
+
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
-            
-  
+
+
     API Reference
-  
+
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../api-reference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API Reference
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    API Reference
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../api-reference/interactive/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Interactive Reference
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Interactive Reference
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
+
+
+
           </ul>
         </nav>
-      
+
     </li>
-  
 
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reference
-  
 
-    
+
+
+
+
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+
+
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+
+
+
+  <span class="md-ellipsis">
+
+
+    Reference
+
+
+
   </span>
-  
-  
+
+
 
             <span class="md-nav__icon md-icon"></span>
           </label>
-        
+
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            
-  
+
+
     Reference
-  
+
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../reference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reference
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Reference
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../reference/adif-field-reference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ADIF Field Reference
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    ADIF Field Reference
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../reference/environment-variables/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Environment Variables
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Environment Variables
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
+
+
+
           </ul>
         </nav>
-      
+
     </li>
-  
 
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
     <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
-  
 
-    
+
+
+
+
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+
+
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+
+
+
+  <span class="md-ellipsis">
+
+
+    Troubleshooting
+
+
+
   </span>
-  
-  
+
+
 
             <span class="md-nav__icon md-icon"></span>
           </label>
-        
+
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
-            
-  
+
+
     Troubleshooting
-  
+
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
+
+
+
+
+
+
+
     <li class="md-nav__item">
       <a href="../../troubleshooting/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
-  
 
-    
+
+
+  <span class="md-ellipsis">
+
+
+    Troubleshooting
+
+
+
   </span>
-  
-  
+
+
 
       </a>
     </li>
-  
 
-              
-            
+
+
+
           </ul>
         </nav>
-      
-    </li>
-  
 
-    
+    </li>
+
+
+
   </ul>
 </nav>
                   </div>
                 </div>
               </div>
-            
-            
-              
+
+
+
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
-                    
+
 
 <nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
+
+
+
+
+
+
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
+
         <li class="md-nav__item">
   <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         How It Works
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#enable-the-aclog-api" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Enable the ACLog API
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#add-a-bridge-in-ollog" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Add a Bridge in ollog
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
+        <li class="md-nav__item">
+  <a href="#shared-aclog-computers" class="md-nav__link">
+    <span class="md-ellipsis">
+
+        Shared ACLog Computers
+
+    </span>
+  </a>
+
+</li>
+
         <li class="md-nav__item">
   <a href="#manual-sync" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Manual Sync
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#connection-behavior" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Connection Behavior
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
         <li class="md-nav__item">
   <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
-      
+
         Troubleshooting
-      
+
     </span>
   </a>
-  
+
 </li>
-      
+
     </ul>
-  
+
 </nav>
                   </div>
                 </div>
               </div>
-            
-          
-          
+
+
+
             <div class="md-content" data-md-component="content">
-              
+
               <article class="md-content__inner md-typeset">
-                
-                  
+
+
 
 
 
@@ -1354,8 +1376,11 @@ page.</p>
 background TCP connection open to each enabled bridge, then asks ACLog for the
 latest full record with <code>LIST INCLUDEALL</code>. If the full-record response matches
 the saved event, ollog imports the enriched record for the operator who
-configured the bridge. If ACLog does not return a matching full record, ollog
-falls back to the original <code>ENTEREVENT</code> data.</p>
+configured the bridge. ollog only imports the record when the full ACLog record
+contains a matching station/operator identity. If ACLog does not return a
+matching full record, or if the full record is missing or has a different
+station/operator identity, ollog skips the event instead of falling back to the original
+<code>ENTEREVENT</code> data.</p>
 <p>Imported ACLog QSOs use the same QSO rules as other live ingestion paths:</p>
 <ul>
 <li><code>CALL</code>, <code>QSO_DATE</code>, <code>TIME_ON</code>, <code>BAND</code>, and <code>MODE</code> are required.</li>
@@ -1365,6 +1390,13 @@ falls back to the original <code>ENTEREVENT</code> data.</p>
 <li>ACLog Other fields are mapped to the operator's configured Custom QSO Fields
   when configured; otherwise they remain preserved as <code>OTHER_1</code> through
   <code>OTHER_8</code>.</li>
+<li>ACLog identity matching uses local station identity first, then operator
+  identity. <code>MYCALL</code>, when ACLog returns it, or ACLog's setup <strong>Call</strong> value from
+  <code>GETUSERSETTINGS</code> can match your ollog profile <code>station_callsign</code> or account
+  callsign. If no station identity is available, ollog falls back to the
+  record-level <code>OPERATOR</code> field matching your ollog operator callsign.</li>
+<li>The QSO <code>CALL</code> field is never used for routing. In QSO records, <code>CALL</code> is the
+  contacted station.</li>
 <li>Duplicate detection uses the same per-operator ±2 minute window.</li>
 <li>Profile stamping still applies, including <code>OPERATOR</code>, <code>STATION_CALLSIGN</code>,
   <code>MY_GRIDSQUARE</code>, <code>MY_RIG</code>, <code>MY_ANTENNA</code>, and <code>TX_PWR</code> when those profile fields
@@ -1398,16 +1430,42 @@ address as the bridge host.</p>
 </ol>
 <p>You can add more than one bridge. This is useful when the same operator logs from
 multiple ACLog installations, such as a shack PC and a laptop.</p>
+<h2 id="shared-aclog-computers">Shared ACLog Computers</h2>
+<p>Multiple ollog operators can point saved bridges at the same remote ACLog
+computer. To keep those operators isolated, ollog treats ACLog station/operator
+identity as the import gate:</p>
+<ul>
+<li>If ACLog returns <code>MYCALL</code>, or if ollog can read ACLog's setup <strong>Call</strong> value
+  with <code>GETUSERSETTINGS</code>, that value is compared to your profile
+  <code>station_callsign</code> and account callsign first.</li>
+<li>If no station identity is available, <code>OPERATOR</code> is compared to your ollog
+  callsign as the fallback.</li>
+<li>If the available station/operator identity is missing, blank, or belongs to a
+  different callsign, the QSO is skipped and counted.</li>
+<li><code>CALL</code> in a QSO record means the contacted station. It is deliberately ignored
+  for routing so a QSO with <code>CALL=W1AW</code> is not mistaken for a QSO from station
+  <code>W1AW</code>.</li>
+</ul>
+<p>Before sharing one ACLog API endpoint between operators, confirm that either the
+ACLog setup <strong>Call</strong> value maps to the intended ollog profile station callsign,
+or that saved ACLog records include an <code>OPERATOR</code> value for each contact. N3FJP
+documents that <code>GETUSERSETTINGS</code> returns setup values including <code>CALL</code> and
+<code>OPERATOR</code>, and that <code>LIST INCLUDEALL</code> returns populated record fields, but QSO
+field availability can still depend on how the ACLog database and records are
+configured.</p>
 <h2 id="manual-sync">Manual Sync</h2>
 <p>Saved bridge rows also show a <strong>Sync</strong> button. Pressing Sync asks that ACLog API
 location for all logged records with <code>&lt;CMD&gt;&lt;LIST&gt;&lt;INCLUDEALL&gt;&lt;/CMD&gt;</code>, then
 imports only QSOs that are missing from the signed-in operator's ollog
-collection.</p>
+collection and whose ACLog <code>OPERATOR</code> identity matches the signed-in operator.
+When ACLog's setup <strong>Call</strong> value is available, manual sync uses that station
+call first and falls back to <code>OPERATOR</code> only when station identity is unavailable.</p>
 <p>Manual sync is additive only. It does not update, merge, or delete existing local
 QSOs. If you run Sync again against the same ACLog database, records already in
 ollog are reported as already present instead of being inserted a second time.
 The result appears inline on the Profile page with counts for missing QSOs
-imported, already-present records, and any errors.</p>
+imported, already-present records, missing-operator skips, unmatched-operator
+skips, and any errors.</p>
 <p>The sync report includes:</p>
 <table>
 <thead>
@@ -1428,6 +1486,14 @@ imported, already-present records, and any errors.</p>
 <tr>
 <td>Already present</td>
 <td>Records skipped because ollog already had them</td>
+</tr>
+<tr>
+<td>Missing operator</td>
+<td>Records skipped because ACLog did not return a record-level operator identity</td>
+</tr>
+<tr>
+<td>Unmatched operator</td>
+<td>Records skipped because ACLog returned a different operator identity</td>
 </tr>
 <tr>
 <td>Errors</td>
@@ -1479,9 +1545,13 @@ is not required after editing bridge rows.</p>
    ollog.</li>
 <li>Confirm Windows Firewall allows inbound connections to the ACLog API port.</li>
 <li>Check ollog logs for <code>ACLog bridge connected</code>, <code>ACLog bridge error</code>, or
-   <code>ACLog bridge ... disposition=</code> messages.</li>
+   <code>ACLog bridge ... identity_field=... disposition=</code> messages.</li>
 <li>Confirm the contact saved in ACLog includes <code>CALL</code>, <code>BAND</code>, <code>MODE</code>,
    <code>QSO_DATE</code>, and <code>TIME_ON</code>.</li>
+<li>Confirm ACLog's setup <strong>Call</strong> value matches your ollog profile
+   <code>station_callsign</code> or account callsign, or confirm the contact saved in ACLog
+   includes <code>OPERATOR</code> matching your ollog callsign. Missing or unmatched
+   station/operator values are skipped by design.</li>
 <li>If frequency, RST, or Other field values are missing, confirm ACLog is sending
    full-record responses for <code>LIST INCLUDEALL</code> or field update notifications.
    Restarting the bridge connection usually refreshes this state.</li>
@@ -1500,48 +1570,48 @@ same operator, call, band, mode, and time window.</p>
 
 
 
-                
+
               </article>
             </div>
-          
-          
+
+
 <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
         </div>
-        
+
       </main>
-      
+
         <footer class="md-footer">
-  
+
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
       <div class="md-copyright">
-  
-  
+
+
     Made with
     <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
       Material for MkDocs
     </a>
-  
+
 </div>
-      
+
     </div>
   </div>
 </footer>
-      
+
     </div>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    
-    
-    
-      
-      
+
+
+
+
+
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.expand"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
-    
-    
+
+
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-    
+
+
   </body>
 </html>

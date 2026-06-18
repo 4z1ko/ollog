@@ -1355,6 +1355,12 @@
 <td>Station worked</td>
 </tr>
 <tr>
+<td>MYCALL</td>
+<td>Callsign string</td>
+<td>W1AW</td>
+<td>Local station/setup callsign when supplied by an external logger such as ACLog</td>
+</tr>
+<tr>
 <td>BAND</td>
 <td>Amateur band designator</td>
 <td>20m, 40m, 2m</td>
@@ -1406,6 +1412,10 @@
 </tbody>
 </table>
 <p>When importing ADIF files, OPERATOR and STATION_CALLSIGN are <strong>not</strong> auto-stamped. The values from the file are preserved as-is. This ensures historical records maintain their original attribution.</p>
+<p>For ACLog imports, <code>CALL</code> is always treated as the contacted station. ollog never
+uses QSO <code>CALL</code> to decide which local operator should receive the record. ACLog
+station identity is taken from <code>MYCALL</code> when present, or from ACLog's setup
+<strong>Call</strong> value read through the API, then <code>OPERATOR</code> is used as the fallback.</p>
 <h2 id="application-specific-fields">Application-Specific Fields</h2>
 <p>ollog recognizes the following application-specific ADIF fields (using the <code>APP_</code> prefix per ADIF spec convention):</p>
 <table>

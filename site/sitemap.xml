@@ -2,114 +2,114 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>http://localhost:8000/guide/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/adif-field-reference/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/admin-guide/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/api-reference/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/deployment/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/getting-started/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/troubleshooting/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/admin-guide/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/admin-guide/account-management/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/admin-guide/admin-container/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/admin-guide/backup/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/admin-guide/deployment/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/api-reference/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/api-reference/interactive/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/getting-started/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/getting-started/first-qso/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/getting-started/quickstart/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/aclog-bridges/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/adif-import-export/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/api-tokens/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/logging-qsos/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/profile/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/operator-guide/udp-adif/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/reference/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/reference/adif-field-reference/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/reference/environment-variables/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
     <url>
          <loc>http://localhost:8000/guide/troubleshooting/</loc>
-         <lastmod>2026-06-13</lastmod>
+         <lastmod>2026-06-18</lastmod>
     </url>
 </urlset>

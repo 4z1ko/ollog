@@ -1,7 +1,7 @@
 import pytest
 from beanie import PydanticObjectId
 
-from app.aclog.sync import ACLOG_SYNC_COMMAND, sync_aclog_bridge
+from app.aclog.sync import ACLOG_SYNC_COMMAND, ACLOG_USER_SETTINGS_COMMAND, sync_aclog_bridge
 from app.auth.models import ACLogBridge, User
 from app.aclog.client import ACLogBridgeRuntimeConfig, _handle_message
 
@@ -25,11 +25,11 @@ class FakeWriter:
 
 
 class FakeReader:
-    def __init__(self, payload: bytes) -> None:
-        self.payload = payload
+    def __init__(self, payload: bytes | list[bytes]) -> None:
+        self.payloads = payload if isinstance(payload, list) else [payload]
 
     async def readline(self) -> bytes:
-        return self.payload
+        return self.payloads.pop(0) if self.payloads else b""
 
 
 def _config() -> ACLogBridgeRuntimeConfig:
@@ -52,6 +52,16 @@ def _user() -> User:
     )
 
 
+def _station_user() -> User:
+    return User.model_construct(
+        username="profileop",
+        callsign="K1OP",
+        station_callsign="W1AW",
+        enabled=True,
+        custom_qso_fields=[],
+    )
+
+
 def _bridge() -> ACLogBridge:
     return ACLogBridge(
         id="bridge-1",
@@ -66,7 +76,12 @@ async def test_manual_sync_sends_list_includeall_without_value(monkeypatch):
     writer = FakeWriter()
 
     async def fake_open_connection(host, port):
-        return FakeReader(b"<CMD><LIST></LIST></CMD>"), writer
+        return FakeReader(
+            [
+                b"<CMD><GETUSERSETTINGSRESPONSE><CALL>W1AW</CALL></GETUSERSETTINGSRESPONSE></CMD>",
+                b"<CMD><LIST></LIST></CMD>",
+            ]
+        ), writer
 
     monkeypatch.setattr("app.aclog.sync.asyncio.open_connection", fake_open_connection)
     monkeypatch.setattr("app.aclog.sync.get_user_qso_collection", lambda user: object())
@@ -74,8 +89,10 @@ async def test_manual_sync_sends_list_includeall_without_value(monkeypatch):
     report = await sync_aclog_bridge(_user(), _bridge())
 
     assert report.failed is False
-    assert writer.writes == [ACLOG_SYNC_COMMAND.encode("utf-8")]
-    assert writer.writes == [b"<CMD><LIST><INCLUDEALL></CMD>\r\n"]
+    assert writer.writes == [
+        ACLOG_USER_SETTINGS_COMMAND.encode("utf-8"),
+        ACLOG_SYNC_COMMAND.encode("utf-8"),
+    ]
 
 
 @pytest.mark.asyncio
@@ -100,7 +117,12 @@ async def test_manual_sync_counts_imported_duplicates_and_errors(monkeypatch):
     )
 
     async def fake_open_connection(host, port):
-        return FakeReader(payload), writer
+        return FakeReader(
+            [
+                b"<CMD><GETUSERSETTINGSRESPONSE><CALL>W1AW</CALL></GETUSERSETTINGSRESPONSE></CMD>",
+                payload,
+            ]
+        ), writer
 
     async def fake_ingest_qso_record(**kwargs):
         return next(statuses)
@@ -142,7 +164,12 @@ async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkey
     ingested: list[dict[str, str]] = []
 
     async def fake_open_connection(host, port):
-        return FakeReader(payload), writer
+        return FakeReader(
+            [
+                b"<CMD><GETUSERSETTINGSRESPONSE><CALL></CALL></GETUSERSETTINGSRESPONSE></CMD>",
+                payload,
+            ]
+        ), writer
 
     async def fake_ingest_qso_record(**kwargs):
         ingested.append(kwargs["record"])
@@ -165,7 +192,7 @@ async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkey
         {
             "index": "3",
             "call": "K1MISS",
-            "reason": "missing ACLog operator identity",
+            "reason": "missing ACLog station/operator identity",
         },
         {
             "index": "4",
@@ -173,6 +200,41 @@ async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkey
             "reason": "unmatched ACLog OPERATOR: K1ABC",
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_manual_sync_routes_by_setup_call_before_operator(monkeypatch):
+    writer = FakeWriter()
+    payload = (
+        "<CMD><LIST>"
+        "<RECORD><CALL>DX1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
+        "<DATE>20240601</DATE><TIMEON>123000</TIMEON>"
+        "<OPERATOR>K1OTHER</OPERATOR></RECORD>"
+        "</LIST></CMD>"
+    ).encode()
+    ingested: list[dict[str, str]] = []
+
+    async def fake_open_connection(host, port):
+        return FakeReader(
+            [
+                b"<CMD><GETUSERSETTINGSRESPONSE><CALL>W1AW</CALL><OPERATOR>K1OTHER</OPERATOR></GETUSERSETTINGSRESPONSE></CMD>",
+                payload,
+            ]
+        ), writer
+
+    async def fake_ingest_qso_record(**kwargs):
+        ingested.append(kwargs["record"])
+        return {"status": "accepted", "id": "qso-1"}
+
+    monkeypatch.setattr("app.aclog.sync.asyncio.open_connection", fake_open_connection)
+    monkeypatch.setattr("app.aclog.sync.get_user_qso_collection", lambda user: object())
+    monkeypatch.setattr("app.aclog.sync.ingest_qso_record", fake_ingest_qso_record)
+
+    report = await sync_aclog_bridge(_station_user(), _bridge())
+
+    assert report.received == 1
+    assert report.imported == 1
+    assert [record["CALL"] for record in ingested] == ["DX1ABC"]
 
 
 @pytest.mark.asyncio
@@ -200,7 +262,7 @@ async def test_manual_sync_timeout_reports_failure_without_importing(monkeypatch
 async def test_handle_enterevent_requests_includeall_before_ingest(monkeypatch):
     ingested: list[dict[str, str]] = []
 
-    async def fake_ingest(config, record):
+    async def fake_ingest(config, record, **kwargs):
         ingested.append(record)
 
     monkeypatch.setattr("app.aclog.client._ingest_aclog_record", fake_ingest)
@@ -226,7 +288,7 @@ async def test_handle_enterevent_requests_includeall_before_ingest(monkeypatch):
 async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
     ingested: list[dict[str, str]] = []
 
-    async def fake_ingest(config, record):
+    async def fake_ingest(config, record, **kwargs):
         ingested.append(record)
 
     monkeypatch.setattr("app.aclog.client._ingest_aclog_record", fake_ingest)
@@ -280,7 +342,7 @@ async def test_handle_full_record_response_ingests_enriched_record(monkeypatch):
 async def test_handle_full_record_mismatch_skips_enterevent_fallback(monkeypatch):
     ingested: list[dict[str, str]] = []
 
-    async def fake_ingest(config, record):
+    async def fake_ingest(config, record, **kwargs):
         ingested.append(record)
 
     monkeypatch.setattr("app.aclog.client._ingest_aclog_record", fake_ingest)

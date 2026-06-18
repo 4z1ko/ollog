@@ -111,6 +111,7 @@ async def _initialize_connection(writer: asyncio.StreamWriter) -> None:
     for command in [
         "<CMD><SETUPDATESTATE><VALUE>TRUE</VALUE></CMD>\r\n",
         "<CMD><READBMF></CMD>\r\n",
+        "<CMD><GETUSERSETTINGS></CMD>\r\n",
         "<CMD><GETOTHERFIELDTITLES></CMD>\r\n",
     ]:
         writer.write(command.encode("utf-8"))
@@ -139,7 +140,11 @@ async def _handle_message(
 
         record = aclog_enterevent_to_adif(fields, state=state)
         if writer is None:
-            await _ingest_aclog_record(config, record)
+            await _ingest_aclog_record(
+                config,
+                record,
+                setup_station_call=state.get("ACLOG_SETUP_CALL"),
+            )
             return None
 
         await _request_full_record(writer)
@@ -173,7 +178,11 @@ async def _handle_message(
         return None
 
     record = merge_aclog_records(pending.record, full=full_record, state=state)
-    await _ingest_aclog_record(config, record)
+    await _ingest_aclog_record(
+        config,
+        record,
+        setup_station_call=state.get("ACLOG_SETUP_CALL"),
+    )
     return None
 
 
@@ -190,16 +199,22 @@ async def _request_full_record(writer: _ACLogWriter) -> None:
 async def _ingest_aclog_record(
     config: ACLogBridgeRuntimeConfig,
     record: dict[str, str],
+    *,
+    setup_station_call: str | None = None,
 ) -> None:
     user = await User.get(config.user_id)
     if user is None or not user.enabled:
         logger.warning("ACLog bridge %s skipped QSO: user unavailable", config.label)
         return
 
-    identity = match_aclog_operator_identity(record, user)
+    identity = match_aclog_operator_identity(
+        record,
+        user,
+        setup_station_call=setup_station_call,
+    )
     if not identity.matched:
         detail = (
-            "missing ACLog operator identity"
+            "missing ACLog station/operator identity"
             if identity.disposition == "missing"
             else f"expected={identity.expected} {identity.field}={identity.value}"
         )
@@ -217,9 +232,11 @@ async def _ingest_aclog_record(
         collection=get_user_qso_collection(user),
     )
     logger.info(
-        "ACLog bridge %s call=%s disposition=%s",
+        "ACLog bridge %s call=%s identity_field=%s identity_value=%s disposition=%s",
         config.label,
         record.get("CALL", "?"),
+        identity.field,
+        identity.value,
         result["status"],
     )
 

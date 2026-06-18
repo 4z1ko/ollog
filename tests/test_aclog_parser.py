@@ -100,6 +100,18 @@ def test_update_state_from_readbmf_and_text_updates():
     }
 
 
+def test_update_state_from_get_user_settings_tracks_setup_call():
+    state: dict[str, str] = {}
+
+    update_state_from_message(
+        "GETUSERSETTINGSRESPONSE",
+        {"CALL": " W1AW ", "OPERATOR": "K1OP"},
+        state,
+    )
+
+    assert state == {"ACLOG_SETUP_CALL": "W1AW"}
+
+
 def test_aclog_full_record_to_adif_preserves_includeall_fields():
     fields = {
         "CALL": "K1ABC",
