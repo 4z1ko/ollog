@@ -11,6 +11,7 @@ from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
 from app.hashing import canonical_document_hash
+from app.internal_logs.service import app_logger
 from app.qso.models import QSO
 from app.qso.custom_fields import apply_custom_field_normalization
 
@@ -30,6 +31,30 @@ _ALLOWED_SORT_FIELDS: frozenset[str] = frozenset({
     # MongoDB alias "_created_at" (not the Python attribute "created_at")
     "-_created_at", "_created_at",
 })
+
+
+def _transport_for_source(source: str) -> str:
+    source_lower = source.lower()
+    if source_lower.startswith("udp"):
+        return "UDP"
+    if source_lower.startswith("tcp"):
+        return "TCP"
+    if "bridge" in source_lower or "aclog" in source_lower:
+        return "bridge"
+    if "http" in source_lower or "api" in source_lower:
+        return "HTTP"
+    return "system"
+
+
+def _qso_log_metadata(record: dict[str, Any], operator: str) -> dict[str, Any]:
+    return {
+        "operator": operator,
+        "call": record.get("CALL"),
+        "band": record.get("BAND"),
+        "mode": record.get("MODE"),
+        "qso_date": record.get("QSO_DATE"),
+        "time_on": record.get("TIME_ON"),
+    }
 
 
 def _mongo_sort(sort_by: str) -> list[tuple[str, int]]:
@@ -279,14 +304,37 @@ async def ingest_qso_record(
     """
     missing = _REQUIRED_FIELDS - set(record)
     if missing:
+        reason = f"missing required field: {sorted(missing)[0]}"
+        await app_logger.warn(
+            "QSO rejected during validation",
+            source="app.qso.service",
+            event_type="qso_validation_rejected",
+            transport=_transport_for_source(source),
+            metadata={
+                **_qso_log_metadata(record, operator),
+                "ingest_source": source,
+                "reason": reason,
+            },
+        )
         return {
             "status": "rejected",
-            "reason": f"missing required field: {sorted(missing)[0]}",
+            "reason": reason,
         }
 
     try:
         qso_dict = build_qso_dict(record, operator, profile=profile)
     except (ValueError, KeyError) as exc:
+        await app_logger.warn(
+            "QSO rejected during validation",
+            source="app.qso.service",
+            event_type="qso_validation_rejected",
+            transport=_transport_for_source(source),
+            metadata={
+                **_qso_log_metadata(record, operator),
+                "ingest_source": source,
+                "reason": str(exc),
+            },
+        )
         return {"status": "rejected", "reason": str(exc)}
 
     dup = await find_duplicate(
@@ -298,15 +346,65 @@ async def ingest_qso_record(
         collection=collection,
     )
     if dup is not None:
+        await app_logger.info(
+            "QSO duplicate detected",
+            source="app.qso.service",
+            event_type="qso_duplicate",
+            transport=_transport_for_source(source),
+            qso_id=str(dup.id),
+            metadata={
+                **_qso_log_metadata(qso_dict, operator),
+                "ingest_source": source,
+                "existing_id": str(dup.id),
+            },
+        )
         return {"status": "duplicate", "existing_id": str(dup.id)}
 
-    insert_result = await insert_qso_dict(qso_dict, collection=collection)
+    try:
+        insert_result = await insert_qso_dict(qso_dict, collection=collection)
+    except Exception as exc:
+        await app_logger.error(
+            "QSO insert failed",
+            source="app.qso.service",
+            event_type="qso_insert_failed",
+            transport=_transport_for_source(source),
+            metadata={
+                **_qso_log_metadata(qso_dict, operator),
+                "ingest_source": source,
+            },
+            exc=exc,
+        )
+        raise
     if insert_result.status == "duplicate":
+        existing_id = str(insert_result.existing.id) if insert_result.existing else ""
+        await app_logger.info(
+            "QSO duplicate detected",
+            source="app.qso.service",
+            event_type="qso_duplicate",
+            transport=_transport_for_source(source),
+            qso_id=existing_id or None,
+            metadata={
+                **_qso_log_metadata(qso_dict, operator),
+                "ingest_source": source,
+                "existing_id": existing_id,
+            },
+        )
         return {
             "status": "duplicate",
-            "existing_id": str(insert_result.existing.id) if insert_result.existing else "",
+            "existing_id": existing_id,
         }
     qso = insert_result.qso
+    await app_logger.info(
+        "QSO inserted",
+        source="app.qso.service",
+        event_type="qso_inserted",
+        transport=_transport_for_source(source),
+        qso_id=str(qso.id),
+        metadata={
+            **_qso_log_metadata(qso_dict, operator),
+            "ingest_source": source,
+        },
+    )
     return {"status": "accepted", "id": str(qso.id), "source": source}
 
 

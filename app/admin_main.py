@@ -4,13 +4,28 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.database import init_db, close_db, get_client
 from app.auth.bootstrap import _bootstrap_admin
+from app.internal_logs.service import app_logger
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await app_logger.info(
+        "Application startup started",
+        source="app.admin_main",
+        event_type="service_startup_started",
+        transport="system",
+        metadata={"app": "admin"},
+    )
     await _bootstrap_admin()
     yield
+    await app_logger.info(
+        "Application shutdown started",
+        source="app.admin_main",
+        event_type="service_shutdown_started",
+        transport="system",
+        metadata={"app": "admin"},
+    )
     await close_db()
 
 
@@ -19,9 +34,11 @@ app = FastAPI(title="ollog-admin", version="0.1.0", lifespan=lifespan)
 from app.auth.router import router as auth_router  # noqa: E402
 from app.admin.router import router as admin_router  # noqa: E402
 from app.admin.ui_router import ui_router  # noqa: E402
+from app.internal_logs.router import router as internal_logs_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(internal_logs_router)
 app.include_router(ui_router, include_in_schema=False)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

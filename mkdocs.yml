@@ -42,6 +42,7 @@ nav:
     - Admin Container: admin-guide/admin-container.md
     - Account Management: admin-guide/account-management.md
     - Backup: admin-guide/backup.md
+    - Application Logs: admin-guide/application-logs.md
   - API Reference:
     - api-reference/index.md
     - Interactive Reference: api-reference/interactive.md

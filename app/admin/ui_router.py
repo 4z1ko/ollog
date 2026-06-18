@@ -7,15 +7,28 @@ main.py and redirected to /admin/ui/login as HTML responses.
 
 Mounted at /admin/ui by app/main.py.
 """
+import json
+from collections.abc import AsyncIterable
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Header, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Header, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_admin_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, hash_password, verify_password
+from app.internal_logs.manager import log_manager
+from app.internal_logs.models import LOG_LEVELS
+from app.internal_logs.service import (
+    app_logger,
+    get_log_settings,
+    log_to_dict,
+    parse_iso_datetime,
+    query_logs,
+    set_log_settings,
+)
 from app.qso.collections import get_user_qso_collection
 from app.qso.service import clear_operator_log
 from app.udp.operator_cache import operator_cache
@@ -54,6 +67,13 @@ async def login_submit(
 
     user = await User.find_one({"username": username})
     if user is None or not user.enabled or user.role != "admin":
+        await app_logger.warn(
+            "Admin login failed",
+            source="admin.auth",
+            event_type="admin_login_failed",
+            transport="admin",
+            metadata={"username": username, "reason": "invalid_user_or_role"},
+        )
         return templates.TemplateResponse(
             request,
             "admin/login.html",
@@ -62,6 +82,13 @@ async def login_submit(
         )
 
     if not verify_password(password, user.hashed_password):
+        await app_logger.warn(
+            "Admin login failed",
+            source="admin.auth",
+            event_type="admin_login_failed",
+            transport="admin",
+            metadata={"username": username, "reason": "invalid_password"},
+        )
         return templates.TemplateResponse(
             request,
             "admin/login.html",
@@ -79,6 +106,13 @@ async def login_submit(
         value=token,
         httponly=True,
         samesite="lax",
+    )
+    await app_logger.info(
+        "Admin login succeeded",
+        source="admin.auth",
+        event_type="admin_login_succeeded",
+        transport="admin",
+        metadata={"username": user.username},
     )
     return response
 
@@ -146,6 +180,17 @@ async def create_user(
     )
     await new_user.insert()
     operator_cache.notify_refresh()
+    await app_logger.info(
+        "Operator account created",
+        source="admin.users",
+        event_type="operator_created",
+        transport="admin",
+        metadata={
+            "admin": _user.username,
+            "username": new_user.username,
+            "callsign": new_user.callsign,
+        },
+    )
 
     users = await User.find_all().to_list()
     return templates.TemplateResponse(
@@ -190,6 +235,17 @@ async def toggle_user(
 
     await user.set({User.enabled: new_enabled})
     operator_cache.notify_refresh()
+    await app_logger.info(
+        "Operator account status changed",
+        source="admin.users",
+        event_type="operator_status_changed",
+        transport="admin",
+        metadata={
+            "admin": _user.username,
+            "username": username,
+            "enabled": new_enabled,
+        },
+    )
 
     users = await User.find_all().to_list()
     return templates.TemplateResponse(
@@ -218,6 +274,13 @@ async def reset_password(
         )
 
     await user.set({User.hashed_password: hash_password(password)})
+    await app_logger.info(
+        "Operator password reset",
+        source="admin.users",
+        event_type="operator_password_reset",
+        transport="admin",
+        metadata={"admin": _user.username, "username": username},
+    )
 
     users = await User.find_all().to_list()
     return templates.TemplateResponse(
@@ -246,18 +309,143 @@ async def backup_page(
 
 @ui_router.get("/backup/download")
 async def backup_download(
-    _user: User = Depends(require_admin_cookie),
+    admin: User = Depends(require_admin_cookie),
 ):
     """Trigger a full MongoDB backup and return it as a .gz file download."""
     from app.backup.dump import run_backup
     from app.config import settings
 
+    await app_logger.info(
+        "Admin backup requested",
+        source="admin.backup",
+        event_type="backup_requested",
+        transport="admin",
+        metadata={"admin": admin.username},
+    )
     backup_path = await run_backup(settings)
+    await app_logger.info(
+        "Admin backup completed",
+        source="admin.backup",
+        event_type="backup_completed",
+        transport="admin",
+        metadata={"admin": admin.username, "filename": backup_path.name},
+    )
     return FileResponse(
         path=backup_path,
         media_type="application/gzip",
         filename=f"ollog-backup-{backup_path.stem}.gz",
     )
+
+
+# ---------------------------------------------------------------------------
+# Application logs
+# ---------------------------------------------------------------------------
+
+@ui_router.get("/logs", response_class=HTMLResponse)
+async def logs_page(
+    request: Request,
+    hx_request: Annotated[str | None, Header()] = None,
+    level: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    admin: User = Depends(require_admin_cookie),
+):
+    """Render internal application logs with filters."""
+    page_size = 50
+    settings = await get_log_settings(refresh=True)
+    logs, total = await query_logs(
+        level=level,
+        source=source,
+        search=search,
+        start=parse_iso_datetime(date_from),
+        end=parse_iso_datetime(date_to),
+        page=page,
+        page_size=page_size,
+    )
+    context = {
+        "logs": logs,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "levels": LOG_LEVELS,
+        "settings": settings,
+        "filters": {
+            "level": level or "",
+            "source": source or "",
+            "search": search or "",
+            "date_from": date_from or "",
+            "date_to": date_to or "",
+        },
+    }
+    if hx_request:
+        return templates.TemplateResponse(request, "admin/logs_table.html", context)
+
+    await app_logger.info(
+        "Admin opened application logs",
+        source="admin.logs",
+        event_type="logs_page_opened",
+        transport="admin",
+        metadata={"admin": admin.username},
+    )
+    return templates.TemplateResponse(request, "admin/logs.html", context)
+
+
+@ui_router.post("/logs/settings", response_class=HTMLResponse)
+async def logs_settings_update(
+    request: Request,
+    minimum_level: Annotated[str, Form()],
+    retention_days: Annotated[int, Form()],
+    admin: User = Depends(require_admin_cookie),
+):
+    """Update internal logging settings from the admin UI."""
+    try:
+        settings = await set_log_settings(
+            minimum_level=minimum_level,
+            retention_days=retention_days,
+            updated_by=admin.username,
+        )
+    except ValueError as exc:
+        return HTMLResponse(
+            content=f'<div id="logs-settings-result" class="text-sm text-red-600 dark:text-red-400">{exc}</div>',
+            status_code=400,
+        )
+    await app_logger.info(
+        "Application log settings updated",
+        source="admin.logs",
+        event_type="log_settings_updated",
+        transport="admin",
+        metadata={
+            "minimum_level": settings.minimum_level,
+            "retention_days": settings.retention_days,
+            "updated_by": admin.username,
+        },
+        force=True,
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/logs_settings_result.html",
+        {"settings": settings},
+    )
+
+
+@ui_router.get("/logs/events", response_class=EventSourceResponse)
+async def logs_events(
+    _admin: User = Depends(require_admin_cookie),
+) -> AsyncIterable[ServerSentEvent]:
+    """SSE stream of newly saved internal application logs."""
+    queue = await log_manager.connect()
+    try:
+        while True:
+            event = await queue.get()
+            yield ServerSentEvent(
+                data=json.dumps(event, default=str),
+                event="app_log",
+            )
+    finally:
+        log_manager.disconnect(queue)
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +506,13 @@ async def restore_upload(
             # EOFError: truncated/corrupt gzip file
             # ValueError: json.JSONDecodeError or explicit key check failure
             os.unlink(temp_path)
+            await app_logger.warn(
+                "Restore upload rejected",
+                source="admin.restore",
+                event_type="restore_upload_rejected",
+                transport="admin",
+                metadata={"reason": "invalid_backup_file", "filename": file.filename},
+            )
             return templates.TemplateResponse(
                 request,
                 "admin/restore/upload_error.html",
@@ -369,6 +564,13 @@ async def restore_confirm(
 
     # Password check — current_user already hydrated by require_admin_cookie
     if not verify_password(password, current_user.hashed_password):
+        await app_logger.warn(
+            "Restore confirmation rejected",
+            source="admin.restore",
+            event_type="restore_password_rejected",
+            transport="admin",
+            metadata={"admin": current_user.username},
+        )
         return templates.TemplateResponse(
             request,
             "admin/restore/password_error.html",
@@ -380,6 +582,14 @@ async def restore_confirm(
     try:
         auto_backup_path = await run_backup(settings)
     except Exception as exc:
+        await app_logger.error(
+            "Restore auto-backup failed",
+            source="admin.restore",
+            event_type="restore_auto_backup_failed",
+            transport="admin",
+            metadata={"admin": current_user.username},
+            exc=exc,
+        )
         return templates.TemplateResponse(
             request,
             "admin/restore/restore_failure.html",
@@ -390,6 +600,17 @@ async def restore_confirm(
     # Restore
     try:
         await run_restore(str(p), settings)
+        await app_logger.warn(
+            "Database restore completed",
+            source="admin.restore",
+            event_type="restore_completed",
+            transport="admin",
+            metadata={
+                "admin": current_user.username,
+                "auto_backup": auto_backup_path.name,
+            },
+            force=True,
+        )
         return templates.TemplateResponse(
             request,
             "admin/restore/restore_success.html",
@@ -397,6 +618,14 @@ async def restore_confirm(
             status_code=200,
         )
     except Exception as exc:
+        await app_logger.error(
+            "Database restore failed",
+            source="admin.restore",
+            event_type="restore_failed",
+            transport="admin",
+            metadata={"admin": current_user.username, "auto_backup": auto_backup_path.name},
+            exc=exc,
+        )
         return templates.TemplateResponse(
             request,
             "admin/restore/restore_failure.html",

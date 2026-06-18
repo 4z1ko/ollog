@@ -9,6 +9,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from app.internal_logs.service import app_logger
+
 if TYPE_CHECKING:
     from app.auth.models import User
 
@@ -47,12 +49,34 @@ async def _handle_datagram(
                 "UDP datagram src=%s:%s disposition=rejected reason=parse-failure",
                 addr[0], addr[1],
             )
+            await app_logger.warn(
+                "UDP datagram rejected during ADIF parse",
+                source="app.udp.server",
+                event_type="udp_parse_rejected",
+                transport="UDP",
+                metadata={
+                    "remote_host": addr[0],
+                    "remote_port": addr[1],
+                    "parse_errors": parse_errors,
+                },
+            )
             return
 
         if len(records) > 1:
             logger.warning(
                 "UDP datagram src=%s:%s: %d records found, processing first only",
                 addr[0], addr[1], len(records),
+            )
+            await app_logger.warn(
+                "UDP datagram contained multiple ADIF records",
+                source="app.udp.server",
+                event_type="udp_multiple_records",
+                transport="UDP",
+                metadata={
+                    "remote_host": addr[0],
+                    "remote_port": addr[1],
+                    "record_count": len(records),
+                },
             )
 
         record = records[0]
@@ -66,6 +90,13 @@ async def _handle_datagram(
                 logger.warning(
                     "UDP datagram src=%s:%s disposition=rejected reason=invalid-token",
                     addr[0], addr[1],
+                )
+                await app_logger.warn(
+                    "UDP datagram rejected because token was invalid",
+                    source="app.udp.server",
+                    event_type="udp_invalid_token",
+                    transport="UDP",
+                    metadata={"remote_host": addr[0], "remote_port": addr[1]},
                 )
                 return
             # Override operator and user — both must come from resolved_user
@@ -86,6 +117,17 @@ async def _handle_datagram(
                     addr[1],
                     op_field_value,
                 )
+                await app_logger.warn(
+                    "UDP datagram rejected because operator was unknown",
+                    source="app.udp.server",
+                    event_type="udp_unknown_operator",
+                    transport="UDP",
+                    metadata={
+                        "remote_host": addr[0],
+                        "remote_port": addr[1],
+                        "operator": op_field_value,
+                    },
+                )
                 return
             operator = resolved_op_user.callsign
             user = resolved_op_user
@@ -95,6 +137,13 @@ async def _handle_datagram(
                 "UDP datagram src=%s:%s disposition=rejected reason=no-user-resolved",
                 addr[0],
                 addr[1],
+            )
+            await app_logger.warn(
+                "UDP datagram rejected because no operator profile was resolved",
+                source="app.udp.server",
+                event_type="udp_no_user_resolved",
+                transport="UDP",
+                metadata={"remote_host": addr[0], "remote_port": addr[1]},
             )
             return
 
@@ -130,8 +179,16 @@ async def _handle_datagram(
             addr[0], addr[1], record.get("CALL", "?"), result.get("id"),
         )
 
-    except Exception:
+    except Exception as exc:
         logger.exception("UDP datagram from %s: unhandled exception", addr)
+        await app_logger.error(
+            "UDP datagram handling failed",
+            source="app.udp.server",
+            event_type="udp_datagram_failed",
+            transport="UDP",
+            metadata={"remote_host": addr[0], "remote_port": addr[1]},
+            exc=exc,
+        )
 
 
 class QSODatagramProtocol(asyncio.DatagramProtocol):
@@ -163,6 +220,15 @@ class QSODatagramProtocol(asyncio.DatagramProtocol):
             addr[1],
             len(data),
         )
+        asyncio.create_task(
+            app_logger.debug(
+                "UDP datagram received",
+                source="app.udp.server",
+                event_type="udp_datagram_received",
+                transport="UDP",
+                metadata={"remote_host": addr[0], "remote_port": addr[1], "bytes": len(data)},
+            )
+        )
         task = asyncio.create_task(
             _handle_datagram(data, addr, self._operator, self._user)
         )
@@ -171,9 +237,27 @@ class QSODatagramProtocol(asyncio.DatagramProtocol):
 
     def error_received(self, exc: Exception) -> None:
         logger.warning("UDP transport error: %s", exc)
+        asyncio.create_task(
+            app_logger.warn(
+                "UDP transport error",
+                source="app.udp.server",
+                event_type="udp_transport_error",
+                transport="UDP",
+                exc=exc,
+            )
+        )
 
     def connection_lost(self, exc: Exception | None) -> None:
         logger.info("UDP transport closed")
+        asyncio.create_task(
+            app_logger.info(
+                "UDP transport closed",
+                source="app.udp.server",
+                event_type="udp_transport_closed",
+                transport="UDP",
+                exc=exc,
+            )
+        )
 
 
 async def start_udp_listener(
@@ -198,4 +282,11 @@ async def start_udp_listener(
         local_addr=(host, port),
     )
     logger.info("UDP listener bound to %s:%s", host, port)
+    await app_logger.info(
+        "UDP listener bound",
+        source="app.udp.server",
+        event_type="udp_listener_bound",
+        transport="UDP",
+        metadata={"host": host, "port": port},
+    )
     return transport, protocol  # type: ignore[return-value]

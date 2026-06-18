@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.dependencies import get_current_user_jwt_or_apikey
 from app.auth.models import User
+from app.internal_logs.service import app_logger
 from app.qso.collections import get_user_qso_collection
 from app.qso.models import QSO
 from app.qso.service import (
@@ -138,6 +139,19 @@ async def create_qso(
     collection = get_user_qso_collection(user)
     # Merge declared fields and extra ADIF fields
     merged: dict = {**body.model_dump(exclude_unset=False), **(body.model_extra or {})}
+    await app_logger.info(
+        "HTTP API QSO received",
+        source="app.qso.router",
+        event_type="qso_http_received",
+        transport="HTTP",
+        metadata={
+            "operator": operator,
+            "call": merged.get("CALL"),
+            "band": merged.get("BAND"),
+            "mode": merged.get("MODE"),
+            "force": force,
+        },
+    )
     qso_dict = build_qso_dict(merged, operator, profile=user)
 
     # Duplicate detection — skip only when force=True
@@ -151,6 +165,20 @@ async def create_qso(
             collection=collection,
         )
         if dup is not None:
+            await app_logger.info(
+                "HTTP API QSO duplicate detected",
+                source="app.qso.router",
+                event_type="qso_duplicate",
+                transport="HTTP",
+                qso_id=str(dup.id),
+                metadata={
+                    "operator": operator,
+                    "call": qso_dict["CALL"],
+                    "band": qso_dict["BAND"],
+                    "mode": qso_dict["MODE"],
+                    "existing_id": str(dup.id),
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -166,6 +194,20 @@ async def create_qso(
     insert_result = await insert_qso_dict(qso_dict, collection=collection)
     if insert_result.status == "duplicate":
         existing = insert_result.existing
+        await app_logger.info(
+            "HTTP API QSO duplicate detected",
+            source="app.qso.router",
+            event_type="qso_duplicate",
+            transport="HTTP",
+            qso_id=str(existing.id) if existing else None,
+            metadata={
+                "operator": operator,
+                "call": qso_dict["CALL"],
+                "band": qso_dict["BAND"],
+                "mode": qso_dict["MODE"],
+                "existing_id": str(existing.id) if existing else "",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
@@ -179,6 +221,20 @@ async def create_qso(
             },
         )
     qso = insert_result.qso
+    await app_logger.info(
+        "HTTP API QSO inserted",
+        source="app.qso.router",
+        event_type="qso_inserted",
+        transport="HTTP",
+        qso_id=str(qso.id),
+        metadata={
+            "operator": operator,
+            "call": qso_dict["CALL"],
+            "band": qso_dict["BAND"],
+            "mode": qso_dict["MODE"],
+            "force": force,
+        },
+    )
     return _qso_to_dict(qso)
 
 
@@ -288,14 +344,31 @@ async def patch_qso(
     if body:
         body["rowHash"] = row_hash_for_updated_qso(qso, body)
         try:
-            await update_qso_fields(qso, body, collection)
+            updated_qso = await update_qso_fields(qso, body, collection)
         except Exception as exc:
             if "row_hash_unique_idx" not in str(exc) and "rowHash" not in str(exc):
+                await app_logger.error(
+                    "HTTP API QSO update failed",
+                    source="app.qso.router",
+                    event_type="qso_update_failed",
+                    transport="HTTP",
+                    qso_id=str(qso.id),
+                    metadata={"operator": user.callsign, "updated_fields": sorted(body)},
+                    exc=exc,
+                )
                 raise
             existing = await get_qso_by_id(qso.id, collection)
             duplicate = await collection.find_one({"rowHash": body["rowHash"]})
             if duplicate is not None:
                 existing = qso_from_mongo_doc(duplicate)
+            await app_logger.info(
+                "HTTP API QSO update duplicate detected",
+                source="app.qso.router",
+                event_type="qso_update_duplicate",
+                transport="HTTP",
+                qso_id=str(existing.id) if existing else str(qso.id),
+                metadata={"operator": user.callsign, "updated_fields": sorted(body)},
+            )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -308,6 +381,14 @@ async def patch_qso(
                     if existing and existing.qso_date_utc else None,
                 },
             )
+        await app_logger.info(
+            "HTTP API QSO updated",
+            source="app.qso.router",
+            event_type="qso_updated",
+            transport="HTTP",
+            qso_id=str(updated_qso.id),
+            metadata={"operator": user.callsign, "updated_fields": sorted(body)},
+        )
 
     updated = await get_qso_by_id(oid, collection)
     return _qso_to_dict(updated)
@@ -338,3 +419,11 @@ async def delete_qso(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QSO not found")
 
     await soft_delete_qso(qso, collection)
+    await app_logger.info(
+        "HTTP API QSO soft deleted",
+        source="app.qso.router",
+        event_type="qso_deleted",
+        transport="HTTP",
+        qso_id=str(qso.id),
+        metadata={"operator": user.callsign, "call": qso.CALL},
+    )

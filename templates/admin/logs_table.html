@@ -1,0 +1,27 @@
+<div id="logs-table" class="table-wrap rounded-none border-0 border-t border-gray-200 dark:border-gray-800">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Level</th>
+        <th>Source</th>
+        <th>Transport</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody id="logs-table-body">
+      {% for log in logs %}
+        {% include "admin/log_row.html" %}
+      {% else %}
+      <tr>
+        <td colspan="5" class="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+          No application logs match these filters.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
+    Showing {{ logs|length }} of {{ total }} log record{{ '' if total == 1 else 's' }}.
+  </div>
+</div>

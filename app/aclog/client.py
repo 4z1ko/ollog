@@ -22,6 +22,7 @@ from app.aclog.parser import (
     update_state_from_message,
 )
 from app.auth.models import User
+from app.internal_logs.service import app_logger
 from app.qso.custom_fields import custom_fields_for_user
 from app.qso.service import ingest_qso_record
 
@@ -64,8 +65,26 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
     while True:
         try:
             logger.info("ACLog bridge connecting: %s", config.label)
+            await app_logger.info(
+                "ACLog bridge connecting",
+                source="app.aclog.client",
+                event_type="bridge_connecting",
+                transport="bridge",
+                bridge_name=config.name,
+                remote_software="ACLog",
+                metadata={"bridge_id": config.bridge_id, "host": config.host, "port": config.port},
+            )
             reader, writer = await asyncio.open_connection(config.host, config.port)
             logger.info("ACLog bridge connected: %s", config.label)
+            await app_logger.info(
+                "ACLog bridge connected",
+                source="app.aclog.client",
+                event_type="bridge_connected",
+                transport="bridge",
+                bridge_name=config.name,
+                remote_software="ACLog",
+                metadata={"bridge_id": config.bridge_id, "host": config.host, "port": config.port},
+            )
             state: dict[str, str] = {}
             pending: _PendingACLogEvent | None = None
             await _initialize_connection(writer)
@@ -83,6 +102,15 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
                             )
                             pending = None
                         logger.warning("ACLog bridge disconnected: %s", config.label)
+                        await app_logger.warn(
+                            "ACLog bridge disconnected",
+                            source="app.aclog.client",
+                            event_type="bridge_disconnected",
+                            transport="bridge",
+                            bridge_name=config.name,
+                            remote_software="ACLog",
+                            metadata={"bridge_id": config.bridge_id},
+                        )
                         break
 
                     raw_message = raw.decode("utf-8", errors="replace").strip()
@@ -102,6 +130,19 @@ async def run_aclog_bridge(config: ACLogBridgeRuntimeConfig) -> None:
             raise
         except Exception as exc:
             logger.warning("ACLog bridge error %s: %s", config.label, exc)
+            await app_logger.warn(
+                "ACLog bridge error; reconnect will be attempted",
+                source="app.aclog.client",
+                event_type="bridge_reconnect_scheduled",
+                transport="bridge",
+                bridge_name=config.name,
+                remote_software="ACLog",
+                metadata={
+                    "bridge_id": config.bridge_id,
+                    "reconnect_seconds": config.reconnect_seconds,
+                },
+                exc=exc,
+            )
 
         await asyncio.sleep(max(1, config.reconnect_seconds))
 
@@ -205,6 +246,15 @@ async def _ingest_aclog_record(
     user = await User.get(config.user_id)
     if user is None or not user.enabled:
         logger.warning("ACLog bridge %s skipped QSO: user unavailable", config.label)
+        await app_logger.warn(
+            "ACLog bridge skipped QSO because user is unavailable",
+            source="app.aclog.client",
+            event_type="bridge_qso_skipped",
+            transport="bridge",
+            bridge_name=config.name,
+            remote_software="ACLog",
+            metadata={"bridge_id": config.bridge_id, "reason": "user_unavailable"},
+        )
         return
 
     identity = match_aclog_operator_identity(
@@ -239,6 +289,22 @@ async def _ingest_aclog_record(
         identity.value,
         result["status"],
     )
+    await app_logger.info(
+        "ACLog bridge QSO processed",
+        source="app.aclog.client",
+        event_type="bridge_qso_processed",
+        transport="bridge",
+        qso_id=result.get("id") or result.get("existing_id"),
+        bridge_name=config.name,
+        remote_software="ACLog",
+        metadata={
+            "bridge_id": config.bridge_id,
+            "call": record.get("CALL"),
+            "identity_field": identity.field,
+            "identity_value": identity.value,
+            "status": result["status"],
+        },
+    )
 
 
 def _log_aclog_skip(
@@ -253,6 +319,22 @@ def _log_aclog_skip(
         record.get("CALL", "?"),
         disposition,
         detail,
+    )
+    asyncio.create_task(
+        app_logger.warn(
+            "ACLog bridge skipped QSO",
+            source="app.aclog.client",
+            event_type="bridge_qso_skipped",
+            transport="bridge",
+            bridge_name=config.name,
+            remote_software="ACLog",
+            metadata={
+                "bridge_id": config.bridge_id,
+                "call": record.get("CALL"),
+                "disposition": disposition,
+                "reason": detail,
+            },
+        )
     )
 
 

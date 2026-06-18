@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from app.config import settings
 from app.database import init_db, close_db, get_client
 from app.auth.bootstrap import _bootstrap_admin
+from app.internal_logs.service import app_logger
 
 _templates = Jinja2Templates(directory="templates")
 
@@ -83,6 +84,13 @@ async def migrate_shared_qsos():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await app_logger.info(
+        "Application startup started",
+        source="app.main",
+        event_type="service_startup_started",
+        transport="system",
+        metadata={"app": "operator"},
+    )
     await _bootstrap_admin()
     await backfill_created_at()   # D-05: one-time idempotent migration
     await normalize_time_on()     # Phase 52 (D-02): pad 4-digit TIME_ON to 6-digit
@@ -110,12 +118,26 @@ async def lifespan(app: FastAPI):
                     "UDP_OPERATOR callsign %r not found in DB — profile stamping disabled",
                     udp_op,
                 )
+                await app_logger.warn(
+                    "Configured UDP operator was not found",
+                    source="app.main",
+                    event_type="udp_operator_not_found",
+                    transport="system",
+                    metadata={"operator": udp_op},
+                )
 
         udp_transport, _ = await start_udp_listener(
             settings.udp_bind_host,
             settings.udp_port,
             operator=udp_op,
             user=udp_user,
+        )
+        await app_logger.info(
+            "UDP listener started",
+            source="app.main",
+            event_type="udp_listener_started",
+            transport="UDP",
+            metadata={"host": settings.udp_bind_host, "port": settings.udp_port},
         )
 
     aclog_bridge_manager = None
@@ -128,6 +150,17 @@ async def lifespan(app: FastAPI):
         )
         aclog_bridge_manager.start()
         logger.info("ACLog bridge manager started")
+        await app_logger.info(
+            "ACLog bridge manager started",
+            source="app.main",
+            event_type="bridge_manager_started",
+            transport="bridge",
+            remote_software="ACLog",
+            metadata={
+                "scan_seconds": settings.aclog_scan_seconds,
+                "reconnect_seconds": settings.aclog_reconnect_seconds,
+            },
+        )
 
     # Start backup scheduler (conditional on BACKUP_SCHEDULE env var)
     backup_scheduler = None
@@ -141,13 +174,41 @@ async def lifespan(app: FastAPI):
         backup_scheduler = make_scheduler(settings.backup_schedule, _backup_job)
         backup_scheduler.start()
         logger.info("Backup scheduler started (cron: %s)", settings.backup_schedule)
+        await app_logger.info(
+            "Backup scheduler started",
+            source="app.main",
+            event_type="backup_scheduler_started",
+            transport="system",
+            metadata={"schedule": settings.backup_schedule},
+        )
+
+    await app_logger.info(
+        "Application startup completed",
+        source="app.main",
+        event_type="service_startup_completed",
+        transport="system",
+        metadata={"app": "operator"},
+    )
 
     yield
 
     # Shutdown order: UDP first, then backup scheduler, then database.
     # transport.close() is synchronous — do NOT await it.
+    await app_logger.info(
+        "Application shutdown started",
+        source="app.main",
+        event_type="service_shutdown_started",
+        transport="system",
+        metadata={"app": "operator"},
+    )
     if udp_transport is not None:
         udp_transport.close()
+        await app_logger.info(
+            "UDP listener stopped",
+            source="app.main",
+            event_type="udp_listener_stopped",
+            transport="UDP",
+        )
     if app.state.watcher_task is not None:
         app.state.watcher_task.cancel()
         try:
@@ -156,8 +217,21 @@ async def lifespan(app: FastAPI):
             pass
     if aclog_bridge_manager is not None:
         await aclog_bridge_manager.stop()
+        await app_logger.info(
+            "ACLog bridge manager stopped",
+            source="app.main",
+            event_type="bridge_manager_stopped",
+            transport="bridge",
+            remote_software="ACLog",
+        )
     if backup_scheduler is not None and backup_scheduler.running:
         backup_scheduler.shutdown(wait=False)
+        await app_logger.info(
+            "Backup scheduler stopped",
+            source="app.main",
+            event_type="backup_scheduler_stopped",
+            transport="system",
+        )
     await close_db()
 
 
@@ -203,6 +277,11 @@ app.include_router(token_router)
 from app.stats.router import stats_router  # noqa: E402
 
 app.include_router(stats_router, include_in_schema=False)
+
+# Internal application logs admin API
+from app.internal_logs.router import router as internal_logs_router  # noqa: E402
+
+app.include_router(internal_logs_router)
 
 # Documentation site (served before /static — mount order is load-bearing in FastAPI)
 # html=True is load-bearing: MkDocs use_directory_urls:true generates subdirectory

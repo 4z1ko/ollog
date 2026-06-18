@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.auth.dependencies import require_admin
 from app.auth.models import User
 from app.auth.service import hash_password
+from app.internal_logs.service import app_logger
 from app.udp.operator_cache import operator_cache
 
 router = APIRouter(prefix="/admin/users", tags=["admin"])
@@ -36,8 +37,8 @@ class SetEnabledRequest(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/", status_code=201, dependencies=[Depends(require_admin)])
-async def create_user(body: CreateUserRequest):
+@router.post("/", status_code=201)
+async def create_user(body: CreateUserRequest, admin: User = Depends(require_admin)):
     """Create a new operator account.
 
     Raises 409 if the username already exists.
@@ -59,6 +60,17 @@ async def create_user(body: CreateUserRequest):
     )
     await user.insert()
     operator_cache.notify_refresh()
+    await app_logger.info(
+        "Operator account created",
+        source="admin.users",
+        event_type="operator_created",
+        transport="admin",
+        metadata={
+            "admin": admin.username,
+            "username": user.username,
+            "callsign": user.callsign,
+        },
+    )
 
     return {
         "username": user.username,
@@ -68,8 +80,12 @@ async def create_user(body: CreateUserRequest):
     }
 
 
-@router.patch("/{username}/enabled", dependencies=[Depends(require_admin)])
-async def set_user_enabled(username: str, body: SetEnabledRequest):
+@router.patch("/{username}/enabled")
+async def set_user_enabled(
+    username: str,
+    body: SetEnabledRequest,
+    admin: User = Depends(require_admin),
+):
     """Enable or disable an operator account.
 
     Raises 404 if the user does not exist.
@@ -95,12 +111,27 @@ async def set_user_enabled(username: str, body: SetEnabledRequest):
 
     await user.set({User.enabled: body.enabled})
     operator_cache.notify_refresh()
+    await app_logger.info(
+        "Operator account status changed",
+        source="admin.users",
+        event_type="operator_status_changed",
+        transport="admin",
+        metadata={
+            "admin": admin.username,
+            "username": username,
+            "enabled": body.enabled,
+        },
+    )
 
     return {"username": username, "enabled": body.enabled}
 
 
-@router.post("/{username}/reset-password", dependencies=[Depends(require_admin)])
-async def reset_password(username: str, body: ResetPasswordRequest):
+@router.post("/{username}/reset-password")
+async def reset_password(
+    username: str,
+    body: ResetPasswordRequest,
+    admin: User = Depends(require_admin),
+):
     """Reset an operator's password.
 
     Raises 404 if the user does not exist.
@@ -114,6 +145,13 @@ async def reset_password(username: str, body: ResetPasswordRequest):
         )
 
     await user.set({User.hashed_password: hash_password(body.password)})
+    await app_logger.info(
+        "Operator password reset",
+        source="admin.users",
+        event_type="operator_password_reset",
+        transport="admin",
+        metadata={"admin": admin.username, "username": username},
+    )
 
     return {"username": username, "password_reset": True}
 

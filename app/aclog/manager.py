@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from app.aclog.client import ACLogBridgeRuntimeConfig, run_aclog_bridge
 from app.auth.models import User
+from app.internal_logs.service import app_logger
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,16 @@ class ACLogBridgeManager:
                 await self.reconcile()
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
                 logger.exception("ACLog bridge reconciliation failed")
+                await app_logger.error(
+                    "ACLog bridge reconciliation failed",
+                    source="app.aclog.manager",
+                    event_type="bridge_reconcile_failed",
+                    transport="bridge",
+                    remote_software="ACLog",
+                    exc=exc,
+                )
             await asyncio.sleep(self.scan_seconds)
 
     async def reconcile(self) -> None:
@@ -92,6 +101,15 @@ class ACLogBridgeManager:
             task = asyncio.create_task(run_aclog_bridge(config))
             self._bridges[key] = _ManagedBridge(signature=signature, task=task)
             logger.info("ACLog bridge started: %s", config.label)
+            await app_logger.info(
+                "ACLog bridge task started",
+                source="app.aclog.manager",
+                event_type="bridge_task_started",
+                transport="bridge",
+                bridge_name=config.name,
+                remote_software="ACLog",
+                metadata={"bridge_id": config.bridge_id, "host": config.host, "port": config.port},
+            )
 
     async def _stop_bridge(self, key: str) -> None:
         managed = self._bridges.pop(key, None)
@@ -103,3 +121,11 @@ class ACLogBridgeManager:
         except asyncio.CancelledError:
             pass
         logger.info("ACLog bridge stopped: %s", key)
+        await app_logger.info(
+            "ACLog bridge task stopped",
+            source="app.aclog.manager",
+            event_type="bridge_task_stopped",
+            transport="bridge",
+            remote_software="ACLog",
+            metadata={"bridge_key": key},
+        )
