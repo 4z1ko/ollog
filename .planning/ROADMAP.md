@@ -28,9 +28,47 @@
 - ✅ **v3.3 ACLog QSO Sync** — Phase 64 (shipped 2026-06-13)
 - ✅ **v3.4 Responsive Favicon** — Phase 65 (shipped 2026-06-13)
 - ✅ **v3.5 ACLog Registered Operator Routing** — Phase 66 (shipped 2026-06-16)
+- ◆ **v3.6 Internal Application Logging** — Phases 67–69 (active)
 
 
 ## Phases
+
+### ◆ v3.6 Internal Application Logging — ACTIVE
+
+**Milestone Goal:** Give administrators MongoDB-backed operational visibility into QSO ingestion, bridge connectivity, and service health without exposing secrets or changing existing QSO behavior.
+
+| Phase | Name | Goal | Requirements |
+|-------|------|------|--------------|
+| 67 | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
+| 68 | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
+| 69 | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
+
+#### Phase 67: Logging Foundation
+
+Success criteria:
+1. Log model and settings model initialize with Beanie and store records in MongoDB.
+2. Logger drops records below the active threshold and saves records at or above it.
+3. Sensitive metadata/error fields are masked before storage.
+4. Retention uses an expiry field/index so logs do not grow forever.
+5. Focused tests cover thresholding, masking, retention fields, and indexes.
+
+#### Phase 68: Admin Log Configuration and Viewer
+
+Success criteria:
+1. Admin can set minimum level and retention days from the admin UI.
+2. Admin Logs page shows recent logs from MongoDB with pagination.
+3. Filters work for level, source/module, text, and date/time range.
+4. Logs update live through SSE or near-live fallback using existing admin auth patterns.
+5. UI explains the six log levels and default `Info` behavior.
+
+#### Phase 69: Core Flow Instrumentation and Documentation
+
+Success criteria:
+1. Startup/shutdown, MongoDB, UDP listener, ACLog bridge, and backup scheduler lifecycle events are logged.
+2. QSO receive, validation, insert, update, delete, duplicate, and import outcomes are logged across API/UI paths.
+3. UDP and ACLog receive/parse/import/skip/error events include source/transport context without secrets.
+4. Auth/admin actions and log configuration changes are logged without credentials.
+5. Documentation and focused tests verify existing QSO behavior remains unchanged.
 
 <details>
 <summary>✅ v1.0 MVP (Phases 1–6) — SHIPPED 2026-04-04</summary>

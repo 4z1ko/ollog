@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: Between milestones
-status: between_milestones
-stopped_at: v3.5 milestone archived; ready for /gsd-new-milestone
-last_updated: "2026-06-16T00:00:00Z"
-last_activity: 2026-06-16
+milestone: v3.6
+milestone_name: Internal Application Logging
+status: planning
+stopped_at: defining requirements and roadmap
+last_updated: "2026-06-18T00:00:00Z"
+last_activity: 2026-06-18
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 100
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 3
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-16 after completing v3.5 milestone)
+See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Between milestones; ready to define the next milestone.
+**Current focus:** Internal application logging for admin operational visibility.
 
 ## Current Position
 
-Milestone: none
-Phase: none
-Plan: none
-Status: v3.5 archived; ready for `/gsd-new-milestone`
-Last activity: 2026-06-16
+Milestone: v3.6 Internal Application Logging
+Phase: 67 Logging Foundation
+Plan: Not started
+Status: Ready to implement backend logging foundation
+Last activity: 2026-06-18
 
 ```
-v3.5 Progress: [████████████████████] 100% (1/1 phases, 1/1 plans) — shipped
+v3.6 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/3 phases, 0/3 plans)
 ```
 
 ## Performance Metrics
