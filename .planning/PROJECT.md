@@ -62,6 +62,15 @@ Shared remote ACLog computers are safe for multiple ollog operators: live bridge
 - ✓ **ACOP-08:** Tests cover parser/operator-field detection, manual sync filtering, live bridge filtering, skip/report behavior, and the shared-remote two-operator scenario — Phase 66.
 - ✓ **ACOP-09:** Operator documentation explains how shared ACLog remote computers are handled, which ACLog operator identity fields ollog recognizes, and why records without a matching identity are skipped — Phase 66.
 
+### Validated (v3.6 Phase 67)
+
+- ✓ **LOG-01:** MongoDB-backed `ApplicationLog` and `ApplicationLogSettings` models are registered with Beanie — Phase 67.
+- ✓ **LOG-02:** Internal logger applies configured level thresholding with default `Info` behavior — Phase 67.
+- ✓ **LOG-03:** Sensitive metadata and MongoDB URI credentials are masked before log storage and broadcast — Phase 67.
+- ✓ **LOG-04:** Log records include structured operational context fields and sanitized error details — Phase 67.
+- ✓ **LOG-05:** Retention uses an `expires_at` TTL index with default 30-day behavior and supporting query indexes — Phase 67.
+- ✓ **LOG-06:** Live broadcast plumbing and focused tests verify logger behavior without requiring live MongoDB for core unit coverage — Phase 67.
+
 ### Validated (v3.4)
 
 - ✓ **FAV-01:** Every full-page operator web page includes a favicon link based on `favicon/favicon.ico` — Phase 65.
