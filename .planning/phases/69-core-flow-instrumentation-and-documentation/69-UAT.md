@@ -4,15 +4,15 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:26:16Z
+updated: 2026-06-19T21:29:12Z
 ---
 
 ## Current Test
 
-number: 3
-name: Auth And Token Log Safety
+number: 4
+name: UDP Callback Event Logging
 expected: |
-  Operator/OAuth login and API-token create/revoke actions emit safe internal logs. Logs include safe identifiers such as username, callsign, token id/name/prefix, and do not include passwords, plaintext tokens, token hashes, cookies, or authorization headers.
+  UDP protocol callbacks emit internal log events for datagram received, transport error, and transport closed while preserving existing UDP ingest/routing behavior.
 awaiting: user response
 
 ## Tests
@@ -27,7 +27,7 @@ result: pass
 
 ### 3. Auth And Token Log Safety
 expected: Operator/OAuth login and API-token create/revoke actions emit safe internal logs. Logs include safe identifiers such as username, callsign, token id/name/prefix, and do not include passwords, plaintext tokens, token hashes, cookies, or authorization headers.
-result: [pending]
+result: pass
 
 ### 4. UDP Callback Event Logging
 expected: UDP protocol callbacks emit internal log events for datagram received, transport error, and transport closed while preserving existing UDP ingest/routing behavior.
@@ -44,9 +44,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 2
+passed: 3
 issues: 0
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
