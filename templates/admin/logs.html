@@ -249,13 +249,26 @@
     return typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
   }
 
-  source.addEventListener('app_log', function (event) {
+  source.addEventListener('app_log', async function (event) {
     var tbody = currentLogTableBody();
     if (!tbody) return;
     var log = parseLogEventData(event.data);
     if (!matchesFilters(log)) return;
+    var row = '';
+    if (log.id) {
+      try {
+        var response = await fetch('/admin/ui/logs/' + encodeURIComponent(log.id) + '/row', {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (response.ok) row = await response.text();
+      } catch (error) {
+        row = '';
+      }
+    }
+    if (!row) row = rowHtml(log);
     if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
-    tbody.insertAdjacentHTML('afterbegin', rowHtml(log));
+    tbody.insertAdjacentHTML('afterbegin', row);
   });
 
   source.onerror = function () {

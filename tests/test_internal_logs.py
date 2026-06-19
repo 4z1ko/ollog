@@ -339,6 +339,44 @@ def test_admin_logs_live_insert_uses_current_table_body():
     assert "function parseLogEventData(data)" in script
     assert "typeof parsed === 'string' ? JSON.parse(parsed) : parsed" in script
     assert "var log = parseLogEventData(event.data);" in script
+    assert "fetch('/admin/ui/logs/' + encodeURIComponent(log.id) + '/row'" in script
+    assert "if (!row) row = rowHtml(log);" in script
+
+
+@pytest.mark.asyncio
+async def test_admin_log_row_partial_uses_shared_row_context(monkeypatch):
+    captured = {}
+    log = ApplicationLog.model_construct(
+        id=None,
+        timestamp=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        level="Info",
+        severity=LOG_SEVERITY["Info"],
+        source="app.qso",
+        message="Inserted QSO",
+        metadata={"CALL": "W1AW"},
+        expires_at=datetime(2026, 2, 1, tzinfo=timezone.utc),
+    )
+
+    async def fake_get(log_id):
+        assert log_id == "log-id"
+        return log
+
+    def fake_template_response(request, template_name, context):
+        captured["template"] = template_name
+        captured["context"] = context
+        return context
+
+    monkeypatch.setattr(admin_ui_router.ApplicationLog, "get", fake_get)
+    monkeypatch.setattr(admin_ui_router.templates, "TemplateResponse", fake_template_response)
+
+    await admin_ui_router.log_row_partial(
+        request=object(),
+        log_id="log-id",
+        _admin=SimpleNamespace(username="admin"),
+    )
+
+    assert captured["template"] == "admin/log_row.html"
+    assert captured["context"]["log"]["metadata_json"].startswith("{\n")
 
 
 @pytest.mark.asyncio

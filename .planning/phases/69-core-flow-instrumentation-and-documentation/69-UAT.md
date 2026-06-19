@@ -4,22 +4,22 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:09:24Z
+updated: 2026-06-19T21:16:29Z
 ---
 
 ## Current Test
 
-number: 1
-name: ADIF Import Completion Logging
+number: 2
+name: Manual ACLog Sync Logging
 expected: |
-  Importing an ADIF file records route-level internal application logs (`qso_import_started` and `qso_import_request_completed`) plus the shared service `qso_import_completed` log. The logs include the operator callsign and total/accepted/duplicate/error counts where relevant. They do not include raw ADIF file contents or full imported record payloads.
+  Running manual ACLog sync records internal application logs for sync start, records received, processed accepted/duplicate QSOs, skipped records, failures, and completion summary using `bridge_sync_*` event types with bridge and ACLog context.
 awaiting: user response
 
 ## Tests
 
 ### 1. ADIF Import Completion Logging
 expected: Importing an ADIF file records route-level internal application logs (`qso_import_started` and `qso_import_request_completed`) plus the shared service `qso_import_completed` log. The logs include the operator callsign and total/accepted/duplicate/error counts where relevant. They do not include raw ADIF file contents or full imported record payloads.
-result: [pending]
+result: pass
 
 ### 2. Manual ACLog Sync Logging
 expected: Running manual ACLog sync records internal application logs for sync start, records received, processed accepted/duplicate QSOs, skipped records, failures, and completion summary using `bridge_sync_*` event types with bridge and ACLog context.
@@ -44,12 +44,27 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 0
+passed: 1
 issues: 0
-pending: 6
+pending: 5
 skipped: 0
 blocked: 0
 
 ## Gaps
 
-None.
+- truth: "New application log rows displayed through the live Recent Logs stream render with the same message, metadata, and detail formatting as rows shown after page refresh."
+  status: fixed
+  reason: "User reported: the log messages are being displayed correctly only after page refresh"
+  severity: major
+  test: 2
+  root_cause: "The live admin Logs table used a separate JavaScript row renderer while refreshed rows used the server `admin/log_row.html` template, allowing live rows to diverge from refreshed rows."
+  artifacts:
+    - path: "templates/admin/logs.html"
+      issue: "SSE handler inserted rows from client-side HTML instead of the shared row template."
+    - path: "app/admin/ui_router.py"
+      issue: "No row partial endpoint existed for live events to reuse server row formatting."
+  missing:
+    - "Add an authenticated `/admin/ui/logs/{log_id}/row` partial endpoint."
+    - "Have SSE live inserts fetch the server-rendered row by log id before inserting it."
+    - "Add regression tests for server-rendered live row insertion."
+  debug_session: ""

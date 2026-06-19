@@ -21,7 +21,7 @@ from app.auth.dependencies import require_admin_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, hash_password, verify_password
 from app.internal_logs.manager import log_manager
-from app.internal_logs.models import LOG_LEVELS
+from app.internal_logs.models import LOG_LEVELS, ApplicationLog
 from app.internal_logs.service import (
     app_logger,
     format_log_detail,
@@ -508,6 +508,23 @@ async def logs_events(
             )
     finally:
         log_manager.disconnect(queue)
+
+
+@ui_router.get("/logs/{log_id}/row", response_class=HTMLResponse)
+async def log_row_partial(
+    request: Request,
+    log_id: str,
+    _admin: User = Depends(require_admin_cookie),
+):
+    """Render one application log row with the same template used by refresh."""
+    log = await ApplicationLog.get(log_id)
+    if log is None:
+        return HTMLResponse(content="", status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "admin/log_row.html",
+        {"log": _log_row_context(log)},
+    )
 
 
 # ---------------------------------------------------------------------------
