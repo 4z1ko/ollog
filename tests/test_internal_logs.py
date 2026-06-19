@@ -341,6 +341,9 @@ def test_admin_logs_live_insert_uses_current_table_body():
     assert "var log = parseLogEventData(event.data);" in script
     assert "fetch('/admin/ui/logs/' + encodeURIComponent(log.id) + '/row'" in script
     assert "if (!row) row = rowHtml(log);" in script
+    assert "function refreshLogsTable()" in script
+    assert "htmx.ajax('GET', '/admin/ui/logs?' + logsQuery()" in script
+    assert "window.setInterval(refreshLogsTable, 5000);" in script
 
 
 @pytest.mark.asyncio

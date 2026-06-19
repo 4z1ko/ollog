@@ -249,6 +249,27 @@
     return typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
   }
 
+  function logsQuery() {
+    var params = new URLSearchParams();
+    if (filterForm) {
+      var data = new FormData(filterForm);
+      ['level', 'source', 'search', 'date_from', 'date_to'].forEach(function (key) {
+        var value = data.get(key);
+        if (value) params.set(key, value);
+      });
+    }
+    params.set('page', '1');
+    return params.toString();
+  }
+
+  function refreshLogsTable() {
+    if (!window.htmx) return;
+    htmx.ajax('GET', '/admin/ui/logs?' + logsQuery(), {
+      target: '#logs-table',
+      swap: 'outerHTML'
+    });
+  }
+
   source.addEventListener('app_log', async function (event) {
     var tbody = currentLogTableBody();
     if (!tbody) return;
@@ -274,6 +295,8 @@
   source.onerror = function () {
     if (status) status.textContent = 'OFFLINE';
   };
+
+  window.setInterval(refreshLogsTable, 5000);
 })();
 </script>
 {% endblock %}

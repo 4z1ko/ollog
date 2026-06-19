@@ -4,7 +4,7 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:16:29Z
+updated: 2026-06-19T21:20:06Z
 ---
 
 ## Current Test
@@ -67,4 +67,17 @@ blocked: 0
     - "Add an authenticated `/admin/ui/logs/{log_id}/row` partial endpoint."
     - "Have SSE live inserts fetch the server-rendered row by log id before inserting it."
     - "Add regression tests for server-rendered live row insertion."
+  debug_session: ""
+- truth: "Manual ACLog sync logs created by the operator/API service appear in the admin Recent Logs view without requiring a manual page refresh."
+  status: fixed
+  reason: "User reported: still no live log messages update for manual sync operation"
+  severity: major
+  test: 2
+  root_cause: "Admin Logs SSE uses an in-memory queue per process. Manual ACLog sync logs are created by the operator/API process, while the admin Logs page SSE connection is served by the admin process, so those cross-process MongoDB-backed logs did not reach the EventSource stream."
+  artifacts:
+    - path: "templates/admin/logs.html"
+      issue: "The page depended only on the in-process EventSource stream and had no polling fallback for logs written by another process."
+  missing:
+    - "Add a safe polling fallback that refreshes the first admin Logs page with current filters from MongoDB."
+    - "Add regression checks that the polling fallback exists."
   debug_session: ""
