@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.6
 milestone_name: Internal Application Logging
 status: active
-stopped_at: phase 68 context gathered
+stopped_at: phase 68 UI-SPEC approved
 last_updated: "2026-06-19T00:00:00Z"
 last_activity: 2026-06-19
 progress:
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
 
 Milestone: v3.6 Internal Application Logging
 Phase: 68 Admin Log Configuration and Viewer
-Plan: context gathered
+Plan: UI-SPEC approved
 Status: Phase 68 ready for planning
 Last activity: 2026-06-19
 
@@ -148,6 +148,7 @@ v3.6 Progress: [███████░░░░░░░░░░░░░] 33
 - Phase 67 security verified: 7/7 retroactive STRIDE threats closed, `threats_open: 0`, no accepted risks; `67-SECURITY.md` records evidence for masking, admin-only access, failure isolation, TTL retention, settings validation, forced audit records, and call-site secret minimization (2026-06-19)
 - Phase 67 validation passed: LOG-01 through LOG-06 have automated/source evidence, `67-VALIDATION.md` is Nyquist-compliant with 0 gaps and 0 manual-only checks, and focused validation passed with `tests/test_internal_logs.py` reporting 7/7 tests green (2026-06-19)
 - Phase 68 context gathered: treat the phase as reconcile-gaps work against Phase 67's already-shipped admin log viewer/configuration, add simple Previous/Next pagination controls, keep immediate live inserts, and format collapsed metadata/error details as readable JSON (2026-06-19)
+- Phase 68 UI-SPEC approved: reuse existing admin card/table/form design system, add compact Previous/Next controls, keep immediate live inserts, format collapsed metadata/error as readable JSON, and avoid a broader admin log redesign or new UI dependencies (2026-06-19)
 
 ### v3.5 Phase Structure
 
