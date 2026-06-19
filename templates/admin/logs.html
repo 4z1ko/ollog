@@ -244,10 +244,15 @@
     return document.getElementById('logs-table-body');
   }
 
+  function parseLogEventData(data) {
+    var parsed = JSON.parse(data);
+    return typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
+  }
+
   source.addEventListener('app_log', function (event) {
     var tbody = currentLogTableBody();
     if (!tbody) return;
-    var log = JSON.parse(event.data);
+    var log = parseLogEventData(event.data);
     if (!matchesFilters(log)) return;
     if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
     tbody.insertAdjacentHTML('afterbegin', rowHtml(log));

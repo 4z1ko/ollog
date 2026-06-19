@@ -294,3 +294,6 @@ def test_admin_logs_live_insert_uses_current_table_body():
     assert "function currentLogTableBody()" in script
     assert "var tbody = currentLogTableBody();" in script
     assert "var tbody = document.getElementById('logs-table-body');" not in script
+    assert "function parseLogEventData(data)" in script
+    assert "typeof parsed === 'string' ? JSON.parse(parsed) : parsed" in script
+    assert "var log = parseLogEventData(event.data);" in script
