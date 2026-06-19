@@ -4,7 +4,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
 
+from app.auth import router as auth_router
+from app.auth.models import User
 from app.admin import ui_router as admin_ui_router
 from app.internal_logs.manager import LogConnectionManager
 from app.internal_logs.models import (
@@ -22,6 +25,33 @@ from app.internal_logs.service import (
     sanitize_metadata,
     should_log,
 )
+from app.qso import service as qso_service
+from app.qso import ui_router as qso_ui_router
+from app.tokens import router as tokens_router
+
+
+class CapturingAppLogger:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    async def info(self, message, **kwargs):
+        self.calls.append({"level": "Info", "message": message, **kwargs})
+
+    async def warn(self, message, **kwargs):
+        self.calls.append({"level": "Warn", "message": message, **kwargs})
+
+    async def error(self, message, **kwargs):
+        self.calls.append({"level": "Error", "message": message, **kwargs})
+
+
+FORBIDDEN_LOG_KEYS = {
+    "password",
+    "token",
+    "full_token",
+    "hashed_token",
+    "authorization",
+    "cookie",
+}
 
 
 class FakeApplicationLog:
@@ -297,3 +327,147 @@ def test_admin_logs_live_insert_uses_current_table_body():
     assert "function parseLogEventData(data)" in script
     assert "typeof parsed === 'string' ? JSON.parse(parsed) : parsed" in script
     assert "var log = parseLogEventData(event.data);" in script
+
+
+@pytest.mark.asyncio
+async def test_adif_import_logs_completed_summary_without_payload(monkeypatch):
+    capture = CapturingAppLogger()
+    monkeypatch.setattr(qso_service, "app_logger", capture)
+
+    report = await qso_service.import_qsos_from_bytes(
+        b"header without records",
+        "W1AW",
+        collection=object(),
+    )
+
+    assert report == {
+        "total_records": 0,
+        "accepted": [],
+        "duplicates": [],
+        "errors": [],
+    }
+    event = capture.calls[-1]
+    assert event["event_type"] == "qso_import_completed"
+    assert event["source"] == "app.qso.service"
+    assert event["transport"] == "HTTP"
+    assert event["metadata"] == {
+        "operator": "W1AW",
+        "total_records": 0,
+        "accepted_count": 0,
+        "duplicate_count": 0,
+        "error_count": 0,
+    }
+    assert "raw" not in event["metadata"]
+    assert "records" not in event["metadata"]
+
+
+@pytest.mark.asyncio
+async def test_oauth_login_logs_success_and_failure_without_credentials(monkeypatch):
+    capture = CapturingAppLogger()
+    user = User.model_construct(
+        username="op1",
+        callsign="W1AW",
+        role="operator",
+        enabled=True,
+        hashed_password="hash",
+    )
+
+    async def fake_find_one(query):
+        return user
+
+    monkeypatch.setattr(auth_router, "app_logger", capture)
+    monkeypatch.setattr(auth_router.User, "find_one", fake_find_one)
+    monkeypatch.setattr(auth_router, "verify_password", lambda password, hashed: password == "good")
+    monkeypatch.setattr(auth_router, "create_access_token", lambda data: "jwt-secret")
+
+    response = await auth_router.login(SimpleNamespace(username="op1", password="good"))
+
+    assert response == {"access_token": "jwt-secret", "token_type": "bearer"}
+    success = capture.calls[-1]
+    assert success["event_type"] == "oauth_login_succeeded"
+    assert success["metadata"] == {"username": "op1", "callsign": "W1AW", "role": "operator"}
+    assert FORBIDDEN_LOG_KEYS.isdisjoint(success["metadata"])
+
+    with pytest.raises(HTTPException):
+        await auth_router.login(SimpleNamespace(username="op1", password="bad"))
+
+    failure = capture.calls[-1]
+    assert failure["event_type"] == "oauth_login_failed"
+    assert failure["metadata"] == {"username": "op1", "reason": "invalid_password"}
+    assert FORBIDDEN_LOG_KEYS.isdisjoint(failure["metadata"])
+
+
+@pytest.mark.asyncio
+async def test_rest_api_token_create_logs_safe_metadata(monkeypatch):
+    capture = CapturingAppLogger()
+    inserted = {}
+
+    class FakeApiToken:
+        def __init__(self, **kwargs):
+            self.id = "token-id"
+            self.created_at = datetime(2026, 6, 19, tzinfo=timezone.utc)
+            self.enabled = True
+            self.__dict__.update(kwargs)
+
+        async def insert(self):
+            inserted["doc"] = self
+
+    user = User.model_construct(username="op1", callsign="W1AW", id="user-id")
+
+    monkeypatch.setattr(tokens_router, "app_logger", capture)
+    monkeypatch.setattr(tokens_router, "ApiToken", FakeApiToken)
+    monkeypatch.setattr(tokens_router, "generate_api_token", lambda: ("ollog_plain_secret", "prefix12"))
+    monkeypatch.setattr(tokens_router, "hash_api_token", lambda token: "hashed-secret")
+    monkeypatch.setattr("app.udp.token_cache.token_cache.notify_refresh", lambda: None)
+
+    response = await tokens_router.create_token(user, name="logger", expires_at=None)
+
+    assert response.full_token == "ollog_plain_secret"
+    event = capture.calls[-1]
+    assert event["event_type"] == "api_token_created"
+    assert event["metadata"] == {
+        "username": "op1",
+        "callsign": "W1AW",
+        "token_id": "token-id",
+        "token_name": "logger",
+        "token_prefix": "prefix12",
+    }
+    assert FORBIDDEN_LOG_KEYS.isdisjoint(event["metadata"])
+    assert "ollog_plain_secret" not in str(event)
+    assert "hashed-secret" not in str(event)
+    assert inserted["doc"].hashed_token == "hashed-secret"
+
+
+@pytest.mark.asyncio
+async def test_operator_ui_token_create_logs_safe_metadata(monkeypatch):
+    capture = CapturingAppLogger()
+
+    class FakeApiToken:
+        def __init__(self, **kwargs):
+            self.id = "token-id"
+            self.__dict__.update(kwargs)
+
+        async def insert(self):
+            return None
+
+    def fake_template_response(request, template_name, context):
+        return {"template": template_name, "context": context}
+
+    user = User.model_construct(username="op1", callsign="W1AW", id="user-id")
+
+    monkeypatch.setattr(qso_ui_router, "app_logger", capture)
+    monkeypatch.setattr(qso_ui_router, "ApiToken", FakeApiToken)
+    monkeypatch.setattr(qso_ui_router, "generate_api_token", lambda: ("ollog_plain_secret", "prefix12"))
+    monkeypatch.setattr(qso_ui_router, "hash_api_token", lambda token: "hashed-secret")
+    monkeypatch.setattr(qso_ui_router.templates, "TemplateResponse", fake_template_response)
+    monkeypatch.setattr("app.udp.token_cache.token_cache.notify_refresh", lambda: None)
+
+    response = await qso_ui_router.tokens_create(object(), user, name="logger", expires_at=None)
+
+    assert response["context"]["full_token"] == "ollog_plain_secret"
+    event = capture.calls[-1]
+    assert event["event_type"] == "operator_api_token_created"
+    assert event["metadata"]["token_prefix"] == "prefix12"
+    assert FORBIDDEN_LOG_KEYS.isdisjoint(event["metadata"])
+    assert "ollog_plain_secret" not in str(event)
+    assert "hashed-secret" not in str(event)

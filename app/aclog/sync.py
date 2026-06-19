@@ -10,6 +10,7 @@ from typing import Any
 from app.aclog.identity import match_aclog_operator_identity
 from app.aclog.parser import aclog_full_records_from_message, iter_cmd_messages, parse_cmd
 from app.auth.models import ACLogBridge, User
+from app.internal_logs.service import app_logger
 from app.qso.collections import get_user_qso_collection
 from app.qso.service import ingest_qso_record
 
@@ -53,6 +54,21 @@ async def sync_aclog_bridge(
         port=bridge.port,
     )
     writer: Any | None = None
+    bridge_metadata = {
+        "bridge_name": report.bridge_name,
+        "host": bridge.host,
+        "port": bridge.port,
+        "bridge_id": str(getattr(bridge, "id", "") or ""),
+    }
+    await app_logger.info(
+        "ACLog manual sync started",
+        source="app.aclog.sync",
+        event_type="bridge_sync_started",
+        transport="bridge",
+        bridge_name=report.bridge_name,
+        remote_software="ACLog",
+        metadata=bridge_metadata,
+    )
 
     try:
         reader, writer = await asyncio.wait_for(
@@ -65,6 +81,16 @@ async def sync_aclog_bridge(
         setup_station_call, raw = await _read_sync_responses(reader, timeout)
     except (OSError, asyncio.TimeoutError) as exc:
         report.failure_reason = str(exc) or exc.__class__.__name__
+        await app_logger.error(
+            "ACLog manual sync failed",
+            source="app.aclog.sync",
+            event_type="bridge_sync_failed",
+            transport="bridge",
+            bridge_name=report.bridge_name,
+            remote_software="ACLog",
+            metadata={**bridge_metadata, "reason": report.failure_reason},
+            exc=exc,
+        )
         return report
     finally:
         if writer is not None:
@@ -83,6 +109,15 @@ async def sync_aclog_bridge(
         records.extend(parsed)
 
     report.received = len(records)
+    await app_logger.info(
+        "ACLog manual sync records received",
+        source="app.aclog.sync",
+        event_type="bridge_sync_records_received",
+        transport="bridge",
+        bridge_name=report.bridge_name,
+        remote_software="ACLog",
+        metadata={**bridge_metadata, "received_count": report.received},
+    )
     collection = get_user_qso_collection(user)
 
     from app.aclog.client import _map_other_slots_to_custom_fields
@@ -106,6 +141,13 @@ async def sync_aclog_bridge(
                 record,
                 "missing ACLog station/operator identity",
             )
+            await _log_sync_qso_skipped(
+                report,
+                bridge_metadata,
+                record,
+                "missing",
+                "missing ACLog station/operator identity",
+            )
             continue
         if identity.disposition == "unmatched":
             report.skipped_unmatched_operator += 1
@@ -123,6 +165,15 @@ async def sync_aclog_bridge(
                 record,
                 f"unmatched ACLog {identity.field}: {identity.value}",
             )
+            await _log_sync_qso_skipped(
+                report,
+                bridge_metadata,
+                record,
+                "unmatched",
+                f"unmatched ACLog {identity.field}: {identity.value}",
+                identity_field=identity.field,
+                identity_value=identity.value,
+            )
             continue
 
         mapped = _map_other_slots_to_custom_fields(record, user)
@@ -137,6 +188,16 @@ async def sync_aclog_bridge(
         except Exception as exc:
             report.errors += 1
             _append_example(report, index, mapped, str(exc))
+            await app_logger.error(
+                "ACLog manual sync QSO import failed",
+                source="app.aclog.sync",
+                event_type="bridge_sync_qso_error",
+                transport="bridge",
+                bridge_name=report.bridge_name,
+                remote_software="ACLog",
+                metadata={**bridge_metadata, "call": mapped.get("CALL")},
+                exc=exc,
+            )
             continue
 
         status = result.get("status")
@@ -147,6 +208,15 @@ async def sync_aclog_bridge(
         else:
             report.errors += 1
             _append_example(report, index, mapped, result.get("reason", "rejected"))
+            await _log_sync_qso_skipped(
+                report,
+                bridge_metadata,
+                mapped,
+                "rejected",
+                result.get("reason", "rejected"),
+                identity_field=identity.field,
+                identity_value=identity.value,
+            )
             continue
 
         logger.info(
@@ -157,7 +227,40 @@ async def sync_aclog_bridge(
             identity.value,
             status,
         )
+        await app_logger.info(
+            "ACLog manual sync QSO processed",
+            source="app.aclog.sync",
+            event_type="bridge_sync_qso_processed",
+            transport="bridge",
+            qso_id=result.get("id") or result.get("existing_id"),
+            bridge_name=report.bridge_name,
+            remote_software="ACLog",
+            metadata={
+                **bridge_metadata,
+                "call": mapped.get("CALL"),
+                "identity_field": identity.field,
+                "identity_value": identity.value,
+                "status": status,
+            },
+        )
 
+    await app_logger.info(
+        "ACLog manual sync completed",
+        source="app.aclog.sync",
+        event_type="bridge_sync_completed",
+        transport="bridge",
+        bridge_name=report.bridge_name,
+        remote_software="ACLog",
+        metadata={
+            **bridge_metadata,
+            "received_count": report.received,
+            "imported_count": report.imported,
+            "skipped_count": report.skipped,
+            "skipped_missing_operator_count": report.skipped_missing_operator,
+            "skipped_unmatched_operator_count": report.skipped_unmatched_operator,
+            "error_count": report.errors,
+        },
+    )
     return report
 
 
@@ -203,4 +306,35 @@ def _append_example(
             "call": record.get("CALL") or "?",
             "reason": reason,
         }
+    )
+
+
+async def _log_sync_qso_skipped(
+    report: ACLogSyncReport,
+    bridge_metadata: dict[str, Any],
+    record: dict[str, str],
+    disposition: str,
+    reason: str,
+    *,
+    identity_field: str | None = None,
+    identity_value: str | None = None,
+) -> None:
+    metadata: dict[str, Any] = {
+        **bridge_metadata,
+        "call": record.get("CALL"),
+        "disposition": disposition,
+        "reason": reason,
+    }
+    if identity_field is not None:
+        metadata["identity_field"] = identity_field
+    if identity_value is not None:
+        metadata["identity_value"] = identity_value
+    await app_logger.warn(
+        "ACLog manual sync QSO skipped",
+        source="app.aclog.sync",
+        event_type="bridge_sync_qso_skipped",
+        transport="bridge",
+        bridge_name=report.bridge_name,
+        remote_software="ACLog",
+        metadata=metadata,
     )

@@ -30,6 +30,7 @@ from app.adif.serializer import serialize_adi
 from app.auth.dependencies import get_current_operator_callsign_cookie, get_current_user_cookie
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
+from app.internal_logs.service import app_logger
 from app.profile.schemas import ProfileUpdateRequest
 from app.profile.service import update_profile
 from app.qso.collections import get_user_qso_collection
@@ -121,6 +122,13 @@ async def login_submit(
 
     user = await User.find_one({"username": username})
     if user is None or not user.enabled:
+        await app_logger.warn(
+            "Operator login failed",
+            source="log.auth",
+            event_type="operator_login_failed",
+            transport="HTTP",
+            metadata={"username": username, "reason": "invalid_user"},
+        )
         return templates.TemplateResponse(
             request,
             "log/login.html",
@@ -129,6 +137,13 @@ async def login_submit(
         )
 
     if not verify_password(password, user.hashed_password):
+        await app_logger.warn(
+            "Operator login failed",
+            source="log.auth",
+            event_type="operator_login_failed",
+            transport="HTTP",
+            metadata={"username": username, "reason": "invalid_password"},
+        )
         return templates.TemplateResponse(
             request,
             "log/login.html",
@@ -147,6 +162,13 @@ async def login_submit(
         httponly=True,
         samesite="lax",
     )
+    await app_logger.info(
+        "Operator login succeeded",
+        source="log.auth",
+        event_type="operator_login_succeeded",
+        transport="HTTP",
+        metadata={"username": user.username, "callsign": user.callsign, "role": user.role},
+    )
     return response
 
 
@@ -155,6 +177,12 @@ async def logout():
     """Clear the auth cookie and redirect to the login page."""
     response = RedirectResponse(url="/log/login", status_code=302)
     response.delete_cookie(key="access_token")
+    await app_logger.info(
+        "Operator logout requested",
+        source="log.auth",
+        event_type="operator_logout",
+        transport="HTTP",
+    )
     return response
 
 
@@ -1069,6 +1097,19 @@ async def tokens_create(
     await doc.insert()
     from app.udp.token_cache import token_cache
     token_cache.notify_refresh()
+    await app_logger.info(
+        "Operator API token created",
+        source="log.tokens",
+        event_type="operator_api_token_created",
+        transport="HTTP",
+        metadata={
+            "username": user.username,
+            "callsign": user.callsign,
+            "token_id": str(doc.id),
+            "token_name": doc.name,
+            "token_prefix": doc.token_prefix,
+        },
+    )
 
     return templates.TemplateResponse(
         request,
@@ -1100,6 +1141,19 @@ async def tokens_revoke(
     await token.set({ApiToken.enabled: False})
     from app.udp.token_cache import token_cache
     token_cache.notify_refresh()
+    await app_logger.info(
+        "Operator API token revoked",
+        source="log.tokens",
+        event_type="operator_api_token_revoked",
+        transport="HTTP",
+        metadata={
+            "username": user.username,
+            "callsign": user.callsign,
+            "token_id": str(token.id),
+            "token_name": token.name,
+            "token_prefix": token.token_prefix,
+        },
+    )
     return Response(content="", status_code=200)
 
 

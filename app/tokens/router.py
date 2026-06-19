@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
+from app.internal_logs.service import app_logger
 from app.tokens.models import ApiToken
 from app.tokens.service import generate_api_token, hash_api_token, validate_token_name
 
@@ -86,6 +87,19 @@ async def create_token(
     await doc.insert()
     from app.udp.token_cache import token_cache
     token_cache.notify_refresh()
+    await app_logger.info(
+        "API token created",
+        source="app.tokens.router",
+        event_type="api_token_created",
+        transport="HTTP",
+        metadata={
+            "username": user.username,
+            "callsign": user.callsign,
+            "token_id": str(doc.id),
+            "token_name": doc.name,
+            "token_prefix": doc.token_prefix,
+        },
+    )
 
     return TokenCreateResponse(
         id=str(doc.id),
@@ -162,4 +176,17 @@ async def revoke_token(
     await token.set({ApiToken.enabled: False})
     from app.udp.token_cache import token_cache
     token_cache.notify_refresh()
+    await app_logger.info(
+        "API token revoked",
+        source="app.tokens.router",
+        event_type="api_token_revoked",
+        transport="HTTP",
+        metadata={
+            "username": user.username,
+            "callsign": user.callsign,
+            "token_id": str(token.id),
+            "token_name": token.name,
+            "token_prefix": token.token_prefix,
+        },
+    )
     return Response(status_code=204)

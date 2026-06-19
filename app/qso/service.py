@@ -412,6 +412,7 @@ async def import_qsos_from_bytes(
     raw: bytes,
     operator: str,
     collection: Any | None = None,
+    transport: str = "HTTP",
 ) -> dict:
     """Core ADIF import logic — raises ValueError, never HTTPException.
 
@@ -498,12 +499,26 @@ async def import_qsos_from_bytes(
             "id": str(qso.id),
         })
 
-    return {
+    report = {
         "total_records": len(records),
         "accepted": accepted,
         "duplicates": duplicates,
         "errors": errors,
     }
+    await app_logger.info(
+        "QSO ADIF import completed",
+        source="app.qso.service",
+        event_type="qso_import_completed",
+        transport=transport,
+        metadata={
+            "operator": operator,
+            "total_records": report["total_records"],
+            "accepted_count": len(accepted),
+            "duplicate_count": len(duplicates),
+            "error_count": len(errors),
+        },
+    )
+    return report
 
 
 async def get_qso_page(

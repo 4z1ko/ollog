@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.auth.models import User
 from app.auth.service import create_access_token, verify_password
 from app.auth.dependencies import get_current_user
+from app.internal_logs.service import app_logger
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,12 +18,26 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
     user = await User.find_one({"username": form_data.username})
     if user is None or not user.enabled:
+        await app_logger.warn(
+            "OAuth login failed",
+            source="auth.router",
+            event_type="oauth_login_failed",
+            transport="HTTP",
+            metadata={"username": form_data.username, "reason": "invalid_user"},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not verify_password(form_data.password, user.hashed_password):
+        await app_logger.warn(
+            "OAuth login failed",
+            source="auth.router",
+            event_type="oauth_login_failed",
+            transport="HTTP",
+            metadata={"username": form_data.username, "reason": "invalid_password"},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -35,6 +50,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             "callsign": user.callsign,
             "role": user.role,
         }
+    )
+    await app_logger.info(
+        "OAuth login succeeded",
+        source="auth.router",
+        event_type="oauth_login_succeeded",
+        transport="HTTP",
+        metadata={"username": user.username, "callsign": user.callsign, "role": user.role},
     )
     return {"access_token": token, "token_type": "bearer"}
 

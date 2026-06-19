@@ -69,7 +69,7 @@ Success criteria:
 
 #### Phase 69: Core Flow Instrumentation and Documentation
 
-**Status:** Planned 2026-06-19. Research written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-RESEARCH.md`; implementation plan written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-PLAN.md`.
+**Status:** Executed 2026-06-19. Research written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-RESEARCH.md`; implementation plan written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-PLAN.md`; summary written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md`. Phase 69 added safe internal logs for ADIF import, manual ACLog sync, operator/OAuth auth, and API-token actions; updated application log documentation; and passed focused regression checks.
 
 Success criteria:
 1. Startup/shutdown, MongoDB, UDP listener, ACLog bridge, and backup scheduler lifecycle events are logged.

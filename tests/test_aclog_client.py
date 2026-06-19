@@ -32,6 +32,20 @@ class FakeReader:
         return self.payloads.pop(0) if self.payloads else b""
 
 
+class CapturingAppLogger:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    async def info(self, message, **kwargs):
+        self.calls.append({"level": "Info", "message": message, **kwargs})
+
+    async def warn(self, message, **kwargs):
+        self.calls.append({"level": "Warn", "message": message, **kwargs})
+
+    async def error(self, message, **kwargs):
+        self.calls.append({"level": "Error", "message": message, **kwargs})
+
+
 def _config() -> ACLogBridgeRuntimeConfig:
     return ACLogBridgeRuntimeConfig(
         user_id=PydanticObjectId(),
@@ -98,6 +112,7 @@ async def test_manual_sync_sends_list_includeall_without_value(monkeypatch):
 @pytest.mark.asyncio
 async def test_manual_sync_counts_imported_duplicates_and_errors(monkeypatch):
     writer = FakeWriter()
+    capture = CapturingAppLogger()
     payload = (
         "<CMD><LIST>"
         "<RECORD><CALL>K1ABC</CALL><BAND>20</BAND><MODE>SSB</MODE>"
@@ -130,6 +145,7 @@ async def test_manual_sync_counts_imported_duplicates_and_errors(monkeypatch):
     monkeypatch.setattr("app.aclog.sync.asyncio.open_connection", fake_open_connection)
     monkeypatch.setattr("app.aclog.sync.get_user_qso_collection", lambda user: object())
     monkeypatch.setattr("app.aclog.sync.ingest_qso_record", fake_ingest_qso_record)
+    monkeypatch.setattr("app.aclog.sync.app_logger", capture)
 
     report = await sync_aclog_bridge(_user(), _bridge())
 
@@ -140,11 +156,25 @@ async def test_manual_sync_counts_imported_duplicates_and_errors(monkeypatch):
     assert report.examples == [
         {"index": "3", "call": "K1BAD", "reason": "missing required field: MODE"}
     ]
+    event_types = [call["event_type"] for call in capture.calls]
+    assert event_types == [
+        "bridge_sync_started",
+        "bridge_sync_records_received",
+        "bridge_sync_qso_processed",
+        "bridge_sync_qso_processed",
+        "bridge_sync_qso_skipped",
+        "bridge_sync_completed",
+    ]
+    processed = [call for call in capture.calls if call["event_type"] == "bridge_sync_qso_processed"]
+    assert [call["metadata"]["status"] for call in processed] == ["accepted", "duplicate"]
+    assert all(call["transport"] == "bridge" for call in capture.calls)
+    assert all(call["remote_software"] == "ACLog" for call in capture.calls)
 
 
 @pytest.mark.asyncio
 async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkeypatch):
     writer = FakeWriter()
+    capture = CapturingAppLogger()
     payload = (
         "<CMD><LIST>"
         "<RECORD><CALL>K1OK</CALL><BAND>20</BAND><MODE>SSB</MODE>"
@@ -178,6 +208,7 @@ async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkey
     monkeypatch.setattr("app.aclog.sync.asyncio.open_connection", fake_open_connection)
     monkeypatch.setattr("app.aclog.sync.get_user_qso_collection", lambda user: object())
     monkeypatch.setattr("app.aclog.sync.ingest_qso_record", fake_ingest_qso_record)
+    monkeypatch.setattr("app.aclog.sync.app_logger", capture)
 
     report = await sync_aclog_bridge(_user(), _bridge())
 
@@ -200,6 +231,11 @@ async def test_manual_sync_filters_missing_and_unmatched_operator_records(monkey
             "reason": "unmatched ACLog OPERATOR: K1ABC",
         },
     ]
+    skipped = [call for call in capture.calls if call["event_type"] == "bridge_sync_qso_skipped"]
+    assert [call["metadata"]["disposition"] for call in skipped] == ["missing", "unmatched"]
+    assert skipped[0]["metadata"]["call"] == "K1MISS"
+    assert "local_station" not in skipped[0]["metadata"]
+    assert "station_call" not in skipped[0]["metadata"]
 
 
 @pytest.mark.asyncio
@@ -240,6 +276,7 @@ async def test_manual_sync_routes_by_setup_call_before_operator(monkeypatch):
 @pytest.mark.asyncio
 async def test_manual_sync_timeout_reports_failure_without_importing(monkeypatch):
     imported: list[dict] = []
+    capture = CapturingAppLogger()
 
     async def fake_open_connection(host, port):
         raise TimeoutError
@@ -250,12 +287,17 @@ async def test_manual_sync_timeout_reports_failure_without_importing(monkeypatch
 
     monkeypatch.setattr("app.aclog.sync.asyncio.open_connection", fake_open_connection)
     monkeypatch.setattr("app.aclog.sync.ingest_qso_record", fake_ingest_qso_record)
+    monkeypatch.setattr("app.aclog.sync.app_logger", capture)
 
     report = await sync_aclog_bridge(_user(), _bridge(), timeout=0.01)
 
     assert report.failed is True
     assert report.imported == 0
     assert imported == []
+    assert [call["event_type"] for call in capture.calls] == [
+        "bridge_sync_started",
+        "bridge_sync_failed",
+    ]
 
 
 @pytest.mark.asyncio

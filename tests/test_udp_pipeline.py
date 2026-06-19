@@ -12,6 +12,7 @@ _handle_datagram uses lazy imports inside the function body:
 from __future__ import annotations
 
 import logging
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -28,6 +29,20 @@ _SAMPLE_ADIF = (
     "<QSO_DATE:8>20260406<TIME_ON:4>1200<EOR>"
 )
 _ADDR = ("127.0.0.1", 9999)
+
+
+class CapturingAppLogger:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    async def debug(self, message, **kwargs):
+        self.calls.append({"level": "Debug", "message": message, **kwargs})
+
+    async def info(self, message, **kwargs):
+        self.calls.append({"level": "Info", "message": message, **kwargs})
+
+    async def warn(self, message, **kwargs):
+        self.calls.append({"level": "Warn", "message": message, **kwargs})
 
 
 # ---------------------------------------------------------------------------
@@ -359,3 +374,34 @@ async def test_error_received_logs_warning_and_continues(caplog):
     # Protocol has not stopped — transport is still None (never connected) which is fine;
     # the key assertion is that no exception was raised and no transport.close() was called
     assert protocol.transport is None
+
+
+@pytest.mark.asyncio
+async def test_udp_protocol_callbacks_emit_internal_log_events(monkeypatch):
+    capture = CapturingAppLogger()
+
+    async def fake_handle_datagram(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.udp.server.app_logger", capture)
+    monkeypatch.setattr("app.udp.server._handle_datagram", fake_handle_datagram)
+
+    protocol = QSODatagramProtocol(operator="VK2ABC", user=None)
+    protocol.datagram_received(b"abc", _ADDR)
+    protocol.error_received(OSError("ICMP unreachable"))
+    protocol.connection_lost(None)
+    await asyncio.sleep(0)
+
+    event_types = [call["event_type"] for call in capture.calls]
+    assert event_types == [
+        "udp_datagram_received",
+        "udp_transport_error",
+        "udp_transport_closed",
+    ]
+    assert capture.calls[0]["source"] == "app.udp.server"
+    assert capture.calls[0]["transport"] == "UDP"
+    assert capture.calls[0]["metadata"] == {
+        "remote_host": "127.0.0.1",
+        "remote_port": 9999,
+        "bytes": 3,
+    }
