@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.6
 milestone_name: Internal Application Logging
 status: active
-stopped_at: phase 67 security verified
+stopped_at: phase 67 validation complete
 last_updated: "2026-06-19T00:00:00Z"
 last_activity: 2026-06-19
 progress:
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
 Milestone: v3.6 Internal Application Logging
 Phase: 67 Logging Foundation
 Plan: 67-01 verified
-Status: Phase 67 secure; Phase 67 validation is next
+Status: Phase 67 validated; Phase 68 reconciliation/planning is next
 Last activity: 2026-06-19
 
 ```
@@ -146,6 +146,7 @@ v3.6 Progress: [███████░░░░░░░░░░░░░] 33
 - Phase 67 executed: internal log models/settings, logger service, retention/indexing, sensitive metadata masking, live broadcast manager, admin log API/UI, and broad core-flow instrumentation committed in `a821a65`; focused verification passed with 45 tests and build/doc checks, while `test_qso_api.py` remains blocked by local MongoDB replica-set hostname resolution (2026-06-18)
 - Phase 67 UAT verified: 7/7 logging foundation checks passed covering Beanie models/registration, thresholding, masking, retention/indexes, live broadcast plumbing, failure isolation, and focused regression/build checks; `67-UAT.md` marked complete with 0 gaps (2026-06-18)
 - Phase 67 security verified: 7/7 retroactive STRIDE threats closed, `threats_open: 0`, no accepted risks; `67-SECURITY.md` records evidence for masking, admin-only access, failure isolation, TTL retention, settings validation, forced audit records, and call-site secret minimization (2026-06-19)
+- Phase 67 validation passed: LOG-01 through LOG-06 have automated/source evidence, `67-VALIDATION.md` is Nyquist-compliant with 0 gaps and 0 manual-only checks, and focused validation passed with `tests/test_internal_logs.py` reporting 7/7 tests green (2026-06-19)
 
 ### v3.5 Phase Structure
 
@@ -218,7 +219,6 @@ v3.6 Progress: [███████░░░░░░░░░░░░░] 33
 
 ### Pending Todos
 
-- Run `/gsd-validate-phase 67`.
 - Reconcile Phase 68 against the already-implemented admin log configuration/viewer work from `a821a65`.
 
 ### Ship Blockers
