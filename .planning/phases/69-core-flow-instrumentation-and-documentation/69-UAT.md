@@ -1,19 +1,15 @@
 ---
-status: testing
+status: complete
 phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:40:21Z
+updated: 2026-06-19T21:41:37Z
 ---
 
 ## Current Test
 
-number: 6
-name: Regression Verification
-expected: |
-  Focused tests and checks pass: internal log/ACLog/UDP tests, token tests, Python compile check, MkDocs strict build, and `git diff --check`. Existing QSO import, duplicate, UDP, token, and ACLog sync behavior remains unchanged aside from failure-isolated logging.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -39,14 +35,14 @@ result: pass
 
 ### 6. Regression Verification
 expected: Focused tests and checks pass: internal log/ACLog/UDP tests, token tests, Python compile check, MkDocs strict build, and `git diff --check`. Existing QSO import, duplicate, UDP, token, and ACLog sync behavior remains unchanged aside from failure-isolated logging.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 6
-passed: 5
+passed: 6
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
