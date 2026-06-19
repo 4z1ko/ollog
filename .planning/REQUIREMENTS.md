@@ -16,12 +16,12 @@
 
 ### Admin Operations
 
-- [ ] **ADMINLOG-01**: Admin can configure the active minimum log level from the admin area.
-- [ ] **ADMINLOG-02**: Admin can configure log retention days from the admin area.
-- [ ] **ADMINLOG-03**: Admin can open a Logs page and see recent MongoDB-backed application logs.
-- [ ] **ADMINLOG-04**: Admin can filter logs by level, source/module, text search, and date/time range.
-- [ ] **ADMINLOG-05**: The Logs page updates live or near-live using the app's existing SSE pattern.
-- [ ] **ADMINLOG-06**: Admin help text explains every log level and the default behavior.
+- [x] **ADMINLOG-01**: Admin can configure the active minimum log level from the admin area.
+- [x] **ADMINLOG-02**: Admin can configure log retention days from the admin area.
+- [x] **ADMINLOG-03**: Admin can open a Logs page and see recent MongoDB-backed application logs.
+- [x] **ADMINLOG-04**: Admin can filter logs by level, source/module, text search, and date/time range.
+- [x] **ADMINLOG-05**: The Logs page updates live or near-live using the app's existing SSE pattern.
+- [x] **ADMINLOG-06**: Admin help text explains every log level and the default behavior.
 
 ### Instrumentation
 
@@ -55,12 +55,12 @@
 | LOG-04 | Phase 67 | Pending |
 | LOG-05 | Phase 67 | Pending |
 | LOG-06 | Phase 67 | Pending |
-| ADMINLOG-01 | Phase 68 | Pending |
-| ADMINLOG-02 | Phase 68 | Pending |
-| ADMINLOG-03 | Phase 68 | Pending |
-| ADMINLOG-04 | Phase 68 | Pending |
-| ADMINLOG-05 | Phase 68 | Pending |
-| ADMINLOG-06 | Phase 68 | Pending |
+| ADMINLOG-01 | Phase 68 | Complete |
+| ADMINLOG-02 | Phase 68 | Complete |
+| ADMINLOG-03 | Phase 68 | Complete |
+| ADMINLOG-04 | Phase 68 | Complete |
+| ADMINLOG-05 | Phase 68 | Complete |
+| ADMINLOG-06 | Phase 68 | Complete |
 | OBS-01 | Phase 69 | Pending |
 | OBS-02 | Phase 69 | Pending |
 | OBS-03 | Phase 69 | Pending |
@@ -74,4 +74,4 @@
 
 ---
 *Requirements defined: 2026-06-18*
-*Last updated: 2026-06-18 after v3.6 milestone initialization*
+*Last updated: 2026-06-19 after Phase 68 execution*

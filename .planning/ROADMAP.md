@@ -40,7 +40,7 @@
 | Phase | Name | Goal | Requirements |
 |-------|------|------|--------------|
 | 67 ✅ | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
-| 68 | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
+| 68 ✅ | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
 | 69 | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
 
 #### Phase 67: Logging Foundation
@@ -58,7 +58,7 @@ Success criteria:
 
 #### Phase 68: Admin Log Configuration and Viewer
 
-**Status:** Planned 2026-06-19. Context gathered in `.planning/phases/68-admin-log-configuration-and-viewer/68-CONTEXT.md`; UI design contract approved in `.planning/phases/68-admin-log-configuration-and-viewer/68-UI-SPEC.md`; implementation plan written to `.planning/phases/68-admin-log-configuration-and-viewer/68-01-PLAN.md`. Phase 68 should reconcile against Phase 67's already-shipped admin log viewer/configuration, close only remaining acceptance-criteria gaps, add simple Previous/Next pagination controls, keep immediate live inserts, and format collapsed metadata/error details as readable JSON.
+**Status:** Executed 2026-06-19. Summary written to `.planning/phases/68-admin-log-configuration-and-viewer/68-01-SUMMARY.md`; Phase 68 reconciled against Phase 67's already-shipped admin log viewer/configuration, added filter-preserving simple Previous/Next pagination controls, preserved immediate live inserts, formatted collapsed metadata/error details as readable JSON, and passed focused pytest, compile, Tailwind, docs, and diff checks.
 
 Success criteria:
 1. Admin can set minimum level and retention days from the admin UI.
