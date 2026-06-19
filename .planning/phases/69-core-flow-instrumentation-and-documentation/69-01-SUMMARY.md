@@ -49,6 +49,7 @@ completed: 2026-06-19
 ## Accomplishments
 
 - Added `qso_import_completed` internal logs to ADIF import with operator and accepted/duplicate/error counts, without raw file contents or full record payloads.
+- Added route-level ADIF import logs for browser and API imports: `qso_import_started`, `qso_import_request_completed`, and `qso_import_failed`, so admins can see the import operation boundary directly.
 - Added manual ACLog sync internal logs for `bridge_sync_started`, `bridge_sync_records_received`, `bridge_sync_qso_processed`, `bridge_sync_qso_skipped`, `bridge_sync_failed`, and `bridge_sync_completed`.
 - Added safe logs for OAuth login success/failure, operator UI login success/failure/logout, REST API-token create/revoke, and operator UI API-token create/revoke.
 - Added strict fake-logger tests for import summary logs, manual sync processed/skipped/failed events, auth/token metadata safety, and UDP protocol callback events.
@@ -69,8 +70,7 @@ None.
 
 Passed:
 
-- `uv run pytest tests/test_internal_logs.py tests/test_aclog_client.py tests/test_udp_pipeline.py` - 39 passed.
-- `uv run pytest tests/test_tokens.py` - 11 passed.
+- `uv run pytest tests/test_internal_logs.py tests/test_aclog_client.py tests/test_udp_pipeline.py tests/test_tokens.py` - 52 passed.
 - `uv run python -m compileall app tests/test_internal_logs.py tests/test_aclog_client.py tests/test_udp_pipeline.py` - passed after approved escalation because sandboxed `uv` could not open `/Users/roy/.cache/uv`.
 - `uv run mkdocs build --strict` - passed.
 - `git diff --check` - passed.

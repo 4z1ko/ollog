@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from app.auth import router as auth_router
 from app.auth.models import User
 from app.admin import ui_router as admin_ui_router
+from app.adif import router as adif_router
 from app.internal_logs.manager import LogConnectionManager
 from app.internal_logs.models import (
     ApplicationLog,
@@ -42,6 +43,17 @@ class CapturingAppLogger:
 
     async def error(self, message, **kwargs):
         self.calls.append({"level": "Error", "message": message, **kwargs})
+
+
+class FakeUploadFile:
+    filename = "import.adi"
+    content_type = "text/plain"
+
+    def __init__(self, raw: bytes):
+        self.raw = raw
+
+    async def read(self):
+        return self.raw
 
 
 FORBIDDEN_LOG_KEYS = {
@@ -471,3 +483,81 @@ async def test_operator_ui_token_create_logs_safe_metadata(monkeypatch):
     assert FORBIDDEN_LOG_KEYS.isdisjoint(event["metadata"])
     assert "ollog_plain_secret" not in str(event)
     assert "hashed-secret" not in str(event)
+
+
+@pytest.mark.asyncio
+async def test_operator_ui_import_route_logs_operation_boundary(monkeypatch):
+    capture = CapturingAppLogger()
+    report = {"total_records": 2, "accepted": [{"id": "qso-1"}], "duplicates": [], "errors": []}
+
+    async def fake_import_qsos_from_bytes(raw, operator, collection=None, transport="HTTP"):
+        assert raw == b"<ADIF>"
+        assert operator == "W1AW"
+        return report
+
+    def fake_template_response(request, template_name, context):
+        return {"template": template_name, "context": context}
+
+    user = User.model_construct(username="op1", callsign="W1AW", id="user-id")
+
+    monkeypatch.setattr(qso_ui_router, "app_logger", capture)
+    monkeypatch.setattr(qso_ui_router, "import_qsos_from_bytes", fake_import_qsos_from_bytes)
+    monkeypatch.setattr(qso_ui_router, "get_user_qso_collection", lambda user: object())
+    monkeypatch.setattr(qso_ui_router.templates, "TemplateResponse", fake_template_response)
+
+    response = await qso_ui_router.import_submit(object(), FakeUploadFile(b"<ADIF>"), user)
+
+    assert response["template"] == "log/import_report.html"
+    assert [call["event_type"] for call in capture.calls] == [
+        "qso_import_started",
+        "qso_import_request_completed",
+    ]
+    assert capture.calls[0]["source"] == "log.import"
+    assert capture.calls[0]["metadata"] == {
+        "operator": "W1AW",
+        "filename": "import.adi",
+        "content_type": "text/plain",
+        "bytes": 6,
+    }
+    assert capture.calls[1]["metadata"] == {
+        "operator": "W1AW",
+        "total_records": 2,
+        "accepted_count": 1,
+        "duplicate_count": 0,
+        "error_count": 0,
+    }
+    assert "raw" not in capture.calls[1]["metadata"]
+    assert "records" not in capture.calls[1]["metadata"]
+
+
+@pytest.mark.asyncio
+async def test_api_import_route_logs_operation_boundary(monkeypatch):
+    capture = CapturingAppLogger()
+    report = {"total_records": 1, "accepted": [], "duplicates": [], "errors": [{"error": "bad"}]}
+
+    async def fake_import_qsos_from_bytes(raw, operator, collection=None, transport="HTTP"):
+        assert raw == b"<ADIF>"
+        assert operator == "W1AW"
+        return report
+
+    user = User.model_construct(username="op1", callsign="W1AW", id="user-id")
+
+    monkeypatch.setattr(adif_router, "app_logger", capture)
+    monkeypatch.setattr(adif_router, "import_qsos_from_bytes", fake_import_qsos_from_bytes)
+    monkeypatch.setattr(adif_router, "get_user_qso_collection", lambda user: object())
+
+    response = await adif_router.import_adif(FakeUploadFile(b"<ADIF>"), user)
+
+    assert response == report
+    assert [call["event_type"] for call in capture.calls] == [
+        "qso_import_started",
+        "qso_import_request_completed",
+    ]
+    assert capture.calls[0]["source"] == "app.adif.router"
+    assert capture.calls[1]["metadata"] == {
+        "operator": "W1AW",
+        "total_records": 1,
+        "accepted_count": 0,
+        "duplicate_count": 0,
+        "error_count": 1,
+    }

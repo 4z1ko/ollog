@@ -48,7 +48,7 @@ types include:
 | Service and database lifecycle | `service_startup_started`, `service_startup_completed`, `service_shutdown_started`, `mongodb_connected`, `mongodb_closing` |
 | UDP listener lifecycle and ingest | `udp_listener_started`, `udp_listener_bound`, `udp_datagram_received`, `udp_parse_rejected`, `udp_unknown_operator`, `udp_no_user_resolved`, `udp_transport_error` |
 | HTTP/API QSO writes | `qso_http_received`, `qso_inserted`, `qso_duplicate`, `qso_validation_rejected`, `qso_update_failed`, `qso_updated`, `qso_deleted` |
-| ADIF import | `qso_import_completed` |
+| ADIF import | `qso_import_started`, `qso_import_completed`, `qso_import_request_completed`, `qso_import_failed` |
 | ACLog live bridge | `bridge_connecting`, `bridge_connected`, `bridge_disconnected`, `bridge_reconnect_scheduled`, `bridge_qso_skipped`, `bridge_qso_processed` |
 | ACLog manual sync | `bridge_sync_started`, `bridge_sync_records_received`, `bridge_sync_qso_processed`, `bridge_sync_qso_skipped`, `bridge_sync_failed`, `bridge_sync_completed` |
 | Authentication and token actions | `operator_login_succeeded`, `operator_login_failed`, `oauth_login_succeeded`, `oauth_login_failed`, `api_token_created`, `api_token_revoked`, `operator_api_token_created`, `operator_api_token_revoked` |

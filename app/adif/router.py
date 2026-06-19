@@ -21,6 +21,7 @@ from typing import Optional
 from app.adif.serializer import serialize_adi
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
+from app.internal_logs.service import app_logger
 from app.qso.collections import get_user_qso_collection
 from app.qso.models import QSO
 from app.qso.service import import_qsos_from_bytes, qso_from_mongo_doc
@@ -64,17 +65,50 @@ async def import_adif(
     Returns a report with accepted, duplicate, and error lists.
     """
     raw = await file.read()
+    await app_logger.info(
+        "ADIF import requested",
+        source="app.adif.router",
+        event_type="qso_import_started",
+        transport="HTTP",
+        metadata={
+            "operator": user.callsign,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "bytes": len(raw),
+        },
+    )
     try:
-        return await import_qsos_from_bytes(
+        report = await import_qsos_from_bytes(
             raw,
             user.callsign,
             collection=get_user_qso_collection(user),
         )
     except ValueError as exc:
+        await app_logger.warn(
+            "ADIF import rejected",
+            source="app.adif.router",
+            event_type="qso_import_failed",
+            transport="HTTP",
+            metadata={"operator": user.callsign, "reason": str(exc), "bytes": len(raw)},
+        )
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=str(exc),
         )
+    await app_logger.info(
+        "ADIF import request completed",
+        source="app.adif.router",
+        event_type="qso_import_request_completed",
+        transport="HTTP",
+        metadata={
+            "operator": user.callsign,
+            "total_records": report["total_records"],
+            "accepted_count": len(report["accepted"]),
+            "duplicate_count": len(report["duplicates"]),
+            "error_count": len(report["errors"]),
+        },
+    )
+    return report
 
 
 # ---------------------------------------------------------------------------

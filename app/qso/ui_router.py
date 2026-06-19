@@ -642,6 +642,18 @@ async def import_submit(
     The report partial shows accepted, duplicate, and error counts/tables.
     """
     raw = await file.read()
+    await app_logger.info(
+        "Operator ADIF import requested",
+        source="log.import",
+        event_type="qso_import_started",
+        transport="HTTP",
+        metadata={
+            "operator": user.callsign,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "bytes": len(raw),
+        },
+    )
     try:
         report = await import_qsos_from_bytes(
             raw,
@@ -649,11 +661,31 @@ async def import_submit(
             collection=get_user_qso_collection(user),
         )
     except ValueError as exc:
+        await app_logger.warn(
+            "Operator ADIF import rejected",
+            source="log.import",
+            event_type="qso_import_failed",
+            transport="HTTP",
+            metadata={"operator": user.callsign, "reason": str(exc), "bytes": len(raw)},
+        )
         # Size limit exceeded — render a simple error message in the target div
         return HTMLResponse(
             content=f'<div class="error-msg">{str(exc)}</div>',
             status_code=200,
         )
+    await app_logger.info(
+        "Operator ADIF import completed",
+        source="log.import",
+        event_type="qso_import_request_completed",
+        transport="HTTP",
+        metadata={
+            "operator": user.callsign,
+            "total_records": report["total_records"],
+            "accepted_count": len(report["accepted"]),
+            "duplicate_count": len(report["duplicates"]),
+            "error_count": len(report["errors"]),
+        },
+    )
     for duplicate in report.get("duplicates", []):
         if "record" in duplicate:
             duplicate["import_token"] = _encode_import_record(duplicate["record"])
