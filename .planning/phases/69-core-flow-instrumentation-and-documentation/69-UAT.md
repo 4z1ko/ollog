@@ -4,15 +4,15 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:39:01Z
+updated: 2026-06-19T21:40:21Z
 ---
 
 ## Current Test
 
-number: 5
-name: Application Logs Documentation Coverage
+number: 6
+name: Regression Verification
 expected: |
-  The admin Application Logs guide lists representative event names for lifecycle, QSO import, UDP, ACLog live/manual sync, auth/token, admin, and log-settings flows, and explains that `CALL` is contacted station, `MYCALL` or ACLog setup Call is local station, and `OPERATOR` is operator value.
+  Focused tests and checks pass: internal log/ACLog/UDP tests, token tests, Python compile check, MkDocs strict build, and `git diff --check`. Existing QSO import, duplicate, UDP, token, and ACLog sync behavior remains unchanged aside from failure-isolated logging.
 awaiting: user response
 
 ## Tests
@@ -35,7 +35,7 @@ result: pass
 
 ### 5. Application Logs Documentation Coverage
 expected: The admin Application Logs guide lists representative event names for lifecycle, QSO import, UDP, ACLog live/manual sync, auth/token, admin, and log-settings flows, and explains that `CALL` is contacted station, `MYCALL` or ACLog setup Call is local station, and `OPERATOR` is operator value.
-result: [pending]
+result: pass
 
 ### 6. Regression Verification
 expected: Focused tests and checks pass: internal log/ACLog/UDP tests, token tests, Python compile check, MkDocs strict build, and `git diff --check`. Existing QSO import, duplicate, UDP, token, and ACLog sync behavior remains unchanged aside from failure-isolated logging.
@@ -44,9 +44,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 4
+passed: 5
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
