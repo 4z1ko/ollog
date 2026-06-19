@@ -4,15 +4,15 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:29:12Z
+updated: 2026-06-19T21:39:01Z
 ---
 
 ## Current Test
 
-number: 4
-name: UDP Callback Event Logging
+number: 5
+name: Application Logs Documentation Coverage
 expected: |
-  UDP protocol callbacks emit internal log events for datagram received, transport error, and transport closed while preserving existing UDP ingest/routing behavior.
+  The admin Application Logs guide lists representative event names for lifecycle, QSO import, UDP, ACLog live/manual sync, auth/token, admin, and log-settings flows, and explains that `CALL` is contacted station, `MYCALL` or ACLog setup Call is local station, and `OPERATOR` is operator value.
 awaiting: user response
 
 ## Tests
@@ -31,7 +31,7 @@ result: pass
 
 ### 4. UDP Callback Event Logging
 expected: UDP protocol callbacks emit internal log events for datagram received, transport error, and transport closed while preserving existing UDP ingest/routing behavior.
-result: [pending]
+result: pass
 
 ### 5. Application Logs Documentation Coverage
 expected: The admin Application Logs guide lists representative event names for lifecycle, QSO import, UDP, ACLog live/manual sync, auth/token, admin, and log-settings flows, and explains that `CALL` is contacted station, `MYCALL` or ACLog setup Call is local station, and `OPERATOR` is operator value.
@@ -44,9 +44,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 3
+passed: 4
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
