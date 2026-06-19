@@ -4,15 +4,15 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:20:06Z
+updated: 2026-06-19T21:21:33Z
 ---
 
 ## Current Test
 
-number: 2
-name: Manual ACLog Sync Logging
+number: 3
+name: Auth And Token Log Safety
 expected: |
-  Running manual ACLog sync records internal application logs for sync start, records received, processed accepted/duplicate QSOs, skipped records, failures, and completion summary using `bridge_sync_*` event types with bridge and ACLog context.
+  Operator/OAuth login and API-token create/revoke actions emit safe internal logs. Logs include safe identifiers such as username, callsign, token id/name/prefix, and do not include passwords, plaintext tokens, token hashes, cookies, or authorization headers.
 awaiting: user response
 
 ## Tests
@@ -23,7 +23,7 @@ result: pass
 
 ### 2. Manual ACLog Sync Logging
 expected: Running manual ACLog sync records internal application logs for sync start, records received, processed accepted/duplicate QSOs, skipped records, failures, and completion summary using `bridge_sync_*` event types with bridge and ACLog context.
-result: [pending]
+result: pass
 
 ### 3. Auth And Token Log Safety
 expected: Operator/OAuth login and API-token create/revoke actions emit safe internal logs. Logs include safe identifiers such as username, callsign, token id/name/prefix, and do not include passwords, plaintext tokens, token hashes, cookies, or authorization headers.
@@ -44,9 +44,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 1
+passed: 2
 issues: 0
-pending: 5
+pending: 4
 skipped: 0
 blocked: 0
 
