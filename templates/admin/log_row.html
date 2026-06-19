@@ -17,16 +17,16 @@
         {% if log.remote_software %} remote={{ log.remote_software }}{% endif %}
       </p>
       {% endif %}
-      {% if log.metadata %}
+      {% if log.metadata_json %}
       <details class="text-xs text-gray-500 dark:text-gray-400">
         <summary class="cursor-pointer">metadata</summary>
-        <pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">{{ log.metadata }}</pre>
+        <pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">{{ log.metadata_json }}</pre>
       </details>
       {% endif %}
-      {% if log.error %}
+      {% if log.error_json %}
       <details class="text-xs text-rose-700 dark:text-rose-400">
         <summary class="cursor-pointer">error</summary>
-        <pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">{{ log.error }}</pre>
+        <pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">{{ log.error_json }}</pre>
       </details>
       {% endif %}
     </div>

@@ -194,14 +194,50 @@
     return true;
   }
 
+  function formatLogDetail(value) {
+    if (!value) return '';
+    if (Array.isArray(value) && value.length === 0) return '';
+    if (typeof value === 'object' && Object.keys(value).length === 0) return '';
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
   function rowHtml(log) {
     var timestamp = log.timestamp ? new Date(log.timestamp).toISOString().replace('T', ' ').slice(0, 19) : '';
+    var context = '';
+    if (log.event_type || log.correlation_id || log.qso_id || log.bridge_name || log.remote_software) {
+      context = '<p class="text-xs text-gray-500 dark:text-gray-400">' +
+        (log.event_type ? 'event=' + escapeHtml(log.event_type) : '') +
+        (log.correlation_id ? ' cid=' + escapeHtml(log.correlation_id) : '') +
+        (log.qso_id ? ' qso=' + escapeHtml(log.qso_id) : '') +
+        (log.bridge_name ? ' bridge=' + escapeHtml(log.bridge_name) : '') +
+        (log.remote_software ? ' remote=' + escapeHtml(log.remote_software) : '') +
+        '</p>';
+    }
+    var metadata = formatLogDetail(log.metadata);
+    var error = formatLogDetail(log.error);
+    var details = '';
+    if (metadata) {
+      details += '<details class="text-xs text-gray-500 dark:text-gray-400">' +
+        '<summary class="cursor-pointer">metadata</summary>' +
+        '<pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">' + escapeHtml(metadata) + '</pre>' +
+        '</details>';
+    }
+    if (error) {
+      details += '<details class="text-xs text-rose-700 dark:text-rose-400">' +
+        '<summary class="cursor-pointer">error</summary>' +
+        '<pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">' + escapeHtml(error) + '</pre>' +
+        '</details>';
+    }
     return '<tr data-log-level="' + escapeHtml(log.level) + '" data-log-source="' + escapeHtml(log.source) + '">' +
       '<td class="font-mono text-xs whitespace-nowrap">' + escapeHtml(timestamp) + '</td>' +
       '<td><span class="badge-blue">' + escapeHtml(log.level) + '</span></td>' +
       '<td class="font-mono text-xs">' + escapeHtml(log.source) + '</td>' +
       '<td class="text-xs">' + escapeHtml(log.transport) + '</td>' +
-      '<td><div class="space-y-1"><p class="text-sm text-gray-900 dark:text-gray-100">' + escapeHtml(log.message) + '</p></div></td>' +
+      '<td><div class="space-y-1"><p class="text-sm text-gray-900 dark:text-gray-100">' + escapeHtml(log.message) + '</p>' + context + details + '</div></td>' +
       '</tr>';
   }
 

@@ -9,7 +9,8 @@ Mounted at /admin/ui by app/main.py.
 """
 import json
 from collections.abc import AsyncIterable
-from typing import Annotated
+from typing import Annotated, Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Header, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -23,6 +24,7 @@ from app.internal_logs.manager import log_manager
 from app.internal_logs.models import LOG_LEVELS
 from app.internal_logs.service import (
     app_logger,
+    format_log_detail,
     get_log_settings,
     log_to_dict,
     parse_iso_datetime,
@@ -36,6 +38,57 @@ from app.udp.operator_cache import operator_cache
 templates = Jinja2Templates(directory="templates")
 
 ui_router = APIRouter(prefix="/admin/ui", tags=["admin-ui"])
+
+
+def _log_row_context(log: Any) -> dict[str, Any]:
+    return {
+        "timestamp": log.timestamp,
+        "level": log.level,
+        "message": log.message,
+        "source": log.source,
+        "event_type": log.event_type,
+        "correlation_id": log.correlation_id,
+        "qso_id": log.qso_id,
+        "bridge_name": log.bridge_name,
+        "remote_software": log.remote_software,
+        "transport": log.transport,
+        "metadata": log.metadata,
+        "metadata_json": format_log_detail(log.metadata),
+        "error": log.error,
+        "error_json": format_log_detail(log.error),
+    }
+
+
+def _logs_query(filters: dict[str, str], page: int) -> str:
+    params = {key: value for key, value in filters.items() if value}
+    params["page"] = str(page)
+    return urlencode(params)
+
+
+def _logs_pagination_context(
+    *,
+    page: int,
+    page_size: int,
+    total: int,
+    item_count: int,
+    filters: dict[str, str],
+) -> dict[str, Any]:
+    has_previous = page > 1
+    has_next = page * page_size < total
+    start_index = ((page - 1) * page_size) + 1 if item_count else 0
+    end_index = min(start_index + item_count - 1, total) if item_count else 0
+    previous_page = page - 1 if has_previous else page
+    next_page = page + 1 if has_next else page
+    return {
+        "has_previous": has_previous,
+        "has_next": has_next,
+        "previous_page": previous_page,
+        "next_page": next_page,
+        "previous_query": _logs_query(filters, previous_page),
+        "next_query": _logs_query(filters, next_page),
+        "start_index": start_index,
+        "end_index": end_index,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -365,20 +418,29 @@ async def logs_page(
         page=page,
         page_size=page_size,
     )
+    filters = {
+        "level": level or "",
+        "source": source or "",
+        "search": search or "",
+        "date_from": date_from or "",
+        "date_to": date_to or "",
+    }
+    display_logs = [_log_row_context(log) for log in logs]
     context = {
-        "logs": logs,
+        "logs": display_logs,
         "total": total,
         "page": page,
         "page_size": page_size,
         "levels": LOG_LEVELS,
         "settings": settings,
-        "filters": {
-            "level": level or "",
-            "source": source or "",
-            "search": search or "",
-            "date_from": date_from or "",
-            "date_to": date_to or "",
-        },
+        "filters": filters,
+        **_logs_pagination_context(
+            page=page,
+            page_size=page_size,
+            total=total,
+            item_count=len(display_logs),
+            filters=filters,
+        ),
     }
     if hx_request:
         return templates.TemplateResponse(request, "admin/logs_table.html", context)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import re
 import traceback
 from dataclasses import dataclass
@@ -102,6 +103,13 @@ def log_to_dict(log: ApplicationLog) -> dict[str, Any]:
         "metadata": log.metadata,
         "error": log.error,
     }
+
+
+def format_log_detail(value: Any) -> str:
+    """Pretty-print structured log details for compact admin display."""
+    if value is None or value == {} or value == []:
+        return ""
+    return json.dumps(value, indent=2, sort_keys=True, default=str)
 
 
 async def get_log_settings(*, refresh: bool = False) -> LogSettingsSnapshot:

@@ -13,6 +13,10 @@ docker compose --profile admin up -d admin
 The Logs page shows recent records, updates live while the page is open, and
 supports filtering by level, source, text, and date/time range.
 
+Use **Previous** and **Next** at the bottom of the table to page through older
+records while keeping the active filters. Structured metadata and error details
+are collapsed by default and expand as formatted JSON for easier inspection.
+
 ## Log Levels
 
 The default minimum level is **Info**. When the minimum level is set to

@@ -21,7 +21,39 @@
       {% endfor %}
     </tbody>
   </table>
-  <div class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-    Showing {{ logs|length }} of {{ total }} log record{{ '' if total == 1 else 's' }}.
+  <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
+    <div>
+      Showing {{ start_index }}{% if end_index != start_index %}-{{ end_index }}{% endif %}
+      of {{ total }} log record{{ '' if total == 1 else 's' }}.
+    </div>
+    <div class="flex items-center gap-2">
+      {% if has_previous %}
+      <a
+        href="/admin/ui/logs?{{ previous_query }}"
+        class="btn-ghost"
+        hx-get="/admin/ui/logs?{{ previous_query }}"
+        hx-target="#logs-table"
+        hx-swap="outerHTML"
+      >
+        Previous
+      </a>
+      {% else %}
+      <span class="btn-ghost cursor-not-allowed opacity-60" aria-disabled="true">Previous</span>
+      {% endif %}
+      <span class="font-mono">Page {{ page }}</span>
+      {% if has_next %}
+      <a
+        href="/admin/ui/logs?{{ next_query }}"
+        class="btn-ghost"
+        hx-get="/admin/ui/logs?{{ next_query }}"
+        hx-target="#logs-table"
+        hx-swap="outerHTML"
+      >
+        Next
+      </a>
+      {% else %}
+      <span class="btn-ghost cursor-not-allowed opacity-60" aria-disabled="true">Next</span>
+      {% endif %}
+    </div>
   </div>
 </div>
