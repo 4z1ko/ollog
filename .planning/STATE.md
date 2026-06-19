@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v3.6
 milestone_name: Internal Application Logging
-status: active
-stopped_at: phase 68 executed
+status: ready_to_execute
+stopped_at: phase 69 planned
 last_updated: "2026-06-19T00:00:00Z"
 last_activity: 2026-06-19
 progress:
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
 ## Current Position
 
 Milestone: v3.6 Internal Application Logging
-Phase: 68 Admin Log Configuration and Viewer
-Plan: 68-01 executed
-Status: Phase 68 ready for verification
+Phase: 69 Core Flow Instrumentation and Documentation
+Plan: 69-01 planned
+Status: Phase 69 ready to execute
 Last activity: 2026-06-19
 
 ```

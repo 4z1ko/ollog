@@ -41,7 +41,7 @@
 |-------|------|------|--------------|
 | 67 ✅ | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
 | 68 ✅ | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
-| 69 | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
+| 69 ◆ | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
 
 #### Phase 67: Logging Foundation
 
@@ -68,6 +68,8 @@ Success criteria:
 5. UI explains the six log levels and default `Info` behavior.
 
 #### Phase 69: Core Flow Instrumentation and Documentation
+
+**Status:** Planned 2026-06-19. Research written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-RESEARCH.md`; implementation plan written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-PLAN.md`.
 
 Success criteria:
 1. Startup/shutdown, MongoDB, UDP listener, ACLog bridge, and backup scheduler lifecycle events are logged.
