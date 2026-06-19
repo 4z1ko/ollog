@@ -344,6 +344,12 @@ def test_admin_logs_live_insert_uses_current_table_body():
     assert "function refreshLogsTable()" in script
     assert "htmx.ajax('GET', '/admin/ui/logs?' + logsQuery()" in script
     assert "window.setInterval(refreshLogsTable, 5000);" in script
+    assert "function openDetailKeys()" in script
+    assert "function restoreOpenDetails(keys)" in script
+    assert "var openKeys = openDetailKeys();" in script
+    assert "restoreOpenDetails(openKeys);" in script
+    assert "data-detail-kind=\"metadata\"" in Path("templates/admin/log_row.html").read_text()
+    assert "data-detail-kind=\"error\"" in Path("templates/admin/log_row.html").read_text()
 
 
 @pytest.mark.asyncio
@@ -379,6 +385,7 @@ async def test_admin_log_row_partial_uses_shared_row_context(monkeypatch):
     )
 
     assert captured["template"] == "admin/log_row.html"
+    assert captured["context"]["log"]["id"] == ""
     assert captured["context"]["log"]["metadata_json"].startswith("{\n")
 
 

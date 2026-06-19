@@ -42,6 +42,7 @@ ui_router = APIRouter(prefix="/admin/ui", tags=["admin-ui"])
 
 def _log_row_context(log: Any) -> dict[str, Any]:
     return {
+        "id": str(log.id) if getattr(log, "id", None) is not None else "",
         "timestamp": log.timestamp,
         "level": log.level,
         "message": log.message,

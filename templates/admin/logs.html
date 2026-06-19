@@ -220,18 +220,18 @@
     var error = formatLogDetail(log.error);
     var details = '';
     if (metadata) {
-      details += '<details class="text-xs text-gray-500 dark:text-gray-400">' +
+      details += '<details data-detail-kind="metadata" class="text-xs text-gray-500 dark:text-gray-400">' +
         '<summary class="cursor-pointer">metadata</summary>' +
         '<pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">' + escapeHtml(metadata) + '</pre>' +
         '</details>';
     }
     if (error) {
-      details += '<details class="text-xs text-rose-700 dark:text-rose-400">' +
+      details += '<details data-detail-kind="error" class="text-xs text-rose-700 dark:text-rose-400">' +
         '<summary class="cursor-pointer">error</summary>' +
         '<pre class="mt-1 overflow-x-auto rounded-md bg-gray-50 p-2 font-mono dark:bg-gray-900">' + escapeHtml(error) + '</pre>' +
         '</details>';
     }
-    return '<tr data-log-level="' + escapeHtml(log.level) + '" data-log-source="' + escapeHtml(log.source) + '">' +
+    return '<tr data-log-id="' + escapeHtml(log.id || '') + '" data-log-level="' + escapeHtml(log.level) + '" data-log-source="' + escapeHtml(log.source) + '">' +
       '<td class="font-mono text-xs whitespace-nowrap">' + escapeHtml(timestamp) + '</td>' +
       '<td><span class="badge-blue">' + escapeHtml(log.level) + '</span></td>' +
       '<td class="font-mono text-xs">' + escapeHtml(log.source) + '</td>' +
@@ -262,11 +262,39 @@
     return params.toString();
   }
 
+  function openDetailKeys() {
+    var table = document.getElementById('logs-table');
+    var keys = [];
+    if (!table) return keys;
+    table.querySelectorAll('tr[data-log-id] details[open]').forEach(function (detail) {
+      var row = detail.closest('tr[data-log-id]');
+      var id = row ? row.getAttribute('data-log-id') : '';
+      var kind = detail.getAttribute('data-detail-kind') || '';
+      if (id && kind) keys.push(id + ':' + kind);
+    });
+    return keys;
+  }
+
+  function restoreOpenDetails(keys) {
+    var table = document.getElementById('logs-table');
+    if (!table || !keys || !keys.length) return;
+    keys.forEach(function (key) {
+      var parts = key.split(':');
+      var row = table.querySelector('tr[data-log-id="' + CSS.escape(parts[0]) + '"]');
+      if (!row) return;
+      var detail = row.querySelector('details[data-detail-kind="' + CSS.escape(parts[1]) + '"]');
+      if (detail) detail.open = true;
+    });
+  }
+
   function refreshLogsTable() {
     if (!window.htmx) return;
+    var openKeys = openDetailKeys();
     htmx.ajax('GET', '/admin/ui/logs?' + logsQuery(), {
       target: '#logs-table',
       swap: 'outerHTML'
+    }).then(function () {
+      restoreOpenDetails(openKeys);
     });
   }
 

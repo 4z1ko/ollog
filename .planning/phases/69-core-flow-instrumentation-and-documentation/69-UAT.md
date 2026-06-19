@@ -4,7 +4,7 @@ phase: 69-core-flow-instrumentation-and-documentation
 source:
   - .planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md
 started: 2026-06-19T11:44:04Z
-updated: 2026-06-19T21:21:33Z
+updated: 2026-06-19T21:26:16Z
 ---
 
 ## Current Test
@@ -80,4 +80,20 @@ blocked: 0
   missing:
     - "Add a safe polling fallback that refreshes the first admin Logs page with current filters from MongoDB."
     - "Add regression checks that the polling fallback exists."
+  debug_session: ""
+- truth: "The near-live polling fallback does not collapse metadata or error detail sections the admin has opened."
+  status: fixed
+  reason: "User reported: the near-live polling fallback automatically folds any open metadata"
+  severity: minor
+  test: 2
+  root_cause: "Polling refresh replaced the entire Logs table with new HTML, so browser `<details open>` state was discarded during the HTMX swap."
+  artifacts:
+    - path: "templates/admin/logs.html"
+      issue: "Polling refresh did not capture and restore open metadata/error detail state."
+    - path: "templates/admin/log_row.html"
+      issue: "Rows/details lacked stable identifiers for restoring open detail state after refresh."
+  missing:
+    - "Include stable log row and detail-kind data attributes."
+    - "Capture open detail keys before polling refresh and restore them after the table swap."
+    - "Add regression checks for open detail preservation hooks."
   debug_session: ""
