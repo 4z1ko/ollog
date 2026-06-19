@@ -159,7 +159,6 @@
 (function () {
   var source = new EventSource('/admin/ui/logs/events');
   var status = document.getElementById('logs-live-status');
-  var tbody = document.getElementById('logs-table-body');
   var filterForm = document.getElementById('logs-filter-form');
 
   function escapeHtml(value) {
@@ -241,7 +240,12 @@
       '</tr>';
   }
 
+  function currentLogTableBody() {
+    return document.getElementById('logs-table-body');
+  }
+
   source.addEventListener('app_log', function (event) {
+    var tbody = currentLogTableBody();
     if (!tbody) return;
     var log = JSON.parse(event.data);
     if (!matchesFilters(log)) return;

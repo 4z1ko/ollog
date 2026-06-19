@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -285,3 +286,11 @@ async def test_admin_logs_page_marks_final_page(monkeypatch):
     assert context["start_index"] == 101
     assert context["end_index"] == 120
     assert context["logs"][0]["error_json"].startswith("{\n")
+
+
+def test_admin_logs_live_insert_uses_current_table_body():
+    script = Path("templates/admin/logs.html").read_text()
+
+    assert "function currentLogTableBody()" in script
+    assert "var tbody = currentLogTableBody();" in script
+    assert "var tbody = document.getElementById('logs-table-body');" not in script
