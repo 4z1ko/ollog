@@ -29,29 +29,26 @@
 - ✅ **v3.4 Responsive Favicon** — Phase 65 (shipped 2026-06-13)
 - ✅ **v3.5 ACLog Registered Operator Routing** — Phase 66 (shipped 2026-06-16)
 - ✅ **v3.6 Internal Application Logging** — Phases 67–69 (shipped 2026-06-20)
-- ◆ **v3.7 Admin Log Controls** — Phase 70 (active)
+- ✅ **v3.7 Admin Log Controls** — Phase 70 (shipped 2026-06-20)
 
 
 ## Phases
 
-### ◆ v3.7 Admin Log Controls — ACTIVE
+### Between Milestones
 
-**Milestone Goal:** Give administrators explicit control over the Application Logs Recent Logs table by adding a current-browser Pause/Start live-feed control and a confirmation-gated Clear Log Messages action that clears only stored application log records.
+v3.7 Admin Log Controls shipped 2026-06-20. Start the next milestone with `/gsd-new-milestone`.
 
-| Phase | Name | Goal | Requirements |
-|-------|------|------|--------------|
-| 70 ✓ | Admin Application Log Controls | Add pause/resume and clear controls to the admin Recent Logs table while preserving logging settings, future log capture, and QSO data. | LOGCTRL-01–LOGCTRL-08 |
+<details>
+<summary>✅ v3.7 Admin Log Controls (Phase 70) — SHIPPED 2026-06-20</summary>
 
-#### Phase 70: Admin Application Log Controls
+- [x] Phase 70: Admin Application Log Controls (1/1 plan) — completed 2026-06-20
 
-**Status:** Milestone audit passed — 8/8 requirements satisfied on 2026-06-20; ready for milestone completion.
+Full archive: `.planning/milestones/v3.7-ROADMAP.md`
+Requirements archive: `.planning/milestones/v3.7-REQUIREMENTS.md`
+Audit: `.planning/milestones/v3.7-MILESTONE-AUDIT.md`
+Phase artifacts: `.planning/milestones/v3.7-phases/`
 
-**Success Criteria:**
-- Recent Logs shows a Pause/Start control whose paused state affects only the current browser tab/session.
-- Paused state suppresses both SSE row inserts and near-live polling refreshes; Start/Resume restores live behavior and reconciles recent rows without full page reload.
-- Clear Log Messages opens a confirmation modal/dialog before deleting records.
-- Confirmed clear removes application log records while preserving `ApplicationLogSettings`, QSO data, users, API tokens, backups, retention behavior, and future logging.
-- Focused tests/docs cover pause/resume, clear authorization/delete behavior, settings preservation, table refresh/empty state, and safety around unrelated data.
+</details>
 
 <details>
 <summary>✅ v3.6 Internal Application Logging (Phases 67–69) — SHIPPED 2026-06-20</summary>

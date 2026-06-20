@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.7
-milestone_name: Admin Log Controls
-status: milestone_audit_passed
-stopped_at: v3.7 milestone audit passed
-last_updated: "2026-06-20T10:55:00Z"
+milestone: between
+milestone_name: Between Milestones
+status: between_milestones
+stopped_at: v3.7 milestone archived
+last_updated: "2026-06-20T11:05:00Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 1
@@ -21,18 +21,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20 after starting v3.7 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** v3.7 Admin Log Controls — milestone audit passed; ready to complete milestone.
+**Current focus:** v3.7 Admin Log Controls shipped; ready for `/gsd-new-milestone`.
 
 ## Current Position
 
-Milestone: v3.7 Admin Log Controls
-Phase: 70 Admin Application Log Controls
-Plan: 70-01 completed
-Status: Milestone audit passed; ready for `/gsd-complete-milestone v3.7`
+Milestone: between milestones
+Phase: none active
+Plan: none active
+Status: v3.7 archived; ready for `/gsd-new-milestone`
 Last activity: 2026-06-20
 
 ```
-v3.7 Progress: [████████████████████] 100% (1/1 phases, 1/1 plans)
+Between milestones: no active phase
 ```
 
 ## Performance Metrics
@@ -73,6 +73,7 @@ v3.7 Progress: [████████████████████] 10
 | v3.4 | 65 | 1 |
 | v3.5 | 66 | 1 |
 | v3.6 | 67–69 | 3 |
+| v3.7 | 70 | 1 |
 
 ## Accumulated Context
 
@@ -167,6 +168,7 @@ v3.7 Progress: [████████████████████] 10
 - Phase 70 security verified: 7/7 plan-time threats closed, `threats_open: 0`, no accepted risks; evidence covers `ApplicationLog`-only delete scope, post-clear audit ordering, audit failure isolation, current-browser pause scope, explicit refresh preservation, confirmation wording, and compact responsive controls (2026-06-20)
 - Phase 70 validation passed: LOGCTRL-01 through LOGCTRL-08 have automated/source/doc evidence, `70-VALIDATION.md` is Nyquist-compliant, and no manual-only validation gaps remain (2026-06-20)
 - v3.7 milestone audit passed: 8/8 requirements satisfied, Phase 70 complete, integration and E2E flows verified, no critical gaps or tech debt, and `.planning/v3.7-MILESTONE-AUDIT.md` created (2026-06-20)
+- v3.7 milestone archived: roadmap, requirements, milestone audit, and phase artifacts copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, and PROJECT.md moved to between-milestones state (2026-06-20)
 
 ### v3.7 Phase Structure
 

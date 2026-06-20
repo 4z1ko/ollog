@@ -1,5 +1,27 @@
 # Milestones
 
+## v3.7 Admin Log Controls (Shipped: 2026-06-20)
+
+**Phases:** 70 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-20 → 2026-06-20 (1 day)
+**Requirements:** 8/8 satisfied | **UAT:** 5/5 passed | **Audit:** PASS
+
+**Key accomplishments:**
+
+- Added current-browser Pause/Start controls to the admin Application Logs Recent Logs table with LIVE/PAUSED/OFFLINE status.
+- Kept Pause scoped to automatic SSE row insertion and near-live polling only, preserving explicit filters, reset, Previous, and Next actions.
+- Added a confirmation-gated Clear Log Messages action that deletes only `ApplicationLog` records.
+- Added post-clear forced `application_logs_cleared` audit logging with safe admin/deleted-count metadata and audit-failure isolation.
+- Documented the controls and added focused tests for pause/resume behavior, modal safety copy, clear route behavior, settings preservation, and audit continuity.
+- Completed UAT, security review, Nyquist validation, and milestone audit with no critical gaps or tech debt.
+
+**Stats:** 23 files changed, +1711 / -25 lines across planning, code, docs, templates, generated CSS, and tests; 11 commits in the v3.7 slice before final archive commits.
+
+**Known deferred items at close:** 0 critical gaps. Future ideas remain out of scope: export/download filtered logs, clear by date range/filter, password-confirmed clear, global live-stream pause, and cross-node live-control coordination.
+
+**Archive:** `.planning/milestones/v3.7-ROADMAP.md` | `.planning/milestones/v3.7-REQUIREMENTS.md` | `.planning/milestones/v3.7-MILESTONE-AUDIT.md` | `.planning/milestones/v3.7-phases/`
+
+---
+
 ## v3.6 Internal Application Logging (Shipped: 2026-06-20)
 
 **Phases:** 67–69 (3 phases) | **Plans:** 3 | **Timeline:** 2026-06-18 → 2026-06-20 (3 days)
