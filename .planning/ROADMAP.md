@@ -44,7 +44,7 @@
 
 #### Phase 70: Admin Application Log Controls
 
-**Status:** Validation passed — UAT 5/5, threats_open: 0, and Nyquist-compliant on 2026-06-20; ready for milestone audit.
+**Status:** Milestone audit passed — 8/8 requirements satisfied on 2026-06-20; ready for milestone completion.
 
 **Success Criteria:**
 - Recent Logs shows a Pause/Start control whose paused state affects only the current browser tab/session.

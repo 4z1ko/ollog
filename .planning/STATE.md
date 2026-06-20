@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.7
 milestone_name: Admin Log Controls
-status: validated
-stopped_at: Phase 70 validation passed
-last_updated: "2026-06-20T10:45:00Z"
+status: milestone_audit_passed
+stopped_at: v3.7 milestone audit passed
+last_updated: "2026-06-20T10:55:00Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20 after starting v3.7 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 70 Admin Application Log Controls — validation passed; ready for milestone audit.
+**Current focus:** v3.7 Admin Log Controls — milestone audit passed; ready to complete milestone.
 
 ## Current Position
 
 Milestone: v3.7 Admin Log Controls
 Phase: 70 Admin Application Log Controls
 Plan: 70-01 completed
-Status: Validation passed; ready for `/gsd-audit-milestone`
+Status: Milestone audit passed; ready for `/gsd-complete-milestone v3.7`
 Last activity: 2026-06-20
 
 ```
@@ -166,6 +166,7 @@ v3.7 Progress: [████████████████████] 10
 - Phase 70 UAT verified: 5/5 user-facing checks passed for Recent Logs header controls, pause suppression, start reconciliation, clear confirmation, and confirmed clear safety/preservation behavior (2026-06-20)
 - Phase 70 security verified: 7/7 plan-time threats closed, `threats_open: 0`, no accepted risks; evidence covers `ApplicationLog`-only delete scope, post-clear audit ordering, audit failure isolation, current-browser pause scope, explicit refresh preservation, confirmation wording, and compact responsive controls (2026-06-20)
 - Phase 70 validation passed: LOGCTRL-01 through LOGCTRL-08 have automated/source/doc evidence, `70-VALIDATION.md` is Nyquist-compliant, and no manual-only validation gaps remain (2026-06-20)
+- v3.7 milestone audit passed: 8/8 requirements satisfied, Phase 70 complete, integration and E2E flows verified, no critical gaps or tech debt, and `.planning/v3.7-MILESTONE-AUDIT.md` created (2026-06-20)
 
 ### v3.7 Phase Structure
 
