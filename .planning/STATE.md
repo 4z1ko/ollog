@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v3.6
 milestone_name: Internal Application Logging
-status: active
-stopped_at: v3.6 milestone audit passed
+status: between_milestones
+stopped_at: v3.6 milestone archived
 last_updated: "2026-06-20T08:32:32Z"
 last_activity: 2026-06-20
 progress:
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
+See: .planning/PROJECT.md (updated 2026-06-20 after completing v3.6 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Internal application logging for admin operational visibility.
+**Current focus:** Planning the next milestone.
 
 ## Current Position
 
 Milestone: v3.6 Internal Application Logging
-Phase: 69 Core Flow Instrumentation and Documentation
-Plan: 69-01 validated
-Status: v3.6 milestone audit passed; ready for milestone completion
+Phase: 67-69 archived
+Plan: 3/3 completed
+Status: v3.6 archived; ready for next milestone planning
 Last activity: 2026-06-20
 
 ```
@@ -156,6 +156,7 @@ v3.6 Progress: [████████████████████] 10
 - Phase 69 security verified: 6/6 plan-time threats closed, `threats_open: 0`, no accepted risks; `69-SECURITY.md` records evidence for safe metadata, failure isolation, unchanged QSO behavior, CALL/MYCALL/OPERATOR safety, severity discipline, and async logger dispatch (2026-06-19)
 - Phase 69 validation passed: OBS-01 through OBS-05 have automated/source/UAT/security evidence, `69-VALIDATION.md` is Nyquist-compliant with no manual-only gaps, and focused validation passed with 53 tests (2026-06-19)
 - v3.6 milestone audit passed: 17/17 requirements satisfied, 3/3 phases complete, integration and E2E flows verified, no critical gaps, and `.planning/v3.6-MILESTONE-AUDIT.md` created (2026-06-20)
+- v3.6 milestone archived: roadmap, requirements, milestone audit, and phase directories copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, `MILESTONES.md` and retrospective updated, and PROJECT.md moved to between-milestones state (2026-06-20)
 
 ### v3.5 Phase Structure
 
@@ -247,7 +248,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-20 (v3.6 milestone audit passed)
-Stopped at: v3.6 Internal Application Logging ready for milestone completion.
-Resume file: `.planning/v3.6-MILESTONE-AUDIT.md`
-Next: run `/gsd-complete-milestone v3.6`
+Last session: 2026-06-20 (v3.6 milestone archived)
+Stopped at: ready to start the next milestone.
+Resume file: `.planning/milestones/v3.6-ROADMAP.md`
+Next: run `/gsd-new-milestone`

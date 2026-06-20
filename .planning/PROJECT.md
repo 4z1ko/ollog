@@ -10,8 +10,8 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 
 ## Current State
 
-**Shipped through:** v3.5 ACLog Registered Operator Routing (2026-06-16)
-**Current milestone:** v3.6 Internal Application Logging
+**Shipped through:** v3.6 Internal Application Logging (2026-06-20)
+**Current milestone:** Between milestones — ready to plan v3.7
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
@@ -21,11 +21,13 @@ All operator/admin full-page web surfaces now inherit one shared ICO favicon bas
 
 Shared remote ACLog computers are safe for multiple ollog operators: live bridge imports and manual sync records are filtered through ACLog record-level `OPERATOR` identity, and missing or unmatched ACLog operator records are skipped and reported instead of being imported to the bridge owner's collection.
 
-## Current Milestone: v3.6 Internal Application Logging
+Administrators now have MongoDB-backed internal application logs with configurable severity thresholding, retention, sensitive-value masking, live/near-live admin viewing, filters, and instrumentation across service lifecycle, QSO ingestion, UDP, ACLog, authentication, token, admin, backup, restore, and log-settings flows.
 
-**Goal:** Give administrators MongoDB-backed operational visibility into QSO ingestion, bridge connectivity, and service health without exposing secrets or changing existing QSO behavior.
+## Shipped: v3.6 Internal Application Logging (2026-06-20)
 
-**Target features:**
+**Goal achieved:** Administrators have MongoDB-backed operational visibility into QSO ingestion, bridge connectivity, and service health without exposing secrets or changing existing QSO behavior.
+
+**Delivered:**
 - Reusable internal application logger with configurable `Trace`, `Debug`, `Info`, `Warn`, `Error`, and `Fatal` thresholding.
 - MongoDB log storage with structured metadata, sensitive-value masking, indexes, live broadcast support, and default 30-day retention.
 - Admin configuration and live log viewer with filters for level, source/module, text, and date/time range.
@@ -43,12 +45,7 @@ Shared remote ACLog computers are safe for multiple ollog operators: live bridge
 
 ### Active
 
-- [x] Administrators can configure the internal application minimum log level from the admin area, defaulting to `Info`.
-- [x] Internal application logs are stored in MongoDB only when they meet or exceed the configured threshold.
-- [x] Administrators can view recent application logs in a live-updating admin page with level/source/text/date filters.
-- [x] Application log records include timestamp, level, source/module, message, event type, correlation/request ID when available, QSO/bridge/remote-software/transport context when relevant, structured metadata, and sanitized error details.
-- [x] Log retention prevents unbounded MongoDB growth, defaulting to 30 days.
-- [x] Important service, QSO ingestion, UDP, ACLog bridge, authentication, and admin configuration events are logged without exposing passwords, API keys, tokens, secrets, or full connection strings.
+None. Start the next milestone with `/gsd-new-milestone`.
 
 ### Validated (v3.5)
 
@@ -557,4 +554,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-16 after completing v3.5 ACLog Registered Operator Routing*
+*Last updated: 2026-06-20 after completing v3.6 Internal Application Logging*

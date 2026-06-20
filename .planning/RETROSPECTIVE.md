@@ -285,6 +285,51 @@
 
 ---
 
+## Milestone: v3.6 — Internal Application Logging
+
+**Shipped:** 2026-06-20
+**Phases:** 3 (67-69) | **Plans:** 3 | **Sessions:** ~8
+
+### What Was Built
+
+- MongoDB-backed internal application logging with configurable levels, structured metadata, sensitive-value masking, live broadcast plumbing, indexes, and TTL retention.
+- Admin Logs configuration/viewer with filters, Previous/Next pagination, formatted collapsed JSON metadata/error details, and live/near-live updates.
+- Instrumentation across lifecycle, QSO API/UI/import, UDP, ACLog live/manual sync, authentication, token, admin, backup, restore, and log-settings flows.
+- Focused event-contract tests, UAT, security review, Nyquist validation, and milestone audit covering 17/17 requirements.
+
+### What Worked
+
+- **Reconcile-gaps phases.** Phase 67 shipped a broad foundation, then Phases 68 and 69 closed precise viewer/instrumentation gaps without reimplementing the system.
+- **Fake app logger tests.** Exact event-contract coverage was possible without requiring live MongoDB.
+- **Conversational UAT.** UAT found real operational issues in live log rendering, cross-process visibility, and polling state preservation that automated checks alone would not have surfaced.
+
+### What Was Inefficient
+
+- **Planning state lagged behind phase artifacts.** `PROJECT.md`, `REQUIREMENTS.md`, `ROADMAP.md`, and `STATE.md` needed synchronization during milestone audit.
+- **`gsd-sdk` was unavailable in this shell.** Audit and milestone completion had to be performed manually from `.planning/` artifacts.
+- **MkDocs generated output churn.** Strict docs builds continued to produce generated `site/` changes that needed restoring after verification.
+
+### Patterns Established
+
+- **Application log call sites should log safe identifiers and counts.** Logger sanitization remains a second layer, not the first line of defense.
+- **Admin live views spanning multiple processes need polling fallback.** In-memory SSE queues do not cross process boundaries.
+- **Live row rendering should reuse server-rendered partials.** That avoids divergent client/server formatting.
+- **Polling refreshes should preserve expanded detail state.** Stable row/detail keys make this reliable.
+
+### Key Lessons
+
+1. **Observability features need UX UAT.** It is not enough that records are stored; admins must see them appear correctly.
+2. **Cross-process architecture changes “live” semantics.** A near-live polling fallback can be the correct reliability layer.
+3. **Keep `CALL`/`MYCALL`/`OPERATOR` semantics explicit.** Incorrect station attribution can become an operational security bug.
+
+### Cost Observations
+
+- Model: Codex/GPT-5 throughout
+- Sessions: multiple short UAT/fix/verification turns across Phases 67-69
+- Notable: Focused pytest suites gave fast feedback; Phase 69 audit ran 53 relevant tests in under a second on this host.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution

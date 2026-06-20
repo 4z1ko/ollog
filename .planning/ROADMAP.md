@@ -28,55 +28,22 @@
 - ✅ **v3.3 ACLog QSO Sync** — Phase 64 (shipped 2026-06-13)
 - ✅ **v3.4 Responsive Favicon** — Phase 65 (shipped 2026-06-13)
 - ✅ **v3.5 ACLog Registered Operator Routing** — Phase 66 (shipped 2026-06-16)
-- ◆ **v3.6 Internal Application Logging** — Phases 67–69 (active)
+- ✅ **v3.6 Internal Application Logging** — Phases 67–69 (shipped 2026-06-20)
 
 
 ## Phases
 
-### ◆ v3.6 Internal Application Logging — ACTIVE
+<details>
+<summary>✅ v3.6 Internal Application Logging (Phases 67–69) — SHIPPED 2026-06-20</summary>
 
-**Milestone Goal:** Give administrators MongoDB-backed operational visibility into QSO ingestion, bridge connectivity, and service health without exposing secrets or changing existing QSO behavior.
+- [x] Phase 67: Logging Foundation (1/1 plan) — completed 2026-06-18
+- [x] Phase 68: Admin Log Configuration and Viewer (1/1 plan) — completed 2026-06-19
+- [x] Phase 69: Core Flow Instrumentation and Documentation (1/1 plan) — completed 2026-06-19
 
-| Phase | Name | Goal | Requirements |
-|-------|------|------|--------------|
-| 67 ✅ | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
-| 68 ✅ | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
-| 69 ✅ | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
+Full archive: `.planning/milestones/v3.6-ROADMAP.md`
+Phase artifacts: `.planning/milestones/v3.6-phases/`
 
-#### Phase 67: Logging Foundation
-
-**Status:** Validated 2026-06-19. Summary written to `.planning/phases/67-logging-foundation/67-01-SUMMARY.md`; UAT written to `.planning/phases/67-logging-foundation/67-UAT.md` with 7/7 checks passing and 0 gaps; security review written to `.planning/phases/67-logging-foundation/67-SECURITY.md` with 7/7 retroactive STRIDE threats closed and `threats_open: 0`; validation written to `.planning/phases/67-logging-foundation/67-VALIDATION.md` with LOG-01 through LOG-06 Nyquist-compliant.
-
-**Note:** The implementation commit also includes admin log viewer/configuration and broad instrumentation that overlap Phases 68 and 69. Reconcile those phases against existing work before reimplementing.
-
-Success criteria:
-1. Log model and settings model initialize with Beanie and store records in MongoDB.
-2. Logger drops records below the active threshold and saves records at or above it.
-3. Sensitive metadata/error fields are masked before storage.
-4. Retention uses an expiry field/index so logs do not grow forever.
-5. Focused tests cover thresholding, masking, retention fields, and indexes.
-
-#### Phase 68: Admin Log Configuration and Viewer
-
-**Status:** Validated 2026-06-19. Summary written to `.planning/phases/68-admin-log-configuration-and-viewer/68-01-SUMMARY.md`; Phase 68 reconciled against Phase 67's already-shipped admin log viewer/configuration, added filter-preserving simple Previous/Next pagination controls, preserved immediate live inserts, formatted collapsed metadata/error details as readable JSON, passed focused pytest, compile, Tailwind, docs, and diff checks, and has complete UAT, security, and validation artifacts.
-
-Success criteria:
-1. Admin can set minimum level and retention days from the admin UI.
-2. Admin Logs page shows recent logs from MongoDB with pagination.
-3. Filters work for level, source/module, text, and date/time range.
-4. Logs update live through SSE or near-live fallback using existing admin auth patterns.
-5. UI explains the six log levels and default `Info` behavior.
-
-#### Phase 69: Core Flow Instrumentation and Documentation
-
-**Status:** Validated 2026-06-19. Research written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-RESEARCH.md`; implementation plan written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-PLAN.md`; summary written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md`; UAT/security/validation artifacts are complete with no open gaps. Phase 69 added safe internal logs for ADIF import, manual ACLog sync, operator/OAuth auth, and API-token actions; updated application log documentation; and passed focused regression checks.
-
-Success criteria:
-1. Startup/shutdown, MongoDB, UDP listener, ACLog bridge, and backup scheduler lifecycle events are logged.
-2. QSO receive, validation, insert, update, delete, duplicate, and import outcomes are logged across API/UI paths.
-3. UDP and ACLog receive/parse/import/skip/error events include source/transport context without secrets.
-4. Auth/admin actions and log configuration changes are logged without credentials.
-5. Documentation and focused tests verify existing QSO behavior remains unchanged.
+</details>
 
 <details>
 <summary>✅ v1.0 MVP (Phases 1–6) — SHIPPED 2026-04-04</summary>

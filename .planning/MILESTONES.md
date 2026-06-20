@@ -1,5 +1,27 @@
 # Milestones
 
+## v3.6 Internal Application Logging (Shipped: 2026-06-20)
+
+**Phases:** 67–69 (3 phases) | **Plans:** 3 | **Timeline:** 2026-06-18 → 2026-06-20 (3 days)
+**Requirements:** 17/17 satisfied | **UAT:** 18/18 passed | **Audit:** PASS
+
+**Key accomplishments:**
+
+- Added MongoDB-backed `ApplicationLog` and `ApplicationLogSettings` models with severity ordering, threshold settings, TTL retention, query indexes, and live broadcast plumbing.
+- Added a reusable failure-isolated internal logger that masks sensitive metadata and MongoDB URI credentials before storage and broadcast.
+- Added an admin Logs page with level/source/search/date filters, configurable minimum level and retention days, Previous/Next pagination, formatted collapsed JSON details, and live/near-live updates.
+- Instrumented service lifecycle, MongoDB, QSO API/UI/import paths, UDP ingest/callbacks, ACLog live bridge/manual sync, authentication, token, admin, backup, restore, and log-settings flows.
+- Fixed UAT-discovered live viewer issues: server-rendered live rows, cross-process polling fallback for manual sync logs, and preservation of open metadata/error detail sections during polling refresh.
+- Completed focused tests, UAT, security review, Nyquist validation, and milestone audit with no critical gaps.
+
+**Stats:** 59 files changed, +5539 / -87 lines across planning, code, docs, templates, generated CSS, and tests; 30 commits in the v3.6 slice before final archive commits.
+
+**Known deferred items at close:** 0 critical gaps. Notes: formal `*-VERIFICATION.md` artifacts are absent for phases 67-69, with equivalent evidence in SUMMARY, UAT, SECURITY, VALIDATION, and milestone audit artifacts; full-suite MongoDB-backed tests remain host-environment-sensitive when the local replica-set hostname is unresolved.
+
+**Archive:** `.planning/milestones/v3.6-ROADMAP.md` | `.planning/milestones/v3.6-REQUIREMENTS.md` | `.planning/milestones/v3.6-MILESTONE-AUDIT.md` | `.planning/milestones/v3.6-phases/`
+
+---
+
 ## v3.5 ACLog Registered Operator Routing (Shipped: 2026-06-16)
 
 **Phases:** 66 (1 phase) | **Plans:** 1 | **Timeline:** 2026-06-16 → 2026-06-16 (1 day)
