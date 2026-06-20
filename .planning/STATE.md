@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v3.6
 milestone_name: Internal Application Logging
 status: active
-stopped_at: phase 69 executed
-last_updated: "2026-06-19T00:00:00Z"
-last_activity: 2026-06-19
+stopped_at: v3.6 milestone audit passed
+last_updated: "2026-06-20T08:32:32Z"
+last_activity: 2026-06-20
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 3
   completed_plans: 3
   percent: 100
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-06-18 after starting v3.6 milestone)
 
 Milestone: v3.6 Internal Application Logging
 Phase: 69 Core Flow Instrumentation and Documentation
-Plan: 69-01 executed
-Status: Phase 69 ready for verification
-Last activity: 2026-06-19
+Plan: 69-01 validated
+Status: v3.6 milestone audit passed; ready for milestone completion
+Last activity: 2026-06-20
 
 ```
-v3.6 Progress: [████████████████████] 100% (2/3 phases, 3/3 plans)
+v3.6 Progress: [████████████████████] 100% (3/3 phases, 3/3 plans)
 ```
 
 ## Performance Metrics
@@ -151,6 +151,11 @@ v3.6 Progress: [████████████████████] 10
 - Phase 68 UI-SPEC approved: reuse existing admin card/table/form design system, add compact Previous/Next controls, keep immediate live inserts, format collapsed metadata/error as readable JSON, and avoid a broader admin log redesign or new UI dependencies (2026-06-19)
 - Phase 68 planned: one focused reconcile-gaps plan covers tests, pagination context/helpers, compact Previous/Next controls, formatted collapsed JSON details, docs, and focused verification without reimplementing shipped Phase 67 admin log work (2026-06-19)
 - Phase 68 executed: admin Logs now has filter-preserving Previous/Next pagination, server-rendered and live SSE rows render collapsed metadata/error details as formatted JSON, focused pagination/detail tests were added, docs updated, and verification passed with pytest, compileall, Tailwind build/verify, MkDocs strict build, and `git diff --check` (2026-06-19)
+- Phase 68 UAT, security, and validation completed: 5/5 UAT checks passed, 5/5 plan-time threats closed, and `68-VALIDATION.md` is Nyquist-compliant with no manual-only gaps (2026-06-19)
+- Phase 69 UAT verified: 6/6 checks passed after fixing live row rendering, cross-process polling fallback, and open metadata/detail preservation; `69-UAT.md` marked complete with 0 open gaps (2026-06-19)
+- Phase 69 security verified: 6/6 plan-time threats closed, `threats_open: 0`, no accepted risks; `69-SECURITY.md` records evidence for safe metadata, failure isolation, unchanged QSO behavior, CALL/MYCALL/OPERATOR safety, severity discipline, and async logger dispatch (2026-06-19)
+- Phase 69 validation passed: OBS-01 through OBS-05 have automated/source/UAT/security evidence, `69-VALIDATION.md` is Nyquist-compliant with no manual-only gaps, and focused validation passed with 53 tests (2026-06-19)
+- v3.6 milestone audit passed: 17/17 requirements satisfied, 3/3 phases complete, integration and E2E flows verified, no critical gaps, and `.planning/v3.6-MILESTONE-AUDIT.md` created (2026-06-20)
 
 ### v3.5 Phase Structure
 
@@ -242,7 +247,7 @@ Items acknowledged and deferred at v2.8 milestone close on 2026-05-18:
 
 ## Session Continuity
 
-Last session: 2026-06-19 (Phase 68 executed)
-Stopped at: Phase 68 Admin Log Configuration and Viewer ready for UAT verification.
-Resume file: `.planning/milestones/v3.5-ROADMAP.md`
-Next: run `/gsd-new-milestone`
+Last session: 2026-06-20 (v3.6 milestone audit passed)
+Stopped at: v3.6 Internal Application Logging ready for milestone completion.
+Resume file: `.planning/v3.6-MILESTONE-AUDIT.md`
+Next: run `/gsd-complete-milestone v3.6`

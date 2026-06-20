@@ -41,7 +41,7 @@
 |-------|------|------|--------------|
 | 67 ✅ | Logging Foundation | Add MongoDB-backed log models, reusable logger service, level thresholding, masking, retention, indexes, and live broadcast plumbing. | LOG-01–LOG-06 |
 | 68 ✅ | Admin Log Configuration and Viewer | Add admin log settings, paginated/filterable log query API, live SSE stream, and HTMX/Jinja admin Logs page. | ADMINLOG-01–ADMINLOG-06 |
-| 69 ◆ | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
+| 69 ✅ | Core Flow Instrumentation and Documentation | Instrument startup, database, HTTP/UI QSO, UDP, ACLog, auth/admin actions; update docs and verify regression safety. | OBS-01–OBS-05 |
 
 #### Phase 67: Logging Foundation
 
@@ -58,7 +58,7 @@ Success criteria:
 
 #### Phase 68: Admin Log Configuration and Viewer
 
-**Status:** Executed 2026-06-19. Summary written to `.planning/phases/68-admin-log-configuration-and-viewer/68-01-SUMMARY.md`; Phase 68 reconciled against Phase 67's already-shipped admin log viewer/configuration, added filter-preserving simple Previous/Next pagination controls, preserved immediate live inserts, formatted collapsed metadata/error details as readable JSON, and passed focused pytest, compile, Tailwind, docs, and diff checks.
+**Status:** Validated 2026-06-19. Summary written to `.planning/phases/68-admin-log-configuration-and-viewer/68-01-SUMMARY.md`; Phase 68 reconciled against Phase 67's already-shipped admin log viewer/configuration, added filter-preserving simple Previous/Next pagination controls, preserved immediate live inserts, formatted collapsed metadata/error details as readable JSON, passed focused pytest, compile, Tailwind, docs, and diff checks, and has complete UAT, security, and validation artifacts.
 
 Success criteria:
 1. Admin can set minimum level and retention days from the admin UI.
@@ -69,7 +69,7 @@ Success criteria:
 
 #### Phase 69: Core Flow Instrumentation and Documentation
 
-**Status:** Executed 2026-06-19. Research written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-RESEARCH.md`; implementation plan written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-PLAN.md`; summary written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md`. Phase 69 added safe internal logs for ADIF import, manual ACLog sync, operator/OAuth auth, and API-token actions; updated application log documentation; and passed focused regression checks.
+**Status:** Validated 2026-06-19. Research written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-RESEARCH.md`; implementation plan written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-PLAN.md`; summary written to `.planning/phases/69-core-flow-instrumentation-and-documentation/69-01-SUMMARY.md`; UAT/security/validation artifacts are complete with no open gaps. Phase 69 added safe internal logs for ADIF import, manual ACLog sync, operator/OAuth auth, and API-token actions; updated application log documentation; and passed focused regression checks.
 
 Success criteria:
 1. Startup/shutdown, MongoDB, UDP listener, ACLog bridge, and backup scheduler lifecycle events are logged.

@@ -43,12 +43,12 @@ Shared remote ACLog computers are safe for multiple ollog operators: live bridge
 
 ### Active
 
-- [ ] Administrators can configure the internal application minimum log level from the admin area, defaulting to `Info`.
-- [ ] Internal application logs are stored in MongoDB only when they meet or exceed the configured threshold.
-- [ ] Administrators can view recent application logs in a live-updating admin page with level/source/text/date filters.
-- [ ] Application log records include timestamp, level, source/module, message, event type, correlation/request ID when available, QSO/bridge/remote-software/transport context when relevant, structured metadata, and sanitized error details.
-- [ ] Log retention prevents unbounded MongoDB growth, defaulting to 30 days.
-- [ ] Important service, QSO ingestion, UDP, ACLog bridge, authentication, and admin configuration events are logged without exposing passwords, API keys, tokens, secrets, or full connection strings.
+- [x] Administrators can configure the internal application minimum log level from the admin area, defaulting to `Info`.
+- [x] Internal application logs are stored in MongoDB only when they meet or exceed the configured threshold.
+- [x] Administrators can view recent application logs in a live-updating admin page with level/source/text/date filters.
+- [x] Application log records include timestamp, level, source/module, message, event type, correlation/request ID when available, QSO/bridge/remote-software/transport context when relevant, structured metadata, and sanitized error details.
+- [x] Log retention prevents unbounded MongoDB growth, defaulting to 30 days.
+- [x] Important service, QSO ingestion, UDP, ACLog bridge, authentication, and admin configuration events are logged without exposing passwords, API keys, tokens, secrets, or full connection strings.
 
 ### Validated (v3.5)
 
@@ -70,6 +70,23 @@ Shared remote ACLog computers are safe for multiple ollog operators: live bridge
 - ✓ **LOG-04:** Log records include structured operational context fields and sanitized error details — Phase 67.
 - ✓ **LOG-05:** Retention uses an `expires_at` TTL index with default 30-day behavior and supporting query indexes — Phase 67.
 - ✓ **LOG-06:** Live broadcast plumbing and focused tests verify logger behavior without requiring live MongoDB for core unit coverage — Phase 67.
+
+### Validated (v3.6 Phase 68)
+
+- ✓ **ADMINLOG-01:** Admin can configure the active minimum log level from the admin area — Phase 68.
+- ✓ **ADMINLOG-02:** Admin can configure log retention days from the admin area — Phase 68.
+- ✓ **ADMINLOG-03:** Admin can open a Logs page and see recent MongoDB-backed application logs — Phase 68.
+- ✓ **ADMINLOG-04:** Admin can filter logs by level, source/module, text search, and date/time range — Phase 68.
+- ✓ **ADMINLOG-05:** The Logs page updates live or near-live using SSE plus safe polling fallback — Phase 68.
+- ✓ **ADMINLOG-06:** Admin help text explains every log level and the default behavior — Phase 68.
+
+### Validated (v3.6 Phase 69)
+
+- ✓ **OBS-01:** Startup, shutdown, MongoDB, UDP listener, ACLog bridge manager, and backup scheduler lifecycle events are logged — Phase 69.
+- ✓ **OBS-02:** HTTP API/UI QSO receive, validation, insert, duplicate, update, delete, and import outcomes are logged — Phase 69.
+- ✓ **OBS-03:** UDP receive/parse/reject/accept/duplicate outcomes are logged with source/transport context — Phase 69.
+- ✓ **OBS-04:** ACLog live bridge and manual sync connect/import/skip/duplicate/error outcomes are logged — Phase 69.
+- ✓ **OBS-05:** Authentication and admin actions, including log-level changes, are logged without storing credentials — Phase 69.
 
 ### Validated (v3.4)
 

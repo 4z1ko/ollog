@@ -7,12 +7,12 @@
 
 ### Logging Foundation
 
-- [ ] **LOG-01**: Admin-visible internal logging supports the levels `Trace`, `Debug`, `Info`, `Warn`, `Error`, and `Fatal` in that severity order.
-- [ ] **LOG-02**: The app saves only log events at or above the configured minimum level, defaulting to `Info`.
-- [ ] **LOG-03**: Each saved log record includes timestamp, level, source/module, message, optional event type, optional correlation/request ID, optional QSO ID, optional bridge/source name, optional remote logging software name, transport type, structured metadata, and sanitized error details when relevant.
-- [ ] **LOG-04**: Sensitive values such as passwords, tokens, API keys, secrets, and full connection strings are masked before logs are stored.
-- [ ] **LOG-05**: Logs are stored in MongoDB with efficient indexes for timestamp, level, source/module, and correlation/request ID.
-- [ ] **LOG-06**: Log retention prevents unbounded growth, defaulting to 30 days and using an expiry mechanism compatible with configurable retention.
+- [x] **LOG-01**: Admin-visible internal logging supports the levels `Trace`, `Debug`, `Info`, `Warn`, `Error`, and `Fatal` in that severity order.
+- [x] **LOG-02**: The app saves only log events at or above the configured minimum level, defaulting to `Info`.
+- [x] **LOG-03**: Each saved log record includes timestamp, level, source/module, message, optional event type, optional correlation/request ID, optional QSO ID, optional bridge/source name, optional remote logging software name, transport type, structured metadata, and sanitized error details when relevant.
+- [x] **LOG-04**: Sensitive values such as passwords, tokens, API keys, secrets, and full connection strings are masked before logs are stored.
+- [x] **LOG-05**: Logs are stored in MongoDB with efficient indexes for timestamp, level, source/module, and correlation/request ID.
+- [x] **LOG-06**: Log retention prevents unbounded growth, defaulting to 30 days and using an expiry mechanism compatible with configurable retention.
 
 ### Admin Operations
 
@@ -25,11 +25,11 @@
 
 ### Instrumentation
 
-- [ ] **OBS-01**: Startup, shutdown, MongoDB connection success/failure, UDP listener state, ACLog bridge manager state, and backup scheduler state are logged.
-- [ ] **OBS-02**: HTTP API/UI QSO receive, validation failures, insert success, duplicate detection, update, delete, and import outcomes are logged.
-- [ ] **OBS-03**: UDP receive/parse/reject/accept/duplicate outcomes are logged.
-- [ ] **OBS-04**: ACLog bridge connect/disconnect/reconnect, manual sync, record import, skip, duplicate, and error outcomes are logged.
-- [ ] **OBS-05**: Authentication and admin actions, including log-level configuration changes, are logged without storing credentials.
+- [x] **OBS-01**: Startup, shutdown, MongoDB connection success/failure, UDP listener state, ACLog bridge manager state, and backup scheduler state are logged.
+- [x] **OBS-02**: HTTP API/UI QSO receive, validation failures, insert success, duplicate detection, update, delete, and import outcomes are logged.
+- [x] **OBS-03**: UDP receive/parse/reject/accept/duplicate outcomes are logged.
+- [x] **OBS-04**: ACLog bridge connect/disconnect/reconnect, manual sync, record import, skip, duplicate, and error outcomes are logged.
+- [x] **OBS-05**: Authentication and admin actions, including log-level configuration changes, are logged without storing credentials.
 
 ## Future Requirements
 
@@ -49,23 +49,23 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LOG-01 | Phase 67 | Pending |
-| LOG-02 | Phase 67 | Pending |
-| LOG-03 | Phase 67 | Pending |
-| LOG-04 | Phase 67 | Pending |
-| LOG-05 | Phase 67 | Pending |
-| LOG-06 | Phase 67 | Pending |
+| LOG-01 | Phase 67 | Complete |
+| LOG-02 | Phase 67 | Complete |
+| LOG-03 | Phase 67 | Complete |
+| LOG-04 | Phase 67 | Complete |
+| LOG-05 | Phase 67 | Complete |
+| LOG-06 | Phase 67 | Complete |
 | ADMINLOG-01 | Phase 68 | Complete |
 | ADMINLOG-02 | Phase 68 | Complete |
 | ADMINLOG-03 | Phase 68 | Complete |
 | ADMINLOG-04 | Phase 68 | Complete |
 | ADMINLOG-05 | Phase 68 | Complete |
 | ADMINLOG-06 | Phase 68 | Complete |
-| OBS-01 | Phase 69 | Pending |
-| OBS-02 | Phase 69 | Pending |
-| OBS-03 | Phase 69 | Pending |
-| OBS-04 | Phase 69 | Pending |
-| OBS-05 | Phase 69 | Pending |
+| OBS-01 | Phase 69 | Complete |
+| OBS-02 | Phase 69 | Complete |
+| OBS-03 | Phase 69 | Complete |
+| OBS-04 | Phase 69 | Complete |
+| OBS-05 | Phase 69 | Complete |
 
 **Coverage:**
 - v3.6 requirements: 17 total
@@ -74,4 +74,4 @@
 
 ---
 *Requirements defined: 2026-06-18*
-*Last updated: 2026-06-19 after Phase 68 execution*
+*Last updated: 2026-06-19 after v3.6 milestone audit*
