@@ -40,11 +40,11 @@
 
 | Phase | Name | Goal | Requirements |
 |-------|------|------|--------------|
-| 70 ◆ | Admin Application Log Controls | Add pause/resume and clear controls to the admin Recent Logs table while preserving logging settings, future log capture, and QSO data. | LOGCTRL-01–LOGCTRL-08 |
+| 70 ✓ | Admin Application Log Controls | Add pause/resume and clear controls to the admin Recent Logs table while preserving logging settings, future log capture, and QSO data. | LOGCTRL-01–LOGCTRL-08 |
 
 #### Phase 70: Admin Application Log Controls
 
-**Status:** Not started — ready for discussion/planning.
+**Status:** Executed — implementation complete 2026-06-20; ready for UAT verification.
 
 **Success Criteria:**
 - Recent Logs shows a Pause/Start control whose paused state affects only the current browser tab/session.
