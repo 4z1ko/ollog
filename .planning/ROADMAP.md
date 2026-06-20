@@ -44,7 +44,7 @@
 
 #### Phase 70: Admin Application Log Controls
 
-**Status:** UAT verified — 5/5 checks passed 2026-06-20; ready for security review.
+**Status:** Security verified — UAT 5/5 passed and threats_open: 0 on 2026-06-20; ready for validation.
 
 **Success Criteria:**
 - Recent Logs shows a Pause/Start control whose paused state affects only the current browser tab/session.

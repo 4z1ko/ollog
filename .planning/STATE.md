@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.7
 milestone_name: Admin Log Controls
-status: verified
-stopped_at: Phase 70 UAT verified
-last_updated: "2026-06-20T10:16:00Z"
+status: security_verified
+stopped_at: Phase 70 security verified
+last_updated: "2026-06-20T10:30:00Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-20 after starting v3.7 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Phase 70 Admin Application Log Controls — UAT verified; ready for security review.
+**Current focus:** Phase 70 Admin Application Log Controls — security verified; ready for validation.
 
 ## Current Position
 
 Milestone: v3.7 Admin Log Controls
 Phase: 70 Admin Application Log Controls
 Plan: 70-01 completed
-Status: UAT verified; ready for `/gsd-secure-phase 70`
+Status: Security verified; ready for `/gsd-validate-phase 70`
 Last activity: 2026-06-20
 
 ```
@@ -164,10 +164,11 @@ v3.7 Progress: [████████████████████] 10
 - Phase 70 planned: one test-first implementation plan covers admin log pause/start client behavior, application log clear helper/routes/modal, post-clear audit row, docs, and focused verification (2026-06-20)
 - Phase 70 executed: Recent Logs now has current-browser Pause/Start controls, confirmation-gated Clear Log Messages, `ApplicationLog`-only clear helper, post-clear forced audit event, docs, CSS rebuild, and focused tests passing (2026-06-20)
 - Phase 70 UAT verified: 5/5 user-facing checks passed for Recent Logs header controls, pause suppression, start reconciliation, clear confirmation, and confirmed clear safety/preservation behavior (2026-06-20)
+- Phase 70 security verified: 7/7 plan-time threats closed, `threats_open: 0`, no accepted risks; evidence covers `ApplicationLog`-only delete scope, post-clear audit ordering, audit failure isolation, current-browser pause scope, explicit refresh preservation, confirmation wording, and compact responsive controls (2026-06-20)
 
 ### v3.7 Phase Structure
 
-- **Phase 70** — Admin Application Log Controls: add current-tab pause/resume behavior for Recent Logs live updates, add confirmation-gated clear of stored application log records, preserve settings and unrelated data, and cover behavior with focused tests/docs. Executed 2026-06-20.
+- **Phase 70** — Admin Application Log Controls: add current-tab pause/resume behavior for Recent Logs live updates, add confirmation-gated clear of stored application log records, preserve settings and unrelated data, and cover behavior with focused tests/docs. Security verified 2026-06-20.
 
 ### v3.5 Phase Structure
 
