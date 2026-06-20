@@ -1,0 +1,104 @@
+# v3.7 Requirements — Admin Log Controls
+
+## Milestone Goal
+
+Give administrators explicit control over the Application Logs Recent Logs table: pause or restart near-live row updates in the current browser tab, and clear stored application log records after confirmation, without affecting log settings, retention, QSO data, or future logging.
+
+## In Scope
+
+- Current-browser Pause/Start control for the Recent Logs live feed.
+- Confirmation-gated Clear Log Messages action on the admin Application Logs page.
+- Server-side clear action for MongoDB-backed application log records.
+- UI refresh/empty-state behavior after clear.
+- Focused tests and admin-facing help/docs for the new controls.
+
+## Out of Scope
+
+- Exporting/downloading logs.
+- Clearing only filtered/date-range logs.
+- Password-confirmed clear behavior.
+- Globally pausing log storage, SSE broadcasting, or polling for all browsers.
+- Deleting QSO/operator data or changing existing log retention/settings behavior.
+
+## Requirements
+
+### LOGCTRL-01 — Current-Tab Pause
+
+An admin can pause Recent Logs live updates for the current browser tab/session.
+
+Acceptance:
+- Pause does not stop server-side log storage.
+- Pause does not stop broadcasts or polling for other browser tabs.
+- Existing filters, pagination, and expanded metadata state are not reset merely by pausing.
+
+### LOGCTRL-02 — Resume Without Refresh
+
+An admin can resume Recent Logs live updates after pausing without refreshing the whole page.
+
+Acceptance:
+- Resuming reenables SSE row inserts and near-live polling fallback for the current browser tab.
+- The table reconciles recent records after resume so the admin does not need a manual page refresh.
+
+### LOGCTRL-03 — Visible Live Feed State
+
+The Recent Logs table clearly shows whether live updates are paused or running.
+
+Acceptance:
+- The control label/icon changes between Pause and Start/Resume states.
+- Paused state suppresses both immediate live row insertion and polling refreshes in that browser tab.
+- Running state restores the existing live/near-live behavior.
+
+### LOGCTRL-04 — Clear Confirmation
+
+An admin can start a Clear Log Messages action from the Application Logs page and must confirm before records are deleted.
+
+Acceptance:
+- The initial clear button does not delete records by itself.
+- A confirmation modal/dialog explains that application log records will be cleared.
+- Cancel/close leaves records unchanged.
+
+### LOGCTRL-05 — Clear Application Log Records
+
+Confirming Clear deletes stored application log records from MongoDB and updates the Recent Logs view.
+
+Acceptance:
+- Records in the application logs collection are deleted.
+- The Recent Logs table refreshes to show an empty or newly repopulated state.
+- Future logs can still be written after the clear.
+
+### LOGCTRL-06 — Admin-Only Safety
+
+Clear Log Messages is available only to authenticated admins and preserves unrelated state.
+
+Acceptance:
+- Existing admin authentication/authorization gates protect the clear route.
+- QSO records, users, API tokens, backups, and other collections are not modified.
+- `ApplicationLogSettings` and retention configuration are preserved.
+
+### LOGCTRL-07 — Clear Auditability and Continuity
+
+The application records useful operational context around clear actions where practical without preventing the clear itself.
+
+Acceptance:
+- Clear attempts/success/failure are logged or otherwise surfaced with count/context when feasible.
+- Logging remains operational after the clear completes.
+- Sensitive data is not included in clear-action metadata.
+
+### LOGCTRL-08 — Tests and Documentation
+
+The feature includes focused automated/source coverage and admin-facing explanation.
+
+Acceptance:
+- Tests cover pause/resume client behavior hooks or equivalent UI state logic.
+- Tests cover clear route authorization and database delete behavior.
+- Tests confirm log settings survive clear.
+- Tests or source checks confirm QSO/operator data is not targeted by clear logic.
+- Admin docs/help text explains Pause/Start and Clear Log Messages behavior.
+
+## Future Requirements
+
+- Export/download filtered application logs.
+- Clear by date range or active filters.
+- Password-confirmed clear for higher-friction destructive action.
+- Global admin control to pause all live log streams.
+- Cross-node coordination for live log stream controls in multi-instance deployments.

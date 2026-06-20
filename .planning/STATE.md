@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.6
-milestone_name: Internal Application Logging
-status: between_milestones
-stopped_at: v3.6 milestone archived
-last_updated: "2026-06-20T08:32:32Z"
+milestone: v3.7
+milestone_name: Admin Log Controls
+status: milestone_planned
+stopped_at: v3.7 milestone initialized
+last_updated: "2026-06-20T08:48:51Z"
 last_activity: 2026-06-20
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-20 after completing v3.6 milestone)
+See: .planning/PROJECT.md (updated 2026-06-20 after starting v3.7 milestone)
 
 **Core value:** Multiple operators can log QSOs simultaneously under their own callsigns without conflicts or data loss
-**Current focus:** Planning the next milestone.
+**Current focus:** v3.7 Admin Log Controls — add current-tab pause/start and confirmation-gated clear controls to the admin Application Logs Recent Logs table.
 
 ## Current Position
 
-Milestone: v3.6 Internal Application Logging
-Phase: 67-69 archived
-Plan: 3/3 completed
-Status: v3.6 archived; ready for next milestone planning
+Milestone: v3.7 Admin Log Controls
+Phase: 70 Admin Application Log Controls
+Plan: Not started
+Status: Milestone initialized; ready for `/gsd-discuss-phase 70`
 Last activity: 2026-06-20
 
 ```
-v3.6 Progress: [████████████████████] 100% (3/3 phases, 3/3 plans)
+v3.7 Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/1 phases, 0/0 plans)
 ```
 
 ## Performance Metrics
@@ -72,6 +72,7 @@ v3.6 Progress: [████████████████████] 10
 | v3.3 | 64 | 1 |
 | v3.4 | 65 | 1 |
 | v3.5 | 66 | 1 |
+| v3.6 | 67–69 | 3 |
 
 ## Accumulated Context
 
@@ -157,6 +158,11 @@ v3.6 Progress: [████████████████████] 10
 - Phase 69 validation passed: OBS-01 through OBS-05 have automated/source/UAT/security evidence, `69-VALIDATION.md` is Nyquist-compliant with no manual-only gaps, and focused validation passed with 53 tests (2026-06-19)
 - v3.6 milestone audit passed: 17/17 requirements satisfied, 3/3 phases complete, integration and E2E flows verified, no critical gaps, and `.planning/v3.6-MILESTONE-AUDIT.md` created (2026-06-20)
 - v3.6 milestone archived: roadmap, requirements, milestone audit, and phase directories copied to `.planning/milestones/`, active requirements removed for the next milestone cycle, `MILESTONES.md` and retrospective updated, and PROJECT.md moved to between-milestones state (2026-06-20)
+- v3.7 milestone started: Admin Log Controls will add current-browser Pause/Start live-feed control and confirmation-gated Clear Log Messages action to the admin Application Logs Recent Logs table while preserving logging settings, QSO data, and future log capture (2026-06-20)
+
+### v3.7 Phase Structure
+
+- **Phase 70** — Admin Application Log Controls: add current-tab pause/resume behavior for Recent Logs live updates, add confirmation-gated clear of stored application log records, preserve settings and unrelated data, and cover behavior with focused tests/docs.
 
 ### v3.5 Phase Structure
 

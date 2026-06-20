@@ -11,7 +11,7 @@ Multiple operators can log QSOs simultaneously under their own callsigns without
 ## Current State
 
 **Shipped through:** v3.6 Internal Application Logging (2026-06-20)
-**Current milestone:** Between milestones — ready to plan v3.7
+**Current milestone:** v3.7 Admin Log Controls
 
 Operators now store QSO records in dedicated MongoDB collections named `<username>_qsos`. Legacy shared `qsos` data can be migrated idempotently into per-user collections, and runtime QSO workflows route by authenticated or resolved `User.username` while keeping `_operator` callsign semantics for ADIF/profile/display compatibility.
 
@@ -22,6 +22,16 @@ All operator/admin full-page web surfaces now inherit one shared ICO favicon bas
 Shared remote ACLog computers are safe for multiple ollog operators: live bridge imports and manual sync records are filtered through ACLog record-level `OPERATOR` identity, and missing or unmatched ACLog operator records are skipped and reported instead of being imported to the bridge owner's collection.
 
 Administrators now have MongoDB-backed internal application logs with configurable severity thresholding, retention, sensitive-value masking, live/near-live admin viewing, filters, and instrumentation across service lifecycle, QSO ingestion, UDP, ACLog, authentication, token, admin, backup, restore, and log-settings flows.
+
+## Current Milestone: v3.7 Admin Log Controls
+
+**Goal:** Give administrators explicit control over the Application Logs Recent Logs table without changing how application logging is stored, filtered, retained, or instrumented.
+
+**Scope:**
+- Add a Pause/Start live-feed control for the Recent Logs table that affects only the current browser tab/session.
+- Add a Clear Log Messages action that clears stored application log records only after an admin confirmation modal.
+- Preserve `ApplicationLogSettings`, retention behavior, severity thresholding, future log capture, and all existing QSO ingestion behavior.
+- Add focused tests and admin help/docs for the new controls and destructive clear behavior.
 
 ## Shipped: v3.6 Internal Application Logging (2026-06-20)
 
@@ -45,7 +55,14 @@ Administrators now have MongoDB-backed internal application logs with configurab
 
 ### Active
 
-None. Start the next milestone with `/gsd-new-milestone`.
+- **LOGCTRL-01:** Admin can pause Recent Logs live updates for the current browser tab without stopping server-side log storage or broadcasts — Phase 70.
+- **LOGCTRL-02:** Admin can resume Recent Logs live updates and reconcile recent records without a full page refresh — Phase 70.
+- **LOGCTRL-03:** Paused state visibly changes the control label/icon/status and suppresses both SSE row inserts and polling refreshes in that browser tab — Phase 70.
+- **LOGCTRL-04:** Admin can open a confirmation modal/dialog before clearing application log messages — Phase 70.
+- **LOGCTRL-05:** Confirming Clear deletes stored records from the MongoDB application logs collection and refreshes the Recent Logs table/empty state — Phase 70.
+- **LOGCTRL-06:** Clear Log Messages is admin-only, preserves log settings, and does not delete QSO/operator data — Phase 70.
+- **LOGCTRL-07:** Logging continues after clear; newly generated records can appear again once live feed is running — Phase 70.
+- **LOGCTRL-08:** Tests cover pause/resume behavior, clear authorization/delete behavior, settings preservation, table refresh/empty state, and safety around unrelated data — Phase 70.
 
 ### Validated (v3.5)
 
