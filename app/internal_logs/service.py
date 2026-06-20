@@ -288,4 +288,10 @@ async def query_logs(
     return items, total
 
 
+async def clear_application_logs() -> int:
+    """Delete stored application log records and return the deleted count."""
+    result = await ApplicationLog.find({}).delete_many()
+    return int(getattr(result, "deleted_count", 0))
+
+
 app_logger = InternalLogger()

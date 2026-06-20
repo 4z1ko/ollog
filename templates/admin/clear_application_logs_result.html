@@ -1,0 +1,13 @@
+<div id="admin-clear-application-logs-modal">
+  <div class="alert alert-success" role="alert">
+    Application logs cleared. {{ deleted }} log record{{ '' if deleted == 1 else 's' }} removed.
+    {% if not audit_saved %}
+      The clear succeeded, but the follow-up audit log message could not be written.
+    {% endif %}
+  </div>
+  <script>
+    if (window.refreshApplicationLogsTable) {
+      window.refreshApplicationLogsTable();
+    }
+  </script>
+</div>

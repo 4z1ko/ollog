@@ -21,6 +21,7 @@ from app.internal_logs.router import list_application_logs
 from app.internal_logs.service import (
     InternalLogger,
     LogSettingsSnapshot,
+    clear_application_logs,
     format_log_detail,
     log_to_dict,
     sanitize_metadata,
@@ -343,13 +344,170 @@ def test_admin_logs_live_insert_uses_current_table_body():
     assert "if (!row) row = rowHtml(log);" in script
     assert "function refreshLogsTable()" in script
     assert "htmx.ajax('GET', '/admin/ui/logs?' + logsQuery()" in script
-    assert "window.setInterval(refreshLogsTable, 5000);" in script
+    assert "window.setInterval(function ()" in script
+    assert "if (!logsLivePaused) refreshLogsTable();" in script
     assert "function openDetailKeys()" in script
     assert "function restoreOpenDetails(keys)" in script
     assert "var openKeys = openDetailKeys();" in script
     assert "restoreOpenDetails(openKeys);" in script
     assert "data-detail-kind=\"metadata\"" in Path("templates/admin/log_row.html").read_text()
     assert "data-detail-kind=\"error\"" in Path("templates/admin/log_row.html").read_text()
+
+
+def test_admin_logs_page_has_pause_start_and_clear_controls():
+    script = Path("templates/admin/logs.html").read_text()
+
+    assert 'id="logs-live-status"' in script
+    assert 'id="logs-live-toggle"' in script
+    assert "Pause" in script
+    assert "Start" in script
+    assert "PAUSED" in script
+    assert "Clear Log Messages" in script
+    assert "hx-get=\"/admin/ui/logs/clear/modal\"" in script
+    assert "hx-target=\"#admin-clear-application-logs-modal\"" in script
+    assert "function setLivePaused(paused)" in script
+    assert "logsLivePaused = paused;" in script
+    assert "liveToggle.setAttribute('aria-pressed'" in script
+    assert "if (logsLivePaused) return;" in script
+    assert "if (!logsLivePaused) refreshLogsTable();" in script
+    assert "window.refreshApplicationLogsTable = refreshLogsTable;" in script
+    assert "window.setInterval(function ()" in script
+    assert "if (!logsLivePaused) refreshLogsTable();" in script
+    assert "function refreshLogsTable()" in script
+    assert "hx-get=\"/admin/ui/logs\"" in script
+    assert "Page {{ page }}" in Path("templates/admin/logs_table.html").read_text()
+
+
+def test_clear_application_logs_modal_uses_safety_copy():
+    modal = Path("templates/admin/clear_application_logs_modal.html").read_text()
+
+    assert "Clear Application Logs" in modal
+    assert "Clear all application log messages from the database" in modal
+    assert "QSO records, users, and log settings are not affected" in modal
+    assert "hx-post=\"/admin/ui/logs/clear\"" in modal
+    assert "role=\"dialog\"" in modal
+    assert "aria-modal=\"true\"" in modal
+    assert "Clear Log Messages" in modal
+
+
+@pytest.mark.asyncio
+async def test_clear_application_logs_deletes_only_application_logs(monkeypatch):
+    captured = {}
+
+    class FakeDeleteQuery:
+        async def delete_many(self):
+            captured["delete_many_called"] = True
+            return SimpleNamespace(deleted_count=7)
+
+    def fake_find(query):
+        captured["query"] = query
+        return FakeDeleteQuery()
+
+    def forbidden_settings_find(*args, **kwargs):
+        raise AssertionError("ApplicationLogSettings must not be touched")
+
+    monkeypatch.setattr("app.internal_logs.service.ApplicationLog.find", fake_find)
+    monkeypatch.setattr(
+        "app.internal_logs.service.ApplicationLogSettings.find",
+        forbidden_settings_find,
+    )
+
+    deleted = await clear_application_logs()
+
+    assert deleted == 7
+    assert captured == {"query": {}, "delete_many_called": True}
+
+
+@pytest.mark.asyncio
+async def test_admin_logs_clear_modal_renders_confirmation(monkeypatch):
+    captured = {}
+
+    def fake_template_response(request, template_name, context):
+        captured["template"] = template_name
+        captured["context"] = context
+        return context
+
+    monkeypatch.setattr(admin_ui_router.templates, "TemplateResponse", fake_template_response)
+
+    await admin_ui_router.logs_clear_modal(
+        request=object(),
+        _admin=SimpleNamespace(username="admin"),
+    )
+
+    assert captured["template"] == "admin/clear_application_logs_modal.html"
+    assert captured["context"] == {"error": None}
+
+
+@pytest.mark.asyncio
+async def test_admin_logs_clear_confirm_deletes_then_force_logs(monkeypatch):
+    events = []
+    captured = {}
+
+    async def fake_clear_application_logs():
+        events.append("delete")
+        return 12
+
+    async def fake_info(message, **kwargs):
+        events.append("audit")
+        captured["message"] = message
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(id="audit-id")
+
+    def fake_template_response(request, template_name, context, status_code=200):
+        captured["template"] = template_name
+        captured["context"] = context
+        captured["status_code"] = status_code
+        return context
+
+    monkeypatch.setattr(admin_ui_router, "clear_application_logs", fake_clear_application_logs)
+    monkeypatch.setattr(admin_ui_router.app_logger, "info", fake_info)
+    monkeypatch.setattr(admin_ui_router.templates, "TemplateResponse", fake_template_response)
+
+    await admin_ui_router.logs_clear_confirm(
+        request=object(),
+        admin=SimpleNamespace(username="admin"),
+    )
+
+    assert events == ["delete", "audit"]
+    assert captured["message"] == "Application logs cleared"
+    assert captured["kwargs"]["event_type"] == "application_logs_cleared"
+    assert captured["kwargs"]["source"] == "admin.logs"
+    assert captured["kwargs"]["transport"] == "admin"
+    assert captured["kwargs"]["force"] is True
+    assert captured["kwargs"]["metadata"] == {"admin": "admin", "deleted_count": 12}
+    assert captured["template"] == "admin/clear_application_logs_result.html"
+    assert captured["context"] == {"deleted": 12, "audit_saved": True}
+    assert captured["status_code"] == 200
+
+
+@pytest.mark.asyncio
+async def test_admin_logs_clear_confirm_succeeds_when_audit_log_fails(monkeypatch):
+    captured = {}
+
+    async def fake_clear_application_logs():
+        return 3
+
+    async def fake_info(message, **kwargs):
+        return None
+
+    def fake_template_response(request, template_name, context, status_code=200):
+        captured["template"] = template_name
+        captured["context"] = context
+        captured["status_code"] = status_code
+        return context
+
+    monkeypatch.setattr(admin_ui_router, "clear_application_logs", fake_clear_application_logs)
+    monkeypatch.setattr(admin_ui_router.app_logger, "info", fake_info)
+    monkeypatch.setattr(admin_ui_router.templates, "TemplateResponse", fake_template_response)
+
+    await admin_ui_router.logs_clear_confirm(
+        request=object(),
+        admin=SimpleNamespace(username="admin"),
+    )
+
+    assert captured["template"] == "admin/clear_application_logs_result.html"
+    assert captured["context"] == {"deleted": 3, "audit_saved": False}
+    assert captured["status_code"] == 200
 
 
 @pytest.mark.asyncio

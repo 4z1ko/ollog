@@ -1,0 +1,26 @@
+<div id="admin-clear-application-logs-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="admin-clear-application-logs-title">
+    <h3 id="admin-clear-application-logs-title" class="modal-title">Clear Application Logs</h3>
+    <p class="modal-body">
+      Clear all application log messages from the database. QSO records, users, and log settings are not affected.
+    </p>
+    {% if error %}
+    <div class="alert alert-error" role="alert">{{ error }}</div>
+    {% endif %}
+    <form hx-post="/admin/ui/logs/clear"
+          hx-target="#admin-clear-application-logs-modal"
+          hx-swap="outerHTML">
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-danger">Clear Log Messages</button>
+        <button type="button"
+                class="btn btn-secondary"
+                hx-get="/admin/ui/logs/clear/cancel"
+                hx-target="#admin-clear-application-logs-modal"
+                hx-swap="outerHTML">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

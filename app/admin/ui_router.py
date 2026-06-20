@@ -24,6 +24,7 @@ from app.internal_logs.manager import log_manager
 from app.internal_logs.models import LOG_LEVELS, ApplicationLog
 from app.internal_logs.service import (
     app_logger,
+    clear_application_logs,
     format_log_detail,
     get_log_settings,
     log_to_dict,
@@ -492,6 +493,50 @@ async def logs_settings_update(
         "admin/logs_settings_result.html",
         {"settings": settings},
     )
+
+
+@ui_router.get("/logs/clear/modal", response_class=HTMLResponse)
+async def logs_clear_modal(
+    request: Request,
+    _admin: User = Depends(require_admin_cookie),
+):
+    """Return confirmation modal for clearing application log records."""
+    return templates.TemplateResponse(
+        request,
+        "admin/clear_application_logs_modal.html",
+        {"error": None},
+    )
+
+
+@ui_router.post("/logs/clear", response_class=HTMLResponse)
+async def logs_clear_confirm(
+    request: Request,
+    admin: User = Depends(require_admin_cookie),
+):
+    """Clear stored application logs and write a best-effort audit record."""
+    deleted = await clear_application_logs()
+    audit_log = await app_logger.info(
+        "Application logs cleared",
+        source="admin.logs",
+        event_type="application_logs_cleared",
+        transport="admin",
+        metadata={"admin": admin.username, "deleted_count": deleted},
+        force=True,
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/clear_application_logs_result.html",
+        {"deleted": deleted, "audit_saved": audit_log is not None},
+        status_code=200,
+    )
+
+
+@ui_router.get("/logs/clear/cancel", response_class=HTMLResponse)
+async def logs_clear_cancel(
+    _admin: User = Depends(require_admin_cookie),
+):
+    """Clear the application-log modal without a page reload."""
+    return HTMLResponse(content='<div id="admin-clear-application-logs-modal"></div>')
 
 
 @ui_router.get("/logs/events", response_class=EventSourceResponse)

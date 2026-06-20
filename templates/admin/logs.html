@@ -147,19 +147,35 @@
   </div>
 
   <div class="card overflow-hidden">
-    <div class="card-header">
+    <div class="card-header flex-wrap gap-3">
       <h2 class="card-title">Recent Logs</h2>
-      <span id="logs-live-status" class="badge-blue">LIVE</span>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <span id="logs-live-status" class="badge-blue">LIVE</span>
+        <button id="logs-live-toggle" type="button" class="btn-ghost btn-sm" aria-pressed="false">
+          Pause
+        </button>
+        <button type="button"
+                class="btn-danger-outline btn-sm"
+                hx-get="/admin/ui/logs/clear/modal"
+                hx-target="#admin-clear-application-logs-modal"
+                hx-swap="outerHTML">
+          Clear Log Messages
+        </button>
+      </div>
     </div>
     {% include "admin/logs_table.html" %}
   </div>
 </div>
 
+<div id="admin-clear-application-logs-modal"></div>
+
 <script>
 (function () {
   var source = new EventSource('/admin/ui/logs/events');
   var status = document.getElementById('logs-live-status');
+  var liveToggle = document.getElementById('logs-live-toggle');
   var filterForm = document.getElementById('logs-filter-form');
+  var logsLivePaused = false;
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
@@ -287,6 +303,21 @@
     });
   }
 
+  function setLiveStatus(text, className) {
+    if (!status) return;
+    status.textContent = text;
+    status.className = className;
+  }
+
+  function setLivePaused(paused) {
+    logsLivePaused = paused;
+    if (liveToggle) {
+      liveToggle.textContent = paused ? 'Start' : 'Pause';
+      liveToggle.setAttribute('aria-pressed', paused ? 'true' : 'false');
+    }
+    setLiveStatus(paused ? 'PAUSED' : 'LIVE', paused ? 'badge-gray' : 'badge-blue');
+  }
+
   function refreshLogsTable() {
     if (!window.htmx) return;
     var openKeys = openDetailKeys();
@@ -297,8 +328,17 @@
       restoreOpenDetails(openKeys);
     });
   }
+  window.refreshApplicationLogsTable = refreshLogsTable;
+
+  if (liveToggle) {
+    liveToggle.addEventListener('click', function () {
+      setLivePaused(!logsLivePaused);
+      if (!logsLivePaused) refreshLogsTable();
+    });
+  }
 
   source.addEventListener('app_log', async function (event) {
+    if (logsLivePaused) return;
     var tbody = currentLogTableBody();
     if (!tbody) return;
     var log = parseLogEventData(event.data);
@@ -321,10 +361,12 @@
   });
 
   source.onerror = function () {
-    if (status) status.textContent = 'OFFLINE';
+    if (!logsLivePaused) setLiveStatus('OFFLINE', 'badge-red');
   };
 
-  window.setInterval(refreshLogsTable, 5000);
+  window.setInterval(function () {
+    if (!logsLivePaused) refreshLogsTable();
+  }, 5000);
 })();
 </script>
 {% endblock %}

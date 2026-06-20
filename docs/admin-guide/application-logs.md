@@ -13,6 +13,19 @@ docker compose --profile admin up -d admin
 The Logs page shows recent records, updates live while the page is open, and
 supports filtering by level, source, text, and date/time range.
 
+Use **Pause** in **Recent Logs** to pause live row insertion and the near-live
+polling refresh in the current browser tab. Pause does not stop application log
+capture, MongoDB storage, server broadcasts, or other browser tabs. Filters,
+Reset, and Previous/Next pagination still refresh the table intentionally while
+paused. Use **Start** to resume live updates and immediately refresh recent rows.
+
+Use **Clear Log Messages** to clear all stored application log messages from the
+database after confirmation. This clears application log records, not just the
+currently displayed or filtered rows. QSO records, users, API tokens, backups,
+log settings, retention configuration, and future logging are not affected. When
+possible, ollog writes a fresh `application_logs_cleared` audit message after
+the clear with the deleted record count.
+
 Use **Previous** and **Next** at the bottom of the table to page through older
 records while keeping the active filters. Structured metadata and error details
 are collapsed by default and expand as formatted JSON for easier inspection.
@@ -52,7 +65,7 @@ types include:
 | ACLog live bridge | `bridge_connecting`, `bridge_connected`, `bridge_disconnected`, `bridge_reconnect_scheduled`, `bridge_qso_skipped`, `bridge_qso_processed` |
 | ACLog manual sync | `bridge_sync_started`, `bridge_sync_records_received`, `bridge_sync_qso_processed`, `bridge_sync_qso_skipped`, `bridge_sync_failed`, `bridge_sync_completed` |
 | Authentication and token actions | `operator_login_succeeded`, `operator_login_failed`, `oauth_login_succeeded`, `oauth_login_failed`, `api_token_created`, `api_token_revoked`, `operator_api_token_created`, `operator_api_token_revoked` |
-| Admin actions and settings | `admin_login_succeeded`, `admin_login_failed`, `admin_user_created`, `admin_user_updated`, `admin_user_deleted`, `log_settings_updated`, backup and restore events |
+| Admin actions and settings | `admin_login_succeeded`, `admin_login_failed`, `admin_user_created`, `admin_user_updated`, `admin_user_deleted`, `log_settings_updated`, `application_logs_cleared`, backup and restore events |
 
 QSO field names keep their ADIF meaning:
 
