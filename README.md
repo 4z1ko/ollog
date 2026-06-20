@@ -24,6 +24,17 @@ ollog is a self-hosted online logbook for amateur radio stations, clubs, field d
 
 The important bit: each user writes to a dedicated MongoDB collection named `<username>_qsos`, while QSO records still preserve the operator callsign fields expected by ADIF and radio logging workflows.
 
+## New In v3.7: Admin Log Controls
+
+v3.7 adds administrator controls to the **Application Logs** page:
+
+- **Pause/Start live feed:** Pause Recent Logs live row insertion and near-live polling in the current browser tab only. Server-side logging, MongoDB storage, broadcasts, and other browser tabs continue normally.
+- **Immediate resume:** Start restores live updates and refreshes the table so missed recent records appear without a full page reload.
+- **Clear Log Messages:** Admins can clear stored application log records after a confirmation modal. This clears the application log collection only; QSO records, users, API tokens, backups, log settings, retention configuration, and future logging are preserved.
+- **Audit continuity:** When possible, ollog writes a fresh `application_logs_cleared` audit record after clearing logs, including the admin username and deleted record count.
+
+No new environment variables, public REST API changes, or package version changes are required for this milestone. The operational change is limited to MongoDB-backed application log records and the admin Logs UI.
+
 ## Feature Highlights
 
 | Area | What ollog provides |
@@ -36,7 +47,7 @@ The important bit: each user writes to a dedicated MongoDB collection named `<us
 | UDP ADIF listener | Optional UDP listener accepts raw ADIF datagrams from compatible logging software and routes each QSO by token, OPERATOR field, or fallback config. |
 | ACLog bridge | Per-user N3FJP ACLog TCP bridges import saved contacts, request `LIST INCLUDEALL` full-record data, preserve Other fields, and fall back safely to `ENTEREVENT`. |
 | Operator profiles | Callsign, station callsign, name/email/QTH, grid square, lat/lon, rig, antenna, TX power, custom QSO fields, API tokens, sound alerts, and ACLog bridges. |
-| Admin tools | Operator management, enable/disable, password reset, full database backup/restore, and admin clear-log controls. |
+| Admin tools | Operator management, enable/disable, password reset, full database backup/restore, admin clear-log controls, and MongoDB-backed application log viewing/configuration. |
 | Documentation | Built-in MkDocs site served at `/guide`, including deployment, operator, admin, API, ADIF, environment, and troubleshooting guides. |
 
 ## Quick Start
@@ -226,7 +237,18 @@ The optional admin console is a separate FastAPI app on port `8001`:
 docker compose --profile admin up -d
 ```
 
-Use it to manage operators, reset passwords, run backups, restore backups, and clear an operator's log with admin password confirmation.
+Use it to manage operators, reset passwords, run backups, restore backups, clear an operator's log with admin password confirmation, and inspect application logs.
+
+### Application Logs
+
+The admin **Logs** page stores and displays internal application log records from MongoDB. Admins can:
+
+- Configure the minimum stored log level and retention period.
+- Filter logs by level, source, text, and date/time range.
+- Pause or restart live Recent Logs updates in the current browser tab.
+- Clear stored application log messages after confirmation.
+
+Clearing application log messages does not delete QSO records, users, API tokens, backups, or log settings. It removes records from the application logs collection and then attempts to write a fresh audit message.
 
 ## Backup And Restore
 
@@ -277,17 +299,20 @@ Repo docs:
 
 ## Project Status
 
-Current shipped milestone: **v3.2 ACLog Full-Record Import**.
+Current shipped milestone: **v3.7 Admin Log Controls**.
 
 Recent milestones:
 
 | Version | Focus |
 |---------|-------|
+| v3.7 | Admin Recent Logs Pause/Start and Clear Log Messages controls. |
+| v3.6 | MongoDB-backed internal application logging, admin viewer, live updates, and instrumentation. |
+| v3.5 | Shared remote ACLog operator identity routing. |
+| v3.4 | Responsive favicon integration. |
+| v3.3 | Manual ACLog bridge synchronization from Profile Settings. |
 | v3.2 | ACLog full-record import through `LIST INCLUDEALL`. |
 | v3.1 | Per-user MongoDB QSO collections. |
 | v3.0 | Configurable QSO Log View columns and custom fields. |
-| v2.8 | Operator/admin clear-log workflows. |
-| v2.7 | UTC date/time entry improvements. |
 
 See [`.planning/MILESTONES.md`](.planning/MILESTONES.md) for the full internal milestone history.
 
